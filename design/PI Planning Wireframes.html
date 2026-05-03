@@ -1,0 +1,1912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PI Planning — Wireframes</title>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=Caveat+Brush&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #f5f3ef; font-family: 'Caveat', cursive; }
+
+  /* Sketch global styles */
+  .sk-box {
+    border: 2px solid #222;
+    border-radius: 3px;
+    background: #fff;
+  }
+  .sk-box-dash {
+    border: 2px dashed #888;
+    border-radius: 3px;
+    background: #fafafa;
+  }
+  .sk-label {
+    font-family: 'Caveat', cursive;
+    font-size: 13px;
+    color: #444;
+  }
+  .sk-label-sm {
+    font-family: 'Caveat', cursive;
+    font-size: 11px;
+    color: #666;
+  }
+  .sk-title {
+    font-family: 'Caveat', cursive;
+    font-size: 16px;
+    font-weight: 700;
+    color: #111;
+  }
+  .sk-section {
+    font-family: 'Caveat', cursive;
+    font-size: 12px;
+    font-weight: 600;
+    color: #888;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .sk-btn {
+    border: 2px solid #222;
+    border-radius: 3px;
+    background: #fff;
+    font-family: 'Caveat', cursive;
+    font-size: 13px;
+    padding: 2px 8px;
+    cursor: default;
+    display: inline-block;
+  }
+  .sk-btn-fill {
+    background: #222;
+    color: #fff;
+  }
+  .sk-btn-amber {
+    background: #f5a623;
+    color: #111;
+    border-color: #c07d0a;
+  }
+  .sk-chip {
+    border: 1.5px solid #aaa;
+    border-radius: 10px;
+    background: #f0efed;
+    font-family: 'Caveat', cursive;
+    font-size: 11px;
+    padding: 1px 7px;
+    display: inline-block;
+    color: #444;
+  }
+  .sk-chip-amber {
+    background: #fef3d7;
+    border-color: #e5a200;
+    color: #8a5c00;
+  }
+  .sk-chip-warn {
+    background: #fff3cd;
+    border-color: #f0ad4e;
+    color: #7a4e00;
+  }
+  .sk-badge-warn {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    background: #fff3cd;
+    border: 1.5px solid #f0ad4e;
+    border-radius: 3px;
+    font-size: 11px;
+    padding: 0 4px;
+    color: #8a5c00;
+  }
+  .sk-sprint-col {
+    border-left: 2px solid #ddd;
+    flex: 1;
+    min-width: 0;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .sk-sprint-head {
+    background: #f0efed;
+    border: 1.5px solid #ccc;
+    border-radius: 2px;
+    padding: 3px 5px;
+    font-size: 12px;
+    font-family: 'Caveat', cursive;
+    text-align: center;
+  }
+  .sk-feature-pill {
+    background: #e8e5e0;
+    border: 2px solid #bbb;
+    border-radius: 3px;
+    padding: 3px 6px;
+    font-size: 12px;
+    font-family: 'Caveat', cursive;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 4px;
+  }
+  .sk-group-card {
+    background: #fff;
+    border: 2px solid #888;
+    border-radius: 3px;
+    padding: 4px 6px;
+    font-size: 11px;
+    font-family: 'Caveat', cursive;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .sk-pbi-row {
+    background: #f7f6f4;
+    border: 1.5px solid #ccc;
+    border-radius: 2px;
+    padding: 2px 5px;
+    font-size: 11px;
+    font-family: 'Caveat', cursive;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .sk-swimlane {
+    border: 2px solid #ccc;
+    border-radius: 3px;
+    background: #faf9f7;
+    display: flex;
+    flex-direction: row;
+    min-height: 80px;
+  }
+  .sk-swimlane-label {
+    writing-mode: vertical-lr;
+    transform: rotate(180deg);
+    font-size: 12px;
+    font-family: 'Caveat', cursive;
+    font-weight: 600;
+    color: #555;
+    background: #eee;
+    border-right: 2px solid #ccc;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px;
+    min-width: 22px;
+    text-align: center;
+  }
+  .sk-feature-zone {
+    border-right: 2px solid #ccc;
+    padding: 4px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    background: #f0eeea;
+  }
+  .sk-annotation {
+    font-family: 'Caveat', cursive;
+    font-size: 11px;
+    color: #e07b00;
+    border-bottom: 1px dashed #e07b00;
+    display: inline-block;
+  }
+  .sk-arrow {
+    color: #888;
+    font-size: 13px;
+  }
+  .sk-divider {
+    border: none;
+    border-top: 2px dashed #ccc;
+    margin: 6px 0;
+  }
+  .sk-lock-banner {
+    background: #fff3cd;
+    border: 2px solid #f0ad4e;
+    border-radius: 3px;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-family: 'Caveat', cursive;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #7a4e00;
+  }
+</style>
+</head>
+<body>
+
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel" src="design-canvas.jsx"></script>
+
+<script type="text/babel">
+
+/* ─── Shared mini-components ─────────────────────────────── */
+
+const Warn = ({ small }) => (
+  <span style={{fontSize: small ? 10 : 12, color:'#d97706', display:'inline-block'}}>⚠</span>
+);
+const Dep = () => <span style={{fontSize:10, color:'#888', border:'1px solid #bbb', borderRadius:2, padding:'0 3px', background:'#f5f5f5'}}>→</span>;
+const Effort = ({n}) => <span style={{fontSize:10, color:'#555', background:'#e8e5e0', border:'1px solid #ccc', borderRadius:10, padding:'0 5px'}}>{n}pts</span>;
+
+const SkBtn = ({children, fill, amber}) => (
+  <span className={`sk-btn${fill?' sk-btn-fill':''}${amber?' sk-btn-amber':''}`}>{children}</span>
+);
+
+const SprintHead = ({n, cap, used, dates}) => (
+  <div style={{textAlign:'center', padding:'4px 2px', borderBottom:'2px solid #ddd', background:'#f5f3ef'}}>
+    <div style={{fontWeight:700, fontSize:13}}>Sprint {n}</div>
+    <div style={{fontSize:10, color:'#888'}}>{dates}</div>
+    <div style={{fontSize:10}}>
+      <span style={{color: used > cap ? '#c00':'#555'}}>∑{used}</span>
+      <span style={{color:'#aaa'}}> / cap {cap}</span>
+    </div>
+  </div>
+);
+
+const GroupCard = ({name, effort, pbis, warn}) => (
+  <div className="sk-group-card" style={{marginTop:2}}>
+    <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:4}}>
+      <span style={{fontWeight:600, fontSize:12}}>{name}</span>
+      <span style={{display:'flex', alignItems:'center', gap:3}}>
+        {warn && <Warn small />}
+        <Effort n={effort} />
+      </span>
+    </div>
+    {pbis.map((p,i) => (
+      <div key={i} className="sk-pbi-row">
+        <span>{p.title}</span>
+        <span style={{display:'flex',gap:3}}>
+          {p.dep && <Dep/>}
+          {p.warn && <Warn small/>}
+          {p.effort && <Effort n={p.effort}/>}
+        </span>
+      </div>
+    ))}
+  </div>
+);
+
+const FeaturePill = ({title, effort, warn}) => (
+  <div className="sk-feature-pill">
+    <span style={{fontWeight:600, fontSize:12, overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis', maxWidth:80}}>{title}</span>
+    <span style={{display:'flex', alignItems:'center', gap:3}}>
+      {warn && <Warn small/>}
+      <Effort n={effort}/>
+    </span>
+  </div>
+);
+
+const SearchBar = () => (
+  <div style={{display:'flex', gap:4, alignItems:'center'}}>
+    <div style={{flex:1, border:'2px solid #bbb', borderRadius:3, padding:'3px 8px', fontSize:12, color:'#aaa', background:'#fff'}}>🔍 search...</div>
+    <SkBtn>A–Z</SkBtn>
+  </div>
+);
+
+const BacklogFeature = ({title, id, effort, pbis, warn, expanded}) => (
+  <div style={{marginBottom:6}}>
+    <div className="sk-box" style={{padding:'5px 8px', display:'flex', gap:6, alignItems:'center'}}>
+      <span style={{color:'#aaa', fontSize:14}}>{expanded ? '▾' : '▸'}</span>
+      <span style={{fontWeight:700, fontSize:14, flex:1}}>{title}</span>
+      {id && <span style={{fontSize:10, color:'#aaa'}}>#{id}</span>}
+      {warn && <Warn/>}
+      {effort && <Effort n={effort}/>}
+      <span style={{fontSize:11, color:'#aaa'}}>···</span>
+    </div>
+    {expanded && pbis && pbis.map((p,i) => (
+      <div key={i} className="sk-pbi-row" style={{marginLeft:18, marginTop:3, borderRadius:3}}>
+        <span style={{flex:1}}>{p.title}</span>
+        {p.id && <span style={{fontSize:10, color:'#aaa', marginRight:4}}>#{p.id}</span>}
+        {p.warn && <Warn small/>}
+        {p.dep && <Dep/>}
+        {p.effort && <Effort n={p.effort}/>}
+        <span style={{fontSize:11, color:'#aaa', marginLeft:4}}>···</span>
+      </div>
+    ))}
+  </div>
+);
+
+const PITabs = ({active}) => {
+  const tabs = ['Backlog','PI-24Q1 ✓','PI-24Q2 ●','PI-24Q3 ◎'];
+  return (
+    <div style={{display:'flex', gap:0, borderBottom:'2px solid #222'}}>
+      {tabs.map((t,i) => (
+        <div key={i} style={{
+          padding:'4px 12px', fontSize:13, fontWeight: t===active?700:400,
+          background: t===active?'#fff':'transparent',
+          borderTop: t===active?'2px solid #222':'2px solid transparent',
+          borderLeft: t===active?'2px solid #222':'2px solid transparent',
+          borderRight: t===active?'2px solid #222':'2px solid transparent',
+          borderBottom: t===active?'2px solid #fff':'none',
+          marginBottom: t===active?'-2px':0,
+          color: t.includes('✓')?'#888': t.includes('●')?'#c07d0a':'#222',
+          cursor:'default'
+        }}>{t}</div>
+      ))}
+      <div style={{flex:1}}></div>
+      <div style={{padding:'4px 8px', fontSize:12, color:'#888', alignSelf:'center'}}>+ New PI</div>
+    </div>
+  );
+};
+
+const EditLockBanner = ({user}) => user ? (
+  <div className="sk-lock-banner">
+    <span>✏️</span>
+    <span><b>{user}</b> is editing · read-only for you</span>
+    <span style={{flex:1}}></span>
+    <span style={{fontSize:11, color:'#a36200'}}>lock expires ~14 min</span>
+  </div>
+) : (
+  <div style={{display:'flex', alignItems:'center', gap:6, fontSize:12, color:'#555'}}>
+    <span>🔓</span>
+    <SkBtn amber>Request Edit Mode</SkBtn>
+    <span style={{color:'#aaa', fontSize:11}}>read-only</span>
+  </div>
+);
+
+/* ─── OPTION A: Sidebar nav + horizontal swimlanes (standard) ─── */
+const OptionA = ({screen}) => {
+  const showBacklog = screen === 'Backlog';
+  const showImport = screen === 'CSV Import';
+  const showDeps = screen === 'Dependencies';
+
+  return (
+    <div style={{display:'flex', height:'100%', border:'2.5px solid #222', borderRadius:4, overflow:'hidden', background:'#fff', fontFamily:'Caveat, cursive'}}>
+      {/* Sidebar */}
+      <div style={{width:130, background:'#1a1a1a', color:'#fff', display:'flex', flexDirection:'column', padding:'10px 0', gap:0, flexShrink:0}}>
+        <div style={{padding:'6px 12px', fontSize:16, fontWeight:700, color:'#f5a623', borderBottom:'1px solid #333', marginBottom:8}}>PI Planner</div>
+        <div style={{fontSize:11, color:'#666', padding:'0 12px', marginBottom:4, textTransform:'uppercase', letterSpacing:'0.05em'}}>Projects</div>
+        {['Alpha Team','Beta Squad'].map((p,i) => (
+          <div key={i} style={{padding:'5px 12px', fontSize:13, background: i===0?'#333':'transparent', color: i===0?'#fff':'#aaa', cursor:'default'}}>{p}</div>
+        ))}
+        <div style={{padding:'5px 12px', fontSize:12, color:'#555', cursor:'default'}}>+ new project</div>
+        <div style={{padding:'4px 12px', fontSize:12, color:'#555', cursor:'default'}}>↑ import project</div>
+        <div style={{padding:'4px 12px', fontSize:12, color:'#555', cursor:'default'}}>↓ export project</div>
+        <hr style={{borderColor:'#333', margin:'10px 0'}}/>
+        <div style={{fontSize:11, color:'#666', padding:'0 12px', marginBottom:4, textTransform:'uppercase', letterSpacing:'0.05em'}}>Views</div>
+        {[
+          {label:'Backlog', icon:'📋'},
+          {label:'PI Board', icon:'📊'},
+          {label:'Dependencies', icon:'🔗'},
+        ].map((v,i) => (
+          <div key={i} style={{
+            padding:'5px 12px', fontSize:13, cursor:'default',
+            background: (showBacklog&&v.label==='Backlog')||(showDeps&&v.label==='Dependencies')||(!showBacklog&&!showDeps&&v.label==='PI Board')?'#333':'transparent',
+            color: (showBacklog&&v.label==='Backlog')||(showDeps&&v.label==='Dependencies')||(!showBacklog&&!showDeps&&v.label==='PI Board')?'#fff':'#aaa'
+          }}>{v.icon} {v.label}</div>
+        ))}
+        <hr style={{borderColor:'#333', margin:'10px 0'}}/>
+        <div style={{padding:'5px 12px', fontSize:12, color:'#555', cursor:'default'}}>⚙ Settings</div>
+        <div style={{flex:1}}></div>
+        <div style={{padding:'8px 12px', fontSize:12, color:'#aaa', borderTop:'1px solid #333'}}>
+          <div style={{fontSize:13}}>🟢 David</div>
+          <div style={{fontSize:10, color:'#555'}}>free to edit</div>
+        </div>
+      </div>
+
+      {/* Main area */}
+      <div style={{flex:1, display:'flex', flexDirection:'column', minWidth:0}}>
+        {/* Top bar */}
+        <div style={{borderBottom:'2px solid #ddd', padding:'6px 12px', display:'flex', alignItems:'center', gap:8, background:'#faf9f7'}}>
+          <span style={{fontWeight:700, fontSize:15}}>Alpha Team</span>
+          <span style={{color:'#aaa', fontSize:13}}>›</span>
+          <span style={{fontSize:13, color:'#555'}}>{showBacklog?'Backlog':showDeps?'Dependencies':'PI Board'}</span>
+          <div style={{flex:1}}></div>
+          {!showBacklog && !showDeps && <SkBtn amber>+ Import CSV</SkBtn>}
+          {showBacklog && <SkBtn amber>+ Import CSV</SkBtn>}
+          {!showBacklog && !showDeps && <SkBtn>⊕ Add Feature</SkBtn>}
+          {showBacklog && <SkBtn>⊕ Add Feature</SkBtn>}
+          <EditLockBanner user={null}/>
+        </div>
+
+        {showImport && <ImportDialog/>}
+        {showDeps && <DepsView/>}
+
+        {showBacklog && !showImport && !showDeps && (
+          <div style={{flex:1, padding:'10px 14px', overflowY:'auto'}}>
+            <div style={{marginBottom:8}}><SearchBar/></div>
+            <BacklogFeature title="User Authentication" id={1} effort={21} expanded={true} pbis={[
+              {title:'Login page',id:11,effort:5,dep:false,warn:false},
+              {title:'OAuth integration',id:12,effort:8,dep:false,warn:false},
+              {title:'Password reset',id:13,effort:3,warn:false},
+            ]}/>
+            <BacklogFeature title="Dashboard MVP" id={2} effort={34} expanded={false} pbis={[]}/>
+            <BacklogFeature title="Notifications" id={3} effort={13} warn={true} expanded={false} pbis={[]}/>
+            <div style={{borderTop:'2px dashed #ddd', paddingTop:8, marginTop:4}}>
+              <div style={{fontSize:12, color:'#aaa', marginBottom:6}}>⚠ Orphaned PBIs (missing feature)</div>
+              <div className="sk-pbi-row" style={{borderColor:'#f0ad4e', background:'#fff9ef'}}><span>Old PBI without parent</span><Warn/></div>
+            </div>
+          </div>
+        )}
+
+        {!showBacklog && !showImport && !showDeps && (
+          <div style={{flex:1, display:'flex', flexDirection:'column', minWidth:0}}>
+            <div style={{padding:'6px 12px'}}>
+              <PITabs active="PI-24Q3 ◎"/>
+            </div>
+            <div style={{display:'flex', alignItems:'center', gap:8, padding:'4px 14px', background:'#fef9f0', borderBottom:'1px dashed #ddd', fontSize:12}}>
+              <span style={{color:'#f5a623'}}>◎</span> <b>PI-24Q3</b>
+              <span className="sk-chip sk-chip-amber">In Progress</span>
+              <span style={{color:'#aaa'}}>|</span>
+              <span style={{color:'#888'}}>May 5 – Sep 26, 2024</span>
+              <div style={{flex:1}}></div>
+              <SkBtn>+ Swimlane</SkBtn>
+              <SkBtn>+ Feature</SkBtn>
+              <EditLockBanner user={null}/>
+            </div>
+            <PiBoardA/>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const PiBoardA = () => {
+  const swimlanes = [
+    {name:'Frontend', effortTotal:34, cap:60,
+      features:[{title:'Auth',effort:21,warn:false},{title:'Dashboard',effort:13,warn:false}],
+      sprints:[
+        [{name:'Auth Group 1',effort:13,warn:false,pbis:[{title:'Login page',effort:5},{title:'OAuth',effort:8}]}],
+        [{name:'Auth Group 2',effort:8,warn:false,pbis:[{title:'Pw reset',effort:3},{title:'Profile',effort:5}]}],
+        [{name:'Dashboard',effort:13,warn:true,pbis:[{title:'Widget A',effort:5},{title:'Widget B',effort:8,warn:true}]}],
+        [],
+        [],
+      ]
+    },
+    {name:'Backend', effortTotal:21, cap:55,
+      features:[{title:'API v2',effort:21,warn:true}],
+      sprints:[
+        [{name:'API Setup',effort:8,warn:false,pbis:[{title:'Endpoints',effort:8}]}],
+        [{name:'Auth API',effort:13,warn:true,pbis:[{title:'JWT tokens',effort:5,dep:true},{title:'Sessions',effort:8}]}],
+        [],
+        [],
+        [],
+      ]
+    },
+  ];
+  const sprintDates = ['May 5–16','May 19–30','Jun 2–13','Jun 16–27','Jun 30–Jul 11'];
+  const sprintCaps = [60,55,60,55,60];
+  const sprintUsed = [21,21,13,0,0];
+
+  return (
+    <div style={{flex:1, overflowX:'auto', overflowY:'auto', padding:'8px 10px', display:'flex', flexDirection:'column', gap:6}}>
+      {/* Sprint header row */}
+      <div style={{display:'flex', flexDirection:'row', gap:0}}>
+        <div style={{width:22, flexShrink:0}}></div>
+        <div style={{width:100, flexShrink:0, background:'#eee', border:'2px solid #ccc', borderRadius:'3px 0 0 3px', padding:'4px', fontSize:11, fontWeight:600, color:'#666', display:'flex',alignItems:'center',justifyContent:'center'}}>Feature Zone</div>
+        {sprintCaps.map((cap,i) => (
+          <div key={i} style={{flex:1, borderLeft:'2px solid #ccc'}}>
+            <SprintHead n={i+1} cap={cap} used={sprintUsed[i]} dates={sprintDates[i]}/>
+          </div>
+        ))}
+      </div>
+      {/* Swimlanes */}
+      {swimlanes.map((sl,si) => (
+        <div key={si} className="sk-swimlane">
+          <div className="sk-swimlane-label">{sl.name}<br/><span style={{fontSize:9,color:'#aaa',writingMode:'vertical-lr'}}>∑{sl.effortTotal} / cap {sl.cap}</span></div>
+          {/* Feature zone */}
+          <div className="sk-feature-zone" style={{width:100, flexShrink:0}}>
+            {sl.features.map((f,fi) => <FeaturePill key={fi} title={f.title} effort={f.effort} warn={f.warn}/>)}
+            <div className="sk-box-dash" style={{fontSize:10,color:'#aaa',padding:'3px',textAlign:'center',minHeight:20,marginTop:2}}>drop feature</div>
+          </div>
+          {/* Sprint cols */}
+          {sl.sprints.map((groups, spi) => (
+            <div key={spi} className="sk-sprint-col">
+              {groups.map((g,gi) => <GroupCard key={gi} name={g.name} effort={g.effort} pbis={g.pbis} warn={g.warn}/>)}
+              {groups.length === 0 && (
+                <div style={{border:'1.5px dashed #ddd', borderRadius:3, minHeight:30, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, color:'#ccc'}}>drop group</div>
+              )}
+            </div>
+          ))}
+        </div>
+      ))}
+      <div style={{border:'2px dashed #ddd', borderRadius:3, height:28, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:'#aaa', cursor:'default'}}>
+        + Add swimlane
+      </div>
+    </div>
+  );
+};
+
+/* ─── OPTION B: Top tab nav + collapsible swimlanes ─── */
+const OptionB = ({screen}) => {
+  const showBacklog = screen === 'Backlog';
+  const showImport = screen === 'CSV Import';
+  const showDeps = screen === 'Dependencies';
+
+  return (
+    <div style={{display:'flex', flexDirection:'column', height:'100%', border:'2.5px solid #222', borderRadius:4, overflow:'hidden', background:'#fff', fontFamily:'Caveat, cursive'}}>
+      {/* Top nav */}
+      <div style={{background:'#222', color:'#fff', padding:'6px 14px', display:'flex', alignItems:'center', gap:12}}>
+        <span style={{fontWeight:700, fontSize:15, color:'#f5a623'}}>PI Planner</span>
+        <span style={{color:'#555'}}>|</span>
+        {['Alpha Team ▾'].map((p,i) => <span key={i} style={{fontSize:13, color:'#ccc', background:'#333', padding:'2px 8px', borderRadius:3, cursor:'default'}}>{p}</span>)}
+        <div style={{flex:1}}></div>
+        <EditLockBanner user={'Sarah M.'}/>
+      </div>
+      {/* Secondary tab bar */}
+      <div style={{background:'#f0eeea', borderBottom:'2px solid #ccc', padding:'0 12px', display:'flex', gap:0, alignItems:'flex-end'}}>
+        {['Backlog','PI Board','Dependencies','Settings'].map((t,i) => {
+          const active = (showBacklog&&t==='Backlog')||(showDeps&&t==='Dependencies')||(!showBacklog&&!showDeps&&t==='PI Board');
+          return (
+            <div key={i} style={{
+              padding:'6px 14px', fontSize:13, fontWeight:active?700:400,
+              background:active?'#fff':'transparent',
+              borderTop:active?'2px solid #f5a623':'2px solid transparent',
+              borderLeft:active?'2px solid #ccc':'none',
+              borderRight:active?'2px solid #ccc':'none',
+              color:active?'#111':'#888', cursor:'default',
+              marginBottom: active?'-2px':0
+            }}>{t}</div>
+          );
+        })}
+        <div style={{flex:1}}></div>
+        <div style={{padding:'6px 8px', display:'flex', gap:6, alignItems:'center'}}>
+          {!showDeps && <><SkBtn amber>+ Import CSV</SkBtn><SkBtn>⊕ Add Feature</SkBtn></>}
+        </div>
+      </div>
+
+      {showImport && <ImportDialog/>}
+      {showDeps && <DepsView/>}
+
+      {showBacklog && !showImport && !showDeps && (
+        <div style={{flex:1, padding:'10px 14px', overflowY:'auto'}}>
+          <div style={{marginBottom:8}}><SearchBar/></div>
+          <BacklogFeature title="User Authentication" id={1} effort={21} expanded={true} pbis={[
+            {title:'Login page',id:11,effort:5},{title:'OAuth integration',id:12,effort:8},{title:'Password reset',id:13,effort:3},
+          ]}/>
+          <BacklogFeature title="Dashboard MVP" id={2} effort={34} expanded={false}/>
+          <BacklogFeature title="Notifications" id={3} effort={13} warn={true} expanded={false}/>
+        </div>
+      )}
+
+      {!showBacklog && !showImport && !showDeps && (
+        <div style={{flex:1, display:'flex', flexDirection:'column', minWidth:0}}>
+          {/* PI selector + status bar */}
+          <div style={{padding:'5px 12px', background:'#fef9f0', borderBottom:'1px dashed #e5a200', display:'flex', gap:8, alignItems:'center', fontSize:12}}>
+            {['PI-24Q1 ✓','PI-24Q2 ✓','PI-24Q3 ●'].map((pi,i) => (
+              <span key={i} style={{
+                padding:'2px 10px', borderRadius:10, cursor:'default',
+                background: i===2?'#f5a623':'transparent',
+                color: i===2?'#111':'#888',
+                border: i===2?'2px solid #c07d0a':'2px solid transparent',
+                fontWeight: i===2?700:400
+              }}>{pi}</span>
+            ))}
+            <div style={{flex:1}}></div>
+            <span style={{color:'#aaa', fontSize:11}}>May 5 – Sep 26</span>
+            <SkBtn>+ Swimlane</SkBtn>
+            <span className="sk-chip sk-chip-amber">In Progress</span>
+          </div>
+          <PiBoardB/>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const PiBoardB = () => {
+  const swimlanes = [
+    {name:'Frontend', cap:60, effort:34, collapsed:false,
+      sprints:[
+        {groups:[{name:'Auth G1',effort:13,pbis:[{title:'Login',effort:5},{title:'OAuth',effort:8}]}]},
+        {groups:[{name:'Auth G2',effort:8,pbis:[{title:'Pw Reset',effort:3},{title:'Profile',effort:5}]}]},
+        {groups:[{name:'Dashboard',effort:13,warn:true,pbis:[{title:'Widget A',effort:5},{title:'Widget B',effort:8,warn:true}]}]},
+        {groups:[]},{groups:[]},
+      ]
+    },
+    {name:'Backend', cap:55, effort:21, collapsed:true, sprints:[]},
+    {name:'QA', cap:40, effort:8, collapsed:true, sprints:[]},
+  ];
+  const sprintDates=['May 5','May 19','Jun 2','Jun 16','Jun 30'];
+
+  return (
+    <div style={{flex:1, overflow:'auto', padding:'8px 10px'}}>
+      {/* Sprint header */}
+      <div style={{display:'flex', borderBottom:'2px solid #ccc', marginBottom:4}}>
+        <div style={{width:130, flexShrink:0, fontSize:11, color:'#999', padding:'2px 6px', display:'flex', alignItems:'flex-end'}}>
+          <span>Swimlane / Sprint →</span>
+        </div>
+        <div style={{width:100, flexShrink:0, fontSize:11, color:'#777', padding:'2px 4px', textAlign:'center', background:'#f5f3ef', border:'1px solid #ddd', borderRadius:'3px 0 0 0'}}>Feature Zone</div>
+        {sprintDates.map((d,i) => (
+          <div key={i} style={{flex:1, borderLeft:'2px solid #ddd', textAlign:'center', padding:'3px 2px'}}>
+            <div style={{fontWeight:700, fontSize:12}}>S{i+1}</div>
+            <div style={{fontSize:9, color:'#aaa'}}>{d}</div>
+          </div>
+        ))}
+      </div>
+      {swimlanes.map((sl,si) => (
+        <div key={si} style={{marginBottom:4, border:'1.5px solid #ccc', borderRadius:3, overflow:'hidden'}}>
+          {/* Swimlane header row */}
+          <div style={{display:'flex', alignItems:'center', background:'#f0eeea', borderBottom: sl.collapsed?'none':'1.5px solid #ccc', padding:'3px 6px', gap:6}}>
+            <span style={{fontSize:13, color:'#888', cursor:'default'}}>{sl.collapsed ? '▸' : '▾'}</span>
+            <span style={{fontWeight:700, fontSize:13, flex:1}}>{sl.name}</span>
+            <span style={{fontSize:10, color:'#888'}}>∑{sl.effort}pts</span>
+            <span style={{fontSize:10, color:'#aaa'}}>/ cap {sl.cap}</span>
+            <span className="sk-chip" style={{fontSize:10}}>3 features</span>
+            <span style={{fontSize:11, color:'#aaa', cursor:'default'}}>···</span>
+          </div>
+          {/* Swimlane body */}
+          {!sl.collapsed && (
+            <div style={{display:'flex', flexDirection:'row'}}>
+              {/* Feature zone */}
+              <div style={{width:100, flexShrink:0, padding:4, background:'#ebe9e5', borderRight:'1.5px solid #ccc', display:'flex', flexDirection:'column', gap:3}}>
+                <FeaturePill title="Auth" effort={21} warn={false}/>
+                <FeaturePill title="Dash" effort={13} warn={false}/>
+                <div style={{fontSize:9, color:'#aaa', textAlign:'center', border:'1px dashed #ccc', padding:2, borderRadius:2}}>+ drop feature</div>
+              </div>
+              {sl.sprints.map((sp,spi) => (
+                <div key={spi} className="sk-sprint-col">
+                  {sp.groups.map((g,gi) => <GroupCard key={gi} name={g.name} effort={g.effort} pbis={g.pbis} warn={g.warn}/>)}
+                  {sp.groups.length===0 && <div style={{border:'1.5px dashed #e0deda', borderRadius:2, minHeight:26, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, color:'#ccc'}}>drop</div>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+      <div style={{border:'2px dashed #ddd', borderRadius:3, height:28, display:'flex', alignItems:'center', justifyContent:'center', fontSize:12, color:'#bbb', cursor:'default'}}>+ Add swimlane</div>
+    </div>
+  );
+};
+
+/* ─── OPTION C: Sidebar + right panel details ─── */
+const OptionC = ({screen}) => {
+  const showBacklog = screen === 'Backlog';
+  const showImport = screen === 'CSV Import';
+  const showDeps = screen === 'Dependencies';
+
+  return (
+    <div style={{display:'flex', height:'100%', border:'2.5px solid #222', borderRadius:4, overflow:'hidden', background:'#fff', fontFamily:'Caveat, cursive'}}>
+      {/* Narrow sidebar */}
+      <div style={{width:44, background:'#222', display:'flex', flexDirection:'column', alignItems:'center', padding:'10px 0', gap:10, flexShrink:0}}>
+        <div style={{fontSize:18, color:'#f5a623', fontWeight:700, padding:'0 4px'}}>P</div>
+        <hr style={{borderColor:'#444', width:'80%'}}/>
+        {[
+          {icon:'📋', active: showBacklog},
+          {icon:'📊', active: !showBacklog&&!showDeps},
+          {icon:'🔗', active: showDeps},
+          {icon:'⚙', active: false}
+        ].map((item,i) => (
+          <div key={i} style={{
+            width:32, height:32, display:'flex', alignItems:'center', justifyContent:'center',
+            background: item.active?'#444':'transparent',
+            borderRadius:4, fontSize:15, cursor:'default',
+            border: item.active?'1.5px solid #555':'1.5px solid transparent'
+          }}>{item.icon}</div>
+        ))}
+        <div style={{flex:1}}></div>
+        <div style={{fontSize:13}}>🟢</div>
+      </div>
+
+      {/* Project list panel */}
+      <div style={{width:120, background:'#2e2e2e', color:'#ccc', display:'flex', flexDirection:'column', padding:'8px 0', flexShrink:0}}>
+        <div style={{fontSize:11, color:'#666', padding:'0 10px', marginBottom:6, textTransform:'uppercase', letterSpacing:'0.05em'}}>Projects</div>
+        {['Alpha Team','Beta Squad','Gamma Force'].map((p,i) => (
+          <div key={i} style={{
+            padding:'5px 10px', fontSize:12,
+            background: i===0?'#3d3d3d':'transparent',
+            borderLeft: i===0?'3px solid #f5a623':'3px solid transparent',
+            color: i===0?'#fff':'#888', cursor:'default'
+          }}>{p}</div>
+        ))}
+        <div style={{padding:'5px 10px', fontSize:11, color:'#555', cursor:'default'}}>+ new</div>
+        <div style={{padding:'3px 10px', fontSize:11, color:'#555', cursor:'default'}}>↑ import</div>
+        <div style={{padding:'3px 10px', fontSize:11, color:'#555', cursor:'default'}}>↓ export</div>
+      </div>
+
+      {/* Main content */}
+      <div style={{flex:1, display:'flex', flexDirection:'column', minWidth:0}}>
+        <div style={{borderBottom:'2px solid #ddd', padding:'5px 10px', display:'flex', gap:8, alignItems:'center', background:'#faf9f7'}}>
+          <span style={{fontWeight:700, fontSize:14}}>Alpha Team</span>
+          <span style={{color:'#aaa'}}>›</span>
+          <span style={{fontSize:13, color:'#666'}}>{showBacklog?'Backlog':showDeps?'Dependencies':'PI-24Q3'}</span>
+          {!showBacklog && !showDeps && <span className="sk-chip sk-chip-amber" style={{fontSize:11}}>In Progress</span>}
+          <div style={{flex:1}}></div>
+          {!showDeps && <><SkBtn amber>↑ Import</SkBtn><SkBtn>⊕ Add</SkBtn></>}
+          <div style={{fontSize:11, display:'flex', alignItems:'center', gap:4}}>
+            <span style={{width:8,height:8,borderRadius:'50%',background:'#4caf50',display:'inline-block'}}></span>
+            <span style={{color:'#555'}}>You • Editor</span>
+          </div>
+        </div>
+
+        {showImport && <ImportDialog compact/>}
+        {showDeps && <DepsView/>}
+
+        {showBacklog && !showImport && !showDeps && (
+          <div style={{flex:1, padding:'10px', overflowY:'auto'}}>
+            <div style={{marginBottom:8}}><SearchBar/></div>
+            <BacklogFeature title="User Authentication" id={1} effort={21} expanded={true} pbis={[
+              {title:'Login page',id:11,effort:5},{title:'OAuth integration',id:12,effort:8},{title:'Password reset',id:13,effort:3},
+            ]}/>
+            <BacklogFeature title="Dashboard MVP" id={2} effort={34} expanded={false}/>
+            <BacklogFeature title="Notifications" id={3} effort={13} warn={true} expanded={false}/>
+          </div>
+        )}
+
+        {!showBacklog && !showImport && !showDeps && (
+          <div style={{flex:1, display:'flex', flexDirection:'row', minWidth:0, minHeight:0}}>
+            {/* PI board compact */}
+            <div style={{flex:1, display:'flex', flexDirection:'column', overflow:'hidden'}}>
+              <div style={{padding:'3px 10px', display:'flex', gap:6, background:'#fef9f0', borderBottom:'1px dashed #e5a200', fontSize:11, alignItems:'center'}}>
+                {['PI-24Q1 ✓','PI-24Q2 ✓','PI-24Q3 ●'].map((pi,i)=>(
+                  <span key={i} style={{padding:'1px 8px',borderRadius:10,cursor:'default',background:i===2?'#f5a623':'transparent',color:i===2?'#111':'#888',border:i===2?'2px solid #c07d0a':'1px solid transparent',fontWeight:i===2?700:400,fontSize:12}}>{pi}</span>
+                ))}
+                <div style={{flex:1}}></div>
+                <SkBtn>+ Swimlane</SkBtn>
+              </div>
+              <PiBoardC/>
+            </div>
+            {/* Right detail rail */}
+            <div style={{width:160, borderLeft:'2px solid #ddd', background:'#faf9f7', display:'flex', flexDirection:'column', padding:8, gap:6, flexShrink:0}}>
+              <div style={{fontWeight:700, fontSize:13, borderBottom:'1.5px solid #ddd', paddingBottom:4}}>Selected Item</div>
+              <div style={{fontSize:12, color:'#333'}}>
+                <div style={{fontWeight:700}}>Auth Group 1</div>
+                <div style={{fontSize:11, color:'#888', marginBottom:4}}>Group · Sprint 1</div>
+                <div style={{fontSize:11}}><b>Feature:</b> User Auth</div>
+                <div style={{fontSize:11}}><b>Effort:</b> 13pts</div>
+                <div style={{fontSize:11, marginTop:4}}><b>PBIs:</b></div>
+                {['Login page (5)','OAuth (8)'].map((p,i)=>(
+                  <div key={i} style={{fontSize:11, color:'#555', paddingLeft:8, borderLeft:'2px solid #ddd', margin:'2px 0'}}>{p}</div>
+                ))}
+              </div>
+              <div className="sk-divider"/>
+              <div style={{fontWeight:600, fontSize:12}}>Dependencies</div>
+              <div style={{fontSize:11, color:'#888'}}>No dependencies</div>
+              <div className="sk-divider"/>
+              <div style={{fontWeight:600, fontSize:12}}>Actions</div>
+              <div style={{display:'flex', flexDirection:'column', gap:4}}>
+                <SkBtn>Move to sprint →</SkBtn>
+                <SkBtn>Ungroup</SkBtn>
+                <SkBtn>Edit name</SkBtn>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const PiBoardC = () => {
+  const sl = [
+    {name:'Frontend', cap:60, effort:34, sprints:[
+      [{name:'Auth G1',effort:13,pbis:[{title:'Login p.',effort:5},{title:'OAuth',effort:8}]}],
+      [{name:'Auth G2',effort:8,pbis:[{title:'Pw Rst',effort:3},{title:'Profile',effort:5}]}],
+      [{name:'Dashboard',effort:13,warn:true,pbis:[{title:'Widget A',effort:5},{title:'Widget B',effort:8}]}],
+      [],[],
+    ]},
+    {name:'Backend', cap:55, effort:21, sprints:[
+      [{name:'API Setup',effort:8,pbis:[{title:'Endpoints',effort:8}]}],
+      [{name:'Auth API',effort:13,warn:true,pbis:[{title:'JWT',effort:5,dep:true},{title:'Sessions',effort:8}]}],
+      [],[],[],
+    ]},
+  ];
+  return (
+    <div style={{flex:1, overflow:'auto', padding:'6px 8px'}}>
+      <div style={{display:'flex', borderBottom:'2px solid #ccc', marginBottom:4}}>
+        <div style={{width:18,flexShrink:0}}></div>
+        <div style={{width:80,flexShrink:0,fontSize:10,color:'#999',padding:'2px 4px',textAlign:'center',background:'#f0eeea',border:'1px solid #ddd'}}>Features</div>
+        {['S1','S2','S3','S4','S5'].map((s,i)=>(
+          <div key={i} style={{flex:1,borderLeft:'1.5px solid #ddd',textAlign:'center',padding:'3px 2px'}}>
+            <div style={{fontWeight:700,fontSize:11}}>{s}</div>
+            <div style={{fontSize:8,color:'#aaa'}}>May {5+i*14}</div>
+          </div>
+        ))}
+      </div>
+      {sl.map((lane,li)=>(
+        <div key={li} className="sk-swimlane" style={{marginBottom:5,minHeight:60}}>
+          <div className="sk-swimlane-label" style={{minWidth:18,fontSize:10}}>{lane.name}</div>
+          <div className="sk-feature-zone" style={{width:80,flexShrink:0}}>
+            <FeaturePill title={li===0?'Auth':'API v2'} effort={li===0?21:21} warn={li===1}/>
+          </div>
+          {lane.sprints.map((groups,spi)=>(
+            <div key={spi} className="sk-sprint-col" style={{padding:3,gap:3}}>
+              {groups.map((g,gi)=><GroupCard key={gi} name={g.name} effort={g.effort} pbis={g.pbis} warn={g.warn}/>)}
+              {groups.length===0&&<div style={{border:'1.5px dashed #e8e5e0',borderRadius:2,minHeight:22,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,color:'#ddd'}}>·</div>}
+            </div>
+          ))}
+        </div>
+      ))}
+      <div style={{border:'2px dashed #ddd',borderRadius:3,height:24,display:'flex',alignItems:'center',justifyContent:'center',fontSize:11,color:'#ccc'}}>+ Add swimlane</div>
+    </div>
+  );
+};
+
+/* ─── OPTION D: Horizontal split — Backlog drawer + Board ─── */
+const OptionD = ({screen}) => {
+  const showBacklog = screen === 'Backlog';
+  const showImport = screen === 'CSV Import';
+  const showDeps = screen === 'Dependencies';
+
+  return (
+    <div style={{display:'flex', flexDirection:'column', height:'100%', border:'2.5px solid #222', borderRadius:4, overflow:'hidden', background:'#fff', fontFamily:'Caveat, cursive'}}>
+      {/* Top nav */}
+      <div style={{background:'#fff', borderBottom:'2.5px solid #222', padding:'5px 12px', display:'flex', alignItems:'center', gap:10}}>
+        <span style={{fontWeight:700, fontSize:16, letterSpacing:'-0.5px'}}>PI Planner</span>
+        <div style={{width:2, height:18, background:'#ddd'}}></div>
+        <div style={{display:'flex', gap:2}}>
+          {['Alpha Team','Beta Squad'].map((p,i)=>(
+            <span key={i} style={{
+              padding:'2px 10px', borderRadius:3, fontSize:13, cursor:'default',
+              background:i===0?'#222':'#f0eeea',
+              color:i===0?'#fff':'#888',
+              border:`1.5px solid ${i===0?'#222':'#ccc'}`
+            }}>{p}</span>
+          ))}
+          <span style={{padding:'2px 8px', borderRadius:3, fontSize:13, color:'#aaa', border:'1.5px dashed #ddd', cursor:'default'}}>+</span>
+        </div>
+        <div style={{flex:1}}></div>
+        <EditLockBanner user={null}/>
+        <div style={{fontSize:12, color:'#888'}}>David ▾</div>
+      </div>
+
+      {/* Content area */}
+      <div style={{flex:1, display:'flex', flexDirection:'row', minHeight:0}}>
+        {/* Left: Backlog drawer */}
+        <div style={{width: showBacklog?'45%':'180px', flexShrink:0, borderRight:'2px solid #ddd', display:'flex', flexDirection:'column', transition:'width 0.2s', background: showBacklog?'#fff':'#faf9f7'}}>
+          <div style={{padding:'5px 10px', borderBottom:'1.5px solid #ddd', display:'flex', gap:6, alignItems:'center', background:'#f5f3ef'}}>
+            <span style={{fontWeight:700, fontSize:13}}>Backlog</span>
+            <div style={{flex:1}}></div>
+            <SkBtn amber>↑ CSV</SkBtn>
+            <SkBtn>⊕</SkBtn>
+            {!showBacklog && <span style={{fontSize:11, color:'#aaa', cursor:'default'}}>▸ expand</span>}
+          </div>
+          <div style={{padding:'6px 8px', borderBottom:'1px solid #eee'}}><SearchBar/></div>
+          <div style={{flex:1, overflowY:'auto', padding:'6px 8px'}}>
+            <BacklogFeature title="User Auth" id={1} effort={21} expanded={showBacklog} pbis={
+              showBacklog?[{title:'Login page',id:11,effort:5},{title:'OAuth',id:12,effort:8},{title:'Pw reset',id:13,effort:3}]:[]
+            }/>
+            <BacklogFeature title="Dashboard MVP" id={2} effort={34} expanded={false}/>
+            <BacklogFeature title="Notifications" id={3} effort={13} warn={true} expanded={false}/>
+            {showBacklog && <>
+              <BacklogFeature title="Admin Panel" id={4} effort={21} expanded={false}/>
+              <div style={{borderTop:'2px dashed #ddd', paddingTop:8, marginTop:4}}>
+                <div style={{fontSize:11, color:'#aaa', marginBottom:4}}>⚠ Orphaned PBIs</div>
+                <div className="sk-pbi-row" style={{borderColor:'#f0ad4e',background:'#fff9ef'}}><span>Lost PBI</span><Warn/></div>
+              </div>
+            </>}
+          </div>
+        </div>
+
+        {/* Right: PI board */}
+        <div style={{flex:1, display:'flex', flexDirection:'column', minWidth:0, minHeight:0}}>
+          {showImport && <ImportDialog/>}
+          {showDeps && <DepsView/>}
+          {!showImport && !showDeps && <>
+            {/* PI tabs */}
+            <div style={{padding:'0 10px', borderBottom:'2px solid #ddd', background:'#faf9f7'}}>
+              <PITabs active="PI-24Q3 ◎"/>
+            </div>
+            <div style={{padding:'4px 10px', background:'#fef9f0', borderBottom:'1px dashed #e5a200', display:'flex', gap:8, alignItems:'center', fontSize:12}}>
+              <span className="sk-chip sk-chip-amber">In Progress</span>
+              <span style={{color:'#aaa'}}>May 5 – Sep 26</span>
+              <div style={{flex:1}}></div>
+              <SkBtn>+ Swimlane</SkBtn>
+              <SkBtn>+ Feature</SkBtn>
+              <span style={{fontSize:11, color:'#888'}}>⚠ 2 warnings</span>
+            </div>
+            <PiBoardA/>
+          </>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─── OPTION E: Combined — Project list (1/3) + Backlog (2/3) + Collapsible swimlanes ─── */
+const OptionE = ({screen}) => {
+  const showImport = screen === 'CSV Import';
+  const showDeps = screen === 'Dependencies';
+
+  return (
+    <div style={{display:'flex', flexDirection:'column', height:'100%', border:'2.5px solid #222', borderRadius:4, overflow:'hidden', background:'#fff', fontFamily:'Caveat, cursive'}}>
+      {/* Top bar */}
+      <div style={{background:'#fff', borderBottom:'2.5px solid #222', padding:'5px 14px', display:'flex', alignItems:'center', gap:10}}>
+        <span style={{fontWeight:700, fontSize:16, letterSpacing:'-0.5px'}}>PI Planner</span>
+        <div style={{width:2, height:18, background:'#ddd'}}></div>
+        <span style={{fontSize:13, color:'#555'}}>Alpha Team</span>
+        <span style={{color:'#ddd'}}>›</span>
+        <span style={{fontSize:13, color:'#aaa'}}>{showDeps ? 'Dependencies' : showImport ? 'CSV Import' : 'PI-24Q3'}</span>
+        <div style={{flex:1}}></div>
+        <EditLockBanner user={null}/>
+        <div style={{fontSize:12, color:'#888', marginLeft:6}}>David ▾</div>
+      </div>
+
+      {/* Three-column body */}
+      <div style={{flex:1, display:'flex', flexDirection:'row', minHeight:0}}>
+
+        {/* Col 1: Project list — 1/3 of left panel (dark) */}
+        <div style={{width:'15%', background:'#1e1e1e', color:'#ccc', display:'flex', flexDirection:'column', flexShrink:0, borderRight:'2px solid #111'}}>
+          <div style={{padding:'8px 10px', fontSize:11, color:'#555', textTransform:'uppercase', letterSpacing:'0.07em', borderBottom:'1px solid #2e2e2e'}}>Projects</div>
+          <div style={{flex:1, overflowY:'auto'}}>
+            {[
+              {name:'Alpha Team', active:true},
+              {name:'Beta Squad', active:false},
+              {name:'Gamma Force', active:false},
+            ].map((p,i) => (
+              <div key={i} style={{
+                padding:'6px 10px', fontSize:13, cursor:'default',
+                background: p.active ? '#2e2e2e' : 'transparent',
+                borderLeft: p.active ? '3px solid #f5a623' : '3px solid transparent',
+                color: p.active ? '#fff' : '#777',
+              }}>{p.name}</div>
+            ))}
+          </div>
+          <div style={{borderTop:'1px solid #2e2e2e', padding:'6px 10px', display:'flex', flexDirection:'column', gap:4}}>
+            <div style={{fontSize:11, color:'#555', cursor:'default'}}>+ new project</div>
+            <div style={{fontSize:11, color:'#555', cursor:'default'}}>↑ import project</div>
+            <div style={{fontSize:11, color:'#555', cursor:'default'}}>↓ export project</div>
+          </div>
+          <div style={{borderTop:'1px solid #2e2e2e', padding:'6px 10px'}}>
+            <div style={{fontSize:11, color:'#555', cursor:'default'}}>⚙ Settings</div>
+          </div>
+        </div>
+
+        {/* Col 2: Backlog — 2/3 of left panel */}
+        <div style={{width:'25%', borderRight:'2px solid #ddd', display:'flex', flexDirection:'column', flexShrink:0, background:'#faf9f7'}}>
+          <div style={{padding:'6px 10px', borderBottom:'1.5px solid #ddd', background:'#f5f3ef'}}>
+            <span style={{fontWeight:700, fontSize:13}}>Backlog</span>
+          </div>
+          <div style={{padding:'6px 8px', borderBottom:'1px solid #eee'}}><SearchBar/></div>
+          <div style={{flex:1, overflowY:'auto', padding:'6px 8px'}}>
+            <BacklogFeature title="User Auth" id={1} effort={21} expanded={true} pbis={[
+              {title:'Login page', id:11, effort:5},
+              {title:'OAuth integration', id:12, effort:8},
+              {title:'Password reset', id:13, effort:3},
+            ]}/>
+            <BacklogFeature title="Dashboard MVP" id={2} effort={34} expanded={false}/>
+            <BacklogFeature title="Notifications" id={3} effort={13} warn={true} expanded={false}/>
+            <BacklogFeature title="Admin Panel" id={4} effort={21} expanded={false}/>
+            <div style={{borderTop:'2px dashed #ddd', paddingTop:8, marginTop:6}}>
+              <div style={{fontSize:11, color:'#aaa', marginBottom:4}}>⚠ Orphaned PBIs</div>
+              <div className="sk-pbi-row" style={{borderColor:'#f0ad4e', background:'#fff9ef'}}>
+                <span>Legacy PBI</span><Warn/>
+              </div>
+            </div>
+          </div>
+          <div style={{borderTop:'1.5px solid #ddd', padding:'6px 8px', display:'flex', flexDirection:'column', gap:4, background:'#f5f3ef'}}>
+            <div style={{fontSize:11, color:'#555', cursor:'default'}}>+ add feature</div>
+            <div style={{fontSize:11, color:'#555', cursor:'default'}}>↑ import CSV</div>
+          </div>
+        </div>
+
+        {/* Col 3: PI board — remaining space */}
+        <div style={{flex:1, display:'flex', flexDirection:'column', minWidth:0, minHeight:0}}>
+          {showImport && <ImportDialog/>}
+          {showDeps && <DepsView/>}
+          {!showImport && !showDeps && <>
+            {/* PI tabs */}
+            <div style={{padding:'0 10px', borderBottom:'2px solid #ddd', background:'#faf9f7'}}>
+              <PITabs active="PI-24Q3 ◎"/>
+            </div>
+            {/* PI status bar */}
+            <div style={{padding:'4px 10px', background:'#fef9f0', borderBottom:'1px dashed #e5a200', display:'flex', gap:8, alignItems:'center', fontSize:12}}>
+              <span className="sk-chip sk-chip-amber">In Progress</span>
+              <span style={{color:'#aaa'}}>May 5 – Sep 26, 2024</span>
+              <div style={{flex:1}}></div>
+              <SkBtn>+ Swimlane</SkBtn>
+              <SkBtn>+ Feature</SkBtn>
+              <span style={{fontSize:11, color:'#d97706'}}>⚠ 2 warnings</span>
+            </div>
+            <PiBoardE/>
+          </>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const PiBoardE = () => {
+  const sprintDates = ['May 5','May 19','Jun 2','Jun 16','Jun 30'];
+  const sprintCaps =  [60, 55, 60, 55, 60];
+  const sprintUsed =  [21, 21, 13,  0,  0];
+
+  const swimlanes = [
+    {
+      name:'Frontend', cap:60, effort:34, collapsed:false,
+      features:[{title:'Auth', effort:21},{title:'Dashboard', effort:13}],
+      sprints:[
+        [{name:'Auth G1', effort:13, pbis:[{title:'Login page',effort:5},{title:'OAuth',effort:8}]}],
+        [{name:'Auth G2', effort:8,  pbis:[{title:'Pw Reset',effort:3},{title:'Profile',effort:5}]}],
+        [{name:'Dashboard', effort:13, warn:true, pbis:[{title:'Widget A',effort:5},{title:'Widget B',effort:8,warn:true}]}],
+        [], [],
+      ]
+    },
+    {
+      name:'Backend', cap:55, effort:21, collapsed:false,
+      features:[{title:'API v2', effort:21, warn:true}],
+      sprints:[
+        [{name:'API Setup', effort:8, pbis:[{title:'Endpoints',effort:8}]}],
+        [{name:'Auth API', effort:13, warn:true, pbis:[{title:'JWT tokens',effort:5,dep:true},{title:'Sessions',effort:8}]}],
+        [], [], [],
+      ]
+    },
+    {
+      name:'QA', cap:40, effort:0, collapsed:true,
+      features:[], sprints:[]
+    },
+  ];
+
+  return (
+    <div style={{flex:1, overflow:'auto', padding:'6px 8px'}}>
+      {/* Sprint header */}
+      <div style={{display:'flex', borderBottom:'2px solid #ccc', marginBottom:4}}>
+        <div style={{width:20, flexShrink:0}}></div>
+        <div style={{width:90, flexShrink:0, fontSize:10, color:'#999', padding:'2px 4px', textAlign:'center', background:'#f0eeea', border:'1px solid #ddd'}}>Feature Zone</div>
+        {sprintDates.map((d,i) => (
+          <div key={i} style={{flex:1, borderLeft:'1.5px solid #ddd', textAlign:'center', padding:'3px 2px'}}>
+            <div style={{fontWeight:700, fontSize:12}}>S{i+1}</div>
+            <div style={{fontSize:9, color:'#aaa'}}>{d}</div>
+            <div style={{fontSize:9}}>
+              <span style={{color: sprintUsed[i] > sprintCaps[i] ? '#c00' : '#777'}}>∑{sprintUsed[i]}</span>
+              <span style={{color:'#bbb'}}> /{sprintCaps[i]}</span>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Swimlanes */}
+      {swimlanes.map((sl, si) => (
+        <div key={si} style={{marginBottom:5, border:'1.5px solid #ccc', borderRadius:3, overflow:'hidden'}}>
+          {/* Swimlane header — always visible */}
+          <div style={{display:'flex', alignItems:'center', background:'#f0eeea', borderBottom: sl.collapsed ? 'none' : '1.5px solid #ccc', padding:'4px 8px', gap:6}}>
+            <span style={{fontSize:13, color:'#888', cursor:'default', width:14}}>{sl.collapsed ? '▸' : '▾'}</span>
+            <span style={{fontWeight:700, fontSize:13, flex:1}}>{sl.name}</span>
+            <span style={{fontSize:10, color:'#888'}}>∑{sl.effort}pts</span>
+            <span style={{fontSize:10, color:'#aaa'}}>/ cap {sl.cap}</span>
+            {sl.features.length > 0 && <span className="sk-chip" style={{fontSize:10}}>{sl.features.length} feature{sl.features.length!==1?'s':''}</span>}
+            <span style={{fontSize:11, color:'#aaa', cursor:'default'}}>···</span>
+          </div>
+          {/* Swimlane body */}
+          {!sl.collapsed && (
+            <div style={{display:'flex', flexDirection:'row'}}>
+              {/* Feature zone */}
+              <div style={{width:90, flexShrink:0, padding:4, background:'#ebe9e5', borderRight:'1.5px solid #ccc', display:'flex', flexDirection:'column', gap:3}}>
+                {sl.features.map((f,fi) => <FeaturePill key={fi} title={f.title} effort={f.effort} warn={f.warn}/>)}
+                <div style={{fontSize:9, color:'#ccc', textAlign:'center', border:'1px dashed #ccc', padding:2, borderRadius:2, marginTop:2}}>+ drop</div>
+              </div>
+              {/* Sprint columns */}
+              {sl.sprints.map((groups, spi) => (
+                <div key={spi} className="sk-sprint-col" style={{padding:3, gap:3}}>
+                  {groups.map((g,gi) => <GroupCard key={gi} name={g.name} effort={g.effort} pbis={g.pbis} warn={g.warn}/>)}
+                  {groups.length === 0 && (
+                    <div style={{border:'1.5px dashed #e8e5e0', borderRadius:2, minHeight:28, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, color:'#ddd'}}>drop</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      ))}
+      <div style={{border:'2px dashed #ddd', borderRadius:3, height:26, display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, color:'#bbb', cursor:'default'}}>
+        + Add swimlane
+      </div>
+    </div>
+  );
+};
+
+/* ─── Shared screens: Import Dialog, Deps View ─── */
+const ImportDialog = ({compact}) => (
+  <div style={{flex:1, display:'flex', alignItems:'center', justifyContent:'center', background:'rgba(0,0,0,0.15)', padding:20}}>
+    <div className="sk-box" style={{width:compact?320:380, padding:'16px 18px', display:'flex', flexDirection:'column', gap:10}}>
+      <div style={{fontWeight:700, fontSize:16}}>Import from CSV</div>
+      <div style={{fontSize:12, color:'#777'}}>Columns: ID, Type, Title, Description, Effort, ParentFeatureID, Predecessor, Successor</div>
+      <div style={{border:'2px dashed #bbb', borderRadius:4, padding:'20px', textAlign:'center', fontSize:12, color:'#aaa', background:'#fafafa'}}>
+        📂 Drop CSV here or <span style={{color:'#f5a623', textDecoration:'underline'}}>browse...</span>
+      </div>
+      <div style={{fontSize:12, color:'#888'}}>
+        <div style={{fontWeight:600, marginBottom:3}}>Options</div>
+        <div style={{display:'flex', gap:6, alignItems:'center', marginBottom:3}}>
+          <div style={{width:12, height:12, border:'2px solid #888', borderRadius:2, display:'flex', alignItems:'center', justifyContent:'center', fontSize:10}}>✓</div>
+          <span>Update existing items by ID</span>
+        </div>
+        <div style={{display:'flex', gap:6, alignItems:'center'}}>
+          <div style={{width:12, height:12, border:'2px solid #ccc', borderRadius:2}}></div>
+          <span>Skip invalid rows silently</span>
+        </div>
+      </div>
+      <div className="sk-divider"/>
+      <div style={{fontSize:12, color:'#c00', background:'#fff0f0', border:'1.5px solid #f5c6cb', borderRadius:3, padding:'6px 8px'}}>
+        <div style={{fontWeight:700, marginBottom:2}}>⚠ Preview warnings (3)</div>
+        <div>Row 5: Missing ParentFeatureID → "missing feature"</div>
+        <div>Row 12: Duplicate ID 42 → skipped</div>
+        <div>Row 17: Broken dependency #99 → imported, marked</div>
+      </div>
+      <div style={{display:'flex', gap:8, justifyContent:'flex-end'}}>
+        <SkBtn>Cancel</SkBtn>
+        <SkBtn amber>Import 24 rows →</SkBtn>
+      </div>
+    </div>
+  </div>
+);
+
+const DepsView = () => (
+  <div style={{flex:1, overflow:'auto', padding:12}}>
+    <div style={{fontWeight:700, fontSize:15, marginBottom:8}}>Dependencies</div>
+    <div style={{display:'flex', gap:8, marginBottom:10}}>
+      <SkBtn>All</SkBtn>
+      <SkBtn fill>⚠ Broken (3)</SkBtn>
+      <SkBtn>Cross-PI</SkBtn>
+      <SkBtn>Feature → Feature</SkBtn>
+      <SkBtn>PBI → PBI</SkBtn>
+      <div style={{flex:1}}></div>
+      <SkBtn>⊕ Add dependency</SkBtn>
+    </div>
+    {[
+      {from:'Login page (PBI #11)', to:'OAuth integration (PBI #12)', type:'predecessor', status:'ok'},
+      {from:'Dashboard Widget B (PBI #22)', to:'API Endpoints (PBI #31)', type:'predecessor', status:'cross-pi'},
+      {from:'Admin Panel (Feature #4)', to:'[missing — #99]', type:'predecessor', status:'broken'},
+      {from:'Auth Feature #1', to:'Dashboard Feature #2', type:'predecessor', status:'ok'},
+    ].map((d,i)=>(
+      <div key={i} className="sk-box" style={{padding:'6px 10px', marginBottom:6, display:'flex', alignItems:'center', gap:8, fontSize:12}}>
+        <span style={{flex:1}}><b>{d.from}</b></span>
+        <span style={{color:'#aaa', fontSize:14}}>→</span>
+        <span style={{flex:1, color: d.status==='broken'?'#c00':'#333'}}>{d.to}</span>
+        {d.status==='ok' && <span className="sk-chip" style={{fontSize:10}}>✓ linked</span>}
+        {d.status==='cross-pi' && <span className="sk-chip sk-chip-warn" style={{fontSize:10}}>⚠ cross-PI</span>}
+        {d.status==='broken' && <span className="sk-chip" style={{fontSize:10, background:'#fff0f0', borderColor:'#f5c6cb', color:'#c00'}}>⚠ broken</span>}
+        <span style={{fontSize:11, color:'#aaa', cursor:'default'}}>✕</span>
+      </div>
+    ))}
+  </div>
+);
+
+/* ─── Shared left panel shell (used by F, G, H) ─────────────────── */
+const LeftPanel = ({screen, onScreenChange}) => (
+  <div style={{display:'flex', flexDirection:'row', height:'100%'}}>
+    {/* Project list — 1/3 of left */}
+    <div style={{width:'37%', background:'#1e1e1e', color:'#ccc', display:'flex', flexDirection:'column', borderRight:'1px solid #111'}}>
+      <div style={{padding:'8px 10px', fontSize:11, color:'#555', textTransform:'uppercase', letterSpacing:'0.07em', borderBottom:'1px solid #2e2e2e'}}>Projects</div>
+      <div style={{flex:1, overflowY:'auto'}}>
+        {[{name:'Alpha Team',active:true},{name:'Beta Squad',active:false},{name:'Gamma Force',active:false}].map((p,i)=>(
+          <div key={i} style={{padding:'6px 10px',fontSize:12,cursor:'default',background:p.active?'#2e2e2e':'transparent',borderLeft:p.active?'3px solid #f5a623':'3px solid transparent',color:p.active?'#fff':'#777'}}>{p.name}</div>
+        ))}
+      </div>
+      <div style={{borderTop:'1px solid #2e2e2e', padding:'6px 10px', display:'flex', flexDirection:'column', gap:4}}>
+        <div style={{fontSize:11, color:'#555', cursor:'default'}}>+ new project</div>
+        <div style={{fontSize:11, color:'#555', cursor:'default'}}>↑ import project</div>
+        <div style={{fontSize:11, color:'#555', cursor:'default'}}>↓ export project</div>
+      </div>
+      <div style={{borderTop:'1px solid #2e2e2e', padding:'6px 10px'}}>
+        <div style={{fontSize:11, color:'#555', cursor:'default'}}>⚙ Settings</div>
+      </div>
+    </div>
+    {/* Backlog — 2/3 of left */}
+    <div style={{flex:1, display:'flex', flexDirection:'column', background:'#faf9f7'}}>
+      <div style={{padding:'5px 8px', borderBottom:'1.5px solid #ddd', background:'#f5f3ef'}}>
+        <span style={{fontWeight:700, fontSize:12}}>Backlog</span>
+      </div>
+      <div style={{padding:'5px 6px', borderBottom:'1px solid #eee'}}><SearchBar/></div>
+      <div style={{flex:1, overflowY:'auto', padding:'5px 6px'}}>
+        <BacklogFeature title="User Auth" id={1} effort={21} expanded={true} pbis={[
+          {title:'Login page', id:11, effort:5},
+          {title:'OAuth', id:12, effort:8},
+          {title:'Pw reset', id:13, effort:3},
+        ]}/>
+        <BacklogFeature title="Dashboard MVP" id={2} effort={34} expanded={false}/>
+        <BacklogFeature title="Notifications" id={3} effort={13} warn={true} expanded={false}/>
+        <BacklogFeature title="Admin Panel" id={4} effort={21} expanded={false}/>
+      </div>
+      <div style={{borderTop:'1.5px solid #ddd', padding:'6px 8px', display:'flex', flexDirection:'column', gap:4, background:'#f5f3ef'}}>
+        <div style={{fontSize:11, color:'#555', cursor:'default'}}>+ add feature</div>
+        <div style={{fontSize:11, color:'#555', cursor:'default'}}>↑ import CSV</div>
+      </div>
+    </div>
+  </div>
+);
+
+/* capacity bar helper */
+const CapBar = ({used, cap, width}) => {
+  const pct = Math.min(used/cap, 1);
+  const over = used > cap;
+  return (
+    <div style={{width: width||80, height:6, background:'#e0deda', borderRadius:3, overflow:'hidden', display:'inline-block', verticalAlign:'middle'}}>
+      <div style={{width:`${pct*100}%`, height:'100%', background: over?'#dc2626': pct>0.85?'#f5a623':'#4ade80', borderRadius:3}}></div>
+    </div>
+  );
+};
+
+/* ─── OPTION F: Feature-as-row board (no separate feature zone) ─── */
+const OptionF = ({screen}) => {
+  const showImport = screen === 'CSV Import';
+  const showDeps   = screen === 'Dependencies';
+  return (
+    <div style={{display:'flex',flexDirection:'column',height:'100%',border:'2.5px solid #222',borderRadius:4,overflow:'hidden',background:'#fff',fontFamily:'Caveat, cursive'}}>
+      {/* Top bar */}
+      <div style={{background:'#fff',borderBottom:'2.5px solid #222',padding:'5px 14px',display:'flex',alignItems:'center',gap:10}}>
+        <span style={{fontWeight:700,fontSize:16,letterSpacing:'-0.5px'}}>PI Planner</span>
+        <div style={{width:2,height:18,background:'#ddd'}}></div>
+        <span style={{fontSize:13,color:'#555'}}>Alpha Team › PI-24Q3</span>
+        <div style={{flex:1}}></div>
+        <EditLockBanner user={null}/>
+        <div style={{fontSize:12,color:'#888',marginLeft:6}}>David ▾</div>
+      </div>
+      <div style={{flex:1,display:'flex',flexDirection:'row',minHeight:0}}>
+        {/* Left panel */}
+        <div style={{width:'28%',borderRight:'2px solid #ddd',flexShrink:0,display:'flex',flexDirection:'column'}}>
+          <LeftPanel screen={screen}/>
+        </div>
+        {/* Right: PI board */}
+        <div style={{flex:1,display:'flex',flexDirection:'column',minWidth:0}}>
+          {showImport && <ImportDialog/>}
+          {showDeps   && <DepsView/>}
+          {!showImport && !showDeps && <>
+            <div style={{padding:'0 10px',borderBottom:'2px solid #ddd',background:'#faf9f7'}}>
+              <PITabs active="PI-24Q3 ◎"/>
+            </div>
+            <div style={{padding:'4px 10px',background:'#fef9f0',borderBottom:'1px dashed #e5a200',display:'flex',gap:8,alignItems:'center',fontSize:12}}>
+              <span className="sk-chip sk-chip-amber">In Progress</span>
+              <span style={{color:'#aaa'}}>May 5 – Sep 26</span>
+              <div style={{flex:1}}></div>
+              <SkBtn>+ Swimlane</SkBtn>
+              <SkBtn>+ Feature row</SkBtn>
+            </div>
+            {/* Feature-as-row board */}
+            <div style={{flex:1,overflow:'auto',padding:'8px 10px'}}>
+              {/* Header row */}
+              <div style={{display:'flex',borderBottom:'2px solid #222',marginBottom:6,paddingBottom:3}}>
+                <div style={{width:110,flexShrink:0,fontSize:10,color:'#888',fontWeight:600}}>Feature / Swimlane</div>
+                {['Sprint 1','Sprint 2','Sprint 3','Sprint 4','Sprint 5'].map((s,i)=>(
+                  <div key={i} style={{flex:1,borderLeft:'1.5px solid #ddd',textAlign:'center',padding:'2px'}}>
+                    <div style={{fontWeight:700,fontSize:12}}>{s}</div>
+                    <div style={{fontSize:9,color:'#aaa'}}>cap 60</div>
+                  </div>
+                ))}
+              </div>
+              {/* Swimlane section header */}
+              {[
+                {lane:'Frontend', features:[
+                  {title:'User Auth #1', effort:21, sprints:[
+                    [{name:'Auth G1',effort:13,pbis:[{title:'Login',effort:5},{title:'OAuth',effort:8}]}],
+                    [{name:'Auth G2',effort:8,pbis:[{title:'Pw Reset',effort:3},{title:'Profile',effort:5}]}],
+                    [],[],[],
+                  ]},
+                  {title:'Dashboard #2', effort:13, sprints:[
+                    [],[],
+                    [{name:'Dash G1',effort:13,warn:true,pbis:[{title:'Widget A',effort:5},{title:'Widget B',effort:8}]}],
+                    [],[],
+                  ]},
+                ]},
+                {lane:'Backend', features:[
+                  {title:'API v2 #5', effort:21, warn:true, sprints:[
+                    [{name:'API Setup',effort:8,pbis:[{title:'Endpoints',effort:8}]}],
+                    [{name:'Auth API',effort:13,warn:true,pbis:[{title:'JWT',effort:5,dep:true},{title:'Sessions',effort:8}]}],
+                    [],[],[],
+                  ]},
+                ]},
+              ].map((section,si)=>(
+                <div key={si} style={{marginBottom:6}}>
+                  {/* Lane header */}
+                  <div style={{background:'#1e1e1e',color:'#fff',padding:'3px 10px',fontSize:12,fontWeight:700,borderRadius:'3px 3px 0 0',display:'flex',alignItems:'center',gap:8}}>
+                    <span>▾ {section.lane}</span>
+                    <div style={{flex:1}}></div>
+                    <span style={{fontSize:10,color:'#888',fontWeight:400}}>cap 60</span>
+                    <CapBar used={21} cap={60} width={60}/>
+                  </div>
+                  {/* Feature rows */}
+                  {section.features.map((feat,fi)=>(
+                    <div key={fi} style={{display:'flex',borderBottom:'1.5px solid #e0deda',background: fi%2===0?'#fff':'#faf9f7'}}>
+                      {/* Feature label */}
+                      <div style={{width:110,flexShrink:0,padding:'5px 6px',borderRight:'2px solid #ddd',display:'flex',flexDirection:'column',justifyContent:'center',gap:2}}>
+                        <span style={{fontWeight:700,fontSize:12,lineHeight:1.1}}>{feat.title}</span>
+                        <span style={{display:'flex',alignItems:'center',gap:4}}>
+                          {feat.warn && <Warn small/>}
+                          <Effort n={feat.effort}/>
+                        </span>
+                      </div>
+                      {/* Sprint cells */}
+                      {feat.sprints.map((groups,spi)=>(
+                        <div key={spi} style={{flex:1,borderLeft:'1.5px solid #e8e5e0',padding:3,minHeight:52,display:'flex',flexDirection:'column',gap:3}}>
+                          {groups.map((g,gi)=><GroupCard key={gi} name={g.name} effort={g.effort} pbis={g.pbis} warn={g.warn}/>)}
+                          {groups.length===0 && <div style={{border:'1px dashed #e0deda',borderRadius:2,flex:1,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,color:'#ddd'}}>·</div>}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                  {/* Add feature to lane */}
+                  <div style={{padding:'3px 8px',fontSize:11,color:'#aaa',cursor:'default',background:'#f5f3ef',border:'1px solid #e0deda',borderTop:'none',borderRadius:'0 0 3px 3px'}}>+ drag feature here</div>
+                </div>
+              ))}
+            </div>
+          </>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─── OPTION G: Capacity-bar swimlane board ─── */
+const OptionG = ({screen}) => {
+  const showImport = screen === 'CSV Import';
+  const showDeps   = screen === 'Dependencies';
+  const sprints = [
+    {n:1,date:'May 5–16',   cap:60, used:21},
+    {n:2,date:'May 19–30',  cap:55, used:21},
+    {n:3,date:'Jun 2–13',   cap:60, used:13},
+    {n:4,date:'Jun 16–27',  cap:55, used:0},
+    {n:5,date:'Jun 30–Jul', cap:60, used:0},
+  ];
+  const swimlanes = [
+    {name:'Frontend', cap:290, collapsed:false,
+      features:[{title:'Auth',effort:21},{title:'Dashboard',effort:13},{title:'Notifs',effort:8,warn:true}],
+      sprints:[
+        [{name:'Auth G1',effort:13,pbis:[{title:'Login',effort:5},{title:'OAuth',effort:8}]}],
+        [{name:'Auth G2',effort:8,pbis:[{title:'Pw Reset',effort:3},{title:'Profile',effort:5}]}],
+        [{name:'Dashboard',effort:13,warn:true,pbis:[{title:'Widget A',effort:5},{title:'Widget B',effort:8}]}],
+        [{name:'Notifs',effort:8,pbis:[{title:'Email notif',effort:8}]}],[],
+      ]},
+    {name:'Backend', cap:240, collapsed:false,
+      features:[{title:'API v2',effort:21,warn:true}],
+      sprints:[
+        [{name:'API Setup',effort:8,pbis:[{title:'Endpoints',effort:8}]}],
+        [{name:'Auth API',effort:13,warn:true,pbis:[{title:'JWT',effort:5,dep:true},{title:'Sessions',effort:8}]}],
+        [],[],[],
+      ]},
+    {name:'QA', cap:180, collapsed:true, features:[], sprints:[]},
+  ].map(sl => ({
+    ...sl,
+    effort: sl.sprints.flat().reduce((sum, g) => sum + (g.effort||0), 0)
+  }));
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',height:'100%',border:'2.5px solid #222',borderRadius:4,overflow:'hidden',background:'#fff',fontFamily:'Caveat, cursive'}}>
+      <div style={{background:'#fff',borderBottom:'2.5px solid #222',padding:'5px 14px',display:'flex',alignItems:'center',gap:10}}>
+        <span style={{fontWeight:700,fontSize:16}}>PI Planner</span>
+        <div style={{width:2,height:18,background:'#ddd'}}></div>
+        <span style={{fontSize:13,color:'#555'}}>Alpha Team › PI-24Q3</span>
+        <div style={{flex:1}}></div>
+        <EditLockBanner user={'Sarah M.'}/>
+        <div style={{fontSize:12,color:'#888',marginLeft:6}}>David ▾</div>
+      </div>
+      <div style={{flex:1,display:'flex',flexDirection:'row',minHeight:0}}>
+        <div style={{width:'28%',borderRight:'2px solid #ddd',flexShrink:0,display:'flex',flexDirection:'column'}}>
+          <LeftPanel screen={screen}/>
+        </div>
+        <div style={{flex:1,display:'flex',flexDirection:'column',minWidth:0}}>
+          {showImport && <ImportDialog/>}
+          {showDeps   && <DepsView/>}
+          {!showImport && !showDeps && <>
+            <div style={{padding:'0 10px',borderBottom:'2px solid #ddd',background:'#faf9f7'}}>
+              <PITabs active="PI-24Q3 ◎"/>
+            </div>
+            <div style={{padding:'4px 10px',background:'#fef9f0',borderBottom:'1px dashed #e5a200',display:'flex',gap:8,alignItems:'center',fontSize:12}}>
+              <span className="sk-chip sk-chip-amber">In Progress</span>
+              <span style={{color:'#aaa'}}>May 5 – Sep 26</span>
+              <div style={{width:1,height:14,background:'#e5d5a0',margin:'0 2px'}}></div>
+              {(() => {
+                const totalEffort = swimlanes.reduce((s,sl)=>s+sl.effort,0);
+                const totalCap = swimlanes.reduce((s,sl)=>s+sl.cap,0);
+                const pct = totalCap>0?Math.round(totalEffort/totalCap*100):0;
+                return (
+                  <>
+                    <span style={{color:'#8a5c00'}}>∑ <b>{totalEffort}</b>pts</span>
+                    <div style={{display:'flex',alignItems:'center',gap:4}}>
+                      <div style={{width:70,height:3,background:'#e5d5a0',borderRadius:2,overflow:'hidden'}}>
+                        <div style={{width:`${Math.min(totalEffort/totalCap,1)*100}%`,height:'100%',background:totalEffort>totalCap?'#dc2626':pct>85?'#f5a623':'#aaa',borderRadius:2}}></div>
+                      </div>
+                      <span style={{color:'#aaa',fontSize:11}}>cap {totalCap}pts</span>
+                      <span style={{color:'#888',fontSize:11}}>{pct}%</span>
+                    </div>
+                    <div style={{width:1,height:14,background:'#e5d5a0',margin:'0 2px'}}></div>
+                    <span style={{color:'#d97706',fontSize:11}}>⚠ 2 broken deps</span>
+                    <span style={{color:'#d97706',fontSize:11}}>⚠ 1 cross-PI dep</span>
+                  </>
+                );
+              })()}
+              <div style={{flex:1}}></div>
+              <SkBtn>+ Swimlane</SkBtn>
+            </div>
+            <div style={{flex:1,overflow:'auto',padding:'8px 10px'}}>
+              {/* Sprint header with capacity bars */}
+              <div style={{display:'flex',marginBottom:6}}>
+                <div style={{width:20,flexShrink:0}}></div>
+                <div style={{width:90,flexShrink:0,fontSize:10,color:'#999',textAlign:'center',background:'#f0eeea',border:'1px solid #ddd',padding:'2px 4px'}}>Features</div>
+                {sprints.map((sp,i)=>(
+                  <div key={i} style={{flex:1,borderLeft:'1.5px solid #ddd',padding:'3px 4px',textAlign:'center'}}>
+                    <div style={{fontWeight:700,fontSize:12}}>S{sp.n}</div>
+                    <div style={{fontSize:9,color:'#aaa',marginBottom:3}}>{sp.date}</div>
+                    <div style={{width:'80%',margin:'0 auto',height:3,background:'#ece9e4',borderRadius:2,overflow:'hidden'}}>
+                      <div style={{width:`${Math.min(sp.used/sp.cap,1)*100}%`,height:'100%',background: sp.used>sp.cap?'#dc2626':sp.used/sp.cap>0.85?'#f5a623':'#aaa',borderRadius:2}}></div>
+                    </div>
+                    <div style={{fontSize:9,marginTop:2}}>
+                      <span style={{color: sp.used>sp.cap?'#dc2626':'#666'}}>{sp.used}</span>
+                      <span style={{color:'#bbb'}}>/{sp.cap}</span>
+                      <span style={{color:'#aaa',marginLeft:3}}>{sp.cap>0?Math.round(sp.used/sp.cap*100):0}%</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              {swimlanes.map((sl,si)=>(
+                <div key={si} style={{marginBottom:5,border:'1.5px solid #ccc',borderRadius:3,overflow:'hidden'}}>
+                  {/* Header with capacity bar */}
+                  <div style={{display:'flex',alignItems:'center',background:'#f0eeea',borderBottom:sl.collapsed?'none':'1.5px solid #ccc',padding:'4px 8px',gap:6}}>
+                    <span style={{fontSize:13,color:'#888',cursor:'default',width:14}}>{sl.collapsed?'▸':'▾'}</span>
+                    <span style={{fontWeight:700,fontSize:13,flex:1}}>{sl.name}</span>
+                    <div style={{display:'flex',alignItems:'center',gap:4}}>
+                      <div style={{width:60,height:3,background:'#ddd',borderRadius:2,overflow:'hidden'}}>
+                        <div style={{width:`${Math.min(sl.effort/sl.cap,1)*100}%`,height:'100%',background:sl.effort>sl.cap?'#dc2626':sl.effort/sl.cap>0.85?'#f5a623':'#aaa',borderRadius:2}}></div>
+                      </div>
+                      <span style={{fontSize:10,color:'#888'}}>{sl.effort}/{sl.cap}pts</span>
+                      <span style={{fontSize:10,color:'#aaa'}}>{sl.cap>0?Math.round(sl.effort/sl.cap*100):0}%</span>
+                    </div>
+                    {sl.features.length>0 && <span className="sk-chip" style={{fontSize:10}}>{sl.features.length} feat.</span>}
+                    <span style={{fontSize:11,color:'#aaa'}}>···</span>
+                  </div>
+                  {!sl.collapsed && (
+                    <div style={{display:'flex',flexDirection:'row'}}>
+                      <div style={{width:90,flexShrink:0,padding:4,background:'#ebe9e5',borderRight:'1.5px solid #ccc',display:'flex',flexDirection:'column',gap:3}}>
+                        {sl.features.map((f,fi)=><FeaturePill key={fi} title={f.title} effort={f.effort} warn={f.warn}/>)}
+                        <div style={{fontSize:9,color:'#ccc',textAlign:'center',border:'1px dashed #ccc',padding:2,borderRadius:2}}>+ drop</div>
+                      </div>
+                      {sl.sprints.map((groups,spi)=>(
+                        <div key={spi} className="sk-sprint-col" style={{padding:3,gap:3, borderLeft:'1.5px solid #ddd', background: groups.length===0?'transparent': spi===1&&si===1?'#fff9f0':'transparent'}}>
+                          {groups.map((g,gi)=><GroupCard key={gi} name={g.name} effort={g.effort} pbis={g.pbis} warn={g.warn}/>)}
+                          {groups.length===0 && <div style={{border:'1.5px dashed #e8e5e0',borderRadius:2,minHeight:28,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,color:'#ddd'}}>drop</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+
+            </div>
+          </>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─── OPTION H: Drag-target highlights + inline group creation ─── */
+const OptionH = ({screen}) => {
+  const showImport = screen === 'CSV Import';
+  const showDeps   = screen === 'Dependencies';
+
+  return (
+    <div style={{display:'flex',flexDirection:'column',height:'100%',border:'2.5px solid #222',borderRadius:4,overflow:'hidden',background:'#fff',fontFamily:'Caveat, cursive'}}>
+      <div style={{background:'#fff',borderBottom:'2.5px solid #222',padding:'5px 14px',display:'flex',alignItems:'center',gap:10}}>
+        <span style={{fontWeight:700,fontSize:16}}>PI Planner</span>
+        <div style={{width:2,height:18,background:'#ddd'}}></div>
+        <span style={{fontSize:13,color:'#555'}}>Alpha Team › PI-24Q3</span>
+        <div style={{flex:1}}></div>
+        <EditLockBanner user={null}/>
+        <div style={{fontSize:12,color:'#888',marginLeft:6}}>David ▾</div>
+      </div>
+      <div style={{flex:1,display:'flex',flexDirection:'row',minHeight:0}}>
+        {/* Left panel — backlog item being dragged state */}
+        <div style={{width:'28%',borderRight:'2px solid #ddd',flexShrink:0,display:'flex',flexDirection:'column'}}>
+          <div style={{display:'flex',flexDirection:'row',height:'100%'}}>
+            <div style={{width:'37%',background:'#1e1e1e',color:'#ccc',display:'flex',flexDirection:'column',borderRight:'1px solid #111'}}>
+              <div style={{padding:'8px 10px',fontSize:11,color:'#555',textTransform:'uppercase',letterSpacing:'0.07em',borderBottom:'1px solid #2e2e2e'}}>Projects</div>
+              <div style={{flex:1,overflowY:'auto'}}>
+                {[{name:'Alpha Team',active:true},{name:'Beta Squad',active:false}].map((p,i)=>(
+                  <div key={i} style={{padding:'6px 10px',fontSize:12,cursor:'default',background:p.active?'#2e2e2e':'transparent',borderLeft:p.active?'3px solid #f5a623':'3px solid transparent',color:p.active?'#fff':'#777'}}>{p.name}</div>
+                ))}
+              </div>
+              <div style={{borderTop:'1px solid #2e2e2e',padding:'6px 10px',display:'flex',flexDirection:'column',gap:4}}>
+                <div style={{fontSize:11,color:'#555',cursor:'default'}}>+ new project</div>
+                <div style={{fontSize:11,color:'#555',cursor:'default'}}>↑ import project</div>
+                <div style={{fontSize:11,color:'#555',cursor:'default'}}>↓ export project</div>
+              </div>
+              <div style={{borderTop:'1px solid #2e2e2e',padding:'6px 10px'}}>
+                <div style={{fontSize:11,color:'#555',cursor:'default'}}>⚙ Settings</div>
+              </div>
+            </div>
+            <div style={{flex:1,display:'flex',flexDirection:'column',background:'#faf9f7'}}>
+              <div style={{padding:'5px 8px',borderBottom:'1.5px solid #ddd',background:'#f5f3ef'}}>
+                <span style={{fontWeight:700,fontSize:12}}>Backlog</span>
+              </div>
+              <div style={{padding:'5px 6px',borderBottom:'1px solid #eee'}}><SearchBar/></div>
+              <div style={{flex:1,overflowY:'auto',padding:'5px 6px'}}>
+                {/* "Being dragged" feature — shown with drag state */}
+                <div style={{marginBottom:4,opacity:0.4}}>
+                  <div className="sk-box" style={{padding:'4px 8px',display:'flex',gap:6,alignItems:'center',background:'#fef3d7',borderColor:'#e5a200',borderStyle:'dashed'}}>
+                    <span style={{color:'#aaa',fontSize:14}}>▸</span>
+                    <span style={{fontWeight:700,fontSize:13,flex:1}}>User Auth</span>
+                    <Effort n={21}/>
+                    <span style={{fontSize:10,color:'#e5a200'}}>dragging…</span>
+                  </div>
+                </div>
+                <BacklogFeature title="Dashboard MVP" id={2} effort={34} expanded={false}/>
+                <BacklogFeature title="Notifications" id={3} effort={13} warn={true} expanded={false}/>
+                <BacklogFeature title="Admin Panel" id={4} effort={21} expanded={false}/>
+              </div>
+              <div style={{borderTop:'1.5px solid #ddd',padding:'6px 8px',display:'flex',flexDirection:'column',gap:4,background:'#f5f3ef'}}>
+                <div style={{fontSize:11,color:'#555',cursor:'default'}}>+ add feature</div>
+                <div style={{fontSize:11,color:'#555',cursor:'default'}}>↑ import CSV</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Right: PI board with drop targets lit up */}
+        <div style={{flex:1,display:'flex',flexDirection:'column',minWidth:0}}>
+          {showImport && <ImportDialog/>}
+          {showDeps   && <DepsView/>}
+          {!showImport && !showDeps && <>
+            <div style={{padding:'0 10px',borderBottom:'2px solid #ddd',background:'#faf9f7'}}>
+              <PITabs active="PI-24Q3 ◎"/>
+            </div>
+            {/* Drag hint banner */}
+            <div style={{padding:'5px 10px',background:'#fef3d7',borderBottom:'2px solid #e5a200',display:'flex',gap:8,alignItems:'center',fontSize:12}}>
+              <span style={{fontSize:14}}>↕</span>
+              <span style={{color:'#8a5c00'}}>Dragging <b>User Auth</b> — drop into a swimlane feature zone below</span>
+              <div style={{flex:1}}></div>
+              <span style={{fontSize:11,color:'#aaa',cursor:'default'}}>Esc to cancel</span>
+            </div>
+            <div style={{flex:1,overflow:'auto',padding:'8px 10px'}}>
+              {/* Sprint header */}
+              <div style={{display:'flex',borderBottom:'2px solid #ccc',marginBottom:4}}>
+                <div style={{width:20,flexShrink:0}}></div>
+                <div style={{width:90,flexShrink:0,fontSize:10,color:'#999',textAlign:'center',background:'#f0eeea',border:'1px solid #ddd',padding:'2px 4px'}}>Feature Zone</div>
+                {['S1','S2','S3','S4','S5'].map((s,i)=>(
+                  <div key={i} style={{flex:1,borderLeft:'1.5px solid #ddd',textAlign:'center',padding:'3px 2px'}}>
+                    <div style={{fontWeight:700,fontSize:12}}>{s}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Swimlane 1 — lit up as valid drop target */}
+              <div style={{marginBottom:5,border:'2.5px solid #f5a623',borderRadius:3,overflow:'hidden',boxShadow:'0 0 0 3px #fef3d7'}}>
+                <div style={{display:'flex',alignItems:'center',background:'#fef3d7',borderBottom:'1.5px solid #e5a200',padding:'4px 8px',gap:6}}>
+                  <span style={{fontSize:13,color:'#888',width:14}}>▾</span>
+                  <span style={{fontWeight:700,fontSize:13,flex:1}}>Frontend</span>
+                  <span style={{fontSize:10,color:'#e5a200',fontWeight:600}}>← drop here</span>
+                  <span style={{fontSize:10,color:'#888'}}>∑34pts / cap 60</span>
+                </div>
+                <div style={{display:'flex',flexDirection:'row'}}>
+                  {/* Feature zone — highlighted drop area */}
+                  <div style={{width:90,flexShrink:0,padding:4,background:'#fef9f0',borderRight:'1.5px solid #e5a200',display:'flex',flexDirection:'column',gap:3,border:'2px dashed #f5a623',borderRadius:2,margin:3}}>
+                    <FeaturePill title="Dashboard" effort={13}/>
+                    <div style={{fontSize:10,color:'#e5a200',textAlign:'center',border:'2px dashed #f5a623',padding:4,borderRadius:2,background:'#fef3d7',fontWeight:600}}>+ drop Auth here</div>
+                  </div>
+                  {['S1','S2','S3','S4','S5'].map((_,spi)=>(
+                    <div key={spi} className="sk-sprint-col" style={{padding:3,gap:3}}>
+                      {spi===0 && <GroupCard name="Dash G1" effort={13} warn={false} pbis={[{title:'Widget A',effort:5},{title:'Widget B',effort:8}]}/>}
+                      {spi!==0 && <div style={{border:'1.5px dashed #e8e5e0',borderRadius:2,minHeight:28,display:'flex',alignItems:'center',justifyContent:'center',fontSize:9,color:'#ddd'}}>·</div>}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Swimlane 2 — also a valid target, less prominent */}
+              <div style={{marginBottom:5,border:'2px solid #f5a623',borderRadius:3,overflow:'hidden',opacity:0.7}}>
+                <div style={{display:'flex',alignItems:'center',background:'#fef9f0',borderBottom:'1.5px solid #e5a200',padding:'4px 8px',gap:6}}>
+                  <span style={{fontSize:13,color:'#888',width:14}}>▾</span>
+                  <span style={{fontWeight:700,fontSize:13,flex:1}}>Backend</span>
+                  <span style={{fontSize:10,color:'#e5a200'}}>← drop here</span>
+                  <span style={{fontSize:10,color:'#888'}}>∑21pts / cap 55</span>
+                </div>
+              </div>
+
+              {/* Swimlane 3 — collapsed, dimmed */}
+              <div style={{marginBottom:5,border:'1.5px solid #ddd',borderRadius:3,overflow:'hidden',opacity:0.4}}>
+                <div style={{display:'flex',alignItems:'center',background:'#f0eeea',padding:'4px 8px',gap:6}}>
+                  <span style={{fontSize:13,color:'#888',width:14}}>▸</span>
+                  <span style={{fontWeight:700,fontSize:13,flex:1,color:'#aaa'}}>QA</span>
+                  <span style={{fontSize:10,color:'#ccc'}}>collapsed</span>
+                </div>
+              </div>
+
+              {/* PBI grouping interaction note */}
+              <div style={{marginTop:8,padding:'6px 10px',border:'2px dashed #ccc',borderRadius:3,background:'#faf9f7',fontSize:11,color:'#888'}}>
+                <span style={{fontWeight:700,color:'#555'}}>Group creation flow:</span> select multiple PBIs from the same feature → right-click → "Create group" → name it → drag group to sprint column
+              </div>
+            </div>
+          </>}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+/* ─── Sprint column variants for Option G ─────────────────── */
+
+const sampleSwimlanes = [
+  {name:'Frontend', cap:60, effort:34,
+    sprints:[
+      [{name:'Auth Group 1', effort:13, pbis:[{title:'Login page',effort:5},{title:'OAuth integration',effort:8}]},
+       {name:'Notifs', effort:8, warn:true, pbis:[{title:'Email notif',effort:8}]}],
+      [{name:'Auth Group 2', effort:8, pbis:[{title:'Pw Reset',effort:3},{title:'Profile page',effort:5}]}],
+      [{name:'Dashboard', effort:13, warn:true, pbis:[{title:'Widget A',effort:5},{title:'Widget B',effort:8,warn:true}]}],
+      [], [],
+    ]
+  },
+  {name:'Backend', cap:55, effort:21,
+    sprints:[
+      [{name:'API Setup', effort:8, pbis:[{title:'Endpoints',effort:8}]}],
+      [{name:'Auth API', effort:13, warn:true, pbis:[{title:'JWT tokens',effort:5,dep:true},{title:'Sessions',effort:8}]}],
+      [], [], [],
+    ]
+  },
+];
+
+const sprintMeta = [
+  {n:1,date:'May 5–16',  cap:60, used:21},
+  {n:2,date:'May 19–30', cap:55, used:21},
+  {n:3,date:'Jun 2–13',  cap:60, used:13},
+  {n:4,date:'Jun 16–27', cap:55, used:0},
+  {n:5,date:'Jun 30',    cap:60, used:0},
+];
+
+/* Variant A — current stacked group cards (reference) */
+const SprintColA = ({groups}) => (
+  <div style={{flex:1, borderLeft:'1.5px solid #ddd', padding:3, display:'flex', flexDirection:'column', gap:3, minHeight:60}}>
+    {groups.map((g,gi) => (
+      <div key={gi} className="sk-group-card">
+        <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', gap:4}}>
+          <span style={{fontWeight:600, fontSize:12}}>{g.name}</span>
+          <span style={{display:'flex', alignItems:'center', gap:3}}>
+            {g.warn && <Warn small/>}
+            <Effort n={g.effort}/>
+          </span>
+        </div>
+        {g.pbis.map((p,i) => (
+          <div key={i} className="sk-pbi-row">
+            <span style={{fontSize:11}}>{p.title}</span>
+            <span style={{display:'flex',gap:2}}>
+              {p.dep && <Dep/>}{p.warn && <Warn small/>}
+              {p.effort && <Effort n={p.effort}/>}
+            </span>
+          </div>
+        ))}
+      </div>
+    ))}
+    {groups.length === 0 && <div style={{border:'1.5px dashed #e8e5e0', borderRadius:2, flex:1, minHeight:30, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, color:'#ddd'}}>drop group</div>}
+  </div>
+);
+
+/* Variant B — compact group pill, no PBI rows, count badge */
+const SprintColB = ({groups}) => (
+  <div style={{flex:1, borderLeft:'1.5px solid #ddd', padding:3, display:'flex', flexDirection:'column', gap:4, minHeight:60}}>
+    {groups.map((g,gi) => (
+      <div key={gi} style={{
+        border:'2px solid #888', borderRadius:3, padding:'4px 7px',
+        background:'#fff', display:'flex', alignItems:'center', gap:6
+      }}>
+        <span style={{flex:1, fontWeight:600, fontSize:12, overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis'}}>{g.name}</span>
+        <span style={{fontSize:10, color:'#aaa', background:'#f0eeea', border:'1px solid #ddd', borderRadius:10, padding:'0 5px'}}>{g.pbis.length} PBIs</span>
+        {g.warn && <Warn small/>}
+        <Effort n={g.effort}/>
+      </div>
+    ))}
+    {groups.length === 0 && <div style={{border:'1.5px dashed #e8e5e0', borderRadius:2, flex:1, minHeight:30, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, color:'#ddd'}}>drop group</div>}
+  </div>
+);
+
+/* Variant C — kanban-style: thin colored group header + PBI chips below */
+const SprintColC = ({groups}) => {
+  const colors = ['#4a90d9','#7b68ee','#e07b39','#4caf7d'];
+  return (
+    <div style={{flex:1, borderLeft:'1.5px solid #ddd', padding:3, display:'flex', flexDirection:'column', gap:5, minHeight:60}}>
+      {groups.map((g,gi) => (
+        <div key={gi} style={{display:'flex', flexDirection:'column', gap:2}}>
+          {/* Group header bar */}
+          <div style={{
+            background: colors[gi % colors.length],
+            borderRadius:'3px 3px 0 0',
+            padding:'2px 6px',
+            display:'flex', alignItems:'center', gap:4
+          }}>
+            <span style={{fontWeight:700, fontSize:11, color:'#fff', flex:1, overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis'}}>{g.name}</span>
+            {g.warn && <span style={{fontSize:10, color:'#ffe082'}}>⚠</span>}
+            <span style={{fontSize:10, color:'rgba(255,255,255,0.7)', background:'rgba(0,0,0,0.15)', borderRadius:8, padding:'0 4px'}}>{g.effort}pts</span>
+          </div>
+          {/* PBI chips */}
+          <div style={{display:'flex', flexDirection:'column', gap:2, paddingLeft:0}}>
+            {g.pbis.map((p,pi) => (
+              <div key={pi} style={{
+                background:'#fff', border:`1.5px solid ${colors[gi % colors.length]}33`,
+                borderLeft:`3px solid ${colors[gi % colors.length]}`,
+                borderRadius:'0 3px 3px 0',
+                padding:'2px 6px', fontSize:11,
+                display:'flex', alignItems:'center', justifyContent:'space-between'
+              }}>
+                <span style={{flex:1, overflow:'hidden', whiteSpace:'nowrap', textOverflow:'ellipsis'}}>{p.title}</span>
+                <span style={{display:'flex', gap:2, marginLeft:4}}>
+                  {p.dep && <Dep/>}{p.warn && <Warn small/>}
+                  {p.effort && <Effort n={p.effort}/>}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+      {groups.length === 0 && <div style={{border:'1.5px dashed #e8e5e0', borderRadius:2, flex:1, minHeight:30, display:'flex', alignItems:'center', justifyContent:'center', fontSize:9, color:'#ddd'}}>drop group</div>}
+    </div>
+  );
+};
+
+const SprintColVariants = ({variant}) => {
+  const ColComp = variant==='A' ? SprintColA : variant==='B' ? SprintColB : SprintColC;
+  const label = variant==='A' ? 'Stacked group cards — full PBI list visible'
+              : variant==='B' ? 'Compact group pills — PBI count only, expandable on click'
+              : 'Kanban chips — PBIs visible with color-coded group header';
+
+  return (
+    <div style={{height:'100%', display:'flex', flexDirection:'column', border:'2.5px solid #222', borderRadius:4, overflow:'hidden', background:'#fff', fontFamily:'Caveat, cursive'}}>
+      {/* Label bar */}
+      <div style={{padding:'6px 12px', background:'#1e1e1e', color:'#fff', fontSize:13, fontWeight:700, display:'flex', alignItems:'center', gap:8}}>
+        <span style={{color:'#f5a623'}}>Variant {variant}</span>
+        <span style={{color:'#555', fontWeight:400, fontSize:12}}>{label}</span>
+      </div>
+      {/* Mini PI status bar */}
+      <div style={{padding:'3px 10px', background:'#fef9f0', borderBottom:'1px dashed #e5a200', display:'flex', gap:8, alignItems:'center', fontSize:11}}>
+        <span className="sk-chip sk-chip-amber">In Progress</span>
+        <span style={{color:'#aaa'}}>PI-24Q3 · May 5 – Sep 26</span>
+        <div style={{flex:1}}></div>
+        <span style={{color:'#888'}}>∑55pts / cap 290pts · 19%</span>
+      </div>
+      {/* Board */}
+      <div style={{flex:1, overflow:'auto', padding:'8px 10px'}}>
+        {/* Sprint header */}
+        <div style={{display:'flex', borderBottom:'2px solid #ccc', marginBottom:4}}>
+          <div style={{width:20, flexShrink:0}}></div>
+          <div style={{width:80, flexShrink:0, fontSize:10, color:'#999', textAlign:'center', background:'#f0eeea', border:'1px solid #ddd', padding:'2px 4px'}}>Features</div>
+          {sprintMeta.map((sp,i) => (
+            <div key={i} style={{flex:1, borderLeft:'1.5px solid #ddd', textAlign:'center', padding:'3px 2px'}}>
+              <div style={{fontWeight:700, fontSize:12}}>S{sp.n}</div>
+              <div style={{fontSize:9, color:'#aaa', marginBottom:2}}>{sp.date}</div>
+              <div style={{width:'80%', margin:'0 auto', height:3, background:'#ece9e4', borderRadius:2, overflow:'hidden'}}>
+                <div style={{width:`${Math.min(sp.used/sp.cap,1)*100}%`, height:'100%', background: sp.used>sp.cap?'#dc2626':sp.used/sp.cap>0.85?'#f5a623':'#aaa', borderRadius:2}}></div>
+              </div>
+              <div style={{fontSize:9, marginTop:1}}>
+                <span style={{color:'#666'}}>{sp.used}</span><span style={{color:'#bbb'}}>/{sp.cap}</span>
+                <span style={{color:'#aaa', marginLeft:2}}>{Math.round(sp.used/sp.cap*100)}%</span>
+              </div>
+            </div>
+          ))}
+        </div>
+        {/* Swimlanes */}
+        {sampleSwimlanes.map((sl,si) => (
+          <div key={si} style={{marginBottom:5, border:'1.5px solid #ccc', borderRadius:3, overflow:'hidden'}}>
+            <div style={{display:'flex', alignItems:'center', background:'#f0eeea', borderBottom:'1.5px solid #ccc', padding:'4px 8px', gap:6}}>
+              <span style={{fontSize:13, color:'#888', width:14}}>▾</span>
+              <span style={{fontWeight:700, fontSize:13, flex:1}}>{sl.name}</span>
+              <div style={{width:50, height:3, background:'#ddd', borderRadius:2, overflow:'hidden'}}>
+                <div style={{width:`${Math.min(sl.effort/sl.cap,1)*100}%`, height:'100%', background:'#aaa', borderRadius:2}}></div>
+              </div>
+              <span style={{fontSize:10, color:'#888'}}>{sl.effort}/{sl.cap}pts</span>
+              <span style={{fontSize:10, color:'#aaa'}}>{Math.round(sl.effort/sl.cap*100)}%</span>
+            </div>
+            <div style={{display:'flex', flexDirection:'row'}}>
+              {/* Feature zone */}
+              <div style={{width:80, flexShrink:0, padding:4, background:'#ebe9e5', borderRight:'1.5px solid #ccc', display:'flex', flexDirection:'column', gap:3}}>
+                <FeaturePill title={si===0?'Auth':'API v2'} effort={si===0?21:21} warn={si===1}/>
+                {si===0 && <FeaturePill title="Dashboard" effort={13}/>}
+                <div style={{fontSize:9, color:'#ccc', textAlign:'center', border:'1px dashed #ccc', padding:2, borderRadius:2}}>+ drop</div>
+              </div>
+              {/* Sprint cols */}
+              {sl.sprints.map((groups, spi) => (
+                <ColComp key={spi} groups={groups}/>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+/* ─── Main App ─── */
+const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "screen": "PI Board",
+  "option": "Option G"
+}/*EDITMODE-END*/;
+
+const App = () => {
+  const [tweaks, setTweak] = useTweaks(TWEAK_DEFAULTS);
+  const screen = tweaks.screen;
+  const option = tweaks.option;
+
+  const showAll = option === 'All options';
+
+  return (
+    <>
+      <DesignCanvas>
+        {(showAll || option === 'Option A') && (
+          <DCSection id="A" title="Option A — Sidebar nav, horizontal swimlanes">
+            <DCArtboard id="A1" label="Standard layout" width={900} height={580}>
+              <OptionA screen={screen}/>
+            </DCArtboard>
+          </DCSection>
+        )}
+        {(showAll || option === 'Option B') && (
+          <DCSection id="B" title="Option B — Top tab bar, collapsible swimlanes">
+            <DCArtboard id="B1" label="Top nav, collapsed rows" width={900} height={580}>
+              <OptionB screen={screen}/>
+            </DCArtboard>
+          </DCSection>
+        )}
+        {(showAll || option === 'Option C') && (
+          <DCSection id="C" title="Option C — Icon sidebar + right detail rail">
+            <DCArtboard id="C1" label="Icon dock + detail panel" width={900} height={580}>
+              <OptionC screen={screen}/>
+            </DCArtboard>
+          </DCSection>
+        )}
+        {(showAll || option === 'Option D') && (
+          <DCSection id="D" title="Option D — Persistent backlog drawer + board">
+            <DCArtboard id="D1" label="Split: backlog left, board right" width={900} height={580}>
+              <OptionD screen={screen}/>
+            </DCArtboard>
+          </DCSection>
+        )}
+        {(showAll || option === 'Option E') && (
+          <DCSection id="E" title="Option E ★ Combined — Project list · Backlog · Collapsible swimlanes">
+            <DCArtboard id="E1" label="Project list (1/3) + Backlog (2/3) + Board" width={1100} height={620}>
+              <OptionE screen={screen}/>
+            </DCArtboard>
+          </DCSection>
+        )}
+        {(showAll || option === 'Option F') && (
+          <DCSection id="F" title="Option F — Feature-as-row board (no separate feature zone)">
+            <DCArtboard id="F1" label="Features as swimlane rows" width={1100} height={620}>
+              <OptionF screen={screen}/>
+            </DCArtboard>
+          </DCSection>
+        )}
+        {(showAll || option === 'Option G') && (
+          <DCSection id="G" title="Option G — Capacity bar visualization per swimlane">
+            <DCArtboard id="G1" label="Visual capacity indicators + PI summary bar" width={1100} height={620}>
+              <OptionG screen={screen}/>
+            </DCArtboard>
+            <DCArtboard id="G2" label="Sprint col variant A — Current: stacked group cards" width={700} height={480}>
+              <SprintColVariants variant="A"/>
+            </DCArtboard>
+            <DCArtboard id="G3" label="Sprint col variant B — Compact: group pills, no PBI rows" width={700} height={480}>
+              <SprintColVariants variant="B"/>
+            </DCArtboard>
+            <DCArtboard id="G4" label="Sprint col variant C — Kanban: PBIs as chips under group header" width={700} height={480}>
+              <SprintColVariants variant="C"/>
+            </DCArtboard>
+          </DCSection>
+        )}
+        {(showAll || option === 'Option H') && (
+          <DCSection id="H" title="Option H — Drag targets + inline group creation flow">
+            <DCArtboard id="H1" label="Active drag state + highlighted drop zones" width={1100} height={620}>
+              <OptionH screen={screen}/>
+            </DCArtboard>
+          </DCSection>
+        )}
+      </DesignCanvas>
+
+      <TweaksPanel>
+        <TweakSection title="Active Screen">
+          <TweakRadio
+            id="screen"
+            options={['Backlog','PI Board','CSV Import','Dependencies']}
+            value={screen}
+            onChange={v => setTweak('screen', v)}
+          />
+        </TweakSection>
+        <TweakSection title="Show Options">
+          <TweakRadio
+            id="option"
+            options={['All options','Option A','Option B','Option C','Option D','Option E','Option F','Option G','Option H']}
+            value={option}
+            onChange={v => setTweak('option', v)}
+          />
+        </TweakSection>
+      </TweaksPanel>
+    </>
+  );
+};
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+
+<div id="root" style="width:100vw;height:100vh;"></div>
+
+<template id="__bundler_thumbnail">
+  <svg viewBox="0 0 120 80" xmlns="http://www.w3.org/2000/svg">
+    <rect width="120" height="80" fill="#f5f3ef"/>
+    <rect x="8" y="8" width="22" height="64" rx="2" fill="#1a1a1a"/>
+    <rect x="34" y="8" width="78" height="12" rx="2" fill="#e8e5e0"/>
+    <rect x="34" y="24" width="78" height="2" fill="#ddd"/>
+    <rect x="34" y="30" width="16" height="42" rx="1" fill="#ebe9e5"/>
+    <rect x="52" y="30" width="14" height="20" rx="1" fill="#fff" stroke="#bbb" stroke-width="1"/>
+    <rect x="52" y="54" width="14" height="18" rx="1" fill="#fff" stroke="#bbb" stroke-width="1"/>
+    <rect x="68" y="30" width="14" height="14" rx="1" fill="#fff" stroke="#bbb" stroke-width="1"/>
+    <rect x="84" y="30" width="14" height="10" rx="1" fill="#f5a623" opacity="0.5"/>
+    <rect x="100" y="30" width="12" height="18" rx="1" fill="#fff" stroke="#ccc" stroke-width="1"/>
+  </svg>
+</template>
