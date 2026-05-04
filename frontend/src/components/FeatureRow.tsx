@@ -2,16 +2,16 @@ import { useState } from 'react'
 import type { Feature } from '@/types'
 import { FeatureFormModal } from './FeatureFormModal'
 import { ConfirmDialog } from './ConfirmDialog'
+import { PBIList } from './PBIList'
 import { useUpdateFeature, useDeleteFeature } from '@/hooks/useFeatures'
 import { useAuthStore } from '@/stores/authStore'
 
 interface Props {
   feature: Feature
   projectId: string
-  children?: React.ReactNode
 }
 
-export function FeatureRow({ feature, projectId, children }: Props) {
+export function FeatureRow({ feature, projectId }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [editing, setEditing] = useState(false)
   const [confirming, setConfirming] = useState(false)
@@ -69,12 +69,9 @@ export function FeatureRow({ feature, projectId, children }: Props) {
         </div>
       </div>
 
-      {/* PBI list (M3) */}
       {expanded && (
         <div className="pl-9 pr-4 pb-2">
-          {children ?? (
-            <p className="text-xs text-gray-400 py-1">No PBIs yet</p>
-          )}
+          <PBIList featureId={feature.system_id} projectId={projectId} />
         </div>
       )}
 

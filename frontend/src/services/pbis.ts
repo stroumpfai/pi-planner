@@ -2,8 +2,10 @@ import { api } from './api'
 import type { PBI, PBICreate, PBIUpdate } from '@/types'
 
 export const pbisApi = {
-  list: (projectId: string) =>
-    api.get<PBI[]>(`/projects/${projectId}/pbis`).then((r) => r.data),
+  list: (projectId: string, featureId?: string) =>
+    api
+      .get<PBI[]>(`/projects/${projectId}/pbis`, { params: featureId ? { feature_id: featureId } : {} })
+      .then((r) => r.data),
 
   get: (pbiId: string) =>
     api.get<PBI>(`/pbis/${pbiId}`).then((r) => r.data),

@@ -7,11 +7,10 @@ import { useAuthStore } from '@/stores/authStore'
 import type { Feature } from '@/types'
 
 vi.mock('@/services/features', () => ({
-  featuresApi: {
-    update: vi.fn(),
-    delete: vi.fn(),
-    list: vi.fn().mockResolvedValue([]),
-  },
+  featuresApi: { update: vi.fn(), delete: vi.fn(), list: vi.fn().mockResolvedValue([]) },
+}))
+vi.mock('@/services/pbis', () => ({
+  pbisApi: { list: vi.fn().mockResolvedValue([]) },
 }))
 
 const makeWrapper = () => {
@@ -76,14 +75,10 @@ describe('FeatureRow', () => {
     expect(screen.getByRole('button', { name: /delete/i })).not.toBeDisabled()
   })
 
-  it('expands to show children on toggle', async () => {
-    render(
-      <FeatureRow feature={baseFeature} projectId="p-1">
-        <p>Child PBI</p>
-      </FeatureRow>,
-      { wrapper: makeWrapper() },
-    )
+  it('expands to show PBIList on toggle', async () => {
+    render(<FeatureRow feature={baseFeature} projectId="p-1" />, { wrapper: makeWrapper() })
     await userEvent.click(screen.getByRole('button', { name: /expand/i }))
-    expect(screen.getByText('Child PBI')).toBeInTheDocument()
+    // PBIList renders — "No PBIs yet" confirms PBIList is mounted
+    expect(await screen.findByText(/no pbis yet/i)).toBeInTheDocument()
   })
 })

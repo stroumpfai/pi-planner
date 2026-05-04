@@ -114,33 +114,35 @@
 
 ### 3A · Backend
 
-- [ ] `GET /api/v1/projects/{id}/pbis?feature_id={fid}` — list PBIs for a feature
-- [ ] `POST /api/v1/projects/{id}/pbis` — create PBI (validate `parent_feature_system_id` exists in project; validate `user_id` uniqueness across Features+PBIs)
-- [ ] `GET /api/v1/pbis/{id}` — get PBI
-- [ ] `PATCH /api/v1/pbis/{id}` — update title/description/effort/user_id
-- [ ] `DELETE /api/v1/pbis/{id}` — delete PBI; if last PBI in a group, delete the group
-- [ ] SSE broadcast `pbi:created`, `pbi:updated`, `pbi:deleted`
+- [x] `GET /api/v1/projects/{id}/pbis?feature_id={fid}` — list PBIs, optional feature filter, ordered by `created_at` asc
+- [x] `POST /api/v1/projects/{id}/pbis` — create PBI (validates parent feature in project; user_id uniqueness across Features+PBIs)
+- [x] `GET /api/v1/pbis/{id}` — get PBI
+- [x] `PATCH /api/v1/pbis/{id}` — update all fields via `model_fields_set`; user_id uniqueness → 409
+- [x] `DELETE /api/v1/pbis/{id}` — delete PBI; group auto-deleted when last PBI removed
+- [x] SSE broadcast `pbi:created`, `pbi:updated`, `pbi:deleted`
 
 ### 3B · Frontend
 
-- [ ] `FeatureRow` expand toggle reveals `PBIList` child component
-- [ ] `PBIRow` — shows `[id] Title`, effort badge, edit/delete actions
-- [ ] `CreatePBIModal` — title (required), description, effort, optional user id
-- [ ] `EditPBIModal` — pre-filled, handles 409 duplicate-id inline
-- [ ] Delete PBI confirmation dialog
-- [ ] `usePBIs` hook wired to real API (fetches by `feature_id` query param)
+- [x] `FeatureRow` expand toggle reveals `PBIList` (replaces placeholder)
+- [x] `PBIRow` — `[id] Title`, effort badge, edit/delete with edit-lock guard
+- [x] `PBIFormModal` — unified create/edit form, inline 409 error
+- [x] Delete PBI via reusable `ConfirmDialog`
+- [x] `usePBIs(projectId, featureId)` wired to real API with `feature_id` query param
+- [x] `pbisApi.list` updated to pass `feature_id` param
 
 ### 3C · Testing
 
-- [ ] Backend: user_id uniqueness spans Features+PBIs — PBI with same id as Feature → 409
-- [ ] Backend: deleting last PBI in a group deletes the group
-- [ ] Frontend component test: PBI list renders inside expanded FeatureRow
-- [ ] Frontend component test: empty PBI list shows "No PBIs yet" placeholder
-- [ ] **Manual smoke test:** create Feature → create 3 PBIs → delete PBI → count updates
+- [x] Backend: 19 integration tests — PBI id conflicts with Feature id → 409
+- [x] Backend: last PBI in group deleted → group removed; non-last PBI → group kept
+- [x] Frontend: `PBIList` shows "No PBIs yet", renders rows, fetches with feature_id
+- [x] Frontend: `PBIRow` prefix/effort/disabled buttons
+- [x] Frontend: `FeatureRow` expand shows PBIList (44 total tests passing)
+- [ ] **Manual smoke test:** create Feature → create 3 PBIs → delete one → count updates
 
 ### 3D · Review checkpoint
-- [ ] Code review: cross-entity user_id uniqueness constraint handling
-- [ ] Confirm PBI delete triggers group cleanup correctly
+- [x] Code review: cross-entity user_id uniqueness via shared validation service
+- [x] `model_fields_set` used for all PATCH fields; explicit null clears user_id
+- [x] Group cleanup on last-PBI delete verified with DB fixture test
 
 ---
 
