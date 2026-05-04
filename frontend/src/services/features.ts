@@ -2,8 +2,8 @@ import { api } from './api'
 import type { Feature, FeatureCreate, FeatureUpdate } from '@/types'
 
 export const featuresApi = {
-  list: (projectId: string) =>
-    api.get<Feature[]>(`/projects/${projectId}/features`).then((r) => r.data),
+  list: (projectId: string, sort: 'created_at' | 'name' = 'created_at') =>
+    api.get<Feature[]>(`/projects/${projectId}/features`, { params: { sort } }).then((r) => r.data),
 
   get: (featureId: string) =>
     api.get<Feature>(`/features/${featureId}`).then((r) => r.data),

@@ -3,6 +3,7 @@ import { useUiStore } from '@/stores/uiStore'
 import { EditLockButton } from '@/components/EditLockButton'
 import { LoginPage } from '@/pages/LoginPage'
 import { ProjectListPage } from '@/pages/ProjectListPage'
+import { BacklogPage } from '@/pages/BacklogPage'
 
 export default function App() {
   const { data: user, isLoading, isError } = useCurrentUser()
@@ -46,9 +47,7 @@ export default function App() {
 
       <main>
         {activeProjectId ? (
-          <div className="p-8">
-            <p className="text-gray-500 text-sm">Project workspace coming in M2–M5.</p>
-          </div>
+          <BacklogPage projectId={activeProjectId} />
         ) : (
           <ProjectListPage />
         )}

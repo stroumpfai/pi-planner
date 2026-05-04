@@ -40,10 +40,10 @@ describe('projectsApi', () => {
 })
 
 describe('featuresApi', () => {
-  it('list calls GET /projects/:id/features', async () => {
+  it('list calls GET /projects/:id/features with sort param', async () => {
     mockGet.mockResolvedValue({ data: [] } as never)
-    await featuresApi.list('proj-1')
-    expect(mockGet).toHaveBeenCalledWith('/projects/proj-1/features')
+    await featuresApi.list('proj-1', 'name')
+    expect(mockGet).toHaveBeenCalledWith('/projects/proj-1/features', { params: { sort: 'name' } })
   })
 
   it('update calls PATCH /features/:id', async () => {

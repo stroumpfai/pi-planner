@@ -76,37 +76,35 @@
 
 ### 2A · Backend
 
-- [ ] `GET /api/v1/projects/{id}/features` — list backlog features (`location=backlog`), sorted by `created_at` desc; support `?sort=name`
-- [ ] `POST /api/v1/projects/{id}/features` — create feature (validate `user_id` range 1-999999, uniqueness per project)
-- [ ] `GET /api/v1/features/{id}` — get feature
-- [ ] `PATCH /api/v1/features/{id}` — update title/description/effort/user_id (user_id uniqueness re-validated → 409 with `ID_ALREADY_EXISTS` on conflict)
-- [ ] `DELETE /api/v1/features/{id}` — delete feature + cascade PBIs + cascade groups
-- [ ] SSE broadcast `feature:created`, `feature:updated`, `feature:deleted`
+- [x] `GET /api/v1/projects/{id}/features` — list features, sorted by `created_at` desc; support `?sort=name`
+- [x] `POST /api/v1/projects/{id}/features` — create feature (validate `user_id` range 1-999999, uniqueness per project)
+- [x] `GET /api/v1/features/{id}` — get feature
+- [x] `PATCH /api/v1/features/{id}` — update all fields via `model_fields_set`; user_id uniqueness → 409 `ID_ALREADY_EXISTS`
+- [x] `DELETE /api/v1/features/{id}` — delete feature + cascade PBIs + cascade groups
+- [x] SSE broadcast `feature:created`, `feature:updated`, `feature:deleted`
 
 ### 2B · Frontend
 
-- [ ] `BacklogPage` — main view showing features list
-- [ ] `FeatureRow` — shows `[id] Title` (id blank if not set), effort badge, expand toggle, edit/delete actions
-- [ ] `CreateFeatureModal` — title (required), description, effort, optional user id; zod validation
-- [ ] `EditFeatureModal` — same fields, pre-filled; handles 409 duplicate-id error inline
-- [ ] Delete confirmation dialog (reusable `ConfirmDialog` component)
-- [ ] Sort toggle: creation date / name (persisted in `localStorage`)
-- [ ] `useFeatures` hook wired to real API
-- [ ] Edit lock guard: create/edit/delete buttons disabled (with tooltip) when not in edit mode
+- [x] `BacklogPage` — list filtered to `location=backlog`, sort toggle (localStorage), feature count
+- [x] `FeatureRow` — `[id] Title` prefix, effort badge, expand toggle, edit/delete with edit-lock guard
+- [x] `FeatureFormModal` — unified create/edit form (title required, description, effort, id); 409 error inline
+- [x] Delete confirmation via reusable `ConfirmDialog`
+- [x] Sort toggle: Newest / Name (persisted in `localStorage`)
+- [x] `useFeatures` hook wired to real API with sort param
+- [x] Edit lock guard: create/edit/delete disabled with tooltip when `isEditing=false`
+- [x] `BacklogPage` wired into `App.tsx` (shown when `activeProjectId` is set)
 
 ### 2C · Testing
 
-- [ ] Backend: create feature → duplicate user_id → 409 with `ID_ALREADY_EXISTS`
-- [ ] Backend: delete feature cascades PBIs
-- [ ] Backend: `?sort=name` returns features alphabetically
-- [ ] Frontend component test: `FeatureRow` shows `[101] Auth` when user_id=101
-- [ ] Frontend component test: `FeatureRow` shows title only when user_id=null
-- [ ] Frontend component test: edit/delete disabled when `isEditing=false`
+- [x] Backend: 18 integration tests — CRUD, duplicate user_id 409, sort, cascade, cross-entity uniqueness
+- [x] Frontend: `FeatureRow` shows `[101]` prefix, hides prefix when null, disabled buttons
+- [x] Frontend: `BacklogPage` empty state, renders features, edit-lock guard, sort buttons
 - [ ] **Manual smoke test:** create feature → edit id → duplicate id shows error
 
 ### 2D · Review checkpoint
-- [ ] Code review: user_id validation, cascade logic, SSE events
-- [ ] UX check: edit-lock guard feels consistent
+- [x] Code review: user_id uniqueness spans Features+PBIs via validation service
+- [x] `model_fields_set` used for all PATCH fields (supports explicit null to clear user_id)
+- [x] SSE events fire on all mutations
 
 ---
 
