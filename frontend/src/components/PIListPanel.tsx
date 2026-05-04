@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { usePIs, useDeletePI } from '@/hooks/usePIs'
 import { useAuthStore } from '@/stores/authStore'
+import { useUiStore } from '@/stores/uiStore'
 import { PIStateBadge } from './PIStateBadge'
 import { PIStateButton } from './PIStateButton'
 import { CreatePIModal } from './CreatePIModal'
@@ -8,7 +9,7 @@ import { ConfirmDialog } from './ConfirmDialog'
 import type { PI } from '@/types'
 
 interface Props {
-  projectId: string
+  readonly projectId: string
 }
 
 export function PIListPanel({ projectId }: Props) {
@@ -16,6 +17,7 @@ export function PIListPanel({ projectId }: Props) {
   const [deleteTarget, setDeleteTarget] = useState<PI | null>(null)
   const [stateError, setStateError] = useState<string | null>(null)
   const isEditing = useAuthStore((s) => s.isEditing)
+  const { activePIId, setActivePI } = useUiStore()
 
   const { data: pis, isLoading } = usePIs(projectId)
   const deletePI = useDeletePI(projectId)
@@ -48,36 +50,46 @@ export function PIListPanel({ projectId }: Props) {
           <p className="text-xs text-gray-400 px-4 py-4">No PIs yet</p>
         ) : (
           <ul className="divide-y divide-gray-100">
-            {pis?.map((pi) => (
-              <li key={pi.system_id} className="px-4 py-3 space-y-2">
-                <div className="flex items-center justify-between gap-2">
-                  <span className="text-sm font-medium text-gray-900 truncate">{pi.name}</span>
-                  <PIStateBadge state={pi.state as 'draft' | 'in_progress' | 'closed'} />
-                </div>
+            {pis?.map((pi) => {
+              const isSelected = activePIId === pi.system_id
+              const selectedClass = isSelected ? 'bg-blue-50 border-l-2 border-blue-500' : ''
+              return (
+                <li key={pi.system_id} className={selectedClass}>
+                  <button
+                    type="button"
+                    className="w-full px-4 py-3 text-left space-y-1 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-blue-300"
+                    onClick={() => setActivePI(isSelected ? null : pi.system_id)}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-gray-900 truncate">{pi.name}</span>
+                      <PIStateBadge state={pi.state as 'draft' | 'in_progress' | 'closed'} />
+                    </div>
+                    {(pi.start_date || pi.end_date) && (
+                      <p className="text-xs text-gray-400">
+                        {pi.start_date ?? '?'} → {pi.end_date ?? '?'}
+                      </p>
+                    )}
+                  </button>
 
-                {(pi.start_date || pi.end_date) && (
-                  <p className="text-xs text-gray-400">
-                    {pi.start_date ?? '?'} → {pi.end_date ?? '?'}
-                  </p>
-                )}
-
-                {isEditing && (
-                  <div className="flex items-center gap-2">
-                    <PIStateButton
-                      pi={pi}
-                      projectId={projectId}
-                      onError={setStateError}
-                    />
-                    <button
-                      onClick={() => setDeleteTarget(pi)}
-                      className="text-xs text-red-500 hover:text-red-700"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                )}
-              </li>
-            ))}
+                  {isEditing && (
+                    <div className="flex items-center gap-2 px-4 pb-3">
+                      <PIStateButton
+                        pi={pi}
+                        projectId={projectId}
+                        onError={setStateError}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(pi)}
+                        className="text-xs text-red-500 hover:text-red-700"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
+                </li>
+              )
+            })}
           </ul>
         )}
       </div>
@@ -95,7 +107,10 @@ export function PIListPanel({ projectId }: Props) {
         confirmLabel="Delete"
         destructive
         onConfirm={() => {
-          if (deleteTarget) deletePI.mutate(deleteTarget.system_id)
+          if (deleteTarget) {
+            if (activePIId === deleteTarget.system_id) setActivePI(null)
+            deletePI.mutate(deleteTarget.system_id)
+          }
           setDeleteTarget(null)
         }}
         onCancel={() => setDeleteTarget(null)}

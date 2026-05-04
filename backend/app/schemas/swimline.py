@@ -13,6 +13,10 @@ class SwimlineUpdate(BaseModel):
     order_index: int | None = None
 
 
+class SwimlineReorder(BaseModel):
+    order: list[str] = Field(..., description="Ordered list of swimline system_ids")
+
+
 class SwimlineResponse(BaseModel):
     system_id: str
     pi_id: str

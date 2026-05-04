@@ -5,11 +5,12 @@ import { PIListPanel } from '@/components/PIListPanel'
 import { LoginPage } from '@/pages/LoginPage'
 import { ProjectListPage } from '@/pages/ProjectListPage'
 import { BacklogPage } from '@/pages/BacklogPage'
+import { PIBoardPage } from '@/pages/PIBoardPage'
 
 export default function App() {
   const { data: user, isLoading, isError } = useCurrentUser()
   const logout = useLogout()
-  const { activeProjectId, setActiveProject } = useUiStore()
+  const { activeProjectId, activePIId, setActiveProject } = useUiStore()
 
   if (isLoading) {
     return (
@@ -50,8 +51,14 @@ export default function App() {
         {activeProjectId ? (
           <>
             <PIListPanel projectId={activeProjectId} />
-            <div className="flex-1 overflow-y-auto">
-              <BacklogPage projectId={activeProjectId} />
+            <div className="flex-1 overflow-hidden">
+              {activePIId ? (
+                <PIBoardPage projectId={activeProjectId} piId={activePIId} />
+              ) : (
+                <div className="h-full overflow-y-auto">
+                  <BacklogPage projectId={activeProjectId} />
+                </div>
+              )}
             </div>
           </>
         ) : (

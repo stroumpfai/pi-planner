@@ -1,6 +1,6 @@
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse
 from app.schemas.pi import PICreate, PIUpdate, PIResponse
-from app.schemas.swimline import SwimlineCreate, SwimlineUpdate, SwimlineResponse
+from app.schemas.swimline import SwimlineCreate, SwimlineUpdate, SwimlineResponse, SwimlineReorder
 from app.schemas.sprint import SprintCreate, SprintUpdate, SprintResponse
 from app.schemas.feature import FeatureCreate, FeatureUpdate, FeatureResponse
 from app.schemas.group import GroupCreate, GroupUpdate, GroupResponse
@@ -12,7 +12,7 @@ from app.schemas.common import ApiResponse, ApiError
 __all__ = [
     "ProjectCreate", "ProjectUpdate", "ProjectResponse",
     "PICreate", "PIUpdate", "PIResponse",
-    "SwimlineCreate", "SwimlineUpdate", "SwimlineResponse",
+    "SwimlineCreate", "SwimlineUpdate", "SwimlineResponse", "SwimlineReorder",
     "SprintCreate", "SprintUpdate", "SprintResponse",
     "FeatureCreate", "FeatureUpdate", "FeatureResponse",
     "GroupCreate", "GroupUpdate", "GroupResponse",

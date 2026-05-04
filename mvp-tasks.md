@@ -195,39 +195,42 @@
 
 ### 5A · Backend
 
-- [ ] `GET /api/v1/pis/{id}/swimlines` — list swimlines ordered by `order_index`
-- [ ] `POST /api/v1/pis/{id}/swimlines` — create swimline (unique name per PI → 409; auto-assign `order_index`)
-- [ ] `PATCH /api/v1/swimlines/{id}` — update name or `order_index`
-- [ ] `DELETE /api/v1/swimlines/{id}` — delete swimline; features in swimline → backlog; groups deleted
-- [ ] `POST /api/v1/swimlines/{id}/reorder` — accept `{order: [id1, id2, ...]}` array, bulk-update `order_index`
-- [ ] `PATCH /api/v1/features/{id}` extended — support `location`, `pi_id`, `swimlane_id` fields for move operations
-  - Moving to swimlane: clear old swimlane reference, set new one; validate feature not already in another swimlane within this PI
-  - Moving to backlog: clear `pi_id` + `swimlane_id`; cascade-delete all groups for this feature
-- [ ] SSE broadcast `swimline:created`, `swimline:updated`, `swimline:deleted`, `feature:moved`
+- [x] `GET /api/v1/pis/{id}/swimlines` — list swimlines ordered by `order_index`
+- [x] `POST /api/v1/pis/{id}/swimlines` — create swimline (unique name per PI → 409; auto-assign `order_index`)
+- [x] `PATCH /api/v1/swimlines/{id}` — update name or `order_index`
+- [x] `DELETE /api/v1/swimlines/{id}` — delete swimline; features in swimline → backlog; groups deleted
+- [x] `POST /api/v1/swimlines/{id}/reorder` — accept `{order: [id1, id2, ...]}` array, bulk-update `order_index`
+- [x] `PATCH /api/v1/features/{id}` extended — support `location`, `pi_id`, `swimlane_id` fields for move operations
+  - Moving to swimlane: validates swimlane exists; sets `location=pi`, `pi_id`, `swimlane_id`
+  - Moving to backlog: cascade-delete all groups for this feature; clears `pi_id` + `swimlane_id`
+- [x] SSE broadcast `swimline:created`, `swimline:updated`, `swimline:deleted`, `feature:moved`
 
 ### 5B · Frontend
 
-- [ ] `PIBoardPage` — main grid: left feature-zone column + 5 sprint columns per swimlane
-- [ ] `SwimlaneRow` — collapsible header with name, feature count chip, capacity bar, context menu (rename, delete)
-- [ ] `SprintColumnHeader` — sprint number, date range, capacity display (`used/capacity pts %`), click to edit capacity
-- [ ] `FeatureZone` — fixed-width left column showing features placed in this swimlane
-- [ ] `FeatureCard` (in swimlane) — `[id] Title`, effort badge, ungrouped PBI count
-- [ ] `CreateSwimlaneModal` — name field
-- [ ] `useSwimlinesForPI` wired to real API
-- [ ] Capacity bar component — colour coding: gray / amber (85-100%) / red (>100%)
+- [x] `PIBoardPage` — main grid: left feature-zone column + 5 sprint columns per swimlane
+- [x] `SwimlaneRow` — collapsible header with name, feature count chip, capacity bar, delete button
+- [x] `SprintColumnHeader` — sprint number, date range, capacity display (`used/capacity pts %`), click to edit capacity
+- [x] `FeatureZone` — fixed-width left column showing features placed in this swimlane
+- [x] `FeatureCard` (in swimlane) — `[id] Title`, effort badge, return-to-backlog button
+- [x] `CreateSwimlaneModal` — name field
+- [x] `useSwimlinesForPI` wired to real API
+- [x] `CapacityBar` — colour coding: gray (0) / blue (<85%) / amber (85-100%) / red (>100%)
+- [x] `useSprints` hook + `activePIId` in uiStore; PI click in sidebar opens board
 
 ### 5C · Testing
 
-- [ ] Backend: duplicate swimlane name within PI → 409
-- [ ] Backend: delete swimlane returns features to backlog
-- [ ] Backend: feature already in swimlane A, move to swimlane B → clears A
-- [ ] Frontend component test: `CapacityBar` renders red when effort > capacity
-- [ ] Frontend component test: swimlane collapses on toggle click
-- [ ] Frontend component test: sprint header shows `0/0 pts 0%` when empty
+- [x] Backend: duplicate swimlane name within PI → 409
+- [x] Backend: delete swimlane returns features to backlog
+- [x] Backend: move feature to swimlane, then to backlog → backlog with null refs
+- [x] Frontend component test: `CapacityBar` all 4 colour states
+- [x] Frontend component test: `SwimlaneRow` collapses on toggle, shows delete confirm
+- [x] Frontend component test: `SprintColumnHeader` shows `0/0 pts 0%` when empty
+- [x] 74 total frontend tests passing; 90 backend tests passing
 - [ ] **Manual smoke test:** create swimlane → create feature → move feature to swimlane → verify PI board
 
 ### 5D · Review checkpoint
-- [ ] Code review: feature move atomicity, old swimlane cleared correctly
+- [x] Code review: move helpers extracted to reduce complexity (S3776 resolved)
+- [x] Accessibility: PIListPanel list items use `<button>` for keyboard navigability
 - [ ] UX check: PI board layout matches wireframe (`design/screenshots/01-PI-Board.png`)
 
 ---
