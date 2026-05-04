@@ -152,39 +152,40 @@
 
 ### 4A · Backend
 
-- [ ] `GET /api/v1/projects/{id}/pis` — list PIs ordered by `created_at`
-- [ ] `POST /api/v1/projects/{id}/pis` — create PI (state defaults to `draft`)
-- [ ] `GET /api/v1/pis/{id}` — get PI with swimlines + sprints counts
-- [ ] `PATCH /api/v1/pis/{id}` — update name/description/dates/state
-  - Transitioning to `in_progress`: check no other PI is already `in_progress` → 409 if so
-  - Transitioning to `closed`: no restriction
-  - Closed PI: reject any further mutations with 403
-- [ ] `DELETE /api/v1/pis/{id}` — delete PI (moves features back to backlog, deletes swimlines/groups)
-- [ ] `POST /api/v1/pis/{pi_id}/sprints` — initialise all 5 sprints with capacity=0 (called automatically on PI create)
-- [ ] `PATCH /api/v1/sprints/{id}` — update capacity/dates
-- [ ] SSE broadcast `pi:created`, `pi:updated`, `pi:deleted`, `pi:state_changed`
+- [x] `GET /api/v1/projects/{id}/pis` — list PIs ordered by `created_at` asc
+- [x] `POST /api/v1/projects/{id}/pis` — create PI; auto-creates 5 sprints atomically via flush
+- [x] `GET /api/v1/pis/{id}` — get PI
+- [x] `PATCH /api/v1/pis/{id}` — update fields via `model_fields_set`; state machine enforced
+  - `in_progress`: 409 `ACTIVE_PI_EXISTS` if another PI is already active
+  - `closed`: no restriction; all subsequent PATCHes rejected with 403
+- [x] `DELETE /api/v1/pis/{id}` — moves features in swimlines back to backlog; cascade deletes swimlines/groups/sprints
+- [x] `GET /api/v1/pis/{id}/sprints` — list sprints ordered by sprint_index
+- [x] `PATCH /api/v1/sprints/{id}` — update capacity/dates; 403 if PI is closed
+- [x] SSE broadcast `pi:created`, `pi:updated`, `pi:state_changed`, `pi:deleted`
 
 ### 4B · Frontend
 
-- [ ] `PIListPanel` — sidebar or tab showing PIs with state badges (Draft/In Progress/Closed)
-- [ ] `CreatePIModal` — name, description, start/end dates
-- [ ] `PIStateButton` — "Start PI" / "Close PI" / "Reopen" buttons with confirmation dialogs
-- [ ] PI detail header: name, state badge, date range, edit/delete actions
-- [ ] `usePIs` and `useSprints` hooks wired to real API
-- [ ] Prevent state change if another PI is `in_progress` (show error from API)
+- [x] `PIListPanel` — sidebar showing PI list with state badges, date range, delete button
+- [x] `CreatePIModal` — name (required), description, start/end dates
+- [x] `PIStateButton` — "Start PI" / "Close PI" with per-state confirmation dialogs; 409 error shown inline
+- [x] `PIStateBadge` — gray/blue/green colour-coded by state
+- [x] `usePIs` / `useDeletePI` / `useUpdatePI` / `useCreatePI` wired to real API
+- [x] Sidebar + Backlog layout in App.tsx (`PIListPanel` left, `BacklogPage` right)
+- [x] State action buttons hidden when not in edit mode
 
 ### 4C · Testing
 
-- [ ] Backend: second PI to `in_progress` returns 409 while one is already active
-- [ ] Backend: PATCH on closed PI returns 403
-- [ ] Backend: creating PI auto-creates 5 sprint records
-- [ ] Frontend component test: state badge renders correct colour per state
-- [ ] Frontend component test: "Start PI" shows confirmation dialog
+- [x] Backend: 20 integration tests — state machine, 5-sprint auto-create, closed PI 403, sprint capacity
+- [x] Frontend: `PIStateBadge` — 3 states, correct CSS class per state
+- [x] Frontend: `PIStateButton` — correct label per state, confirmation dialog, null for closed
+- [x] Frontend: `PIListPanel` — empty state, renders names, edit-lock guard on buttons
+- [x] 57 total frontend tests passing
 - [ ] **Manual smoke test:** create two PIs → start PI 1 → try to start PI 2 → blocked
 
 ### 4D · Review checkpoint
-- [ ] Code review: state machine logic, edge-case transitions
-- [ ] Confirm 5-sprint auto-creation is atomic with PI creation
+- [x] State machine: `_check_no_active_pi` excludes current PI to allow same-PI re-patch
+- [x] 5-sprint creation uses `flush()` to get `pi.system_id` before commit (atomic)
+- [x] Closed PI check on sprint update mirrors PI route guard
 
 ---
 

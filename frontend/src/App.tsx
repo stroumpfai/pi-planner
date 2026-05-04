@@ -1,6 +1,7 @@
 import { useCurrentUser, useLogout } from '@/hooks/useAuth'
 import { useUiStore } from '@/stores/uiStore'
 import { EditLockButton } from '@/components/EditLockButton'
+import { PIListPanel } from '@/components/PIListPanel'
 import { LoginPage } from '@/pages/LoginPage'
 import { ProjectListPage } from '@/pages/ProjectListPage'
 import { BacklogPage } from '@/pages/BacklogPage'
@@ -45,9 +46,14 @@ export default function App() {
         </div>
       </header>
 
-      <main>
+      <main className="flex h-[calc(100vh-49px)]">
         {activeProjectId ? (
-          <BacklogPage projectId={activeProjectId} />
+          <>
+            <PIListPanel projectId={activeProjectId} />
+            <div className="flex-1 overflow-y-auto">
+              <BacklogPage projectId={activeProjectId} />
+            </div>
+          </>
         ) : (
           <ProjectListPage />
         )}
