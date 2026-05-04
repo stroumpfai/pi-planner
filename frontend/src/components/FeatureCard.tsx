@@ -1,6 +1,8 @@
+import { useDraggable } from '@dnd-kit/core'
 import { useAuthStore } from '@/stores/authStore'
 import { useUpdateFeature } from '@/hooks/useFeatures'
 import type { Feature } from '@/types'
+import type { FeatureDragData } from './BacklogPanel'
 
 interface Props {
   readonly feature: Feature
@@ -11,7 +13,17 @@ export function FeatureCard({ feature, projectId }: Props) {
   const isEditing = useAuthStore((s) => s.isEditing)
   const updateFeature = useUpdateFeature(projectId)
 
-  const idPrefix = feature.id != null ? `[${feature.id}] ` : ''
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `feature:${feature.system_id}`,
+    data: {
+      type: 'feature',
+      featureId: feature.system_id,
+      fromLocation: 'pi',
+      fromSwimlaneId: feature.swimlane_id,
+    } satisfies FeatureDragData,
+  })
+
+  const idPrefix = feature.id == null ? '' : `[${feature.id}] `
 
   function handleReturnToBacklog() {
     updateFeature.mutate({
@@ -21,8 +33,17 @@ export function FeatureCard({ feature, projectId }: Props) {
   }
 
   return (
-    <div className="bg-white border border-gray-200 rounded-md px-3 py-2 shadow-sm space-y-1">
-      <div className="flex items-start justify-between gap-2">
+    <div
+      ref={setNodeRef}
+      className={`bg-white border rounded-md px-3 py-2 shadow-sm space-y-1 transition-opacity select-none ${
+        isDragging ? 'opacity-40 border-blue-400' : 'border-gray-200'
+      }`}
+    >
+      <div
+        className="flex items-start justify-between gap-2 cursor-grab active:cursor-grabbing"
+        {...attributes}
+        {...listeners}
+      >
         <span className="text-sm text-gray-900 leading-snug">
           <span className="text-gray-400 font-mono text-xs">{idPrefix}</span>
           {feature.title}

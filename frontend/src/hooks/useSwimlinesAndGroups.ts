@@ -39,6 +39,15 @@ export const useDeleteSwimline = (piId: string) => {
   })
 }
 
+export const useReorderSwimlines = (piId: string) => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ swimlineId, order }: { swimlineId: string; order: string[] }) =>
+      swimlinesApi.reorder(swimlineId, order),
+    onSuccess: () => qc.invalidateQueries({ queryKey: swimlineKey(piId) }),
+  })
+}
+
 // --- Groups ---
 
 const groupKey = (swimlineId: string) => ['groups', swimlineId] as const

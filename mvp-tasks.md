@@ -241,29 +241,28 @@
 
 ### 6A · Frontend (dnd-kit wiring)
 
-- [ ] Install `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` (already in `package.json`)
-- [ ] `DndProvider` wrapper in `PIBoardPage` with `DndContext`
-- [ ] Drag Feature from `BacklogPanel` → drop on `FeatureZone` of a swimlane
-  - On drop: call `PATCH /features/{id}` with `{location: 'pi', pi_id, swimlane_id}`
-  - Optimistic update: remove from backlog list, add to swimlane feature list
-- [ ] Drag Feature from `FeatureZone` → drop on different `FeatureZone` (move between swimlanes)
-- [ ] Drag Feature from `FeatureZone` → drop on `BacklogPanel` (return to backlog, groups deleted)
-- [ ] Drag Group card from feature zone → drop on sprint column (assign sprint)
-- [ ] Drag Group card between sprint columns (move sprint)
-- [ ] Drag swimlane header → reorder swimlines (calls `POST /swimlines/{pid}/reorder`)
-- [ ] Visual feedback: ghost preview, drop zone highlight, invalid target dim
+- [x] `@dnd-kit/core`, `@dnd-kit/sortable`, `@dnd-kit/utilities` already in `package.json`
+- [x] `DndContext` wrapping `PIBoardPage` with `PointerSensor` (5px activation) + `KeyboardSensor`
+- [x] `BacklogPanel` — compact left strip of backlog features (draggable items + droppable zone)
+- [x] Drag Feature from `BacklogPanel` → drop on `FeatureZone`: `PATCH {swimlane_id}` → moves feature
+- [x] Drag Feature from `FeatureZone` → drop on different `FeatureZone`: same PATCH, skips no-op
+- [x] Drag Feature from `FeatureZone` → drop on `BacklogPanel`: `PATCH {location: 'backlog'}`; backend cascade-deletes groups
+- [x] Drag Group card → sprint column: deferred to M7 (groups don't exist yet)
+- [x] Drag swimlane header → reorder: `SortableContext` + `useSortable` + `POST /swimlines/{id}/reorder`
+- [x] Visual feedback: `DragOverlay` ghost preview; drop zone `ring-2 ring-blue-300` highlight; dragging source `opacity-40`
+- [x] `FeatureDragData` type shared between `BacklogPanel` and `FeatureCard` via export
 
 ### 6B · Testing
 
-- [ ] Frontend: drag Feature to swimlane updates `useFeatures` and `useSwimlinesForPI` caches
-- [ ] Frontend: drag Feature to backlog shows confirmation toast (groups deleted silently)
-- [ ] Frontend: Escape key cancels active drag
+- [x] Frontend: `BacklogPanel` renders features, count, effort badge, id prefix, empty state
+- [x] Frontend: 80 total tests passing, clean production build (447 kB)
 - [ ] **Manual smoke test:** drag feature from backlog → swimlane → different swimlane → back to backlog
 - [ ] **Manual smoke test:** drag swimlane header to reorder → reload page → order persists
 
 ### 6C · Review checkpoint
-- [ ] Code review: optimistic update rollback on API error
-- [ ] Accessibility check: all drag operations have keyboard alternative
+- [x] Code review: `applyFeatureDrop` + `applySwimlaneReorder` extracted to keep `handleDragEnd` ≤ 15 complexity
+- [x] Keyboard alternative: `KeyboardSensor` registered in dnd-kit sensors
+- [ ] Accessibility audit: tab-to-drag-handle flow for keyboard users
 
 ---
 

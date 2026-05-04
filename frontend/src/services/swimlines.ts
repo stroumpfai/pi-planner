@@ -16,4 +16,7 @@ export const swimlinesApi = {
 
   delete: (swimlineId: string) =>
     api.delete(`/swimlines/${swimlineId}`),
+
+  reorder: (swimlineId: string, order: string[]) =>
+    api.post<Swimline[]>(`/swimlines/${swimlineId}/reorder`, { order }).then((r) => r.data),
 }

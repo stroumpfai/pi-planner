@@ -1,4 +1,6 @@
 import { useState } from 'react'
+import { useSortable } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { useAuthStore } from '@/stores/authStore'
 import { useDeleteSwimline } from '@/hooks/useSwimlinesAndGroups'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -15,25 +17,61 @@ interface Props {
 }
 
 // Sprint-level effort tracking is wired in M7 (group→sprint assignment).
-// Until then, all sprint columns show 0 effort.
 function usedEffortForSprint(_features: Feature[], _sprintIndex: number): number {
   return 0
 }
 
-export function SwimlaneRow({ swimline, sprints, features: _features, projectId, piId }: Props) {
+export function SwimlaneRow({ swimline, sprints, features, projectId, piId }: Props) {
   const [collapsed, setCollapsed] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const isEditing = useAuthStore((s) => s.isEditing)
   const deleteSwimline = useDeleteSwimline(piId)
 
-  const featureCount = _features.filter(
+  const {
+    setNodeRef,
+    setActivatorNodeRef,
+    attributes,
+    listeners,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({
+    id: `swimlane:${swimline.system_id}`,
+    data: { type: 'swimlane', swimlaneId: swimline.system_id },
+  })
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
+
+  const featureCount = features.filter(
     (f) => f.location === 'pi' && f.swimlane_id === swimline.system_id && f.pi_id === piId
   ).length
 
   return (
-    <div className="border-b border-gray-200">
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`border-b border-gray-200 ${isDragging ? 'opacity-50 z-10 shadow-lg' : ''}`}
+    >
       {/* Swimlane header */}
       <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 border-b border-gray-200">
+        {/* Drag handle — only shown in edit mode */}
+        {isEditing && (
+          <button
+            type="button"
+            ref={setActivatorNodeRef}
+            {...attributes}
+            {...listeners}
+            className="text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing px-0.5"
+            aria-label="Drag to reorder swimlane"
+            title="Drag to reorder"
+          >
+            ⠿
+          </button>
+        )}
+
         <button
           type="button"
           onClick={() => setCollapsed((c) => !c)}
@@ -42,10 +80,13 @@ export function SwimlaneRow({ swimline, sprints, features: _features, projectId,
         >
           {collapsed ? '▶' : '▼'}
         </button>
+
         <span className="text-sm font-semibold text-gray-800 flex-1">{swimline.name}</span>
+
         <span className="text-xs text-gray-400 bg-white border border-gray-200 rounded-full px-2 py-0.5">
           {featureCount}
         </span>
+
         {isEditing && (
           <button
             type="button"
@@ -63,7 +104,9 @@ export function SwimlaneRow({ swimline, sprints, features: _features, projectId,
         <div className="flex min-h-24">
           {/* Feature zone — fixed left column */}
           <div className="w-48 flex-shrink-0 border-r border-gray-200">
-            <div className="text-xs text-gray-400 px-2 pt-1 pb-0.5 bg-gray-50 border-b border-gray-100">Features</div>
+            <div className="text-xs text-gray-400 px-2 pt-1 pb-0.5 bg-gray-50 border-b border-gray-100">
+              Features
+            </div>
             <FeatureZone swimlineId={swimline.system_id} projectId={projectId} piId={piId} />
           </div>
 
@@ -72,7 +115,7 @@ export function SwimlaneRow({ swimline, sprints, features: _features, projectId,
             <div key={sprint.system_id} className="flex-1 border-r border-gray-100 last:border-r-0">
               <SprintColumnHeader
                 sprint={sprint}
-                usedEffort={usedEffortForSprint(_features, sprint.sprint_index ?? 0)}
+                usedEffort={usedEffortForSprint(features, sprint.sprint_index ?? 0)}
               />
               {/* Sprint cells — group cards go here in M7 */}
               <div className="p-2 min-h-16" />
