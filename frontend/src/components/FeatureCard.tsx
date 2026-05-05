@@ -87,17 +87,15 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
           {expanded ? '▾ PBIs' : '▸ PBIs'}
         </button>
 
-        {isEditing && (
-          <button
-            type="button"
-            onClick={handleReturnToBacklog}
-            disabled={updateFeature.isPending}
-            className="text-xs text-gray-400 hover:text-red-500 disabled:opacity-50 ml-auto"
-            title="Return to backlog"
-          >
-            ← Backlog
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={handleReturnToBacklog}
+          disabled={!isEditing || updateFeature.isPending}
+          title={isEditing ? 'Return to backlog' : 'Request Edit Mode to move features'}
+          className="text-xs text-gray-400 hover:text-red-500 disabled:text-gray-200 disabled:cursor-not-allowed ml-auto"
+        >
+          ← Backlog
+        </button>
       </div>
 
       {/* PBI selection panel */}

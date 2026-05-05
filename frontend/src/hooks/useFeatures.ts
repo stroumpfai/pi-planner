@@ -32,7 +32,16 @@ export const useUpdateFeature = (projectId: string) => {
   return useMutation({
     mutationFn: ({ featureId, body }: { featureId: string; body: FeatureUpdate }) =>
       featuresApi.update(featureId, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: prefix(projectId) }),
+    onSuccess: (_data, { body }) => {
+      qc.invalidateQueries({ queryKey: prefix(projectId) })
+      // Feature move operations may delete groups and affect capacity
+      if ('location' in body || 'swimlane_id' in body) {
+        qc.invalidateQueries({ queryKey: ['groups'] })
+        qc.invalidateQueries({ queryKey: ['sprints'] })
+        qc.invalidateQueries({ queryKey: ['swimlines'] })
+        qc.invalidateQueries({ queryKey: ['pis'] })
+      }
+    },
   })
 }
 
