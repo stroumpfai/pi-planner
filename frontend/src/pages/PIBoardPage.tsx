@@ -16,16 +16,22 @@ import {
   verticalListSortingStrategy,
   arrayMove,
 } from '@dnd-kit/sortable'
+import { useQueryClient } from '@tanstack/react-query'
 import { useSwimlinesForPI, useReorderSwimlines } from '@/hooks/useSwimlinesAndGroups'
+import { groupsApi } from '@/services/groups'
 import { useSprints } from '@/hooks/useSprints'
 import { useFeatures, useUpdateFeature } from '@/hooks/useFeatures'
 import { useAuthStore } from '@/stores/authStore'
 import { usePIs } from '@/hooks/usePIs'
 import { SwimlaneRow } from '@/components/SwimlaneRow'
 import { CreateSwimlaneModal } from '@/components/CreateSwimlaneModal'
+import { SprintCapacityModal } from '@/components/SprintCapacityModal'
+import { SprintColumnHeader } from '@/components/SprintColumnHeader'
+import { CapacityBar } from '@/components/CapacityBar'
 import { BacklogPanel } from '@/components/BacklogPanel'
 import type { FeatureDragData } from '@/components/BacklogPanel'
-import type { Feature, Swimline } from '@/types'
+import type { GroupDragData } from '@/components/GroupCard'
+import type { Feature, Sprint, Swimline } from '@/types'
 
 interface Props {
   readonly projectId: string
@@ -33,11 +39,11 @@ interface Props {
 }
 
 interface ActiveDrag {
-  type: 'feature' | 'swimlane'
+  type: 'feature' | 'swimlane' | 'group'
   label: string
 }
 
-type OverData = { type: string; swimlaneId?: string; piId?: string }
+type OverData = { type?: string; swimlaneId?: string; piId?: string; sprintIndex?: number }
 
 function getFeatureLabel(feature: Feature): string {
   const prefix = feature.id == null ? '' : `[${feature.id}] `
@@ -77,6 +83,7 @@ function applySwimlaneReorder(
 export function PIBoardPage({ projectId, piId }: Props) {
   const [showCreateSwimline, setShowCreateSwimline] = useState(false)
   const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null)
+  const [editCapacitySprint, setEditCapacitySprint] = useState<Sprint | null>(null)
   const isEditing = useAuthStore((s) => s.isEditing)
 
   const { data: pis } = usePIs(projectId)
@@ -86,6 +93,7 @@ export function PIBoardPage({ projectId, piId }: Props) {
 
   const updateFeature = useUpdateFeature(projectId)
   const reorderSwimlines = useReorderSwimlines(piId)
+  const qc = useQueryClient()
 
   const pi = pis?.find((p) => p.system_id === piId)
   const swimlineIds = swimlines?.map((s) => `swimlane:${s.system_id}`) ?? []
@@ -103,6 +111,8 @@ export function PIBoardPage({ projectId, piId }: Props) {
     } else if (data?.type === 'swimlane') {
       const swimlane = swimlines?.find((s) => s.system_id === data.swimlaneId)
       setActiveDrag({ type: 'swimlane', label: swimlane?.name ?? 'Swimlane' })
+    } else if (data?.type === 'group') {
+      setActiveDrag({ type: 'group', label: data.groupId ?? 'Group' })
     }
   }
 
@@ -110,16 +120,29 @@ export function PIBoardPage({ projectId, piId }: Props) {
     setActiveDrag(null)
     if (!over) return
 
-    const activeData = active.data.current as FeatureDragData & { type: string }
-    const overData = over.data.current as OverData | undefined
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const activeData = active.data.current as Record<string, any>
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const overData = over.data.current as Record<string, any> | undefined
 
     if (activeData.type === 'feature') {
       applyFeatureDrop(
-        activeData,
+        activeData as FeatureDragData,
         overData,
-        (swimlaneId) => updateFeature.mutate({ featureId: activeData.featureId, body: { swimlane_id: swimlaneId } }),
-        () => updateFeature.mutate({ featureId: activeData.featureId, body: { location: 'backlog' } }),
+        (swimlaneId) => updateFeature.mutate({ featureId: (activeData as FeatureDragData).featureId, body: { swimlane_id: swimlaneId } }),
+        () => updateFeature.mutate({ featureId: (activeData as FeatureDragData).featureId, body: { location: 'backlog' } }),
       )
+      return
+    }
+
+    if (activeData.type === 'group' && overData?.type === 'sprintcell') {
+      const gd = activeData as GroupDragData
+      if (overData.sprintIndex !== gd.fromSprintIndex) {
+        groupsApi
+          .update(gd.groupId, { sprint_index: overData.sprintIndex ?? null })
+          .then(() => qc.invalidateQueries({ queryKey: ['groups', gd.swimlaneId] }))
+          .catch(() => {/* error handled by React Query on next refetch */})
+      }
       return
     }
 
@@ -177,14 +200,12 @@ export function PIBoardPage({ projectId, piId }: Props) {
       onDragEnd={handleDragEnd}
     >
       <div className="flex h-full overflow-hidden">
-        {/* Backlog panel — droppable zone + draggable feature items */}
         <BacklogPanel projectId={projectId} />
 
-        {/* Board section */}
         <div className="flex flex-col flex-1 overflow-hidden">
-          {/* Board header */}
-          <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-white flex-shrink-0">
-            <div className="flex items-center gap-2">
+          {/* Board header: name + PI capacity summary + Add Swimlane */}
+          <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-white flex-shrink-0 gap-4">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <h2 className="text-sm font-semibold text-gray-800">{pi?.name ?? 'PI Board'}</h2>
               {pi?.state && (
                 <span className="text-xs text-gray-400 capitalize">
@@ -192,43 +213,50 @@ export function PIBoardPage({ projectId, piId }: Props) {
                 </span>
               )}
             </div>
+            {pi && (
+              <div className="flex-1 max-w-xs">
+                <CapacityBar used={pi.total_effort ?? 0} capacity={pi.total_capacity ?? 0} />
+              </div>
+            )}
             <button
               type="button"
               onClick={() => setShowCreateSwimline(true)}
               disabled={!isEditing}
               title={isEditing ? undefined : 'Request Edit Mode to add swimlanes'}
-              className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-300 disabled:cursor-not-allowed font-medium"
+              className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-300 disabled:cursor-not-allowed font-medium flex-shrink-0"
             >
               + Add Swimlane
             </button>
           </div>
 
-          {/* Column headers */}
+          {/* Column headers: sprint headers with real effort/capacity */}
           <div className="flex border-b border-gray-200 bg-gray-50 flex-shrink-0">
             <div className="w-48 flex-shrink-0 border-r border-gray-200 px-3 py-1.5">
               <span className="text-xs font-semibold text-gray-500">Swimlane / Features</span>
             </div>
             {sprints?.map((sprint) => (
-              <div
-                key={sprint.system_id}
-                className="flex-1 px-2 py-1.5 border-r border-gray-100 last:border-r-0"
-              >
-                <span className="text-xs font-semibold text-gray-500">
-                  Sprint {(sprint.sprint_index ?? 0) + 1}
-                </span>
+              <div key={sprint.system_id} className="flex-1 border-r border-gray-100 last:border-r-0">
+                <SprintColumnHeader
+                  sprint={sprint}
+                  usedEffort={sprint.effort ?? 0}
+                  onEditCapacity={isEditing ? () => setEditCapacitySprint(sprint) : undefined}
+                />
               </div>
             ))}
           </div>
 
-          {/* Swimlane rows */}
           <div className="flex-1 overflow-y-auto">{renderBoardContent()}</div>
         </div>
       </div>
 
-      {/* Drag overlay — ghost preview under cursor */}
       <DragOverlay dropAnimation={null}>
         {activeDrag?.type === 'feature' && (
           <div className="bg-white border border-blue-400 rounded-md px-3 py-2 shadow-lg text-sm text-gray-800 max-w-40 truncate cursor-grabbing">
+            {activeDrag.label}
+          </div>
+        )}
+        {activeDrag?.type === 'group' && (
+          <div className="bg-white border border-blue-400 rounded-md px-3 py-2 shadow-lg text-xs font-semibold text-gray-800 cursor-grabbing">
             {activeDrag.label}
           </div>
         )}
@@ -244,6 +272,15 @@ export function PIBoardPage({ projectId, piId }: Props) {
         piId={piId}
         onClose={() => setShowCreateSwimline(false)}
       />
+
+      {editCapacitySprint && (
+        <SprintCapacityModal
+          open
+          sprint={editCapacitySprint}
+          piId={piId}
+          onClose={() => setEditCapacitySprint(null)}
+        />
+      )}
     </DndContext>
   )
 }

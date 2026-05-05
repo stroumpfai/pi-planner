@@ -10,6 +10,8 @@ from app.models.pi import PI
 from app.models.sprint import Sprint
 from app.models.user import User
 from app.schemas import SprintResponse, SprintUpdate
+from app.services.effort import sprint_efforts_for_pi
+from app.services.events import broadcaster
 
 router = APIRouter(tags=["sprints"])
 
@@ -32,7 +34,14 @@ async def list_sprints(
     result = await db.execute(
         select(Sprint).where(Sprint.pi_id == pi_id).order_by(Sprint.sprint_index.asc())
     )
-    return [SprintResponse.model_validate(s) for s in result.scalars().all()]
+    sprints = result.scalars().all()
+    efforts = await sprint_efforts_for_pi(db, pi_id)
+    return [
+        SprintResponse.model_validate(s).model_copy(
+            update={"effort": efforts.get(s.sprint_index or 0, 0)}
+        )
+        for s in sprints
+    ]
 
 
 @router.patch("/api/v1/sprints/{sprint_id}", response_model=SprintResponse)
@@ -59,4 +68,9 @@ async def update_sprint(
     sprint.modified_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(sprint)
-    return SprintResponse.model_validate(sprint)
+
+    efforts = await sprint_efforts_for_pi(db, sprint.pi_id)
+    effort = efforts.get(sprint.sprint_index or 0, 0)
+    if pi:
+        await broadcaster.broadcast(pi.project_id, "sprint:capacity_changed", {"system_id": sprint_id})
+    return SprintResponse.model_validate(sprint).model_copy(update={"effort": effort})

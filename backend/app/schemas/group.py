@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 class GroupCreate(BaseModel):
     name: str = Field(..., max_length=100)
     feature_system_id: str
+    pbi_ids: list[str] = Field(default_factory=list)
     sprint_index: int | None = Field(None, ge=0, le=4)
     order_index: int | None = None
 

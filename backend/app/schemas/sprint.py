@@ -21,6 +21,7 @@ class SprintResponse(BaseModel):
     pi_id: str
     sprint_index: int | None
     capacity: int
+    effort: int = 0
     start_date: date | None
     end_date: date | None
     created_at: datetime

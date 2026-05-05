@@ -13,9 +13,18 @@ from app.models.swimline import Swimline
 from app.models.user import User
 from app.schemas import SwimlineCreate, SwimlineResponse, SwimlineUpdate
 from app.schemas.swimline import SwimlineReorder
+from app.services.effort import pi_capacity, swimline_efforts
 from app.services.events import broadcaster
 
 router = APIRouter(tags=["swimlines"])
+
+
+async def _swimline_response(db: AsyncSession, swimline: Swimline) -> SwimlineResponse:
+    efforts = await swimline_efforts(db, [swimline.system_id])
+    cap = await pi_capacity(db, swimline.pi_id)
+    return SwimlineResponse.model_validate(swimline).model_copy(
+        update={"effort": efforts.get(swimline.system_id, 0), "capacity": cap}
+    )
 
 
 async def _get_swimline_or_404(db: AsyncSession, swimline_id: str) -> Swimline:
@@ -48,7 +57,17 @@ async def list_swimlines(
         .where(Swimline.pi_id == pi_id)
         .order_by(Swimline.order_index.asc(), Swimline.created_at.asc())
     )
-    return [SwimlineResponse.model_validate(s) for s in result.scalars().all()]
+    swimlines = result.scalars().all()
+    if not swimlines:
+        return []
+    efforts = await swimline_efforts(db, [s.system_id for s in swimlines])
+    cap = await pi_capacity(db, pi_id)
+    return [
+        SwimlineResponse.model_validate(s).model_copy(
+            update={"effort": efforts.get(s.system_id, 0), "capacity": cap}
+        )
+        for s in swimlines
+    ]
 
 
 @router.post(
@@ -80,7 +99,7 @@ async def create_swimline(
         )
     await db.refresh(swimline)
     await broadcaster.broadcast(pi.project_id, "swimline:created", {"system_id": swimline.system_id})
-    return SwimlineResponse.model_validate(swimline)
+    return await _swimline_response(db, swimline)
 
 
 @router.get("/api/v1/swimlines/{swimline_id}", response_model=SwimlineResponse)
@@ -88,7 +107,7 @@ async def get_swimline(
     swimline_id: str,
     db: AsyncSession = Depends(get_session),
 ) -> SwimlineResponse:
-    return SwimlineResponse.model_validate(await _get_swimline_or_404(db, swimline_id))
+    return await _swimline_response(db, await _get_swimline_or_404(db, swimline_id))
 
 
 @router.patch("/api/v1/swimlines/{swimline_id}", response_model=SwimlineResponse)
@@ -120,7 +139,7 @@ async def update_swimline(
     pi = await db.get(PI, swimline.pi_id)
     project_id = pi.project_id if pi else ""
     await broadcaster.broadcast(project_id, "swimline:updated", {"system_id": swimline_id})
-    return SwimlineResponse.model_validate(swimline)
+    return await _swimline_response(db, swimline)
 
 
 @router.delete("/api/v1/swimlines/{swimline_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -177,4 +196,12 @@ async def reorder_swimlines(
         .where(Swimline.pi_id == pi_id)
         .order_by(Swimline.order_index.asc(), Swimline.created_at.asc())
     )
-    return [SwimlineResponse.model_validate(s) for s in result.scalars().all()]
+    reordered_swimlines = result.scalars().all()
+    efforts = await swimline_efforts(db, [s.system_id for s in reordered_swimlines])
+    cap = await pi_capacity(db, pi_id)
+    return [
+        SwimlineResponse.model_validate(s).model_copy(
+            update={"effort": efforts.get(s.system_id, 0), "capacity": cap}
+        )
+        for s in reordered_swimlines
+    ]

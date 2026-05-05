@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import ForeignKey, Index, Integer, Text, func
+from sqlalchemy import ForeignKey, Index, Integer, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -28,4 +28,5 @@ class Group(Base):
     __table_args__ = (
         Index("idx_groups_swimline", "swimline_id"),
         Index("idx_groups_feature", "feature_system_id"),
+        UniqueConstraint("swimline_id", "name"),
     )

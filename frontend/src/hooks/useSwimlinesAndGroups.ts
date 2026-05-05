@@ -59,11 +59,18 @@ export const useGroupsForSwimline = (swimlineId: string) =>
     enabled: !!swimlineId,
   })
 
+function invalidateEffectCaches(qc: ReturnType<typeof useQueryClient>, swimlineId: string): void {
+  qc.invalidateQueries({ queryKey: groupKey(swimlineId) })
+  qc.invalidateQueries({ queryKey: ['sprints'] })
+  qc.invalidateQueries({ queryKey: ['swimlines'] })
+  qc.invalidateQueries({ queryKey: ['pis'] })
+}
+
 export const useCreateGroup = (swimlineId: string) => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (body: GroupCreate) => groupsApi.create(swimlineId, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: groupKey(swimlineId) }),
+    onSuccess: () => invalidateEffectCaches(qc, swimlineId),
   })
 }
 
@@ -72,7 +79,7 @@ export const useUpdateGroup = (swimlineId: string) => {
   return useMutation({
     mutationFn: ({ groupId, body }: { groupId: string; body: GroupUpdate }) =>
       groupsApi.update(groupId, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: groupKey(swimlineId) }),
+    onSuccess: () => invalidateEffectCaches(qc, swimlineId),
   })
 }
 
@@ -80,6 +87,6 @@ export const useDeleteGroup = (swimlineId: string) => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (groupId: string) => groupsApi.delete(groupId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: groupKey(swimlineId) }),
+    onSuccess: () => invalidateEffectCaches(qc, swimlineId),
   })
 }

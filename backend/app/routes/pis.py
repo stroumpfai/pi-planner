@@ -13,11 +13,19 @@ from app.models.sprint import Sprint
 from app.models.swimline import Swimline
 from app.models.user import User
 from app.schemas import PICreate, PIResponse, PIUpdate
+from app.services.effort import pi_effort_and_capacity
 from app.services.events import broadcaster
 
 router = APIRouter(tags=["pis"])
 
 SPRINT_COUNT = 5
+
+
+async def _pi_response(db: AsyncSession, pi: PI) -> PIResponse:
+    effort, capacity = await pi_effort_and_capacity(db, pi.system_id)
+    return PIResponse.model_validate(pi).model_copy(
+        update={"total_effort": effort, "total_capacity": capacity}
+    )
 
 
 async def _get_or_404(db: AsyncSession, pi_id: str) -> PI:
@@ -65,7 +73,8 @@ async def list_pis(
     result = await db.execute(
         select(PI).where(PI.project_id == project_id).order_by(PI.created_at.asc())
     )
-    return [PIResponse.model_validate(p) for p in result.scalars().all()]
+    pis = result.scalars().all()
+    return [await _pi_response(db, p) for p in pis]
 
 
 @router.post(
@@ -99,12 +108,12 @@ async def create_pi(
     await db.commit()
     await db.refresh(pi)
     await broadcaster.broadcast(project_id, "pi:created", {"system_id": pi.system_id})
-    return PIResponse.model_validate(pi)
+    return await _pi_response(db, pi)
 
 
 @router.get("/api/v1/pis/{pi_id}", response_model=PIResponse)
 async def get_pi(pi_id: str, db: AsyncSession = Depends(get_session)) -> PIResponse:
-    return PIResponse.model_validate(await _get_or_404(db, pi_id))
+    return await _pi_response(db, await _get_or_404(db, pi_id))
 
 
 @router.patch("/api/v1/pis/{pi_id}", response_model=PIResponse)
@@ -139,7 +148,7 @@ async def update_pi(
 
     event = "pi:state_changed" if "state" in fields else "pi:updated"
     await broadcaster.broadcast(pi.project_id, event, {"system_id": pi_id, "state": pi.state})
-    return PIResponse.model_validate(pi)
+    return await _pi_response(db, pi)
 
 
 @router.delete("/api/v1/pis/{pi_id}", status_code=status.HTTP_204_NO_CONTENT)

@@ -16,6 +16,10 @@ export const useUpdateSprint = (piId: string) => {
   return useMutation({
     mutationFn: ({ sprintId, body }: { sprintId: string; body: SprintUpdate }) =>
       sprintsApi.update(sprintId, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: key(piId) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: key(piId) })
+      qc.invalidateQueries({ queryKey: ['swimlines'] })
+      qc.invalidateQueries({ queryKey: ['pis'] })
+    },
   })
 }

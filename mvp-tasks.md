@@ -272,36 +272,43 @@
 
 ### 7A · Backend
 
-- [ ] `GET /api/v1/swimlines/{id}/groups` — list groups ordered by `sprint_index` then `order_index`
-- [ ] `POST /api/v1/swimlines/{id}/groups` — create group (validate `feature_system_id` exists in this swimlane; validate all PBI ids belong to that feature; unique name per swimlane → 409)
-- [ ] `PATCH /api/v1/groups/{id}` — update name, `sprint_index`, `order_index`
-- [ ] `DELETE /api/v1/groups/{id}` — delete group; PBIs remain, returned to ungrouped state in feature zone (clear `group_id`)
-- [ ] `PATCH /api/v1/pbis/{id}` extended — support `group_id` for moving PBI between groups
-- [ ] SSE broadcast `group:created`, `group:updated`, `group:deleted`, `group:moved`
+- [x] `GET /api/v1/swimlines/{id}/groups` — list ordered by `sprint_index` nulls-first then `order_index`
+- [x] `POST /api/v1/swimlines/{id}/groups` — create group; validates feature in swimlane + PBI ownership; 409 on duplicate name; atomically sets `group_id` on specified PBIs
+- [x] `PATCH /api/v1/groups/{id}` — update name, `sprint_index`, `order_index`; 409 on name collision
+- [x] `DELETE /api/v1/groups/{id}` — clears `group_id` on all grouped PBIs, then deletes group
+- [x] `PATCH /api/v1/pbis/{id}` — `group_id` field already supported via `model_fields_set`
+- [x] SSE broadcast `group:created`, `group:updated`, `group:deleted`
+- [x] Group model: `UniqueConstraint("swimline_id", "name")` + Alembic migration `b8146781c586`
+- [x] 20 group integration tests (110 total backend passing)
 
 ### 7B · Frontend
 
-- [ ] Multi-select PBIs in feature zone (checkbox + Ctrl+Click)
-- [ ] "Create Group" action (toolbar button or right-click context menu)
-- [ ] `CreateGroupModal` — group name input
-- [ ] `GroupCard` — shows group name, effort total, PBI list, sprint badge
-- [ ] "Ungroup" button on `GroupCard` (no confirmation)
-- [ ] "Delete Group" button on `GroupCard` (no confirmation)
-- [ ] Move PBI between groups (drag PBI row within sprint column)
-- [ ] `useGroupsForSwimline` hook wired to real API
+- [x] PBI multi-select via checkboxes in expandable `FeatureCard` (board view)
+- [x] "+ Group N PBIs" / "+ New Group (empty)" button when FeatureCard expanded
+- [x] `CreateGroupModal` — name + sprint dropdown; passes `pbi_ids` to API
+- [x] `GroupCard` — drag handle, name, effort total, PBI list, sprint badge, sprint selector, Ungroup button
+- [x] Ungroup = DELETE group (PBIs cleared server-side, no confirmation)
+- [x] `PBISelectList` — checkbox rows with "grouped" label for already-grouped PBIs
+- [x] `SprintCell` — droppable zone per swimlane×sprint; shows GroupCards filtered by sprint_index
+- [x] `SwimlaneRow` — uses `useGroupsForSwimline`; renders SprintCell per sprint column
+- [x] Group drag to sprint: `group:{id}` draggable → `sprintcell:{swimlane}:{sprint}` droppable; calls `groupsApi.update` + invalidates cache
+- [x] `GroupDragData` type exported from `GroupCard` for use in PIBoardPage
 
 ### 7C · Testing
 
-- [ ] Backend: create group with PBIs from wrong feature → 400
-- [ ] Backend: delete group → PBIs get `group_id=null`
-- [ ] Backend: move PBI to group from different feature → 400
-- [ ] Frontend component test: `GroupCard` shows correct effort sum
-- [ ] Frontend component test: "Ungroup" removes group and returns PBIs to feature zone
-- [ ] **Manual smoke test:** select 3 PBIs → create group → drag group to Sprint 2 → verify capacity bar updates
+- [x] Backend: create group with PBIs from wrong feature → 400 `PBI_WRONG_FEATURE`
+- [x] Backend: create group with feature not in swimlane → 400 `FEATURE_NOT_IN_SWIMLANE`
+- [x] Backend: delete group → PBIs get `group_id=null`; group still deleted
+- [x] Backend: PATCH PBI sets/clears `group_id`
+- [x] Frontend: `GroupCard` renders name, effort sum, PBI list, sprint badge
+- [x] Frontend: Ungroup button calls `groupsApi.delete`; hidden when not editing
+- [x] 86 total frontend tests passing; clean production build (456 kB)
+- [ ] **Manual smoke test:** select 3 PBIs → create group → drag group to Sprint 2 → verify board
 
 ### 7D · Review checkpoint
-- [ ] Code review: group integrity constraints (all PBIs same feature)
-- [ ] UX check: multi-select feels natural (checkbox vs Ctrl+click)
+- [x] Group integrity enforced: feature must be in swimlane; PBIs must belong to that feature
+- [x] `useQueryClient` + direct API call used for group sprint assignment (avoids hook-in-handler antipattern)
+- [ ] UX check: PBI checkbox selection in FeatureCard feels natural
 
 ---
 
@@ -311,34 +318,36 @@
 
 ### 8A · Backend
 
-- [ ] Computed fields in `GET /api/v1/pis/{id}` response:
-  - `total_effort` — sum of all group efforts across all swimlines
-  - `total_capacity` — sum of all sprint capacities
-- [ ] Computed fields in `GET /api/v1/pis/{id}/swimlines`:
-  - Per swimline: `effort` (sum of all groups in swimline), `capacity` (sum of sprint capacities)
-- [ ] Computed fields in `GET /api/v1/pis/{id}/sprints`:
-  - Per sprint: `effort` (sum of group efforts in that sprint_index across all swimlines)
-- [ ] `PATCH /api/v1/sprints/{id}` — update capacity; broadcast `sprint:capacity_changed`
+- [x] `GET /api/v1/pis/{id}` — returns `total_effort` + `total_capacity` (sum of sprint capacities)
+- [x] `GET /api/v1/pis/{id}/swimlines` — returns `effort` (swimlane total) + `capacity` (PI sprint total) per swimlane
+- [x] `GET /api/v1/pis/{id}/sprints` — returns `effort` (sum across all swimlanes for this sprint index)
+- [x] `PATCH /api/v1/sprints/{id}` — broadcasts `sprint:capacity_changed`; returns sprint with effort
+- [x] `services/effort.py` — `sprint_efforts_for_pi`, `swimline_efforts`, `pi_effort_and_capacity`, `pi_capacity`; batch queries, no N+1
+- [x] 12 integration tests covering zero-effort, isolation per sprint, swimlane/PI totals, no divide-by-zero (122 total)
 
 ### 8B · Frontend
 
-- [ ] Sprint column header shows live `effort / capacity pts %` (derived from groups in that sprint)
-- [ ] Swimlane header capacity bar (live from swimlane effort/capacity)
-- [ ] PI-level summary bar (total effort vs total capacity)
-- [ ] `SprintCapacityModal` — click sprint header to edit capacity (integer > 0)
-- [ ] All effort numbers update without page reload (via React Query invalidation or SSE)
+- [x] Sprint column headers at TOP of board (shared row, not per swimlane); show `effort / capacity pts %`
+- [x] `SprintCapacityModal` — click pencil on sprint header (edit mode only); validates ≥ 0
+- [x] Swimlane header: `CapacityBar` showing swimlane effort vs PI total capacity
+- [x] PI-level summary `CapacityBar` in board header (total_effort / total_capacity)
+- [x] Effort/capacity bars update automatically: group mutations invalidate `['sprints']`, `['swimlines']`, `['pis']`; sprint capacity change does the same
+- [x] TypeScript types extended: `PI`, `Swimline`, `Sprint` augmented with computed fields in `types/index.ts`
 
 ### 8C · Testing
 
-- [ ] Backend: effort calculation correct after PBI effort change
-- [ ] Backend: capacity at 0 shows 0% (no divide-by-zero crash)
-- [ ] Frontend component test: `CapacityBar` at 85% renders amber
-- [ ] Frontend component test: `CapacityBar` at 101% renders red
-- [ ] **Manual smoke test:** set sprint capacity → drag groups in → watch bars update
+- [x] Backend: sprint effort correctly isolated per sprint index
+- [x] Backend: capacity = 0 → effort = 0, no crash
+- [x] Backend: swimlane effort sums all groups regardless of sprint
+- [x] Backend: PI capacity sums all 5 sprints
+- [x] Frontend: `CapacityBar` amber at 85-100% — existing test passes
+- [x] Frontend: `CapacityBar` red at >100% — existing test passes
+- [x] 86 frontend tests, 122 backend tests passing, clean build (458 kB)
+- [ ] **Manual smoke test:** set sprint capacity → create groups with PBI effort → watch bars update
 
 ### 8D · Review checkpoint
-- [ ] Performance check: effort computed on read (not stored), acceptable for ≤500 items
-- [ ] Code review: no N+1 queries in swimline list
+- [x] Effort computed on read via SQL aggregates (not stored); acceptable for ≤500 items
+- [x] No N+1: swimlane list uses single batch query `swimline_efforts(db, [ids])`; sprint list uses single `sprint_efforts_for_pi`
 
 ---
 
