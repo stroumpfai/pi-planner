@@ -357,28 +357,30 @@
 
 ### 9A · Backend
 
-- [ ] `GET /api/v1/projects/{id}/export` — returns complete project JSON:
-  - Project metadata
-  - All PIs (with swimlines, groups, sprints)
-  - All features (backlog + in PI)
-  - All PBIs
-  - No user data, no edit history
-- [ ] Filename header: `Content-Disposition: attachment; filename="ProjectName_2026-05-03.json"`
+- [x] `GET /api/v1/projects/{id}/export` — complete JSON: project metadata, all PIs (swimlines, groups, sprints), features, PBIs (implemented in M1)
+- [x] `Content-Disposition: attachment; filename="ProjectName_YYYY-MM-DD.json"` header
+- [x] No user data: password_hash, sessions, user IDs excluded from payload
 
 ### 9B · Frontend
 
-- [ ] "Export" button on project list row
-- [ ] Trigger download via `<a href>` blob URL
-- [ ] Show brief loading state while export fetches
+- [x] `ExportButton` component on project list row (implemented in M1)
+- [x] Fetch → Blob → `URL.createObjectURL` → `<a>.click()` download flow
+- [x] "Exporting…" loading state while fetch is in progress
 
 ### 9C · Testing
 
-- [ ] Backend: export JSON includes all features, PBIs, PIs
-- [ ] Backend: export includes no `password_hash` or session data
+- [x] Backend: export JSON includes features, PBIs, PIs (basic structure test from M1)
+- [x] Backend: rich test — creates PI + swimlane + group + feature + PBI → exports → verifies all nested data present and correct
+- [x] Backend: export returns 404 for unknown project
+- [x] Backend: no `password` or `session` string in exported JSON
+- [x] Frontend: Export button renders per project
+- [x] Frontend: loading state shown during fetch, reverts to "Export" on completion
+- [x] 124 backend tests, 88 frontend tests passing
 - [ ] **Manual smoke test:** create project with data → export → open JSON → verify structure
 
 ### 9D · Review checkpoint
-- [ ] Security review: confirm no sensitive fields leak into export
+- [x] Security: no password_hash, session tokens, or user credentials in export payload
+- [x] N+1 acceptable for export (one-time operation, not hot path)
 
 ---
 

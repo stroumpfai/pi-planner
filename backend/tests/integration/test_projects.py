@@ -113,3 +113,82 @@ async def test_export_no_sensitive_data(client):
     text = resp.text
     assert "password" not in text.lower()
     assert "session" not in text.lower()
+
+
+@pytest.mark.asyncio
+async def test_export_includes_full_pi_structure(client):
+    """Export contains PI, sprints, swimlines, groups, features and PBIs."""
+    # Create project
+    pid = (await client.post("/api/v1/projects/", json={"name": "Full Export"})).json()["system_id"]
+
+    # Create feature in backlog
+    fid = (await client.post(
+        f"/api/v1/projects/{pid}/features",
+        json={"title": "Auth", "effort": 8},
+    )).json()["system_id"]
+
+    # Create PBI
+    pbi_id = (await client.post(
+        f"/api/v1/projects/{pid}/pbis",
+        json={"title": "Login", "effort": 3, "parent_feature_system_id": fid},
+    )).json()["system_id"]
+
+    # Create PI (auto-creates 5 sprints)
+    pi_id = (await client.post(
+        f"/api/v1/projects/{pid}/pis",
+        json={"name": "Q1-2026"},
+    )).json()["system_id"]
+
+    # Create swimline and move feature into it
+    sl_id = (await client.post(
+        f"/api/v1/pis/{pi_id}/swimlines",
+        json={"name": "Team A"},
+    )).json()["system_id"]
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": sl_id})
+
+    # Create group with PBI, assign to sprint 0
+    g_id = (await client.post(
+        f"/api/v1/swimlines/{sl_id}/groups",
+        json={"name": "Login Group", "feature_system_id": fid,
+              "pbi_ids": [pbi_id], "sprint_index": 0},
+    )).json()["system_id"]
+
+    # Export
+    resp = await client.get(f"/api/v1/projects/{pid}/export")
+    assert resp.status_code == 200
+    data = resp.json()
+    proj = data["project"]
+
+    # Features
+    assert len(proj["features"]) == 1
+    assert proj["features"][0]["title"] == "Auth"
+    assert proj["features"][0]["effort"] == 8
+    assert proj["features"][0]["location"] == "pi"
+
+    # PBIs
+    assert len(proj["pbis"]) == 1
+    assert proj["pbis"][0]["title"] == "Login"
+    assert proj["pbis"][0]["group_id"] == g_id
+
+    # PI
+    assert len(proj["pis"]) == 1
+    pi_export = proj["pis"][0]
+    assert pi_export["system_id"] == pi_id
+    assert pi_export["name"] == "Q1-2026"
+
+    # Sprints (5 auto-created)
+    assert len(pi_export["sprints"]) == 5
+
+    # Swimline and group
+    assert len(pi_export["swimlines"]) == 1
+    sl_export = pi_export["swimlines"][0]
+    assert sl_export["name"] == "Team A"
+    assert len(sl_export["groups"]) == 1
+    assert sl_export["groups"][0]["name"] == "Login Group"
+    assert sl_export["groups"][0]["sprint_index"] == 0
+
+
+@pytest.mark.asyncio
+async def test_export_404_unknown_project(client):
+    resp = await client.get("/api/v1/projects/nonexistent/export")
+    assert resp.status_code == 404

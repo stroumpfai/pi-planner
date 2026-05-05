@@ -58,4 +58,39 @@ describe('ProjectListPage', () => {
     render(<ProjectListPage />, { wrapper: makeWrapper() })
     await waitFor(() => expect(screen.getByText('Delete')).toBeInTheDocument())
   })
+
+  it('shows Export button per project', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([fakeProject])
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('Export')).toBeInTheDocument())
+  })
+
+  it('Export button shows loading state during fetch', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([fakeProject])
+
+    // Stub browser APIs unavailable in jsdom
+    vi.stubGlobal('URL', { createObjectURL: vi.fn().mockReturnValue('blob:fake'), revokeObjectURL: vi.fn() })
+
+    let resolveFetch!: (v: Response) => void
+    const fetchPromise = new Promise<Response>((res) => { resolveFetch = res })
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(fetchPromise))
+
+    // Stub anchor click so no navigation happens
+    const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByText('Export'))
+
+    await userEvent.click(screen.getByText('Export'))
+    expect(screen.getByText('Exporting…')).toBeInTheDocument()
+
+    resolveFetch(new Response(new Blob(['{}'], { type: 'application/json' }), {
+      headers: { 'Content-Disposition': 'attachment; filename="test.json"' },
+    }))
+
+    await waitFor(() => expect(screen.getByText('Export')).toBeInTheDocument())
+
+    clickSpy.mockRestore()
+    vi.unstubAllGlobals()
+  })
 })
