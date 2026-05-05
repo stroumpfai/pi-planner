@@ -76,10 +76,12 @@ describe('GroupCard', () => {
     await waitFor(() => expect(screen.getByText('Login flow')).toBeInTheDocument())
   })
 
-  it('shows sprint badge when sprint assigned', async () => {
+  it('sprint selector shows correct sprint in edit mode', async () => {
     vi.mocked(pbisService.pbisApi).list = vi.fn().mockResolvedValue([])
+    useAuthStore.setState({ isEditing: true })
     render(<GroupCard group={makeGroup({ sprint_index: 1 })} projectId="p-1" />, { wrapper: makeWrapper() })
-    expect(screen.getByText('S2')).toBeInTheDocument()
+    const selector = screen.getByTitle('Move to sprint') as HTMLSelectElement
+    expect(selector.value).toBe('1')
   })
 
   it('hides Ungroup button when not in edit mode', async () => {

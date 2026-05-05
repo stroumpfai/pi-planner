@@ -15,13 +15,13 @@ const SPRINT_LABELS = ['Sprint 1', 'Sprint 2', 'Sprint 3', 'Sprint 4', 'Sprint 5
 
 export function CreateGroupModal({ open, swimlaneId, featureId, pbiIds, onClose }: Props) {
   const [name, setName] = useState('')
-  const [sprintIndex, setSprintIndex] = useState<number | null>(null)
+  const [sprintIndex, setSprintIndex] = useState<number>(0)
   const [error, setError] = useState<string | null>(null)
   const create = useCreateGroup(swimlaneId)
 
   function handleClose() {
     setName('')
-    setSprintIndex(null)
+    setSprintIndex(0)
     setError(null)
     onClose()
   }
@@ -73,15 +73,14 @@ export function CreateGroupModal({ open, swimlaneId, featureId, pbiIds, onClose 
 
             <div>
               <label htmlFor="group-sprint" className="block text-sm font-medium text-gray-700 mb-1">
-                Sprint (optional)
+                Sprint
               </label>
               <select
                 id="group-sprint"
-                value={sprintIndex ?? ''}
-                onChange={(e) => setSprintIndex(e.target.value === '' ? null : Number(e.target.value))}
+                value={sprintIndex}
+                onChange={(e) => setSprintIndex(Number(e.target.value))}
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">Unassigned</option>
                 {SPRINT_LABELS.map((label, i) => (
                   <option key={i} value={i}>{label}</option>
                 ))}

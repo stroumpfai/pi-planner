@@ -37,17 +37,14 @@ export function GroupCard({ group, projectId }: Props) {
     } satisfies GroupDragData,
   })
 
-  const sprintLabel = group.sprint_index != null ? SPRINT_LABELS[group.sprint_index] : null
-
   function handleUngroup() {
     deleteGroup.mutate(group.system_id)
   }
 
   function handleMoveSprint(e: React.ChangeEvent<HTMLSelectElement>) {
-    const val = e.target.value
     updateGroup.mutate({
       groupId: group.system_id,
-      body: { sprint_index: val === '' ? null : Number(val) },
+      body: { sprint_index: Number(e.target.value) },
     })
   }
 
@@ -70,11 +67,6 @@ export function GroupCard({ group, projectId }: Props) {
             {totalEffort}pt
           </span>
         )}
-        {sprintLabel && (
-          <span className="flex-shrink-0 text-xs bg-blue-100 text-blue-700 rounded px-1.5 py-0.5">
-            {sprintLabel}
-          </span>
-        )}
       </div>
 
       {/* PBI list */}
@@ -93,12 +85,11 @@ export function GroupCard({ group, projectId }: Props) {
       {isEditing && (
         <div className="flex items-center gap-2 px-2 py-1.5 border-t border-gray-100">
           <select
-            value={group.sprint_index ?? ''}
+            value={group.sprint_index ?? 0}
             onChange={handleMoveSprint}
             className="text-xs border-0 bg-transparent text-gray-500 focus:outline-none cursor-pointer flex-1"
-            title="Assign to sprint"
+            title="Move to sprint"
           >
-            <option value="">Unassigned</option>
             {SPRINT_LABELS.map((label, i) => (
               <option key={i} value={i}>{label}</option>
             ))}

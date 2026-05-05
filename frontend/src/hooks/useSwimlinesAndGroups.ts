@@ -61,6 +61,7 @@ export const useGroupsForSwimline = (swimlineId: string) =>
 
 function invalidateEffectCaches(qc: ReturnType<typeof useQueryClient>, swimlineId: string): void {
   qc.invalidateQueries({ queryKey: groupKey(swimlineId) })
+  qc.invalidateQueries({ queryKey: ['pbis'] })
   qc.invalidateQueries({ queryKey: ['sprints'] })
   qc.invalidateQueries({ queryKey: ['swimlines'] })
   qc.invalidateQueries({ queryKey: ['pis'] })
