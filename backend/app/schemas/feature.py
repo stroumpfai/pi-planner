@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 FeatureLocation = Literal["backlog", "pi"]
 
@@ -9,14 +9,12 @@ FeatureLocation = Literal["backlog", "pi"]
 class FeatureCreate(BaseModel):
     title: str = Field(..., max_length=255)
     description: str | None = Field(None, max_length=2000)
-    effort: int | None = Field(None, gt=0)
     id: int | None = Field(None, ge=1, le=999999, alias="id")
 
 
 class FeatureUpdate(BaseModel):
     title: str | None = Field(None, max_length=255)
     description: str | None = Field(None, max_length=2000)
-    effort: int | None = Field(None, gt=0)
     id: int | None = Field(None, ge=1, le=999999)
     location: FeatureLocation | None = None
     pi_id: str | None = None
@@ -28,7 +26,7 @@ class FeatureResponse(BaseModel):
     id: int | None = Field(None, validation_alias="user_id")
     title: str
     description: str | None
-    effort: int | None
+    effort: int = 0  # computed: sum of child PBI efforts
     location: str
     pi_id: str | None
     swimlane_id: str | None
@@ -37,3 +35,8 @@ class FeatureResponse(BaseModel):
     modified_at: datetime
 
     model_config = {"from_attributes": True, "populate_by_name": True}
+
+    @field_validator("effort", mode="before")
+    @classmethod
+    def coerce_none_to_zero(cls, v: object) -> int:
+        return v if v is not None else 0

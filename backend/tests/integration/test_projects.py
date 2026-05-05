@@ -121,10 +121,10 @@ async def test_export_includes_full_pi_structure(client):
     # Create project
     pid = (await client.post("/api/v1/projects/", json={"name": "Full Export"})).json()["system_id"]
 
-    # Create feature in backlog
+    # Create feature in backlog (effort is computed from PBIs)
     fid = (await client.post(
         f"/api/v1/projects/{pid}/features",
-        json={"title": "Auth", "effort": 8},
+        json={"title": "Auth"},
     )).json()["system_id"]
 
     # Create PBI
@@ -162,7 +162,7 @@ async def test_export_includes_full_pi_structure(client):
     # Features
     assert len(proj["features"]) == 1
     assert proj["features"][0]["title"] == "Auth"
-    assert proj["features"][0]["effort"] == 8
+    assert proj["features"][0]["effort"] == 3  # sum of PBI efforts
     assert proj["features"][0]["location"] == "pi"
 
     # PBIs

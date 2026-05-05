@@ -57,6 +57,21 @@ async def pi_effort_and_capacity(db: AsyncSession, pi_id: str) -> tuple[int, int
     return int(effort_result.scalar_one()), int(capacity_result.scalar_one())
 
 
+async def feature_efforts(db: AsyncSession, feature_ids: list[str]) -> dict[str, int]:
+    """Return {feature_system_id: effort} — sum of child PBI efforts."""
+    if not feature_ids:
+        return {}
+    result = await db.execute(
+        select(
+            PBI.parent_feature_system_id,
+            func.coalesce(func.sum(PBI.effort), 0).label("effort"),
+        )
+        .where(PBI.parent_feature_system_id.in_(feature_ids), PBI.effort.is_not(None))
+        .group_by(PBI.parent_feature_system_id)
+    )
+    return {row.parent_feature_system_id: int(row.effort) for row in result.all()}
+
+
 async def pi_capacity(db: AsyncSession, pi_id: str) -> int:
     """Return total sprint capacity for a PI."""
     result = await db.execute(

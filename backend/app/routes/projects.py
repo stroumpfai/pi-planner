@@ -17,6 +17,7 @@ from app.models.swimline import Swimline
 from app.models.group import Group
 from app.models.user import User
 from app.schemas import ProjectCreate, ProjectResponse, ProjectUpdate
+from app.services.effort import feature_efforts
 from app.services.events import broadcaster
 
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
@@ -109,6 +110,7 @@ async def export_project(
         select(Feature).where(Feature.project_id == project_id).order_by(Feature.created_at)
     )
     features = features_result.scalars().all()
+    feat_efforts = await feature_efforts(db, [f.system_id for f in features])
 
     pbis_result = await db.execute(
         select(PBI).where(PBI.project_id == project_id).order_by(PBI.created_at)
@@ -191,7 +193,7 @@ async def export_project(
                     "id": f.user_id,
                     "title": f.title,
                     "description": f.description,
-                    "effort": f.effort,
+                    "effort": feat_efforts.get(f.system_id, 0),
                     "location": f.location,
                     "pi_id": f.pi_id,
                     "swimlane_id": f.swimlane_id,

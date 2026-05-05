@@ -12,6 +12,7 @@ from app.models.project import Project
 from app.models.swimline import Swimline
 from app.models.user import User
 from app.schemas import FeatureCreate, FeatureResponse, FeatureUpdate
+from app.services.effort import feature_efforts
 from app.services.events import broadcaster
 from app.services.validation import is_user_id_available
 
@@ -32,6 +33,13 @@ async def _get_feature_or_404(db: AsyncSession, feature_id: str) -> Feature:
     return feature
 
 
+async def _enrich(db: AsyncSession, feature: Feature) -> FeatureResponse:
+    efforts = await feature_efforts(db, [feature.system_id])
+    return FeatureResponse.model_validate(feature).model_copy(
+        update={"effort": efforts.get(feature.system_id, 0)}
+    )
+
+
 async def _apply_metadata_fields(
     db: AsyncSession, feature: Feature, body: FeatureUpdate, fields: set[str]
 ) -> None:
@@ -45,8 +53,6 @@ async def _apply_metadata_fields(
         feature.title = body.title
     if "description" in fields:
         feature.description = body.description
-    if "effort" in fields:
-        feature.effort = body.effort
 
 
 async def _apply_move_to_swimlane(db: AsyncSession, feature: Feature, body: FeatureUpdate, fields: set[str]) -> None:
@@ -88,8 +94,12 @@ async def list_features(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     q = select(Feature).where(Feature.project_id == project_id)
     q = q.order_by(Feature.title.asc() if sort == "name" else Feature.created_at.desc())
-    result = await db.execute(q)
-    return [FeatureResponse.model_validate(f) for f in result.scalars().all()]
+    features = (await db.execute(q)).scalars().all()
+    efforts = await feature_efforts(db, [f.system_id for f in features])
+    return [
+        FeatureResponse.model_validate(f).model_copy(update={"effort": efforts.get(f.system_id, 0)})
+        for f in features
+    ]
 
 
 @router.post(
@@ -115,18 +125,17 @@ async def create_feature(
         user_id=user_id,
         title=body.title,
         description=body.description,
-        effort=body.effort,
     )
     db.add(feature)
     await db.commit()
     await db.refresh(feature)
     await broadcaster.broadcast(project_id, "feature:created", {"system_id": feature.system_id})
-    return FeatureResponse.model_validate(feature)
+    return await _enrich(db, feature)
 
 
 @router.get("/api/v1/features/{feature_id}", response_model=FeatureResponse)
 async def get_feature(feature_id: str, db: AsyncSession = Depends(get_session)) -> FeatureResponse:
-    return FeatureResponse.model_validate(await _get_feature_or_404(db, feature_id))
+    return await _enrich(db, await _get_feature_or_404(db, feature_id))
 
 
 @router.patch("/api/v1/features/{feature_id}", response_model=FeatureResponse)
@@ -156,7 +165,7 @@ async def update_feature(
     await db.refresh(feature)
     event = "feature:moved" if (moving_to_swimlane or moving_to_backlog) else "feature:updated"
     await broadcaster.broadcast(feature.project_id, event, {"system_id": feature_id})
-    return FeatureResponse.model_validate(feature)
+    return await _enrich(db, feature)
 
 
 @router.delete("/api/v1/features/{feature_id}", status_code=status.HTTP_204_NO_CONTENT)

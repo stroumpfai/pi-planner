@@ -13,11 +13,16 @@ export const usePBIs = (projectId: string, featureId?: string) =>
     enabled: !!projectId,
   })
 
+function invalidatePBIAndFeatures(qc: ReturnType<typeof useQueryClient>, projectId: string): void {
+  qc.invalidateQueries({ queryKey: prefix(projectId) })
+  qc.invalidateQueries({ queryKey: ['features', projectId] })
+}
+
 export const useCreatePBI = (projectId: string) => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (body: PBICreate) => pbisApi.create(projectId, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: prefix(projectId) }),
+    onSuccess: () => invalidatePBIAndFeatures(qc, projectId),
   })
 }
 
@@ -26,7 +31,7 @@ export const useUpdatePBI = (projectId: string) => {
   return useMutation({
     mutationFn: ({ pbiId, body }: { pbiId: string; body: PBIUpdate }) =>
       pbisApi.update(pbiId, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: prefix(projectId) }),
+    onSuccess: () => invalidatePBIAndFeatures(qc, projectId),
   })
 }
 
@@ -34,6 +39,6 @@ export const useDeletePBI = (projectId: string) => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (pbiId: string) => pbisApi.delete(pbiId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: prefix(projectId) }),
+    onSuccess: () => invalidatePBIAndFeatures(qc, projectId),
   })
 }

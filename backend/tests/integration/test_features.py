@@ -75,12 +75,12 @@ async def test_create_feature_minimal(client, project):
 async def test_create_feature_with_all_fields(client, project):
     resp = await client.post(
         f"/api/v1/projects/{project['system_id']}/features",
-        json={"title": "Full Feature", "description": "Desc", "effort": 5, "id": 101},
+        json={"title": "Full Feature", "description": "Desc", "id": 101},
     )
     assert resp.status_code == 201
     data = resp.json()
     assert data["id"] == 101
-    assert data["effort"] == 5
+    assert data["effort"] == 0  # no PBIs yet
     assert data["description"] == "Desc"
 
 
