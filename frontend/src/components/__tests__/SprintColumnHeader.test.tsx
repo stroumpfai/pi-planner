@@ -23,7 +23,7 @@ describe('SprintColumnHeader', () => {
 
   it('shows 0/0 pts 0% when capacity is zero', () => {
     render(<SprintColumnHeader sprint={makeSprint()} usedEffort={0} />)
-    expect(screen.getByText('0/0 pts 0%')).toBeInTheDocument()
+    expect(screen.getByText('0/0 pts - 0%')).toBeInTheDocument()
   })
 
   it('shows date range when both dates present', () => {
@@ -33,7 +33,7 @@ describe('SprintColumnHeader', () => {
         usedEffort={0}
       />
     )
-    expect(screen.getByText('2026-01-01 – 2026-01-14')).toBeInTheDocument()
+    expect(screen.getByText('01.01.26 – 14.01.26')).toBeInTheDocument()
   })
 
   it('does not show dates when absent', () => {

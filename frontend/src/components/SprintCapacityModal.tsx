@@ -12,11 +12,15 @@ interface Props {
 
 export function SprintCapacityModal({ open, sprint, piId, onClose }: Props) {
   const [capacity, setCapacity] = useState(String(sprint.capacity ?? 0))
+  const [startDate, setStartDate] = useState(sprint.start_date ?? '')
+  const [endDate, setEndDate] = useState(sprint.end_date ?? '')
   const [error, setError] = useState<string | null>(null)
   const update = useUpdateSprint(piId)
 
   function handleClose() {
     setCapacity(String(sprint.capacity ?? 0))
+    setStartDate(sprint.start_date ?? '')
+    setEndDate(sprint.end_date ?? '')
     setError(null)
     onClose()
   }
@@ -30,10 +34,17 @@ export function SprintCapacityModal({ open, sprint, piId, onClose }: Props) {
     }
     setError(null)
     try {
-      await update.mutateAsync({ sprintId: sprint.system_id, body: { capacity: val || 1 } })
+      await update.mutateAsync({
+        sprintId: sprint.system_id,
+        body: {
+          capacity: val || 1,
+          start_date: startDate || null,
+          end_date: endDate || null,
+        },
+      })
       handleClose()
     } catch {
-      setError('Failed to update capacity')
+      setError('Failed to update sprint')
     }
   }
 
@@ -43,9 +54,9 @@ export function SprintCapacityModal({ open, sprint, piId, onClose }: Props) {
     <Dialog.Root open={open} onOpenChange={(o) => { if (!o) handleClose() }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/30 z-40" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-lg shadow-xl p-6 w-72">
+        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-lg shadow-xl p-6 w-80">
           <Dialog.Title className="text-base font-semibold text-gray-900 mb-4">
-            {label} Capacity
+            Edit {label}
           </Dialog.Title>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
@@ -61,6 +72,33 @@ export function SprintCapacityModal({ open, sprint, piId, onClose }: Props) {
                 autoFocus
                 className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label htmlFor="sprint-start" className="block text-sm font-medium text-gray-700 mb-1">
+                  Start date
+                </label>
+                <input
+                  id="sprint-start"
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label htmlFor="sprint-end" className="block text-sm font-medium text-gray-700 mb-1">
+                  End date
+                </label>
+                <input
+                  id="sprint-end"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
             </div>
 
             {error && (

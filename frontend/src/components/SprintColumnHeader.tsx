@@ -1,3 +1,4 @@
+import { fmtDate } from '@/utils/dates'
 import { CapacityBar } from './CapacityBar'
 import type { Sprint } from '@/types'
 
@@ -9,8 +10,8 @@ interface Props {
 
 export function SprintColumnHeader({ sprint, usedEffort, onEditCapacity }: Props) {
   const label = `Sprint ${(sprint.sprint_index ?? 0) + 1}`
-  const dates = sprint.start_date && sprint.end_date
-    ? `${sprint.start_date} – ${sprint.end_date}`
+  const dates = sprint.start_date ?? sprint.end_date
+    ? `${fmtDate(sprint.start_date)} – ${fmtDate(sprint.end_date)}`
     : null
 
   return (

@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { fmtDate } from '@/utils/dates'
 import { usePIs, useDeletePI } from '@/hooks/usePIs'
 import { useAuthStore } from '@/stores/authStore'
 import { useUiStore } from '@/stores/uiStore'
 import { PIStateBadge } from './PIStateBadge'
 import { PIStateButton } from './PIStateButton'
 import { CreatePIModal } from './CreatePIModal'
+import { EditPIModal } from './EditPIModal'
 import { ConfirmDialog } from './ConfirmDialog'
 import type { PI } from '@/types'
 
@@ -14,6 +16,7 @@ interface Props {
 
 export function PIListPanel({ projectId }: Props) {
   const [showCreate, setShowCreate] = useState(false)
+  const [editTarget, setEditTarget] = useState<PI | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<PI | null>(null)
   const [stateError, setStateError] = useState<string | null>(null)
   const isEditing = useAuthStore((s) => s.isEditing)
@@ -53,6 +56,7 @@ export function PIListPanel({ projectId }: Props) {
             {pis?.map((pi) => {
               const isSelected = activePIId === pi.system_id
               const selectedClass = isSelected ? 'bg-blue-50 border-l-2 border-blue-500' : ''
+              const canEditPI = isEditing && pi.state !== 'closed'
               return (
                 <li key={pi.system_id} className={selectedClass}>
                   <button
@@ -66,7 +70,7 @@ export function PIListPanel({ projectId }: Props) {
                     </div>
                     {(pi.start_date || pi.end_date) && (
                       <p className="text-xs text-gray-400">
-                        {pi.start_date ?? '?'} → {pi.end_date ?? '?'}
+                        {fmtDate(pi.start_date)} → {fmtDate(pi.end_date)}
                       </p>
                     )}
                   </button>
@@ -78,6 +82,15 @@ export function PIListPanel({ projectId }: Props) {
                         projectId={projectId}
                         onError={setStateError}
                       />
+                      {canEditPI && (
+                        <button
+                          type="button"
+                          onClick={() => setEditTarget(pi)}
+                          className="text-xs text-blue-500 hover:text-blue-700"
+                        >
+                          Edit
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setDeleteTarget(pi)}
@@ -99,6 +112,15 @@ export function PIListPanel({ projectId }: Props) {
         projectId={projectId}
         onClose={() => setShowCreate(false)}
       />
+
+      {editTarget && (
+        <EditPIModal
+          open
+          pi={editTarget}
+          projectId={projectId}
+          onClose={() => setEditTarget(null)}
+        />
+      )}
 
       <ConfirmDialog
         open={deleteTarget !== null}

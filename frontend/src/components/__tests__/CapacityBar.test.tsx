@@ -4,12 +4,12 @@ import { CapacityBar } from '../CapacityBar'
 describe('CapacityBar', () => {
   it('shows 0/0 pts 0% when capacity is zero', () => {
     render(<CapacityBar used={0} capacity={0} />)
-    expect(screen.getByText('0/0 pts 0%')).toBeInTheDocument()
+    expect(screen.getByText('0/0 pts - 0%')).toBeInTheDocument()
   })
 
   it('shows correct label', () => {
     render(<CapacityBar used={5} capacity={10} />)
-    expect(screen.getByText('5/10 pts 50%')).toBeInTheDocument()
+    expect(screen.getByText('5/10 pts - 50%')).toBeInTheDocument()
   })
 
   it('applies blue style when under 85%', () => {
