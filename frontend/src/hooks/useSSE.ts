@@ -28,7 +28,7 @@ export function useSSE(projectId: string | null) {
     }
 
     es.onerror = () => {
-      // Browser auto-reconnects on error; no manual retry needed
+      // Browser EventSource auto-reconnects; no manual retry needed
     }
 
     return () => {
@@ -44,27 +44,72 @@ function handleSSEEvent(
   qc: ReturnType<typeof useQueryClient>,
 ) {
   switch (event.type) {
+    // ── Features ──────────────────────────────────────────────────────────
     case 'feature:created':
     case 'feature:updated':
     case 'feature:deleted':
+    case 'feature:moved':
       qc.invalidateQueries({ queryKey: ['features', projectId] })
+      qc.invalidateQueries({ queryKey: ['groups'] })
+      qc.invalidateQueries({ queryKey: ['swimlines'] })
+      qc.invalidateQueries({ queryKey: ['pis'] })
       break
+
+    // ── PBIs ──────────────────────────────────────────────────────────────
     case 'pbi:created':
     case 'pbi:updated':
     case 'pbi:deleted':
       qc.invalidateQueries({ queryKey: ['pbis', projectId] })
+      qc.invalidateQueries({ queryKey: ['features', projectId] })
       break
-    case 'group:moved':
+
+    // ── Groups ────────────────────────────────────────────────────────────
     case 'group:created':
+    case 'group:updated':
     case 'group:deleted':
-      // swimline queries are per-PI, but we don't have piId here;
-      // invalidate all swimline/group queries for this project
+    case 'group:moved':
       qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'groups' })
+      qc.invalidateQueries({ queryKey: ['pbis', projectId] })
+      qc.invalidateQueries({ queryKey: ['sprints'] })
+      qc.invalidateQueries({ queryKey: ['swimlines'] })
+      qc.invalidateQueries({ queryKey: ['pis'] })
       break
+
+    // ── PIs ───────────────────────────────────────────────────────────────
+    case 'pi:created':
+    case 'pi:updated':
+    case 'pi:state_changed':
+    case 'pi:deleted':
+      qc.invalidateQueries({ queryKey: ['pis', projectId] })
+      break
+
+    // ── Swimlines ─────────────────────────────────────────────────────────
+    case 'swimline:created':
+    case 'swimline:updated':
+    case 'swimline:deleted':
+    case 'swimline:reordered':
+      qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'swimlines' })
+      break
+
+    // ── Sprints ───────────────────────────────────────────────────────────
+    case 'sprint:capacity_changed':
+      qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'sprints' })
+      qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'swimlines' })
+      qc.invalidateQueries({ queryKey: ['pis'] })
+      break
+
+    // ── Projects ──────────────────────────────────────────────────────────
+    case 'project:updated':
+    case 'project:deleted':
+      qc.invalidateQueries({ queryKey: ['projects'] })
+      break
+
+    // ── Edit lock ─────────────────────────────────────────────────────────
     case 'edit-lock:acquired':
     case 'edit-lock:released':
       qc.invalidateQueries({ queryKey: ['editLock', projectId] })
       break
+
     default:
       break
   }

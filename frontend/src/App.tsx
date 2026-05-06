@@ -1,7 +1,9 @@
 import { useCurrentUser, useLogout } from '@/hooks/useAuth'
 import { useUiStore } from '@/stores/uiStore'
+import { useSSE } from '@/hooks/useSSE'
 import { EditLockButton } from '@/components/EditLockButton'
 import { PIListPanel } from '@/components/PIListPanel'
+import { ToastContainer } from '@/components/ToastContainer'
 import { LoginPage } from '@/pages/LoginPage'
 import { ProjectListPage } from '@/pages/ProjectListPage'
 import { BacklogPage } from '@/pages/BacklogPage'
@@ -11,6 +13,9 @@ export default function App() {
   const { data: user, isLoading, isError } = useCurrentUser()
   const logout = useLogout()
   const { activeProjectId, activePIId, setActiveProject } = useUiStore()
+
+  // Real-time updates for all open-project users
+  useSSE(activeProjectId)
 
   if (isLoading) {
     return (
@@ -65,6 +70,8 @@ export default function App() {
           <ProjectListPage />
         )}
       </main>
+
+      <ToastContainer />
     </div>
   )
 }

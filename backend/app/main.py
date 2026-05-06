@@ -5,7 +5,18 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.database import AsyncSessionLocal
-from app.routes import auth, edit_lock, events, features, groups, pbis, pis, projects, sprints, swimlines
+from app.routes import (
+    auth,
+    edit_lock,
+    events,
+    features,
+    groups,
+    pbis,
+    pis,
+    projects,
+    sprints,
+    swimlines,
+)
 from app.services.auth import ensure_default_admin
 
 
@@ -14,6 +25,7 @@ async def lifespan(_: FastAPI):
     async with AsyncSessionLocal() as db:
         await ensure_default_admin(db)
     yield
+
 
 app = FastAPI(
     title="PI Planning API",
