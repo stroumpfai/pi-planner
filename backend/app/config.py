@@ -1,3 +1,5 @@
+import json
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -9,7 +11,14 @@ class Settings(BaseSettings):
     debug: bool = False
     session_timeout_minutes: int = 60
     edit_lock_timeout_minutes: int = 30
-    allowed_origins: list[str] = ["http://localhost:5173"]
+    # Accepts comma-separated ("http://a,https://b") or JSON array ('["http://a"]')
+    allowed_origins: str = "http://localhost:5173"
+
+    def get_allowed_origins(self) -> list[str]:
+        v = self.allowed_origins.strip()
+        if v.startswith("["):
+            return json.loads(v)
+        return [o.strip() for o in v.split(",") if o.strip()]
 
 
 settings = Settings()
