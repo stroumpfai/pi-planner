@@ -1,0 +1,25 @@
+# Version control
+.git
+.gitignore
+
+# Frontend — built by Docker, not copied from host
+frontend/node_modules
+frontend/dist
+frontend/.env*
+
+# Backend — dev artifacts not needed in image
+backend/venv
+backend/__pycache__
+backend/.pytest_cache
+backend/.mypy_cache
+backend/tests
+backend/.env*
+backend/logs
+
+# Editor / OS
+.vscode
+.idea
+*.pyc
+*.pyo
+__pycache__
+.DS_Store

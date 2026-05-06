@@ -1,26 +1,16 @@
-version: '3.8'
-
 services:
-  backend:
-    build: ./backend
+  app:
+    build: .
     ports:
       - "8000:8000"
+    volumes:
+      - pi-data:/data
     environment:
-      DATABASE_URL: sqlite+aiosqlite:////app/data/db.sqlite
-      DEBUG: "true"
-    volumes:
-      - ./backend:/app
-      - pi-planning-db:/app/data
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-
-  frontend:
-    build: ./frontend
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./frontend:/app
-      - /app/node_modules
-    command: npm run dev -- --host
+      # Generate a strong key: python -c "import secrets; print(secrets.token_hex(32))"
+      SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
+      DATABASE_URL: sqlite+aiosqlite:////data/db.sqlite
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8000}
+    restart: unless-stopped
 
 volumes:
-  pi-planning-db:
+  pi-data:
