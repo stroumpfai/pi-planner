@@ -73,5 +73,5 @@ if _static.exists():
     app.mount("/assets", StaticFiles(directory=str(_static / "assets")), name="assets")
 
     @app.get("/{full_path:path}", include_in_schema=False)
-    async def _spa(_: str) -> FileResponse:
+    async def _spa(full_path: str) -> FileResponse:  # noqa: ARG001
         return FileResponse(str(_static / "index.html"))
