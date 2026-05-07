@@ -59,6 +59,14 @@ async def _apply_move_to_swimlane(db: AsyncSession, feature: Feature, body: Feat
     swimline = await db.get(Swimline, body.swimlane_id)
     if not swimline:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Swimline not found")
+
+    # Carry groups to the new swimlane, preserving their sprint assignment
+    groups = (await db.execute(
+        select(Group).where(Group.feature_system_id == feature.system_id)
+    )).scalars().all()
+    for g in groups:
+        g.swimline_id = body.swimlane_id
+
     feature.location = "pi"
     feature.swimlane_id = body.swimlane_id
     feature.pi_id = body.pi_id if "pi_id" in fields else swimline.pi_id

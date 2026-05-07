@@ -1,25 +1,26 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import type { AxiosError } from 'axios'
 import { useCreatePI } from '@/hooks/usePIs'
+import { DateInput } from './DateInput'
 
 type FormValues = {
   name: string
   description?: string
-  start_date?: string
-  end_date?: string
+  start_date: string  // ISO YYYY-MM-DD
+  end_date: string
 }
 
 interface Props {
-  open: boolean
-  projectId: string
-  onClose: () => void
+  readonly open: boolean
+  readonly projectId: string
+  readonly onClose: () => void
 }
 
 export function CreatePIModal({ open, projectId, onClose }: Props) {
   const createPI = useCreatePI(projectId)
-  const { register, handleSubmit, reset, setError, formState: { errors, isSubmitting } } =
-    useForm<FormValues>()
+  const { register, handleSubmit, reset, control, setError, formState: { errors, isSubmitting } } =
+    useForm<FormValues>({ defaultValues: { name: '', description: '', start_date: '', end_date: '' } })
 
   const handleClose = () => { reset(); onClose() }
 
@@ -41,6 +42,8 @@ export function CreatePIModal({ open, projectId, onClose }: Props) {
     }
   }
 
+  const inputClass = 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm'
+
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && handleClose()}>
       <Dialog.Portal>
@@ -61,7 +64,7 @@ export function CreatePIModal({ open, projectId, onClose }: Props) {
                 {...register('name', { required: 'Name is required' })}
                 autoFocus
                 placeholder="e.g. Q2-2026 or PI-5"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                className={inputClass}
               />
               {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>}
             </div>
@@ -72,27 +75,39 @@ export function CreatePIModal({ open, projectId, onClose }: Props) {
                 id="pi-desc"
                 {...register('description')}
                 rows={2}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                className={inputClass}
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="pi-start" className="block text-sm font-medium text-gray-700">Start date</label>
-                <input
-                  id="pi-start"
-                  type="date"
-                  {...register('start_date')}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                <Controller
+                  name="start_date"
+                  control={control}
+                  render={({ field }) => (
+                    <DateInput
+                      id="pi-start"
+                      value={field.value}
+                      onChange={field.onChange}
+                      className={inputClass}
+                    />
+                  )}
                 />
               </div>
               <div>
                 <label htmlFor="pi-end" className="block text-sm font-medium text-gray-700">End date</label>
-                <input
-                  id="pi-end"
-                  type="date"
-                  {...register('end_date')}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                <Controller
+                  name="end_date"
+                  control={control}
+                  render={({ field }) => (
+                    <DateInput
+                      id="pi-end"
+                      value={field.value}
+                      onChange={field.onChange}
+                      className={inputClass}
+                    />
+                  )}
                 />
               </div>
             </div>

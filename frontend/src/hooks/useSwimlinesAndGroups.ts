@@ -35,7 +35,11 @@ export const useDeleteSwimline = (piId: string) => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (swimlineId: string) => swimlinesApi.delete(swimlineId),
-    onSuccess: () => qc.invalidateQueries({ queryKey: swimlineKey(piId) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: swimlineKey(piId) })
+      qc.invalidateQueries({ queryKey: ['features'] })
+      qc.invalidateQueries({ queryKey: ['pis'] })
+    },
   })
 }
 

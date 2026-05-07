@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useUpdateSprint } from '@/hooks/useSprints'
+import { DateInput } from './DateInput'
 import type { Sprint } from '@/types'
 
 interface Props {
@@ -27,8 +28,8 @@ export function SprintCapacityModal({ open, sprint, piId, onClose }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const val = parseInt(capacity, 10)
-    if (isNaN(val) || val < 0) {
+    const val = Number.parseInt(capacity, 10)
+    if (Number.isNaN(val) || val < 0) {
       setError('Capacity must be 0 or greater')
       return
     }
@@ -49,6 +50,7 @@ export function SprintCapacityModal({ open, sprint, piId, onClose }: Props) {
   }
 
   const label = `Sprint ${(sprint.sprint_index ?? 0) + 1}`
+  const inputClass = 'w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
 
   return (
     <Dialog.Root open={open} onOpenChange={(o) => { if (!o) handleClose() }}>
@@ -70,7 +72,7 @@ export function SprintCapacityModal({ open, sprint, piId, onClose }: Props) {
                 value={capacity}
                 onChange={(e) => setCapacity(e.target.value)}
                 autoFocus
-                className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={inputClass}
               />
             </div>
 
@@ -79,24 +81,22 @@ export function SprintCapacityModal({ open, sprint, piId, onClose }: Props) {
                 <label htmlFor="sprint-start" className="block text-sm font-medium text-gray-700 mb-1">
                   Start date
                 </label>
-                <input
+                <DateInput
                   id="sprint-start"
-                  type="date"
                   value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={setStartDate}
+                  className={inputClass}
                 />
               </div>
               <div>
                 <label htmlFor="sprint-end" className="block text-sm font-medium text-gray-700 mb-1">
                   End date
                 </label>
-                <input
+                <DateInput
                   id="sprint-end"
-                  type="date"
                   value={endDate}
-                  onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full border border-gray-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  onChange={setEndDate}
+                  className={inputClass}
                 />
               </div>
             </div>
