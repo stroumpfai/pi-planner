@@ -83,5 +83,5 @@ async def ensure_default_admin(db: AsyncSession) -> None:
     result = await db.execute(select(User))
     if result.first() is not None:
         return
-    db.add(User(username="admin", password_hash=hash_password("admin"), display_name="Admin", is_admin=True))
+    db.add(User(username="admin", password_hash=hash_password("pi-p!@anner"), display_name="Admin", is_admin=True))
     await db.commit()
