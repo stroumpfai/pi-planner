@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useFeatures, useCreateFeature } from '@/hooks/useFeatures'
 import { useAuthStore } from '@/stores/authStore'
 import { FeatureRow } from '@/components/FeatureRow'
 import { FeatureFormModal } from '@/components/FeatureFormModal'
+import { ImportCSVModal } from '@/components/ImportCSVModal'
 
 type Sort = 'created_at' | 'name'
 
@@ -15,6 +16,9 @@ interface Props {
 export function BacklogPage({ projectId }: Props) {
   const [sort, setSort] = useState<Sort>(() => (localStorage.getItem(SORT_KEY) as Sort) ?? 'created_at')
   const [showCreate, setShowCreate] = useState(false)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [showImport, setShowImport] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const isEditing = useAuthStore((s) => s.isEditing)
 
   const { data: features, isLoading } = useFeatures(projectId, sort)
@@ -25,6 +29,21 @@ export function BacklogPage({ projectId }: Props) {
   }, [sort])
 
   const backlogFeatures = features?.filter((f) => f.location === 'backlog') ?? []
+
+  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0] ?? null
+    if (file) {
+      setSelectedFile(file)
+      setShowImport(true)
+    }
+    // Reset input so selecting the same file again still fires onChange
+    e.target.value = ''
+  }
+
+  function handleImportClose() {
+    setShowImport(false)
+    setSelectedFile(null)
+  }
 
   return (
     <div className="max-w-3xl mx-auto py-8 px-4">
@@ -48,6 +67,24 @@ export function BacklogPage({ projectId }: Props) {
               Name
             </button>
           </div>
+
+          {/* Hidden file input */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".csv"
+            className="hidden"
+            onChange={handleFileChange}
+          />
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={!isEditing}
+            title={isEditing ? undefined : 'Request Edit Mode to import'}
+            className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Import CSV
+          </button>
 
           <button
             onClick={() => setShowCreate(true)}
@@ -89,6 +126,13 @@ export function BacklogPage({ projectId }: Props) {
         open={showCreate}
         onClose={() => setShowCreate(false)}
         onSubmit={(values) => createFeature.mutateAsync(values)}
+      />
+
+      <ImportCSVModal
+        open={showImport}
+        projectId={projectId}
+        file={selectedFile}
+        onClose={handleImportClose}
       />
     </div>
   )

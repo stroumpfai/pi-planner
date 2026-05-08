@@ -22,6 +22,7 @@ const basePBI: PBI = {
   title: 'Login UI',
   description: null,
   effort: null,
+  item_type: 'story',
   location: 'backlog',
   pi_id: null,
   swimlane_id: null,

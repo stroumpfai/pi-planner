@@ -546,6 +546,39 @@ export interface components {
       /** Context */
       ctx?: Record<string, never>;
     };
+    /** CsvRow */
+    CsvRow: {
+      /** Row Number */
+      row_number: number;
+      /** Item Type */
+      item_type: "feature" | "story" | "bug";
+      /** User Id */
+      user_id: number | null;
+      /** Title */
+      title: string;
+      /** Effort */
+      effort: number | null;
+      /** Parent Id */
+      parent_id: number | null;
+    };
+    /** CsvImportRequest */
+    CsvImportRequest: {
+      /** Rows */
+      rows: components["schemas"]["CsvRow"][];
+    };
+    /** CsvImportResult */
+    CsvImportResult: {
+      /** Created Features */
+      created_features: number;
+      /** Created Stories */
+      created_stories: number;
+      /** Updated Features */
+      updated_features: number;
+      /** Updated Stories */
+      updated_stories: number;
+      /** Orphan Stories */
+      orphan_stories: number;
+    };
   };
   responses: never;
   parameters: never;

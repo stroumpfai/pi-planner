@@ -37,6 +37,10 @@ export type User = components['schemas']['UserResponse']
 export type LoginRequest = components['schemas']['LoginRequest']
 export type TokenResponse = components['schemas']['TokenResponse']
 
+export type CsvRow = components['schemas']['CsvRow']
+export type CsvImportRequest = components['schemas']['CsvImportRequest']
+export type CsvImportResult = components['schemas']['CsvImportResult']
+
 export interface ApiError {
   error: string
   message: string

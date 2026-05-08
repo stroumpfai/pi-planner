@@ -8,7 +8,7 @@ from app.models.feature import Feature
 from app.models.pbi import PBI
 from app.schemas.csv_import import CsvImportError, CsvImportResult, CsvRow
 
-_VALID_ITEM_TYPES = {"feature", "pbi", "bug"}
+_VALID_ITEM_TYPES = {"feature", "story", "bug"}
 _USER_ID_MIN = 1
 _USER_ID_MAX = 999_999
 
@@ -119,7 +119,7 @@ async def execute_import(
 
     # ── Step 3: separate features from stories ───────────────────────────────
     feature_rows = [r for r in rows if r.item_type == "feature"]
-    story_rows = [r for r in rows if r.item_type in ("pbi", "bug")]
+    story_rows = [r for r in rows if r.item_type in ("story", "bug")]
 
     # ── Step 4: upsert Features ───────────────────────────────────────────────
     # csv_feature_sysid maps CSV user_id → system_id (both new and updated features)

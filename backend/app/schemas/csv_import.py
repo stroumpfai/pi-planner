@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 class CsvRow(BaseModel):
     row_number: int
-    item_type: str          # "feature" | "pbi" | "bug"  — validated in service
+    item_type: str          # "feature" | "story" | "bug"  — validated in service
     user_id: int | None = None
     title: str
     effort: int | None = None

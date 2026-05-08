@@ -41,6 +41,7 @@ const makePBI = (overrides: Partial<PBI> = {}): PBI => ({
   title: 'Login flow',
   description: null,
   effort: 3,
+  item_type: 'story',
   location: 'pi',
   pi_id: 'pi-1',
   swimlane_id: 'sw-1',
