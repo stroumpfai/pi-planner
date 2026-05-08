@@ -10,6 +10,7 @@ from app.config import settings
 from app.database import AsyncSessionLocal
 from app.routes import (
     auth,
+    csv_import,
     edit_lock,
     events,
     features,
@@ -58,6 +59,7 @@ for _router in [
     sprints.router,
     edit_lock.router,
     events.router,
+    csv_import.router,
 ]:
     app.include_router(_router)
 

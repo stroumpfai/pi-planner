@@ -76,6 +76,7 @@ async def create_pbi(
         title=body.title,
         description=body.description,
         effort=body.effort,
+        item_type=body.item_type,
     )
     db.add(pbi)
     await db.commit()
@@ -109,6 +110,8 @@ async def update_pbi(
             raise _id_conflict(body.id)
         pbi.user_id = body.id
 
+    if "item_type" in fields and body.item_type is not None:
+        pbi.item_type = body.item_type
     if "title" in fields and body.title is not None:
         pbi.title = body.title
     if "description" in fields:

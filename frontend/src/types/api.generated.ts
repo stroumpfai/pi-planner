@@ -287,6 +287,8 @@ export interface components {
       id?: number | null;
       /** Parent Feature System Id */
       parent_feature_system_id: string;
+      /** Item Type */
+      item_type?: "story" | "bug";
     };
     /** PBIResponse */
     PBIResponse: {
@@ -302,6 +304,8 @@ export interface components {
       description: string | null;
       /** Effort */
       effort: number | null;
+      /** Item Type */
+      item_type: "story" | "bug";
       /** Location */
       location: string;
       /** Pi Id */
@@ -333,6 +337,8 @@ export interface components {
       effort?: number | null;
       /** Id */
       id?: number | null;
+      /** Item Type */
+      item_type?: ("story" | "bug") | null;
       /** Location */
       location?: ("backlog" | "pi") | null;
       /** Pi Id */

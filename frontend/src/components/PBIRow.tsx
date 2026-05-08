@@ -6,8 +6,8 @@ import { useUpdatePBI, useDeletePBI } from '@/hooks/usePBIs'
 import { useAuthStore } from '@/stores/authStore'
 
 interface Props {
-  pbi: PBI
-  projectId: string
+  readonly pbi: PBI
+  readonly projectId: string
 }
 
 export function PBIRow({ pbi, projectId }: Props) {
@@ -18,17 +18,27 @@ export function PBIRow({ pbi, projectId }: Props) {
   const updatePBI = useUpdatePBI(projectId)
   const deletePBI = useDeletePBI(projectId)
 
-  const displayId = pbi.id != null ? `[${pbi.id}] ` : ''
-  const effortLabel = pbi.effort != null ? `${pbi.effort}pts` : null
+  const displayId = pbi.id == null ? '' : `[${pbi.id}] `
+  const effortLabel = pbi.effort == null ? null : `${pbi.effort}pts`
+  const isBug = pbi.item_type === 'bug'
 
   return (
     <div className="flex items-center gap-2 py-1.5 pr-2 group">
-      <span className="text-gray-300 text-xs w-3 shrink-0">○</span>
+      {isBug
+        ? <span className="text-red-400 text-xs w-3 shrink-0" title="Bug">⬤</span>
+        : <span className="text-gray-300 text-xs w-3 shrink-0">○</span>
+      }
 
       <span className="flex-1 text-sm text-gray-700 truncate">
         {displayId && <span className="font-mono text-gray-400 text-xs">{displayId}</span>}
         {pbi.title}
       </span>
+
+      {isBug && (
+        <span className="text-xs font-medium bg-red-50 text-red-600 border border-red-200 px-1.5 py-0.5 rounded shrink-0">
+          Bug
+        </span>
+      )}
 
       {effortLabel && (
         <span className="text-xs font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded shrink-0">

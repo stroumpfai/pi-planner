@@ -4,6 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 PBILocation = Literal["backlog", "pi"]
+PBIItemType = Literal["story", "bug"]
 
 
 class PBICreate(BaseModel):
@@ -12,6 +13,7 @@ class PBICreate(BaseModel):
     effort: int | None = Field(None, gt=0)
     id: int | None = Field(None, ge=1, le=999999)
     parent_feature_system_id: str
+    item_type: PBIItemType = "story"
 
 
 class PBIUpdate(BaseModel):
@@ -19,6 +21,7 @@ class PBIUpdate(BaseModel):
     description: str | None = Field(None, max_length=2000)
     effort: int | None = Field(None, gt=0)
     id: int | None = Field(None, ge=1, le=999999)
+    item_type: PBIItemType | None = None
     location: PBILocation | None = None
     pi_id: str | None = None
     swimlane_id: str | None = None
@@ -32,6 +35,7 @@ class PBIResponse(BaseModel):
     title: str
     description: str | None
     effort: int | None
+    item_type: str
     location: str
     pi_id: str | None
     swimlane_id: str | None

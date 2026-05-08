@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useForm } from 'react-hook-form'
 import type { AxiosError } from 'axios'
@@ -8,23 +9,33 @@ export type PBIFormValues = {
   description?: string | null
   effort?: number | null
   id?: number | null
+  item_type: 'story' | 'bug'
 }
 
 interface Props {
-  open: boolean
-  pbi?: PBI
-  onClose: () => void
-  onSubmit: (values: PBIFormValues) => Promise<unknown>
+  readonly open: boolean
+  readonly pbi?: PBI
+  readonly defaultType?: 'story' | 'bug'
+  readonly onClose: () => void
+  readonly onSubmit: (values: PBIFormValues) => Promise<unknown>
 }
 
-export function PBIFormModal({ open, pbi, onClose, onSubmit }: Props) {
+export function PBIFormModal({ open, pbi, defaultType = 'story', onClose, onSubmit }: Props) {
   const isEdit = !!pbi
-  const { register, handleSubmit, reset, setError, formState: { errors, isSubmitting } } =
+  const { register, handleSubmit, reset, setError, watch, setValue, formState: { errors, isSubmitting } } =
     useForm<PBIFormValues>({
       defaultValues: pbi
-        ? { title: pbi.title, description: pbi.description ?? undefined, effort: pbi.effort, id: pbi.id }
-        : {},
+        ? { title: pbi.title, description: pbi.description ?? undefined, effort: pbi.effort, id: pbi.id, item_type: pbi.item_type ?? 'story' }
+        : { item_type: defaultType },
     })
+
+  useEffect(() => {
+    if (open && !isEdit) reset({ item_type: defaultType })
+  }, [open, defaultType, isEdit, reset])
+
+  const itemType = watch('item_type')
+  const typeLabel = itemType === 'bug' ? 'Bug' : 'PBI'
+  const actionLabel = isEdit ? 'Save Changes' : `Create ${typeLabel}`
 
   const handleClose = () => { reset(); onClose() }
 
@@ -47,6 +58,8 @@ export function PBIFormModal({ open, pbi, onClose, onSubmit }: Props) {
     }
   }
 
+  const inputClass = 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm'
+
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && handleClose()}>
       <Dialog.Portal>
@@ -56,10 +69,36 @@ export function PBIFormModal({ open, pbi, onClose, onSubmit }: Props) {
           className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl p-6 w-full max-w-md"
         >
           <Dialog.Title className="text-base font-semibold text-gray-900">
-            {isEdit ? 'Edit PBI' : 'New PBI'}
+            {isEdit ? `Edit ${typeLabel}` : 'New story'}
           </Dialog.Title>
 
           <form onSubmit={handleSubmit(handleFormSubmit)} className="mt-4 space-y-4">
+            {/* Type toggle */}
+            <div className="flex rounded-md border border-gray-300 overflow-hidden w-fit">
+              <button
+                type="button"
+                onClick={() => setValue('item_type', 'story')}
+                className={`px-4 py-1.5 text-sm font-medium transition-colors ${
+                  itemType === 'story'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                PBI
+              </button>
+              <button
+                type="button"
+                onClick={() => setValue('item_type', 'bug')}
+                className={`px-4 py-1.5 text-sm font-medium border-l border-gray-300 transition-colors ${
+                  itemType === 'bug'
+                    ? 'bg-red-600 text-white'
+                    : 'bg-white text-gray-600 hover:bg-gray-50'
+                }`}
+              >
+                Bug
+              </button>
+            </div>
+
             <div>
               <label htmlFor="pbi-title" className="block text-sm font-medium text-gray-700">
                 Title <span className="text-red-500">*</span>
@@ -68,7 +107,7 @@ export function PBIFormModal({ open, pbi, onClose, onSubmit }: Props) {
                 id="pbi-title"
                 {...register('title', { required: 'Title is required' })}
                 autoFocus
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                className={inputClass}
               />
               {errors.title && <p className="mt-1 text-xs text-red-600">{errors.title.message}</p>}
             </div>
@@ -80,7 +119,7 @@ export function PBIFormModal({ open, pbi, onClose, onSubmit }: Props) {
                 {...register('description')}
                 rows={3}
                 maxLength={2000}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                className={inputClass}
               />
             </div>
 
@@ -94,7 +133,7 @@ export function PBIFormModal({ open, pbi, onClose, onSubmit }: Props) {
                   type="number"
                   min={1}
                   {...register('effort', { valueAsNumber: true })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  className={inputClass}
                   placeholder="e.g. 3"
                 />
               </div>
@@ -108,7 +147,7 @@ export function PBIFormModal({ open, pbi, onClose, onSubmit }: Props) {
                   min={1}
                   max={999999}
                   {...register('id', { valueAsNumber: true })}
-                  className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                  className={inputClass}
                   placeholder="optional"
                 />
                 {errors.id && <p className="mt-1 text-xs text-red-600">{errors.id.message}</p>}
@@ -128,7 +167,7 @@ export function PBIFormModal({ open, pbi, onClose, onSubmit }: Props) {
                 disabled={isSubmitting}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50"
               >
-                {isSubmitting ? 'Saving…' : isEdit ? 'Save Changes' : 'Create PBI'}
+                {isSubmitting ? 'Saving…' : actionLabel}
               </button>
             </div>
           </form>

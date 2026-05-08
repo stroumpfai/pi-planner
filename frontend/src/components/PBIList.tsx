@@ -6,12 +6,12 @@ import { PBIFormModal } from './PBIFormModal'
 import type { PBICreate } from '@/types'
 
 interface Props {
-  featureId: string
-  projectId: string
+  readonly featureId: string
+  readonly projectId: string
 }
 
 export function PBIList({ featureId, projectId }: Props) {
-  const [showCreate, setShowCreate] = useState(false)
+  const [createType, setCreateType] = useState<'story' | 'bug' | null>(null)
   const isEditing = useAuthStore((s) => s.isEditing)
 
   const { data: pbis, isLoading } = usePBIs(projectId, featureId)
@@ -24,7 +24,7 @@ export function PBIList({ featureId, projectId }: Props) {
   return (
     <div>
       {pbis?.length === 0 ? (
-        <p className="text-xs text-gray-400 py-1">No PBIs yet</p>
+        <p className="text-xs text-gray-400 py-1">No stories yet</p>
       ) : (
         <div className="space-y-0.5">
           {pbis?.map((pbi) => (
@@ -33,18 +33,29 @@ export function PBIList({ featureId, projectId }: Props) {
         </div>
       )}
 
-      <button
-        onClick={() => setShowCreate(true)}
-        disabled={!isEditing}
-        title={isEditing ? undefined : 'Request Edit Mode to add PBIs'}
-        className="mt-1.5 text-xs text-blue-500 hover:text-blue-700 disabled:text-gray-300 disabled:cursor-not-allowed"
-      >
-        + Add PBI
-      </button>
+      <div className="mt-1.5 flex items-center gap-3">
+        <button
+          onClick={() => setCreateType('story')}
+          disabled={!isEditing}
+          title={isEditing ? undefined : 'Request Edit Mode to add items'}
+          className="text-xs text-blue-500 hover:text-blue-700 disabled:text-gray-300 disabled:cursor-not-allowed"
+        >
+          + PBI
+        </button>
+        <button
+          onClick={() => setCreateType('bug')}
+          disabled={!isEditing}
+          title={isEditing ? undefined : 'Request Edit Mode to add items'}
+          className="text-xs text-red-500 hover:text-red-700 disabled:text-gray-300 disabled:cursor-not-allowed"
+        >
+          + Bug
+        </button>
+      </div>
 
       <PBIFormModal
-        open={showCreate}
-        onClose={() => setShowCreate(false)}
+        open={createType !== null}
+        defaultType={createType ?? 'story'}
+        onClose={() => setCreateType(null)}
         onSubmit={(values) =>
           createPBI.mutateAsync({
             ...(values as PBICreate),

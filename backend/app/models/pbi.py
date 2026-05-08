@@ -19,6 +19,7 @@ class PBI(Base):
     title: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     effort: Mapped[int | None] = mapped_column(Integer)
+    item_type: Mapped[str] = mapped_column(Text, nullable=False, default="story")
     location: Mapped[str] = mapped_column(Text, nullable=False, default="backlog")
     pi_id: Mapped[str | None] = mapped_column(Text, ForeignKey("pis.system_id"))
     swimlane_id: Mapped[str | None] = mapped_column(Text, ForeignKey("swimlines.system_id"))

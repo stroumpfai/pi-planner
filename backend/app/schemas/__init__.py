@@ -1,3 +1,4 @@
+from app.schemas.csv_import import CsvImportError, CsvImportRequest, CsvImportResult, CsvRow
 from app.schemas.project import ProjectCreate, ProjectUpdate, ProjectResponse
 from app.schemas.pi import PICreate, PIUpdate, PIResponse
 from app.schemas.swimline import SwimlineCreate, SwimlineUpdate, SwimlineResponse, SwimlineReorder
@@ -20,4 +21,5 @@ __all__ = [
     "LoginRequest", "TokenResponse", "UserResponse",
     "EditLockResponse",
     "ApiResponse", "ApiError",
+    "CsvRow", "CsvImportRequest", "CsvImportError", "CsvImportResult",
 ]
