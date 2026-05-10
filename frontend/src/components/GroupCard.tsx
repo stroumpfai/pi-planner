@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
-import { usePBIs } from '@/hooks/usePBIs'
+import { usePBIs, useUpdatePBI } from '@/hooks/usePBIs'
 import { useDeleteGroup, useUpdateGroup } from '@/hooks/useSwimlinesAndGroups'
 import { useAuthStore } from '@/stores/authStore'
 import { pbisApi } from '@/services/pbis'
-import type { Group } from '@/types'
+import type { Group, PBI } from '@/types'
 
 export interface GroupDragData {
   type: 'group'
@@ -19,6 +19,53 @@ interface Props {
 }
 
 const SPRINT_LABELS = ['S1', 'S2', 'S3', 'S4', 'S5']
+
+function InlinePBITitle({ pbi, projectId }: { readonly pbi: PBI; readonly projectId: string }) {
+  const isEditing = useAuthStore((s) => s.isEditing)
+  const updatePBI = useUpdatePBI(projectId)
+  const [editing, setEditing] = useState(false)
+  const [title, setTitle] = useState('')
+
+  function start() {
+    if (!isEditing) return
+    setTitle(pbi.title)
+    setEditing(true)
+  }
+
+  function submit() {
+    const trimmed = title.trim()
+    if (trimmed && trimmed !== pbi.title) {
+      updatePBI.mutate({ pbiId: pbi.system_id, body: { title: trimmed } })
+    }
+    setEditing(false)
+  }
+
+  if (editing) {
+    return (
+      <input
+        autoFocus
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onKeyDown={(e) => { if (e.key === 'Enter') { submit() } else if (e.key === 'Escape') { setEditing(false) } }}
+        onBlur={submit}
+        className="flex-1 text-xs border border-blue-300 rounded px-1 py-0.5 focus:outline-none w-full"
+      />
+    )
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={start}
+      disabled={!isEditing}
+      title={isEditing ? 'Click to edit' : undefined}
+      className="text-xs text-gray-600 truncate text-left disabled:cursor-default hover:enabled:text-gray-900 w-full"
+    >
+      {pbi.id != null && <span className="font-mono text-gray-400">[{pbi.id}] </span>}
+      {pbi.title}
+    </button>
+  )
+}
 
 export function GroupCard({ group, projectId }: Props) {
   const isEditing = useAuthStore((s) => s.isEditing)
@@ -94,11 +141,11 @@ export function GroupCard({ group, projectId }: Props) {
             {group.name}
           </span>
         )}
-        {isEditing && group.is_implicit && !renaming && (
+        {isEditing && !renaming && (
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); setNewName(group.name); setRenaming(true) }}
-            className="text-xs text-blue-400 hover:text-blue-600 flex-shrink-0"
+            className="text-xs text-gray-400 hover:text-blue-600 flex-shrink-0"
             title="Rename group"
           >✎</button>
         )}
@@ -113,9 +160,8 @@ export function GroupCard({ group, projectId }: Props) {
       {groupPbis.length > 0 && (
         <ul className="px-2 py-1 space-y-0.5">
           {groupPbis.map((pbi) => (
-            <li key={pbi.system_id} className="text-xs text-gray-600 truncate">
-              {pbi.id != null && <span className="font-mono text-gray-400">[{pbi.id}] </span>}
-              {pbi.title}
+            <li key={pbi.system_id} className="flex items-center min-w-0">
+              <InlinePBITitle pbi={pbi} projectId={projectId} />
             </li>
           ))}
         </ul>
