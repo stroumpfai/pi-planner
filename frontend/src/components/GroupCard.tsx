@@ -1,7 +1,9 @@
+import { useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { usePBIs } from '@/hooks/usePBIs'
 import { useDeleteGroup, useUpdateGroup } from '@/hooks/useSwimlinesAndGroups'
 import { useAuthStore } from '@/stores/authStore'
+import { pbisApi } from '@/services/pbis'
 import type { Group } from '@/types'
 
 export interface GroupDragData {
@@ -23,6 +25,9 @@ export function GroupCard({ group, projectId }: Props) {
   const deleteGroup = useDeleteGroup(group.swimline_id)
   const updateGroup = useUpdateGroup(group.swimline_id)
 
+  const [renaming, setRenaming] = useState(false)
+  const [newName, setNewName] = useState('')
+
   const { data: allPbis } = usePBIs(projectId, group.feature_system_id)
   const groupPbis = allPbis?.filter((p) => p.group_id === group.system_id) ?? []
   const totalEffort = groupPbis.reduce((sum, p) => sum + (p.effort ?? 0), 0)
@@ -38,7 +43,11 @@ export function GroupCard({ group, projectId }: Props) {
   })
 
   function handleUngroup() {
-    deleteGroup.mutate(group.system_id)
+    if (group.is_implicit && group.story_system_id) {
+      void pbisApi.unplace(group.story_system_id)
+    } else {
+      deleteGroup.mutate(group.system_id)
+    }
   }
 
   function handleMoveSprint(e: React.ChangeEvent<HTMLSelectElement>) {
@@ -47,6 +56,15 @@ export function GroupCard({ group, projectId }: Props) {
       body: { sprint_index: Number(e.target.value) },
     })
   }
+
+  function handleRenameSubmit() {
+    const trimmed = newName.trim()
+    if (!trimmed) return
+    updateGroup.mutate({ groupId: group.system_id, body: { name: trimmed } })
+    setRenaming(false)
+  }
+
+  const headerBg = group.is_implicit ? 'bg-blue-50' : ''
 
   return (
     <div
@@ -57,11 +75,33 @@ export function GroupCard({ group, projectId }: Props) {
     >
       {/* Drag handle + name row */}
       <div
-        className="flex items-center gap-2 px-2 py-1.5 cursor-grab active:cursor-grabbing border-b border-gray-100"
+        className={`flex items-center gap-2 px-2 py-1.5 cursor-grab active:cursor-grabbing border-b border-gray-100 ${headerBg}`}
         {...attributes}
         {...listeners}
       >
-        <span className="text-xs font-semibold text-gray-800 flex-1 truncate">{group.name}</span>
+        {renaming ? (
+          <input
+            autoFocus
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { handleRenameSubmit() } else if (e.key === 'Escape') { setRenaming(false) } }}
+            onBlur={handleRenameSubmit}
+            onClick={(e) => e.stopPropagation()}
+            className="flex-1 text-xs border border-blue-300 rounded px-1 py-0.5 focus:outline-none"
+          />
+        ) : (
+          <span className={`text-xs font-semibold flex-1 truncate ${group.is_implicit ? 'text-blue-700 italic' : 'text-gray-800'}`}>
+            {group.name}
+          </span>
+        )}
+        {isEditing && group.is_implicit && !renaming && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setNewName(group.name); setRenaming(true) }}
+            className="text-xs text-blue-400 hover:text-blue-600 flex-shrink-0"
+            title="Rename group"
+          >✎</button>
+        )}
         {totalEffort > 0 && (
           <span className="flex-shrink-0 text-xs bg-purple-100 text-purple-700 rounded px-1.5 py-0.5 font-medium">
             {totalEffort}pt
@@ -99,9 +139,9 @@ export function GroupCard({ group, projectId }: Props) {
             onClick={handleUngroup}
             disabled={deleteGroup.isPending}
             className="text-xs text-red-400 hover:text-red-600 disabled:opacity-50 flex-shrink-0"
-            title="Ungroup (PBIs remain)"
+            title={group.is_implicit ? 'Return to feature zone' : 'Ungroup (PBIs remain)'}
           >
-            Ungroup
+            {group.is_implicit ? 'Unplace' : 'Ungroup'}
           </button>
         </div>
       )}

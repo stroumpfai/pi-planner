@@ -1,52 +1,81 @@
+import { useDraggable } from '@dnd-kit/core'
 import { usePBIs } from '@/hooks/usePBIs'
 import type { PBI } from '@/types'
+import type { PBIDragData } from './PBIRow'
 
 interface Props {
   readonly featureId: string
   readonly projectId: string
   readonly selectedIds: Set<string>
   readonly onToggle: (pbiId: string) => void
+  readonly swimlaneId?: string
+  readonly canDragToSprint?: boolean
 }
 
-function PBISelectRow({ pbi, selected, onToggle }: {
+function PBISelectRow({ pbi, selected, onToggle, swimlaneId, canDragToSprint }: {
   readonly pbi: PBI
   readonly selected: boolean
   readonly onToggle: () => void
+  readonly swimlaneId: string
+  readonly canDragToSprint: boolean
 }) {
   const displayId = pbi.id == null ? '' : `[${pbi.id}] `
   const isGrouped = pbi.group_id != null
-
   const isBug = pbi.item_type === 'bug'
+  const draggable = canDragToSprint && !isGrouped
+
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `pbi:${pbi.system_id}`,
+    disabled: !draggable,
+    data: {
+      type: 'pbi',
+      pbiId: pbi.system_id,
+      pbiLabel: pbi.title,
+      featureId: pbi.parent_feature_system_id,
+      swimlaneId,
+    } satisfies PBIDragData,
+  })
 
   return (
-    <label className="flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50 cursor-pointer">
-      <input
-        type="checkbox"
-        checked={selected}
-        onChange={onToggle}
-        disabled={isGrouped}
-        className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-40"
-      />
-      {isBug && (
-        <span className="flex-shrink-0 text-xs font-medium bg-red-50 text-red-600 border border-red-200 px-1 rounded">
-          Bug
+    <div ref={setNodeRef} className={`flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50${isDragging ? ' opacity-40' : ''}`}>
+      {draggable && (
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing text-xs w-3 shrink-0 select-none"
+          title="Drag to sprint"
+        >⠿</button>
+      )}
+      <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
+        <input
+          type="checkbox"
+          checked={selected}
+          onChange={onToggle}
+          disabled={isGrouped}
+          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-40"
+        />
+        {isBug && (
+          <span className="flex-shrink-0 text-xs font-medium bg-red-50 text-red-600 border border-red-200 px-1 rounded">
+            Bug
+          </span>
+        )}
+        <span className={`text-xs truncate ${isGrouped ? 'text-gray-400' : 'text-gray-700'}`}>
+          {displayId && <span className="font-mono text-gray-400">{displayId}</span>}
+          {pbi.title}
         </span>
-      )}
-      <span className={`text-xs truncate ${isGrouped ? 'text-gray-400' : 'text-gray-700'}`}>
-        {displayId && <span className="font-mono text-gray-400">{displayId}</span>}
-        {pbi.title}
-      </span>
-      {pbi.effort != null && (
-        <span className="ml-auto flex-shrink-0 text-xs text-purple-600">{pbi.effort}pt</span>
-      )}
-      {isGrouped && (
-        <span className="flex-shrink-0 text-xs text-gray-400 italic">grouped</span>
-      )}
-    </label>
+        {pbi.effort != null && (
+          <span className="ml-auto flex-shrink-0 text-xs text-purple-600">{pbi.effort}pt</span>
+        )}
+        {isGrouped && (
+          <span className="flex-shrink-0 text-xs text-gray-400 italic">grouped</span>
+        )}
+      </label>
+    </div>
   )
 }
 
-export function PBISelectList({ featureId, projectId, selectedIds, onToggle }: Props) {
+export function PBISelectList({ featureId, projectId, selectedIds, onToggle, swimlaneId = '', canDragToSprint = false }: Props) {
   const { data: pbis, isLoading } = usePBIs(projectId, featureId)
 
   if (isLoading) return <p className="text-xs text-gray-400 px-2 py-1">Loading…</p>
@@ -60,6 +89,8 @@ export function PBISelectList({ featureId, projectId, selectedIds, onToggle }: P
           pbi={pbi}
           selected={selectedIds.has(pbi.system_id)}
           onToggle={() => onToggle(pbi.system_id)}
+          swimlaneId={swimlaneId}
+          canDragToSprint={canDragToSprint}
         />
       ))}
     </div>

@@ -31,7 +31,11 @@ class PBI(Base):
     feature: Mapped[Feature] = relationship("Feature", back_populates="pbis")
     pi: Mapped[PI | None] = relationship("PI", back_populates="pbis")
     swimline: Mapped[Swimline | None] = relationship("Swimline", back_populates="pbis")
-    group: Mapped[Group | None] = relationship("Group", back_populates="pbis")
+    group: Mapped[Group | None] = relationship(
+        "Group",
+        back_populates="pbis",
+        foreign_keys="[PBI.group_id]",
+    )
 
     __table_args__ = (
         Index("idx_pbis_project", "project_id"),

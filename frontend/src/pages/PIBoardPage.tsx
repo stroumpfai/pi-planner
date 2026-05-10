@@ -19,6 +19,7 @@ import {
 import { useQueryClient } from '@tanstack/react-query'
 import { useSwimlinesForPI, useReorderSwimlines } from '@/hooks/useSwimlinesAndGroups'
 import { groupsApi } from '@/services/groups'
+import { pbisApi } from '@/services/pbis'
 import { useSprints } from '@/hooks/useSprints'
 import { useFeatures, useUpdateFeature } from '@/hooks/useFeatures'
 import { useAuthStore } from '@/stores/authStore'
@@ -31,6 +32,7 @@ import { CapacityBar } from '@/components/CapacityBar'
 import { BacklogPanel } from '@/components/BacklogPanel'
 import type { FeatureDragData } from '@/components/BacklogPanel'
 import type { GroupDragData } from '@/components/GroupCard'
+import type { PBIDragData } from '@/components/PBIRow'
 import type { Feature, Sprint, Swimline } from '@/types'
 
 interface Props {
@@ -39,7 +41,7 @@ interface Props {
 }
 
 interface ActiveDrag {
-  type: 'feature' | 'swimlane' | 'group'
+  type: 'feature' | 'swimlane' | 'group' | 'pbi'
   label: string
 }
 
@@ -133,6 +135,8 @@ export function PIBoardPage({ projectId, piId }: Props) {
       setActiveDrag({ type: 'swimlane', label: swimlane?.name ?? 'Swimlane' })
     } else if (data?.type === 'group') {
       setActiveDrag({ type: 'group', label: data.groupId ?? 'Group' })
+    } else if (data?.type === 'pbi') {
+      setActiveDrag({ type: 'pbi', label: (data as PBIDragData).pbiLabel })
     }
   }
 
@@ -152,6 +156,19 @@ export function PIBoardPage({ projectId, piId }: Props) {
         (swimlaneId) => updateFeature.mutate({ featureId: (activeData as FeatureDragData).featureId, body: { swimlane_id: swimlaneId } }),
         () => updateFeature.mutate({ featureId: (activeData as FeatureDragData).featureId, body: { location: 'backlog' } }),
       )
+      return
+    }
+
+    if (activeData.type === 'pbi' && overData?.type === 'sprintcell') {
+      const pd = activeData as PBIDragData
+      if (overData.swimlaneId !== pd.swimlaneId) return
+      pbisApi
+        .place(pd.pbiId, { sprint_index: overData.sprintIndex ?? 0 })
+        .then(() => {
+          void qc.invalidateQueries({ queryKey: ['groups', pd.swimlaneId] })
+          void qc.invalidateQueries({ queryKey: ['pbis', projectId] })
+        })
+        .catch(() => {/* error reflected on next refetch */})
       return
     }
 
@@ -273,6 +290,11 @@ export function PIBoardPage({ projectId, piId }: Props) {
         )}
         {activeDrag?.type === 'group' && (
           <div className="bg-white border border-blue-400 rounded-md px-3 py-2 shadow-lg text-xs font-semibold text-gray-800 cursor-grabbing">
+            {activeDrag.label}
+          </div>
+        )}
+        {activeDrag?.type === 'pbi' && (
+          <div className="bg-white border border-blue-400 rounded px-3 py-2 shadow-lg text-xs text-gray-700 cursor-grabbing">
             {activeDrag.label}
           </div>
         )}

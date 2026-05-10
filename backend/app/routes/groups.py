@@ -139,6 +139,9 @@ async def update_group(
 
     if "name" in fields and body.name is not None:
         group.name = body.name
+        if group.is_implicit:
+            group.is_implicit = False
+            group.story_system_id = None
     if "sprint_index" in fields:
         group.sprint_index = body.sprint_index
     if "order_index" in fields:

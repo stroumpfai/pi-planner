@@ -106,6 +106,8 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
             projectId={projectId}
             selectedIds={selectedPbiIds}
             onToggle={togglePbi}
+            swimlaneId={feature.swimlane_id ?? ''}
+            canDragToSprint={feature.location === 'pi' && !!feature.swimlane_id && isEditing}
           />
           {isEditing && selectedPbiIds.size > 0 && (
             <button

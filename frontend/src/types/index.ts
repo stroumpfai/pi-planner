@@ -27,9 +27,21 @@ export type PBI = components['schemas']['PBIResponse']
 export type PBICreate = components['schemas']['PBICreate']
 export type PBIUpdate = components['schemas']['PBIUpdate']
 
-export type Group = components['schemas']['GroupResponse']
+export type Group = components['schemas']['GroupResponse'] & {
+  is_implicit: boolean
+  story_system_id: string | null
+}
 export type GroupCreate = components['schemas']['GroupCreate'] & { pbi_ids?: string[] }
 export type GroupUpdate = components['schemas']['GroupUpdate']
+
+export interface PlaceStoryRequest {
+  sprint_index: number
+}
+
+export interface PlaceStoryResponse {
+  story: PBI
+  group: Group
+}
 
 export type EditLock = components['schemas']['EditLockResponse']
 

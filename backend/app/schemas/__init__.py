@@ -4,7 +4,7 @@ from app.schemas.pi import PICreate, PIUpdate, PIResponse
 from app.schemas.swimline import SwimlineCreate, SwimlineUpdate, SwimlineResponse, SwimlineReorder
 from app.schemas.sprint import SprintCreate, SprintUpdate, SprintResponse
 from app.schemas.feature import FeatureCreate, FeatureUpdate, FeatureResponse
-from app.schemas.group import GroupCreate, GroupUpdate, GroupResponse
+from app.schemas.group import GroupCreate, GroupUpdate, GroupResponse, PlaceStoryRequest, PlaceStoryResponse
 from app.schemas.pbi import PBICreate, PBIUpdate, PBIResponse
 from app.schemas.auth import LoginRequest, TokenResponse, UserResponse
 from app.schemas.edit_lock import EditLockResponse
@@ -16,7 +16,7 @@ __all__ = [
     "SwimlineCreate", "SwimlineUpdate", "SwimlineResponse", "SwimlineReorder",
     "SprintCreate", "SprintUpdate", "SprintResponse",
     "FeatureCreate", "FeatureUpdate", "FeatureResponse",
-    "GroupCreate", "GroupUpdate", "GroupResponse",
+    "GroupCreate", "GroupUpdate", "GroupResponse", "PlaceStoryRequest", "PlaceStoryResponse",
     "PBICreate", "PBIUpdate", "PBIResponse",
     "LoginRequest", "TokenResponse", "UserResponse",
     "EditLockResponse",

@@ -11,11 +11,18 @@ from app.models.group import Group
 from app.models.pbi import PBI
 from app.models.project import Project
 from app.models.user import User
-from app.schemas import PBICreate, PBIResponse, PBIUpdate
+from app.schemas import PBICreate, PBIResponse, PBIUpdate, PlaceStoryRequest, PlaceStoryResponse
+from app.schemas.group import GroupResponse
 from app.services.events import broadcaster
 from app.services.validation import is_user_id_available
 
 router = APIRouter(tags=["pbis"])
+
+_EVT_PBI_UPDATED = "pbi:updated"
+_EVT_PBI_CREATED = "pbi:created"
+_EVT_PBI_DELETED = "pbi:deleted"
+_EVT_GROUP_CREATED = "group:created"
+_EVT_GROUP_DELETED = "group:deleted"
 
 
 def _id_conflict(user_id: int) -> HTTPException:
@@ -82,7 +89,7 @@ async def create_pbi(
     await db.commit()
     await db.refresh(pbi)
     await broadcaster.broadcast(
-        project_id, "pbi:created",
+        project_id, _EVT_PBI_CREATED,
         {"system_id": pbi.system_id, "feature_id": body.parent_feature_system_id},
     )
     return PBIResponse.model_validate(pbi)
@@ -125,13 +132,104 @@ async def update_pbi(
     if "swimlane_id" in fields:
         pbi.swimlane_id = body.swimlane_id
     if "group_id" in fields:
+        old_group_id = pbi.group_id
         pbi.group_id = body.group_id
+        if old_group_id and old_group_id != body.group_id:
+            await db.flush()
+            remaining = (await db.execute(
+                select(func.count()).where(PBI.group_id == old_group_id)
+            )).scalar_one()
+            if remaining == 0:
+                old_group = await db.get(Group, old_group_id)
+                if old_group and old_group.is_implicit:
+                    await db.delete(old_group)
 
     pbi.modified_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(pbi)
-    await broadcaster.broadcast(pbi.project_id, "pbi:updated", {"system_id": pbi_id})
+    await broadcaster.broadcast(pbi.project_id, _EVT_PBI_UPDATED, {"system_id": pbi_id})
     return PBIResponse.model_validate(pbi)
+
+
+@router.post("/api/v1/pbis/{pbi_id}/place", response_model=PlaceStoryResponse)
+async def place_story_in_sprint(
+    pbi_id: str,
+    body: PlaceStoryRequest,
+    db: AsyncSession = Depends(get_session),
+    _: User = Depends(get_current_user),
+) -> PlaceStoryResponse:
+    pbi = await _get_or_404(db, pbi_id)
+
+    if pbi.group_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": "STORY_ALREADY_GROUPED", "message": "Story is already in a group"},
+        )
+
+    feature = await db.get(Feature, pbi.parent_feature_system_id)
+    if not feature or feature.location != "pi":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": "FEATURE_NOT_IN_PI", "message": "Parent feature must be in a PI"},
+        )
+    if not feature.swimlane_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": "FEATURE_NOT_IN_SWIMLANE", "message": "Parent feature has no swimlane"},
+        )
+
+    group = Group(
+        swimline_id=feature.swimlane_id,
+        feature_system_id=feature.system_id,
+        name=pbi.title,
+        sprint_index=body.sprint_index,
+        is_implicit=True,
+        story_system_id=pbi.system_id,
+    )
+    db.add(group)
+    await db.flush()
+
+    pbi.group_id = group.system_id
+    pbi.swimlane_id = feature.swimlane_id
+    pbi.modified_at = datetime.now(timezone.utc)
+
+    await db.commit()
+    await db.refresh(group)
+    await db.refresh(pbi)
+
+    await broadcaster.broadcast(pbi.project_id, _EVT_GROUP_CREATED, {"system_id": group.system_id, "swimlane_id": group.swimline_id})
+    await broadcaster.broadcast(pbi.project_id, _EVT_PBI_UPDATED, {"system_id": pbi_id})
+
+    return PlaceStoryResponse(
+        story=PBIResponse.model_validate(pbi),
+        group=GroupResponse.model_validate(group),
+    )
+
+
+@router.delete("/api/v1/pbis/{pbi_id}/place", status_code=status.HTTP_204_NO_CONTENT)
+async def unplace_story(
+    pbi_id: str,
+    db: AsyncSession = Depends(get_session),
+    _: User = Depends(get_current_user),
+) -> None:
+    pbi = await _get_or_404(db, pbi_id)
+    old_group_id = pbi.group_id
+
+    pbi.group_id = None
+    pbi.swimlane_id = None
+    pbi.modified_at = datetime.now(timezone.utc)
+
+    deleted_group_id: str | None = None
+    if old_group_id:
+        group = await db.get(Group, old_group_id)
+        if group and group.is_implicit:
+            await db.delete(group)
+            deleted_group_id = old_group_id
+
+    await db.commit()
+    await broadcaster.broadcast(pbi.project_id, _EVT_PBI_UPDATED, {"system_id": pbi_id})
+    if deleted_group_id:
+        await broadcaster.broadcast(pbi.project_id, _EVT_GROUP_DELETED, {"system_id": deleted_group_id})
 
 
 @router.delete("/api/v1/pbis/{pbi_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -159,6 +257,6 @@ async def delete_pbi(
 
     await db.commit()
     await broadcaster.broadcast(
-        project_id, "pbi:deleted",
+        project_id, _EVT_PBI_DELETED,
         {"system_id": pbi_id, "feature_id": feature_id},
     )

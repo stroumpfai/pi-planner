@@ -1,16 +1,27 @@
 import { useState } from 'react'
+import { useDraggable } from '@dnd-kit/core'
 import type { PBI } from '@/types'
 import { PBIFormModal } from './PBIFormModal'
 import { ConfirmDialog } from './ConfirmDialog'
 import { useUpdatePBI, useDeletePBI } from '@/hooks/usePBIs'
 import { useAuthStore } from '@/stores/authStore'
 
+export interface PBIDragData {
+  type: 'pbi'
+  pbiId: string
+  pbiLabel: string
+  featureId: string
+  swimlaneId: string
+}
+
 interface Props {
   readonly pbi: PBI
   readonly projectId: string
+  readonly swimlaneId?: string
+  readonly isDraggable?: boolean
 }
 
-export function PBIRow({ pbi, projectId }: Props) {
+export function PBIRow({ pbi, projectId, swimlaneId = '', isDraggable = false }: Props) {
   const [editing, setEditing] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const isEditing = useAuthStore((s) => s.isEditing)
@@ -22,8 +33,33 @@ export function PBIRow({ pbi, projectId }: Props) {
   const effortLabel = pbi.effort == null ? null : `${pbi.effort}pts`
   const isBug = pbi.item_type === 'bug'
 
+  const canDrag = isDraggable && isEditing
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+    id: `pbi:${pbi.system_id}`,
+    disabled: !canDrag,
+    data: {
+      type: 'pbi',
+      pbiId: pbi.system_id,
+      pbiLabel: pbi.title,
+      featureId: pbi.parent_feature_system_id,
+      swimlaneId,
+    } satisfies PBIDragData,
+  })
+
   return (
-    <div className="flex items-center gap-2 py-1.5 pr-2 group">
+    <div
+      ref={setNodeRef}
+      className={`flex items-center gap-2 py-1.5 pr-2 group${isDragging ? ' opacity-40' : ''}`}
+    >
+      {canDrag && (
+        <span
+          {...attributes}
+          {...listeners}
+          className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing text-xs w-3 shrink-0 select-none"
+          title="Drag to sprint"
+        >⠿</span>
+      )}
+
       {isBug
         ? <span className="text-red-400 text-xs w-3 shrink-0" title="Bug">⬤</span>
         : <span className="text-gray-300 text-xs w-3 shrink-0">○</span>

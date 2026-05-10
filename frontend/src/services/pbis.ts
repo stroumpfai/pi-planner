@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { PBI, PBICreate, PBIUpdate } from '@/types'
+import type { PBI, PBICreate, PBIUpdate, PlaceStoryRequest, PlaceStoryResponse } from '@/types'
 
 export const pbisApi = {
   list: (projectId: string, featureId?: string) =>
@@ -18,4 +18,10 @@ export const pbisApi = {
 
   delete: (pbiId: string) =>
     api.delete(`/pbis/${pbiId}`),
+
+  place: (pbiId: string, body: PlaceStoryRequest) =>
+    api.post<PlaceStoryResponse>(`/pbis/${pbiId}/place`, body).then((r) => r.data),
+
+  unplace: (pbiId: string) =>
+    api.delete(`/pbis/${pbiId}/place`),
 }
