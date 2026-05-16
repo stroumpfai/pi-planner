@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -92,11 +94,11 @@ def _apply_generic_location_fields(feature: Feature, body: FeatureUpdate, fields
         feature.swimlane_id = body.swimlane_id
 
 
-@router.get("/api/v1/projects/{project_id}/features", response_model=list[FeatureResponse])
+@router.get("/api/v1/projects/{project_id}/features")
 async def list_features(
     project_id: str,
+    db: Annotated[AsyncSession, Depends(get_session)],
     sort: str = Query("created_at", pattern="^(created_at|name)$"),
-    db: AsyncSession = Depends(get_session),
 ) -> list[FeatureResponse]:
     if not await db.get(Project, project_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
@@ -110,16 +112,12 @@ async def list_features(
     ]
 
 
-@router.post(
-    "/api/v1/projects/{project_id}/features",
-    response_model=FeatureResponse,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/api/v1/projects/{project_id}/features", status_code=status.HTTP_201_CREATED)
 async def create_feature(
     project_id: str,
     body: FeatureCreate,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> FeatureResponse:
     if not await db.get(Project, project_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
@@ -141,17 +139,17 @@ async def create_feature(
     return await _enrich(db, feature)
 
 
-@router.get("/api/v1/features/{feature_id}", response_model=FeatureResponse)
-async def get_feature(feature_id: str, db: AsyncSession = Depends(get_session)) -> FeatureResponse:
+@router.get("/api/v1/features/{feature_id}")
+async def get_feature(feature_id: str, db: Annotated[AsyncSession, Depends(get_session)]) -> FeatureResponse:
     return await _enrich(db, await _get_feature_or_404(db, feature_id))
 
 
-@router.patch("/api/v1/features/{feature_id}", response_model=FeatureResponse)
+@router.patch("/api/v1/features/{feature_id}")
 async def update_feature(
     feature_id: str,
     body: FeatureUpdate,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> FeatureResponse:
     feature = await _get_feature_or_404(db, feature_id)
     fields = body.model_fields_set
@@ -179,8 +177,8 @@ async def update_feature(
 @router.delete("/api/v1/features/{feature_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_feature(
     feature_id: str,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> None:
     feature = await _get_feature_or_404(db, feature_id)
     project_id = feature.project_id

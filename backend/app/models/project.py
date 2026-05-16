@@ -8,6 +8,8 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
+_CASCADE = "all, delete-orphan"
+
 
 class Project(Base):
     __tablename__ = "projects"
@@ -18,9 +20,9 @@ class Project(Base):
     created_at: Mapped[datetime] = mapped_column(default=func.now())
     modified_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
 
-    pis: Mapped[list[PI]] = relationship("PI", back_populates="project", cascade="all, delete-orphan")
-    features: Mapped[list[Feature]] = relationship("Feature", back_populates="project", cascade="all, delete-orphan")
-    pbis: Mapped[list[PBI]] = relationship("PBI", back_populates="project", cascade="all, delete-orphan")
-    edit_lock: Mapped[EditLock | None] = relationship("EditLock", back_populates="project", uselist=False, cascade="all, delete-orphan")
+    pis: Mapped[list[PI]] = relationship("PI", back_populates="project", cascade=_CASCADE)
+    features: Mapped[list[Feature]] = relationship("Feature", back_populates="project", cascade=_CASCADE)
+    pbis: Mapped[list[PBI]] = relationship("PBI", back_populates="project", cascade=_CASCADE)
+    edit_lock: Mapped[EditLock | None] = relationship("EditLock", back_populates="project", uselist=False, cascade=_CASCADE)
 
     __table_args__ = (Index("idx_projects_name", "name"),)

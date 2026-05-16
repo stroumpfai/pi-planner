@@ -94,50 +94,24 @@ def _cross_entity_errors(
     return errors
 
 
-async def execute_import(
+async def _upsert_features(
     db: AsyncSession,
     project_id: str,
-    rows: list[CsvRow],
-) -> CsvImportResult:
-    # ── Phase A: syntactic validation (no DB) ────────────────────────────────
-    errors = _validate_rows(rows)
-    if errors:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"errors": [e.model_dump() for e in errors]},
-        )
-
-    # ── Phase B: load existing state from DB ─────────────────────────────────
-    feature_map, pbi_map = await _fetch_existing(db, project_id)
-
-    cross_errors = _cross_entity_errors(rows, feature_map, pbi_map)
-    if cross_errors:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail={"errors": [e.model_dump() for e in cross_errors]},
-        )
-
-    # ── Step 3: separate features from stories ───────────────────────────────
-    feature_rows = [r for r in rows if r.item_type == "feature"]
-    story_rows = [r for r in rows if r.item_type in ("story", "bug")]
-
-    # ── Step 4: upsert Features ───────────────────────────────────────────────
-    # csv_feature_sysid maps CSV user_id → system_id (both new and updated features)
+    feature_rows: list[CsvRow],
+    feature_map: dict[int, str],
+) -> tuple[dict[int, str], int, int]:
     csv_feature_sysid: dict[int, str] = {}
-    created_features = 0
-    updated_features = 0
-
+    created = 0
+    updated = 0
     for row in feature_rows:
         if row.user_id is not None and row.user_id in feature_map:
-            # Update existing feature
             existing_sysid = feature_map[row.user_id]
             feature = await db.get(Feature, existing_sysid)
             if feature:
                 feature.title = row.title
-                updated_features += 1
+                updated += 1
             csv_feature_sysid[row.user_id] = existing_sysid
         else:
-            # Insert new feature (pre-generate UUID so stories can reference it immediately)
             new_sysid = str(uuid4())
             db.add(Feature(
                 system_id=new_sysid,
@@ -148,12 +122,75 @@ async def execute_import(
             ))
             if row.user_id is not None:
                 csv_feature_sysid[row.user_id] = new_sysid
-            created_features += 1
+            created += 1
+    return csv_feature_sysid, created, updated
 
-    # Flush so all Feature rows are in the DB before stories reference them via FK
+
+async def _upsert_stories(
+    db: AsyncSession,
+    project_id: str,
+    story_rows: list[CsvRow],
+    csv_feature_sysid: dict[int, str],
+    pbi_map: dict[int, str],
+    unassigned_sysid: str | None,
+) -> tuple[int, int]:
+    created = 0
+    updated = 0
+    for row in story_rows:
+        parent_sysid: str = (
+            csv_feature_sysid[row.parent_id]
+            if row.parent_id is not None and row.parent_id in csv_feature_sysid
+            else unassigned_sysid  # type: ignore[assignment]
+        )
+        if row.user_id is not None and row.user_id in pbi_map:
+            pbi = await db.get(PBI, pbi_map[row.user_id])
+            if pbi:
+                pbi.title = row.title
+                pbi.effort = row.effort
+                pbi.item_type = row.item_type
+                updated += 1
+        else:
+            db.add(PBI(
+                project_id=project_id,
+                parent_feature_system_id=parent_sysid,
+                user_id=row.user_id,
+                title=row.title,
+                effort=row.effort,
+                item_type=row.item_type,
+                location="backlog",
+            ))
+            created += 1
+    return created, updated
+
+
+async def execute_import(
+    db: AsyncSession,
+    project_id: str,
+    rows: list[CsvRow],
+) -> CsvImportResult:
+    errors = _validate_rows(rows)
+    if errors:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"errors": [e.model_dump() for e in errors]},
+        )
+
+    feature_map, pbi_map = await _fetch_existing(db, project_id)
+    cross_errors = _cross_entity_errors(rows, feature_map, pbi_map)
+    if cross_errors:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"errors": [e.model_dump() for e in cross_errors]},
+        )
+
+    feature_rows = [r for r in rows if r.item_type == "feature"]
+    story_rows = [r for r in rows if r.item_type in ("story", "bug")]
+
+    csv_feature_sysid, created_features, updated_features = await _upsert_features(
+        db, project_id, feature_rows, feature_map
+    )
     await db.flush()
 
-    # ── Step 5+6: orphan detection + Unassigned placeholder ──────────────────
     orphan_count = sum(
         1 for r in story_rows
         if r.parent_id is None or r.parent_id not in csv_feature_sysid
@@ -171,39 +208,9 @@ async def execute_import(
         ))
         await db.flush()
 
-    # ── Step 7: upsert Stories ────────────────────────────────────────────────
-    created_stories = 0
-    updated_stories = 0
-
-    for row in story_rows:
-        if row.parent_id is not None and row.parent_id in csv_feature_sysid:
-            parent_sysid: str = csv_feature_sysid[row.parent_id]
-        else:
-            # unassigned_sysid is guaranteed set: orphan_count > 0 when we reach here
-            assert unassigned_sysid is not None
-            parent_sysid = unassigned_sysid
-
-        if row.user_id is not None and row.user_id in pbi_map:
-            # Update existing story (parent link is intentionally preserved)
-            pbi = await db.get(PBI, pbi_map[row.user_id])
-            if pbi:
-                pbi.title = row.title
-                pbi.effort = row.effort
-                pbi.item_type = row.item_type
-                updated_stories += 1
-        else:
-            db.add(PBI(
-                project_id=project_id,
-                parent_feature_system_id=parent_sysid,
-                user_id=row.user_id,
-                title=row.title,
-                effort=row.effort,
-                item_type=row.item_type,
-                location="backlog",
-            ))
-            created_stories += 1
-
-    # ── Step 8: commit ────────────────────────────────────────────────────────
+    created_stories, updated_stories = await _upsert_stories(
+        db, project_id, story_rows, csv_feature_sysid, pbi_map, unassigned_sysid
+    )
     await db.commit()
 
     return CsvImportResult(

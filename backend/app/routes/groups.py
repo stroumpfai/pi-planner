@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,10 +47,10 @@ async def _validate_pbis_for_feature(
     return list(pbis)
 
 
-@router.get("/api/v1/swimlines/{swimline_id}/groups", response_model=list[GroupResponse])
+@router.get("/api/v1/swimlines/{swimline_id}/groups")
 async def list_groups(
     swimline_id: str,
-    db: AsyncSession = Depends(get_session),
+    db: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[GroupResponse]:
     if not await db.get(Swimline, swimline_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Swimline not found")
@@ -60,16 +62,12 @@ async def list_groups(
     return [GroupResponse.model_validate(g) for g in result.scalars().all()]
 
 
-@router.post(
-    "/api/v1/swimlines/{swimline_id}/groups",
-    response_model=GroupResponse,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/api/v1/swimlines/{swimline_id}/groups", status_code=status.HTTP_201_CREATED)
 async def create_group(
     swimline_id: str,
     body: GroupCreate,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> GroupResponse:
     swimline = await db.get(Swimline, swimline_id)
     if not swimline:
@@ -119,20 +117,20 @@ async def create_group(
     return GroupResponse.model_validate(group)
 
 
-@router.get("/api/v1/groups/{group_id}", response_model=GroupResponse)
+@router.get("/api/v1/groups/{group_id}")
 async def get_group(
     group_id: str,
-    db: AsyncSession = Depends(get_session),
+    db: Annotated[AsyncSession, Depends(get_session)],
 ) -> GroupResponse:
     return GroupResponse.model_validate(await _get_group_or_404(db, group_id))
 
 
-@router.patch("/api/v1/groups/{group_id}", response_model=GroupResponse)
+@router.patch("/api/v1/groups/{group_id}")
 async def update_group(
     group_id: str,
     body: GroupUpdate,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> GroupResponse:
     group = await _get_group_or_404(db, group_id)
     fields = body.model_fields_set
@@ -168,8 +166,8 @@ async def update_group(
 @router.delete("/api/v1/groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_group(
     group_id: str,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> None:
     group = await _get_group_or_404(db, group_id)
 

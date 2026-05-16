@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -45,10 +47,10 @@ async def _next_order_index(db: AsyncSession, pi_id: str) -> int:
     return (current_max or 0) + 1
 
 
-@router.get("/api/v1/pis/{pi_id}/swimlines", response_model=list[SwimlineResponse])
+@router.get("/api/v1/pis/{pi_id}/swimlines")
 async def list_swimlines(
     pi_id: str,
-    db: AsyncSession = Depends(get_session),
+    db: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[SwimlineResponse]:
     if not await db.get(PI, pi_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PI not found")
@@ -70,16 +72,12 @@ async def list_swimlines(
     ]
 
 
-@router.post(
-    "/api/v1/pis/{pi_id}/swimlines",
-    response_model=SwimlineResponse,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/api/v1/pis/{pi_id}/swimlines", status_code=status.HTTP_201_CREATED)
 async def create_swimline(
     pi_id: str,
     body: SwimlineCreate,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> SwimlineResponse:
     pi = await db.get(PI, pi_id)
     if not pi:
@@ -102,20 +100,20 @@ async def create_swimline(
     return await _swimline_response(db, swimline)
 
 
-@router.get("/api/v1/swimlines/{swimline_id}", response_model=SwimlineResponse)
+@router.get("/api/v1/swimlines/{swimline_id}")
 async def get_swimline(
     swimline_id: str,
-    db: AsyncSession = Depends(get_session),
+    db: Annotated[AsyncSession, Depends(get_session)],
 ) -> SwimlineResponse:
     return await _swimline_response(db, await _get_swimline_or_404(db, swimline_id))
 
 
-@router.patch("/api/v1/swimlines/{swimline_id}", response_model=SwimlineResponse)
+@router.patch("/api/v1/swimlines/{swimline_id}")
 async def update_swimline(
     swimline_id: str,
     body: SwimlineUpdate,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> SwimlineResponse:
     swimline = await _get_swimline_or_404(db, swimline_id)
     fields = body.model_fields_set
@@ -145,8 +143,8 @@ async def update_swimline(
 @router.delete("/api/v1/swimlines/{swimline_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_swimline(
     swimline_id: str,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> None:
     swimline = await _get_swimline_or_404(db, swimline_id)
     pi = await db.get(PI, swimline.pi_id)
@@ -166,12 +164,12 @@ async def delete_swimline(
     await broadcaster.broadcast(project_id, "swimline:deleted", {"system_id": swimline_id})
 
 
-@router.post("/api/v1/swimlines/{swimline_id}/reorder", response_model=list[SwimlineResponse])
+@router.post("/api/v1/swimlines/{swimline_id}/reorder")
 async def reorder_swimlines(
     swimline_id: str,
     body: SwimlineReorder,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> list[SwimlineResponse]:
     swimline = await _get_swimline_or_404(db, swimline_id)
     pi_id = swimline.pi_id

@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -39,11 +41,11 @@ async def _get_or_404(db: AsyncSession, pbi_id: str) -> PBI:
     return pbi
 
 
-@router.get("/api/v1/projects/{project_id}/pbis", response_model=list[PBIResponse])
+@router.get("/api/v1/projects/{project_id}/pbis")
 async def list_pbis(
     project_id: str,
-    feature_id: str | None = Query(None),
-    db: AsyncSession = Depends(get_session),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    feature_id: Annotated[str | None, Query()] = None,
 ) -> list[PBIResponse]:
     if not await db.get(Project, project_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
@@ -54,16 +56,12 @@ async def list_pbis(
     return [PBIResponse.model_validate(p) for p in result.scalars().all()]
 
 
-@router.post(
-    "/api/v1/projects/{project_id}/pbis",
-    response_model=PBIResponse,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/api/v1/projects/{project_id}/pbis", status_code=status.HTTP_201_CREATED)
 async def create_pbi(
     project_id: str,
     body: PBICreate,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> PBIResponse:
     if not await db.get(Project, project_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
@@ -95,28 +93,22 @@ async def create_pbi(
     return PBIResponse.model_validate(pbi)
 
 
-@router.get("/api/v1/pbis/{pbi_id}", response_model=PBIResponse)
-async def get_pbi(pbi_id: str, db: AsyncSession = Depends(get_session)) -> PBIResponse:
+@router.get("/api/v1/pbis/{pbi_id}")
+async def get_pbi(pbi_id: str, db: Annotated[AsyncSession, Depends(get_session)]) -> PBIResponse:
     return PBIResponse.model_validate(await _get_or_404(db, pbi_id))
 
 
-@router.patch("/api/v1/pbis/{pbi_id}", response_model=PBIResponse)
-async def update_pbi(
-    pbi_id: str,
-    body: PBIUpdate,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
-) -> PBIResponse:
-    pbi = await _get_or_404(db, pbi_id)
-    fields = body.model_fields_set
+async def _apply_pbi_id(db: AsyncSession, pbi: PBI, body: PBIUpdate, fields: set[str]) -> None:
+    if "id" not in fields or body.id == pbi.user_id:
+        return
+    if body.id is not None and not await is_user_id_available(
+        db, pbi.project_id, body.id, exclude_pbi_id=pbi.system_id
+    ):
+        raise _id_conflict(body.id)
+    pbi.user_id = body.id
 
-    if "id" in fields and body.id != pbi.user_id:
-        if body.id is not None and not await is_user_id_available(
-            db, pbi.project_id, body.id, exclude_pbi_id=pbi_id
-        ):
-            raise _id_conflict(body.id)
-        pbi.user_id = body.id
 
+def _apply_scalar_fields(pbi: PBI, body: PBIUpdate, fields: set[str]) -> None:
     if "item_type" in fields and body.item_type is not None:
         pbi.item_type = body.item_type
     if "title" in fields and body.title is not None:
@@ -131,19 +123,36 @@ async def update_pbi(
         pbi.pi_id = body.pi_id
     if "swimlane_id" in fields:
         pbi.swimlane_id = body.swimlane_id
-    if "group_id" in fields:
-        old_group_id = pbi.group_id
-        pbi.group_id = body.group_id
-        if old_group_id and old_group_id != body.group_id:
-            await db.flush()
-            remaining = (await db.execute(
-                select(func.count()).where(PBI.group_id == old_group_id)
-            )).scalar_one()
-            if remaining == 0:
-                old_group = await db.get(Group, old_group_id)
-                if old_group and old_group.is_implicit:
-                    await db.delete(old_group)
 
+
+async def _apply_group_change(db: AsyncSession, pbi: PBI, new_group_id: str | None) -> None:
+    old_group_id = pbi.group_id
+    pbi.group_id = new_group_id
+    if not old_group_id or old_group_id == new_group_id:
+        return
+    await db.flush()
+    remaining = (await db.execute(
+        select(func.count()).where(PBI.group_id == old_group_id)
+    )).scalar_one()
+    if remaining == 0:
+        old_group = await db.get(Group, old_group_id)
+        if old_group and old_group.is_implicit:
+            await db.delete(old_group)
+
+
+@router.patch("/api/v1/pbis/{pbi_id}")
+async def update_pbi(
+    pbi_id: str,
+    body: PBIUpdate,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
+) -> PBIResponse:
+    pbi = await _get_or_404(db, pbi_id)
+    fields = body.model_fields_set
+    await _apply_pbi_id(db, pbi, body, fields)
+    _apply_scalar_fields(pbi, body, fields)
+    if "group_id" in fields:
+        await _apply_group_change(db, pbi, body.group_id)
     pbi.modified_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(pbi)
@@ -151,12 +160,12 @@ async def update_pbi(
     return PBIResponse.model_validate(pbi)
 
 
-@router.post("/api/v1/pbis/{pbi_id}/place", response_model=PlaceStoryResponse)
+@router.post("/api/v1/pbis/{pbi_id}/place")
 async def place_story_in_sprint(
     pbi_id: str,
     body: PlaceStoryRequest,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> PlaceStoryResponse:
     pbi = await _get_or_404(db, pbi_id)
 
@@ -209,8 +218,8 @@ async def place_story_in_sprint(
 @router.delete("/api/v1/pbis/{pbi_id}/place", status_code=status.HTTP_204_NO_CONTENT)
 async def unplace_story(
     pbi_id: str,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> None:
     pbi = await _get_or_404(db, pbi_id)
     old_group_id = pbi.group_id
@@ -235,8 +244,8 @@ async def unplace_story(
 @router.delete("/api/v1/pbis/{pbi_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_pbi(
     pbi_id: str,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> None:
     pbi = await _get_or_404(db, pbi_id)
     project_id = pbi.project_id

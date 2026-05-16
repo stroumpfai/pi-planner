@@ -1,3 +1,5 @@
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -19,11 +21,11 @@ from app.services.auth import (
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login")
 async def login(
     body: LoginRequest,
     response: Response,
-    db: AsyncSession = Depends(get_session),
+    db: Annotated[AsyncSession, Depends(get_session)],
 ) -> TokenResponse:
     user = await authenticate(db, body.username, body.password)
     if not user:
@@ -50,13 +52,13 @@ async def login(
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
     response: Response,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_session),
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_session)],
 ) -> None:
     # Best-effort: extract session_id from cookie to delete it; cookie cleared regardless
     response.delete_cookie(key=SESSION_COOKIE, samesite="lax")
 
 
-@router.get("/me", response_model=UserResponse)
-async def me(current_user: User = Depends(get_current_user)) -> UserResponse:
+@router.get("/me")
+async def me(current_user: Annotated[User, Depends(get_current_user)]) -> UserResponse:
     return UserResponse.model_validate(current_user)

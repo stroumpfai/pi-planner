@@ -1,5 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -34,16 +36,16 @@ async def _get_lock(db: AsyncSession, project_id: str) -> EditLock | None:
     return result.scalar_one_or_none()
 
 
-@router.get("/api/v1/projects/{project_id}/edit-lock", response_model=EditLockResponse)
-async def get_edit_lock(project_id: str, db: AsyncSession = Depends(get_session)) -> EditLockResponse:
+@router.get("/api/v1/projects/{project_id}/edit-lock")
+async def get_edit_lock(project_id: str, db: Annotated[AsyncSession, Depends(get_session)]) -> EditLockResponse:
     return _lock_response(await _get_lock(db, project_id))
 
 
-@router.post("/api/v1/projects/{project_id}/edit-lock/acquire", response_model=EditLockResponse)
+@router.post("/api/v1/projects/{project_id}/edit-lock/acquire")
 async def acquire_edit_lock(
     project_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_session),
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_session)],
 ) -> EditLockResponse:
     lock = await _get_lock(db, project_id)
     now = datetime.now(timezone.utc)
@@ -79,8 +81,8 @@ async def acquire_edit_lock(
 @router.post("/api/v1/projects/{project_id}/edit-lock/release", status_code=status.HTTP_204_NO_CONTENT)
 async def release_edit_lock(
     project_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_session),
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_session)],
 ) -> None:
     lock = await _get_lock(db, project_id)
     if lock and lock.locked_by_username == current_user.username:
@@ -89,11 +91,11 @@ async def release_edit_lock(
         await broadcaster.broadcast(project_id, "edit-lock:released", {"released_by": current_user.username})
 
 
-@router.post("/api/v1/projects/{project_id}/edit-lock/keepalive", response_model=EditLockResponse)
+@router.post("/api/v1/projects/{project_id}/edit-lock/keepalive")
 async def keepalive_edit_lock(
     project_id: str,
-    current_user: User = Depends(get_current_user),
-    db: AsyncSession = Depends(get_session),
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_session)],
 ) -> EditLockResponse:
     lock = await _get_lock(db, project_id)
     if not lock or lock.locked_by_username != current_user.username:

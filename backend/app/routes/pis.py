@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -63,10 +65,10 @@ def _create_sprints(db: AsyncSession, pi_id: str) -> None:
         db.add(Sprint(pi_id=pi_id, sprint_index=i, capacity=0))
 
 
-@router.get("/api/v1/projects/{project_id}/pis", response_model=list[PIResponse])
+@router.get("/api/v1/projects/{project_id}/pis")
 async def list_pis(
     project_id: str,
-    db: AsyncSession = Depends(get_session),
+    db: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[PIResponse]:
     if not await db.get(Project, project_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
@@ -77,16 +79,12 @@ async def list_pis(
     return [await _pi_response(db, p) for p in pis]
 
 
-@router.post(
-    "/api/v1/projects/{project_id}/pis",
-    response_model=PIResponse,
-    status_code=status.HTTP_201_CREATED,
-)
+@router.post("/api/v1/projects/{project_id}/pis", status_code=status.HTTP_201_CREATED)
 async def create_pi(
     project_id: str,
     body: PICreate,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> PIResponse:
     if not await db.get(Project, project_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
@@ -111,17 +109,17 @@ async def create_pi(
     return await _pi_response(db, pi)
 
 
-@router.get("/api/v1/pis/{pi_id}", response_model=PIResponse)
-async def get_pi(pi_id: str, db: AsyncSession = Depends(get_session)) -> PIResponse:
+@router.get("/api/v1/pis/{pi_id}")
+async def get_pi(pi_id: str, db: Annotated[AsyncSession, Depends(get_session)]) -> PIResponse:
     return await _pi_response(db, await _get_or_404(db, pi_id))
 
 
-@router.patch("/api/v1/pis/{pi_id}", response_model=PIResponse)
+@router.patch("/api/v1/pis/{pi_id}")
 async def update_pi(
     pi_id: str,
     body: PIUpdate,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> PIResponse:
     pi = await _get_or_404(db, pi_id)
     _assert_not_closed(pi)
@@ -154,8 +152,8 @@ async def update_pi(
 @router.delete("/api/v1/pis/{pi_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_pi(
     pi_id: str,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> None:
     pi = await _get_or_404(db, pi_id)
     project_id = pi.project_id

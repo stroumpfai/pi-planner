@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,10 +25,10 @@ async def _get_or_404(db: AsyncSession, sprint_id: str) -> Sprint:
     return sprint
 
 
-@router.get("/api/v1/pis/{pi_id}/sprints", response_model=list[SprintResponse])
+@router.get("/api/v1/pis/{pi_id}/sprints")
 async def list_sprints(
     pi_id: str,
-    db: AsyncSession = Depends(get_session),
+    db: Annotated[AsyncSession, Depends(get_session)],
 ) -> list[SprintResponse]:
     pi = await db.get(PI, pi_id)
     if not pi:
@@ -44,12 +46,12 @@ async def list_sprints(
     ]
 
 
-@router.patch("/api/v1/sprints/{sprint_id}", response_model=SprintResponse)
+@router.patch("/api/v1/sprints/{sprint_id}")
 async def update_sprint(
     sprint_id: str,
     body: SprintUpdate,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> SprintResponse:
     sprint = await _get_or_404(db, sprint_id)
 
