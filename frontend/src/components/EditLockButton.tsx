@@ -30,8 +30,7 @@ export function EditLockButton({ projectId }: Props) {
     return (
       <div className="flex items-center gap-2">
         <span className="inline-flex items-center gap-1 text-sm text-green-700 font-medium">
-          <span className="h-2 w-2 rounded-full bg-green-500" />
-          You • Editor
+          <span className="h-2 w-2 rounded-full bg-green-500" />{' '}You • Editor
         </span>
         <button
           onClick={() => release.mutate()}

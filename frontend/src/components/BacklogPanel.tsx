@@ -75,13 +75,13 @@ export function BacklogPanel({ projectId }: Props) {
           isOver ? 'bg-blue-50 ring-2 ring-inset ring-blue-300' : ''
         }`}
       >
-        {isLoading ? (
-          <p className="text-xs text-gray-400 py-4 text-center">Loading…</p>
-        ) : backlogFeatures.length === 0 ? (
+        {isLoading && <p className="text-xs text-gray-400 py-4 text-center">Loading…</p>}
+        {!isLoading && backlogFeatures.length === 0 && (
           <p className="text-xs text-gray-300 py-6 text-center">
             {isOver ? 'Drop here' : 'Empty'}
           </p>
-        ) : (
+        )}
+        {!isLoading && backlogFeatures.length > 0 && (
           backlogFeatures.map((f) => (
             <DraggableBacklogItem key={f.system_id} feature={f} />
           ))

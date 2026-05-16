@@ -5,6 +5,13 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source "$SCRIPT_DIR/backend/venv/bin/activate"
 
+# Load .env from project root if present
+if [[ -f "$SCRIPT_DIR/.env" ]]; then
+  set -a
+  source "$SCRIPT_DIR/.env"
+  set +a
+fi
+
 : "${SONAR_TOKEN:?SONAR_TOKEN environment variable is required}"
 
 pysonar \

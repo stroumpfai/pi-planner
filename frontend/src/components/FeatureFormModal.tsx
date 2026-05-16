@@ -44,7 +44,8 @@ export function FeatureFormModal({ open, feature, onClose, onSubmit }: Props) {
     }
   }
 
-  const submitLabel = isSubmitting ? 'Saving…' : isEdit ? 'Save Changes' : 'Create Feature'
+  const defaultLabel = isEdit ? 'Save Changes' : 'Create Feature'
+  const submitLabel = isSubmitting ? 'Saving…' : defaultLabel
 
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && handleClose()}>

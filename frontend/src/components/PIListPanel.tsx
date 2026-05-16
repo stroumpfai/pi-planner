@@ -47,11 +47,9 @@ export function PIListPanel({ projectId }: Props) {
       )}
 
       <div className="flex-1 overflow-y-auto">
-        {isLoading ? (
-          <p className="text-xs text-gray-400 px-4 py-3">Loading…</p>
-        ) : pis?.length === 0 ? (
-          <p className="text-xs text-gray-400 px-4 py-4">No PIs yet</p>
-        ) : (
+        {isLoading && <p className="text-xs text-gray-400 px-4 py-3">Loading…</p>}
+        {!isLoading && pis?.length === 0 && <p className="text-xs text-gray-400 px-4 py-4">No PIs yet</p>}
+        {!isLoading && !!pis?.length && (
           <ul className="divide-y divide-gray-100">
             {pis?.map((pi) => {
               const isSelected = activePIId === pi.system_id

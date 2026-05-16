@@ -59,8 +59,9 @@ export function CreateProjectModal({ open, onClose }: Props) {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700">Description</label>
+              <label htmlFor="proj-description" className="block text-sm font-medium text-gray-700">Description</label>
               <textarea
+                id="proj-description"
                 {...register('description')}
                 rows={3}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"

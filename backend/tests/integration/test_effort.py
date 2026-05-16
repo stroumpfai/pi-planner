@@ -79,7 +79,7 @@ async def test_sprint_effort_sums_pbi_efforts(client, project, pi, swimline, fea
 @pytest.mark.asyncio
 async def test_sprint_effort_zero_for_unassigned_group(client, project, pi, swimline, feature):
     pbi = await _make_pbi(client, project, feature, 4)
-    await _make_group(client, swimline, feature, pbi_ids=[pbi["system_id"]])  # sprint_index = None
+    await _make_group(client, swimline, feature, pbi_ids=[pbi["system_id"]])
 
     sprints = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()
     for sprint in sprints:

@@ -177,7 +177,7 @@ export function GroupCard({ group, projectId }: Props) {
             title="Move to sprint"
           >
             {SPRINT_LABELS.map((label, i) => (
-              <option key={i} value={i}>{label}</option>
+              <option key={label} value={i}>{label}</option>
             ))}
           </select>
           <button

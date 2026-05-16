@@ -69,8 +69,8 @@ function PreviewTable({ preview }: { readonly preview: ImportPreview }) {
 function ErrorList({ errors }: { readonly errors: { row: number; message: string }[] }) {
   return (
     <ul className="space-y-1 mt-3 max-h-48 overflow-y-auto">
-      {errors.map((e, i) => (
-        <li key={i} className="text-xs text-red-700 bg-red-50 border border-red-100 rounded px-2 py-1">
+      {errors.map((e) => (
+        <li key={e.row} className="text-xs text-red-700 bg-red-50 border border-red-100 rounded px-2 py-1">
           <span className="font-mono font-medium">Row {e.row}:</span> {e.message}
         </li>
       ))}
@@ -188,8 +188,7 @@ export function ImportCSVModal({ open, projectId, file, onClose }: Props) {
                 >
                   {step === 'importing' ? (
                     <span className="flex items-center gap-2">
-                      <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Importing…
+                      <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />{' '}Importing…
                     </span>
                   ) : 'Confirm Import'}
                 </button>

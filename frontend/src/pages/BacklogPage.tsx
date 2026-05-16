@@ -98,16 +98,16 @@ export function BacklogPage({ projectId }: Props) {
       </div>
 
       {/* Feature list */}
-      {isLoading ? (
-        <div className="text-center py-12 text-gray-400 text-sm">Loading…</div>
-      ) : backlogFeatures.length === 0 ? (
+      {isLoading && <div className="text-center py-12 text-gray-400 text-sm">Loading…</div>}
+      {!isLoading && backlogFeatures.length === 0 && (
         <div className="text-center py-16 border border-dashed border-gray-200 rounded-lg">
           <p className="text-gray-400 font-medium">No features in the backlog</p>
           <p className="text-gray-400 text-sm mt-1">
             {isEditing ? 'Click "+ Feature" to add one.' : 'Request Edit Mode to add features.'}
           </p>
         </div>
-      ) : (
+      )}
+      {!isLoading && backlogFeatures.length > 0 && (
         <div className="border border-gray-200 rounded-lg bg-white divide-y divide-gray-100">
           {backlogFeatures.map((feature) => (
             <FeatureRow key={feature.system_id} feature={feature} projectId={projectId} />
