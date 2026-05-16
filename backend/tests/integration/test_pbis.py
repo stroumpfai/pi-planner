@@ -243,3 +243,175 @@ async def test_delete_pbi_non_last_in_group_keeps_group(client, db, project, fea
 
     result = await db.execute(select(Group).where(Group.system_id == group_id))
     assert result.scalar_one_or_none() is not None
+
+
+# ── Patch: group_id change cleans up empty implicit group ─────────────────────
+
+@pytest.mark.asyncio
+async def test_patch_group_id_change_cleans_empty_implicit_group(client, db, project, feature):
+    """Moving a PBI out of an implicit group removes that group if it becomes empty."""
+    from app.models.pbi import PBI as PBIModel
+
+    pid, fid = project["system_id"], feature["system_id"]
+    p = (await client.post(f"/api/v1/projects/{pid}/pbis",
+        json={"title": "Solo PBI", "parent_feature_system_id": fid})).json()
+    pbi_id = p["system_id"]
+
+    # Create an implicit group and assign the PBI to it directly in DB
+    group = Group(swimline_id="dummy", feature_system_id=fid, name="Implicit G", is_implicit=True)
+    db.add(group)
+    await db.flush()
+    pbi_row = await db.get(PBIModel, pbi_id)
+    pbi_row.group_id = group.system_id
+    await db.commit()
+    group_id = group.system_id
+
+    # Clear the group_id via PATCH
+    resp = await client.patch(f"/api/v1/pbis/{pbi_id}", json={"group_id": None})
+    assert resp.status_code == 200
+    assert resp.json()["group_id"] is None
+
+    # Implicit group should be deleted because it's now empty
+    result = await db.execute(select(Group).where(Group.system_id == group_id))
+    assert result.scalar_one_or_none() is None
+
+
+@pytest.mark.asyncio
+async def test_patch_group_id_change_keeps_non_implicit_group(client, db, project, feature):
+    """Moving a PBI out of an explicit group does NOT delete the group."""
+    from app.models.pbi import PBI as PBIModel
+
+    pid, fid = project["system_id"], feature["system_id"]
+    p = (await client.post(f"/api/v1/projects/{pid}/pbis",
+        json={"title": "Solo PBI", "parent_feature_system_id": fid})).json()
+    pbi_id = p["system_id"]
+
+    # Create an explicit (non-implicit) group
+    group = Group(swimline_id="dummy", feature_system_id=fid, name="Explicit G", is_implicit=False)
+    db.add(group)
+    await db.flush()
+    pbi_row = await db.get(PBIModel, pbi_id)
+    pbi_row.group_id = group.system_id
+    await db.commit()
+    group_id = group.system_id
+
+    # Clear the group_id via PATCH
+    resp = await client.patch(f"/api/v1/pbis/{pbi_id}", json={"group_id": None})
+    assert resp.status_code == 200
+
+    # Explicit group should still exist
+    result = await db.execute(select(Group).where(Group.system_id == group_id))
+    assert result.scalar_one_or_none() is not None
+
+
+# ── Place in sprint ────────────────────────────────────────────────────────────
+
+@pytest.fixture
+async def placed_pi(client, project):
+    return (await client.post(
+        f"/api/v1/projects/{project['system_id']}/pis",
+        json={"name": "Q1"},
+    )).json()
+
+
+@pytest.fixture
+async def placed_swimline(client, placed_pi):
+    return (await client.post(
+        f"/api/v1/pis/{placed_pi['system_id']}/swimlines",
+        json={"name": "Team A"},
+    )).json()
+
+
+@pytest.fixture
+async def placed_feature(client, project, placed_swimline):
+    f = (await client.post(
+        f"/api/v1/projects/{project['system_id']}/features",
+        json={"title": "Place Feature"},
+    )).json()
+    await client.patch(f"/api/v1/features/{f['system_id']}", json={"swimlane_id": placed_swimline["system_id"]})
+    return (await client.get(f"/api/v1/features/{f['system_id']}")).json()
+
+
+@pytest.mark.asyncio
+async def test_place_story_in_sprint(client, project, placed_feature):
+    pid = project["system_id"]
+    fid = placed_feature["system_id"]
+    p = (await client.post(f"/api/v1/projects/{pid}/pbis",
+        json={"title": "Place Me", "parent_feature_system_id": fid})).json()
+    pbi_id = p["system_id"]
+
+    resp = await client.post(f"/api/v1/pbis/{pbi_id}/place", json={"sprint_index": 1})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["story"]["group_id"] is not None
+    assert data["group"]["sprint_index"] == 1
+    assert data["group"]["is_implicit"] is True
+
+
+@pytest.mark.asyncio
+async def test_place_already_grouped_story_409(client, project, placed_feature):
+    pid = project["system_id"]
+    fid = placed_feature["system_id"]
+    p = (await client.post(f"/api/v1/projects/{pid}/pbis",
+        json={"title": "Place Me Twice", "parent_feature_system_id": fid})).json()
+    pbi_id = p["system_id"]
+
+    await client.post(f"/api/v1/pbis/{pbi_id}/place", json={"sprint_index": 0})
+    resp = await client.post(f"/api/v1/pbis/{pbi_id}/place", json={"sprint_index": 1})
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["error"] == "STORY_ALREADY_GROUPED"
+
+
+@pytest.mark.asyncio
+async def test_place_story_feature_not_in_pi(client, project, feature):
+    """Placing a story whose parent is still in backlog returns 422."""
+    pid, fid = project["system_id"], feature["system_id"]
+    p = (await client.post(f"/api/v1/projects/{pid}/pbis",
+        json={"title": "Backlog Story", "parent_feature_system_id": fid})).json()
+    resp = await client.post(f"/api/v1/pbis/{p['system_id']}/place", json={"sprint_index": 0})
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"] == "FEATURE_NOT_IN_PI"
+
+
+@pytest.mark.asyncio
+async def test_unplace_story_removes_implicit_group(client, project, placed_feature):
+    pid = project["system_id"]
+    fid = placed_feature["system_id"]
+    p = (await client.post(f"/api/v1/projects/{pid}/pbis",
+        json={"title": "To Unplace", "parent_feature_system_id": fid})).json()
+    pbi_id = p["system_id"]
+
+    place_resp = await client.post(f"/api/v1/pbis/{pbi_id}/place", json={"sprint_index": 2})
+    group_id = place_resp.json()["group"]["system_id"]
+
+    unplace_resp = await client.delete(f"/api/v1/pbis/{pbi_id}/place")
+    assert unplace_resp.status_code == 204
+
+    # Implicit group should be gone
+    group_resp = await client.get(f"/api/v1/groups/{group_id}")
+    assert group_resp.status_code == 404
+
+    # PBI should have no group_id
+    pbi_resp = (await client.get(f"/api/v1/pbis/{pbi_id}")).json()
+    assert pbi_resp["group_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_update_pbi_all_fields(client, project, feature):
+    pid, fid = project["system_id"], feature["system_id"]
+    p = (await client.post(f"/api/v1/projects/{pid}/pbis",
+        json={"title": "Original", "parent_feature_system_id": fid})).json()
+    pbi_id = p["system_id"]
+
+    resp = await client.patch(f"/api/v1/pbis/{pbi_id}", json={
+        "title": "Updated",
+        "description": "A description",
+        "effort": 5,
+        "item_type": "bug",
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["title"] == "Updated"
+    assert data["description"] == "A description"
+    assert data["effort"] == 5
+    assert data["item_type"] == "bug"

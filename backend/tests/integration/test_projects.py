@@ -192,3 +192,89 @@ async def test_export_includes_full_pi_structure(client):
 async def test_export_404_unknown_project(client):
     resp = await client.get("/api/v1/projects/nonexistent/export")
     assert resp.status_code == 404
+
+
+# ── Additional project tests (Phase 2.6) ──────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_update_project_description(client):
+    create = await client.post("/api/v1/projects/", json={"name": "Desc Project"})
+    pid = create.json()["system_id"]
+    resp = await client.patch(f"/api/v1/projects/{pid}", json={"description": "A description"})
+    assert resp.status_code == 200
+    assert resp.json()["description"] == "A description"
+
+
+@pytest.mark.asyncio
+async def test_delete_project_not_found(client):
+    resp = await client.delete("/api/v1/projects/nonexistent")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_project_with_nested_data(client):
+    """Delete a project that has features, PBIs, PI, and swimlane — should cascade."""
+    create = await client.post("/api/v1/projects/", json={"name": "Nested Project"})
+    pid = create.json()["system_id"]
+
+    # Create feature
+    fid = (await client.post(f"/api/v1/projects/{pid}/features", json={"title": "F1"})).json()["system_id"]
+
+    # Create PBI
+    await client.post(
+        f"/api/v1/projects/{pid}/pbis",
+        json={"title": "PBI 1", "parent_feature_system_id": fid},
+    )
+
+    # Create PI (auto-creates sprints)
+    pi_id = (await client.post(
+        f"/api/v1/projects/{pid}/pis", json={"name": "Q1"}
+    )).json()["system_id"]
+
+    # Create swimline
+    sl_id = (await client.post(
+        f"/api/v1/pis/{pi_id}/swimlines", json={"name": "Team A"}
+    )).json()["system_id"]
+
+    # Move feature to swimline
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": sl_id})
+
+    # Delete the project
+    resp = await client.delete(f"/api/v1/projects/{pid}")
+    assert resp.status_code == 204
+
+    # Project should be gone
+    assert (await client.get(f"/api/v1/projects/{pid}")).status_code == 404
+
+    # Features, PI, swimline should be gone too
+    assert (await client.get(f"/api/v1/features/{fid}")).status_code == 404
+    assert (await client.get(f"/api/v1/pis/{pi_id}")).status_code == 404
+    assert (await client.get(f"/api/v1/swimlines/{sl_id}")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_export_content_disposition_filename(client):
+    """Content-Disposition header includes safe project name and date."""
+    create = await client.post("/api/v1/projects/", json={"name": "My Project Name"})
+    pid = create.json()["system_id"]
+    resp = await client.get(f"/api/v1/projects/{pid}/export")
+    assert resp.status_code == 200
+    cd = resp.headers["Content-Disposition"]
+    assert "attachment" in cd
+    assert "My_Project_Name" in cd
+    assert ".json" in cd
+
+
+@pytest.mark.asyncio
+async def test_export_project_structure_keys(client):
+    """Export JSON has expected top-level keys."""
+    create = await client.post("/api/v1/projects/", json={"name": "Keys Test"})
+    pid = create.json()["system_id"]
+    resp = await client.get(f"/api/v1/projects/{pid}/export")
+    data = resp.json()
+    assert "version" in data
+    assert "exported_at" in data
+    assert "project" in data
+    project = data["project"]
+    for key in ("system_id", "name", "features", "pbis", "pis"):
+        assert key in project

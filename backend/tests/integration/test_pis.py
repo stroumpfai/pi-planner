@@ -208,3 +208,68 @@ async def test_update_sprint_in_closed_pi_rejected(client, pi):
     sprints = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()
     resp = await client.patch(f"/api/v1/sprints/{sprints[0]['system_id']}", json={"capacity": 99})
     assert resp.status_code == 403
+
+
+# ── Additional PI tests (Phase 2.7) ───────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_delete_pi_cascade_returns_features_to_backlog(client, project):
+    pid = project["system_id"]
+    pi = (await client.post(f"/api/v1/projects/{pid}/pis", json={"name": "Q1"})).json()
+    pi_id = pi["system_id"]
+
+    sl = (await client.post(f"/api/v1/pis/{pi_id}/swimlines", json={"name": "Team A"})).json()
+    fid = (await client.post(f"/api/v1/projects/{pid}/features", json={"title": "F"})).json()["system_id"]
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": sl["system_id"]})
+
+    # Feature should be in PI
+    f = (await client.get(f"/api/v1/features/{fid}")).json()
+    assert f["location"] == "pi"
+
+    # Delete PI
+    resp = await client.delete(f"/api/v1/pis/{pi_id}")
+    assert resp.status_code == 204
+
+    # Feature should be back in backlog
+    f_after = (await client.get(f"/api/v1/features/{fid}")).json()
+    assert f_after["location"] == "backlog"
+    assert f_after["pi_id"] is None
+    assert f_after["swimlane_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_delete_pi_not_found(client):
+    resp = await client.delete("/api/v1/pis/nonexistent")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_update_pi_description(client, pi):
+    resp = await client.patch(f"/api/v1/pis/{pi['system_id']}", json={"description": "A PI desc"})
+    assert resp.status_code == 200
+    assert resp.json()["description"] == "A PI desc"
+
+
+@pytest.mark.asyncio
+async def test_transition_in_progress_to_closed(client, pi):
+    await client.patch(f"/api/v1/pis/{pi['system_id']}", json={"state": "in_progress"})
+    resp = await client.patch(f"/api/v1/pis/{pi['system_id']}", json={"state": "closed"})
+    assert resp.status_code == 200
+    assert resp.json()["state"] == "closed"
+
+
+@pytest.mark.asyncio
+async def test_pi_effort_and_capacity_returned(client, project):
+    pid = project["system_id"]
+    pi = (await client.post(f"/api/v1/projects/{pid}/pis", json={"name": "PI-Effort"})).json()
+    data = (await client.get(f"/api/v1/pis/{pi['system_id']}")).json()
+    assert "total_effort" in data
+    assert "total_capacity" in data
+    assert data["total_effort"] == 0
+    assert data["total_capacity"] == 0
+
+
+@pytest.mark.asyncio
+async def test_sprint_not_found(client):
+    resp = await client.patch("/api/v1/sprints/nonexistent", json={"capacity": 5})
+    assert resp.status_code == 404

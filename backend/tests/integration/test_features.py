@@ -206,3 +206,105 @@ async def test_feature_id_conflicts_with_pbi_id(client, db, project, feature):
     )
     assert resp.status_code == 409
     assert resp.json()["detail"]["error"] == "ID_ALREADY_EXISTS"
+
+
+# ── Additional feature tests (Phase 2.7) ─────────────────────────────────────
+
+@pytest.fixture
+async def pi(client, project):
+    return (await client.post(
+        f"/api/v1/projects/{project['system_id']}/pis",
+        json={"name": "Q1-2026"},
+    )).json()
+
+
+@pytest.fixture
+async def swimline(client, pi):
+    return (await client.post(
+        f"/api/v1/pis/{pi['system_id']}/swimlines",
+        json={"name": "Team Alpha"},
+    )).json()
+
+
+@pytest.mark.asyncio
+async def test_update_feature_description(client, feature):
+    resp = await client.patch(
+        f"/api/v1/features/{feature['system_id']}",
+        json={"description": "Feature description"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["description"] == "Feature description"
+
+
+@pytest.mark.asyncio
+async def test_update_feature_not_found(client):
+    resp = await client.patch("/api/v1/features/nonexistent", json={"title": "X"})
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_feature_not_found(client):
+    resp = await client.delete("/api/v1/features/nonexistent")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_move_feature_to_swimlane_sets_pi_id(client, project, pi, swimline, feature):
+    fid = feature["system_id"]
+    resp = await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": swimline["system_id"]})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["location"] == "pi"
+    assert data["swimlane_id"] == swimline["system_id"]
+    assert data["pi_id"] == pi["system_id"]
+
+
+@pytest.mark.asyncio
+async def test_move_feature_back_to_backlog(client, project, pi, swimline, feature):
+    fid = feature["system_id"]
+    # First move to PI
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": swimline["system_id"]})
+    # Then move back to backlog
+    resp = await client.patch(f"/api/v1/features/{fid}", json={"location": "backlog"})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["location"] == "backlog"
+    assert data["swimlane_id"] is None
+    assert data["pi_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_delete_feature_with_pbis_cascades(client, project, feature):
+    pid, fid = project["system_id"], feature["system_id"]
+    pbi_id = (await client.post(
+        f"/api/v1/projects/{pid}/pbis",
+        json={"title": "Child PBI via API", "parent_feature_system_id": fid},
+    )).json()["system_id"]
+
+    await client.delete(f"/api/v1/features/{fid}")
+    assert (await client.get(f"/api/v1/features/{fid}")).status_code == 404
+    assert (await client.get(f"/api/v1/pbis/{pbi_id}")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_list_features_404_unknown_project(client):
+    resp = await client.get("/api/v1/projects/nonexistent/features")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_create_feature_404_unknown_project(client):
+    resp = await client.post("/api/v1/projects/nonexistent/features", json={"title": "F"})
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_feature_effort_is_sum_of_pbi_efforts(client, project, feature):
+    pid, fid = project["system_id"], feature["system_id"]
+    await client.post(f"/api/v1/projects/{pid}/pbis",
+        json={"title": "P1", "effort": 3, "parent_feature_system_id": fid})
+    await client.post(f"/api/v1/projects/{pid}/pbis",
+        json={"title": "P2", "effort": 5, "parent_feature_system_id": fid})
+    resp = await client.get(f"/api/v1/features/{fid}")
+    assert resp.status_code == 200
+    assert resp.json()["effort"] == 8

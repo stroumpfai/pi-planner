@@ -38,10 +38,10 @@ beforeEach(() => {
 })
 
 describe('PBIList', () => {
-  it('shows "No PBIs yet" when empty', async () => {
+  it('shows "No stories yet" when empty', async () => {
     mockApi.list = vi.fn().mockResolvedValue([])
     render(<PBIList featureId="feat-1" projectId="proj-1" />, { wrapper: makeWrapper() })
-    await waitFor(() => expect(screen.getByText(/no pbis yet/i)).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText(/no stories yet/i)).toBeInTheDocument())
   })
 
   it('renders PBI rows from API', async () => {
@@ -57,25 +57,25 @@ describe('PBIList', () => {
     await waitFor(() => expect(mockApi.list).toHaveBeenCalledWith('proj-1', 'feat-1'))
   })
 
-  it('+ Add PBI button disabled when not in edit mode', async () => {
+  it('+ PBI button disabled when not in edit mode', async () => {
     mockApi.list = vi.fn().mockResolvedValue([])
     render(<PBIList featureId="feat-1" projectId="proj-1" />, { wrapper: makeWrapper() })
-    await waitFor(() => expect(screen.getByRole('button', { name: /\+ add pbi/i })).toBeDisabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: /^\+ pbi$/i })).toBeDisabled())
   })
 
-  it('+ Add PBI button enabled in edit mode', async () => {
+  it('+ PBI button enabled in edit mode', async () => {
     useAuthStore.setState({ isEditing: true })
     mockApi.list = vi.fn().mockResolvedValue([])
     render(<PBIList featureId="feat-1" projectId="proj-1" />, { wrapper: makeWrapper() })
-    await waitFor(() => expect(screen.getByRole('button', { name: /\+ add pbi/i })).not.toBeDisabled())
+    await waitFor(() => expect(screen.getByRole('button', { name: /^\+ pbi$/i })).not.toBeDisabled())
   })
 
-  it('opens create modal when + Add PBI clicked in edit mode', async () => {
+  it('opens create modal when + PBI clicked in edit mode', async () => {
     useAuthStore.setState({ isEditing: true })
     mockApi.list = vi.fn().mockResolvedValue([])
     render(<PBIList featureId="feat-1" projectId="proj-1" />, { wrapper: makeWrapper() })
-    await waitFor(() => screen.getByRole('button', { name: /\+ add pbi/i }))
-    await userEvent.click(screen.getByRole('button', { name: /\+ add pbi/i }))
+    await waitFor(() => screen.getByRole('button', { name: /^\+ pbi$/i }))
+    await userEvent.click(screen.getByRole('button', { name: /^\+ pbi$/i }))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 })

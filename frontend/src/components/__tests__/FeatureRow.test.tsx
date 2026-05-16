@@ -78,7 +78,7 @@ describe('FeatureRow', () => {
   it('expands to show PBIList on toggle', async () => {
     render(<FeatureRow feature={baseFeature} projectId="p-1" />, { wrapper: makeWrapper() })
     await userEvent.click(screen.getByRole('button', { name: /expand/i }))
-    // PBIList renders — "No PBIs yet" confirms PBIList is mounted
-    expect(await screen.findByText(/no pbis yet/i)).toBeInTheDocument()
+    // PBIList renders — "No stories yet" confirms PBIList is mounted
+    expect(await screen.findByText(/no stories yet/i)).toBeInTheDocument()
   })
 })
