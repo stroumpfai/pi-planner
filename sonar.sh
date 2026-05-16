@@ -18,4 +18,4 @@ pysonar \
   --sonar-host-url=http://localhost:9000 \
   --sonar-token="$SONAR_TOKEN" \
   --sonar-project-key=pi-planner \
-  -Dsonar.exclusions="design/**,frontend/src/types/api.generated.ts"
+  -Dsonar.exclusions="design/**,frontend/src/types/api.generated.ts,backend/migrations/**"
