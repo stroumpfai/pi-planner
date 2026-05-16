@@ -1,13 +1,13 @@
 import * as Dialog from '@radix-ui/react-dialog'
 
 interface Props {
-  open: boolean
-  title: string
-  description: string
-  confirmLabel?: string
-  destructive?: boolean
-  onConfirm: () => void
-  onCancel: () => void
+  readonly open: boolean
+  readonly title: string
+  readonly description: string
+  readonly confirmLabel?: string
+  readonly destructive?: boolean
+  readonly onConfirm: () => void
+  readonly onCancel: () => void
 }
 
 export function ConfirmDialog({

@@ -23,7 +23,7 @@ function DraggableBacklogItem({ feature }: ItemProps) {
     } satisfies FeatureDragData,
   })
 
-  const displayId = feature.id != null ? `[${feature.id}] ` : ''
+  const displayId = feature.id == null ? '' : `[${feature.id}] `
 
   return (
     <div

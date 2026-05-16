@@ -7,7 +7,7 @@ const CONFIG: Record<PIState, { label: string; className: string }> = {
 }
 
 interface Props {
-  state: PIState
+  readonly state: PIState
 }
 
 export function PIStateBadge({ state }: Props) {

@@ -13,8 +13,8 @@ const schema = z.object({
 type FormValues = z.infer<typeof schema>
 
 interface Props {
-  open: boolean
-  onClose: () => void
+  readonly open: boolean
+  readonly onClose: () => void
 }
 
 export function CreateProjectModal({ open, onClose }: Props) {

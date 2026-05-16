@@ -7,7 +7,6 @@ interface Props {
   readonly swimlaneId: string
   readonly featureId: string
   readonly pbiIds: string[]
-  readonly piId: string
   readonly onClose: () => void
 }
 

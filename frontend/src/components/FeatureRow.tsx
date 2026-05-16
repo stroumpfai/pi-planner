@@ -7,8 +7,8 @@ import { useUpdateFeature, useDeleteFeature } from '@/hooks/useFeatures'
 import { useAuthStore } from '@/stores/authStore'
 
 interface Props {
-  feature: Feature
-  projectId: string
+  readonly feature: Feature
+  readonly projectId: string
 }
 
 export function FeatureRow({ feature, projectId }: Props) {
@@ -20,8 +20,8 @@ export function FeatureRow({ feature, projectId }: Props) {
   const updateFeature = useUpdateFeature(projectId)
   const deleteFeature = useDeleteFeature(projectId)
 
-  const displayId = feature.id != null ? `[${feature.id}] ` : ''
-  const effortLabel = feature.effort != null ? `${feature.effort}pts` : null
+  const displayId = feature.id == null ? '' : `[${feature.id}] `
+  const effortLabel = feature.effort == null ? null : `${feature.effort}pts`
 
   return (
     <div className="border-b border-gray-100 last:border-0">

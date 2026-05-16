@@ -25,7 +25,7 @@ class EventBroadcaster:
 
     async def broadcast(self, project_id: str, event_type: str, data: dict[str, Any]) -> None:
         payload = {"type": event_type, "data": data}
-        for q in list(self._queues[project_id]):
+        for q in self._queues[project_id]:
             await q.put(payload)
 
     async def stream(self, project_id: str, request: Request) -> AsyncGenerator[str, None]:

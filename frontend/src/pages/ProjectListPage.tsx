@@ -5,7 +5,7 @@ import { CreateProjectModal } from '@/components/CreateProjectModal'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import type { Project } from '@/types'
 
-function ExportButton({ project }: { project: Project }) {
+function ExportButton({ project }: { readonly project: Project }) {
   const [loading, setLoading] = useState(false)
 
   const handleExport = async () => {
@@ -14,7 +14,7 @@ function ExportButton({ project }: { project: Project }) {
       const resp = await fetch(`/api/v1/projects/${project.system_id}/export`, { credentials: 'include' })
       const blob = await resp.blob()
       const disposition = resp.headers.get('Content-Disposition') ?? ''
-      const match = disposition.match(/filename="?([^"]+)"?/)
+      const match = /filename="?([^"]+)"?/.exec(disposition)
       const filename = match?.[1] ?? `${project.name}.json`
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')

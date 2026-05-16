@@ -3,7 +3,7 @@ import { useAcquireEditLock, useEditLock, useKeepaliveEditLock, useReleaseEditLo
 import { useAuthStore } from '@/stores/authStore'
 
 interface Props {
-  projectId: string
+  readonly projectId: string
 }
 
 const HEARTBEAT_MS = 60_000 // 1 minute

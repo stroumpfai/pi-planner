@@ -18,9 +18,9 @@ const ACTIONS: Record<PIState, Action | null> = {
 }
 
 interface Props {
-  pi: PI
-  projectId: string
-  onError?: (msg: string) => void
+  readonly pi: PI
+  readonly projectId: string
+  readonly onError?: (msg: string) => void
 }
 
 export function PIStateButton({ pi, projectId, onError }: Props) {

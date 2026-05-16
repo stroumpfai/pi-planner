@@ -10,7 +10,7 @@ type Sort = 'created_at' | 'name'
 const SORT_KEY = 'pi-planner:backlog-sort'
 
 interface Props {
-  projectId: string
+  readonly projectId: string
 }
 
 export function BacklogPage({ projectId }: Props) {
@@ -118,7 +118,7 @@ export function BacklogPage({ projectId }: Props) {
       {/* Feature count */}
       {backlogFeatures.length > 0 && (
         <p className="mt-3 text-xs text-gray-400 text-right">
-          {backlogFeatures.length} feature{backlogFeatures.length !== 1 ? 's' : ''}
+          {backlogFeatures.length} feature{backlogFeatures.length === 1 ? '' : 's'}
         </p>
       )}
 
