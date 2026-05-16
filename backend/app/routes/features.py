@@ -98,7 +98,7 @@ def _apply_generic_location_fields(feature: Feature, body: FeatureUpdate, fields
 async def list_features(
     project_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
-    sort: str = Query("created_at", pattern="^(created_at|name)$"),
+    sort: Annotated[str, Query(pattern="^(created_at|name)$")] = "created_at",
 ) -> list[FeatureResponse]:
     if not await db.get(Project, project_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")

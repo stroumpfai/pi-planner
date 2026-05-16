@@ -1,5 +1,7 @@
 from datetime import datetime, timezone
 
+from typing import Annotated
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
@@ -30,17 +32,17 @@ async def _get_or_404(db: AsyncSession, project_id: str) -> Project:
     return project
 
 
-@router.get("/", response_model=list[ProjectResponse])
-async def list_projects(db: AsyncSession = Depends(get_session)) -> list[ProjectResponse]:
+@router.get("/")
+async def list_projects(db: Annotated[AsyncSession, Depends(get_session)]) -> list[ProjectResponse]:
     result = await db.execute(select(Project).order_by(Project.modified_at.desc()))
     return [ProjectResponse.model_validate(p) for p in result.scalars().all()]
 
 
-@router.post("/", response_model=ProjectResponse, status_code=status.HTTP_201_CREATED)
+@router.post("/", status_code=status.HTTP_201_CREATED)
 async def create_project(
     body: ProjectCreate,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> ProjectResponse:
     project = Project(name=body.name, description=body.description)
     db.add(project)
@@ -56,17 +58,17 @@ async def create_project(
     return ProjectResponse.model_validate(project)
 
 
-@router.get("/{project_id}", response_model=ProjectResponse)
-async def get_project(project_id: str, db: AsyncSession = Depends(get_session)) -> ProjectResponse:
+@router.get("/{project_id}")
+async def get_project(project_id: str, db: Annotated[AsyncSession, Depends(get_session)]) -> ProjectResponse:
     return ProjectResponse.model_validate(await _get_or_404(db, project_id))
 
 
-@router.patch("/{project_id}", response_model=ProjectResponse)
+@router.patch("/{project_id}")
 async def update_project(
     project_id: str,
     body: ProjectUpdate,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> ProjectResponse:
     project = await _get_or_404(db, project_id)
     if body.name is not None:
@@ -90,8 +92,8 @@ async def update_project(
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project(
     project_id: str,
-    db: AsyncSession = Depends(get_session),
-    _: User = Depends(get_current_user),
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> None:
     project = await _get_or_404(db, project_id)
     await db.delete(project)
@@ -102,7 +104,7 @@ async def delete_project(
 @router.get("/{project_id}/export")
 async def export_project(
     project_id: str,
-    db: AsyncSession = Depends(get_session),
+    db: Annotated[AsyncSession, Depends(get_session)],
 ) -> Response:
     project = await _get_or_404(db, project_id)
 
