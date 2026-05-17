@@ -72,7 +72,7 @@ export default function App() {
               {activePIId ? (
                 <PIBoardPage projectId={activeProjectId} piId={activePIId} />
               ) : (
-                <div className="h-full overflow-y-auto">
+                <div className="h-full">
                   <BacklogPage projectId={activeProjectId} />
                 </div>
               )}

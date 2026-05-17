@@ -14,6 +14,11 @@ export const useProject = (projectId: string) =>
     enabled: !!projectId,
   })
 
+export const useEffortUnit = (projectId: string): string => {
+  const { data: project } = useProject(projectId)
+  return project?.effort_unit ?? 'pts'
+}
+
 export const useCreateProject = () => {
   const qc = useQueryClient()
   return useMutation({

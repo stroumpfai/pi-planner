@@ -75,6 +75,8 @@ async def update_project(
         project.name = body.name
     if body.description is not None:
         project.description = body.description
+    if body.effort_unit is not None:
+        project.effort_unit = body.effort_unit
     project.modified_at = datetime.now(timezone.utc)
     try:
         await db.commit()
@@ -187,6 +189,7 @@ async def export_project(
             "system_id": project.system_id,
             "name": project.name,
             "description": project.description,
+            "effort_unit": project.effort_unit,
             "created_at": project.created_at.isoformat(),
             "modified_at": project.modified_at.isoformat(),
             "features": [

@@ -5,10 +5,11 @@ import type { Sprint } from '@/types'
 interface Props {
   readonly sprint: Sprint
   readonly usedEffort: number
+  readonly unit?: string
   readonly onEditCapacity?: () => void
 }
 
-export function SprintColumnHeader({ sprint, usedEffort, onEditCapacity }: Props) {
+export function SprintColumnHeader({ sprint, usedEffort, unit, onEditCapacity }: Props) {
   const label = `Sprint ${(sprint.sprint_index ?? 0) + 1}`
   const dates = sprint.start_date ?? sprint.end_date
     ? `${fmtDate(sprint.start_date)} – ${fmtDate(sprint.end_date)}`
@@ -30,7 +31,7 @@ export function SprintColumnHeader({ sprint, usedEffort, onEditCapacity }: Props
         )}
       </div>
       {dates && <p className="text-xs text-gray-400">{dates}</p>}
-      <CapacityBar used={usedEffort} capacity={sprint.capacity ?? 0} />
+      <CapacityBar used={usedEffort} capacity={sprint.capacity ?? 0} unit={unit} />
     </div>
   )
 }

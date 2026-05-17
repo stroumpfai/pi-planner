@@ -3,6 +3,8 @@ import { useDraggable } from '@dnd-kit/core'
 import { usePBIs, useUpdatePBI } from '@/hooks/usePBIs'
 import { useDeleteGroup, useUpdateGroup } from '@/hooks/useSwimlinesAndGroups'
 import { useAuthStore } from '@/stores/authStore'
+import { useEffortUnit } from '@/hooks/useProjects'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { pbisApi } from '@/services/pbis'
 import type { Group, PBI } from '@/types'
 
@@ -22,6 +24,7 @@ const SPRINT_LABELS = ['S1', 'S2', 'S3', 'S4', 'S5']
 
 function InlinePBITitle({ pbi, projectId }: { readonly pbi: PBI; readonly projectId: string }) {
   const isEditing = useAuthStore((s) => s.isEditing)
+  const showIds = useSettingsStore((s) => s.showIds)
   const updatePBI = useUpdatePBI(projectId)
   const [editing, setEditing] = useState(false)
   const [title, setTitle] = useState('')
@@ -61,7 +64,7 @@ function InlinePBITitle({ pbi, projectId }: { readonly pbi: PBI; readonly projec
       title={isEditing ? 'Click to edit' : undefined}
       className="text-xs text-gray-600 break-words text-left disabled:cursor-default hover:enabled:text-gray-900 w-full min-w-0"
     >
-      {pbi.id != null && <span className="font-mono text-gray-400">[{pbi.id}] </span>}
+      {showIds && pbi.id != null && <span className="font-mono text-gray-400">[{pbi.id}] </span>}
       {pbi.title}
     </button>
   )
@@ -69,6 +72,7 @@ function InlinePBITitle({ pbi, projectId }: { readonly pbi: PBI; readonly projec
 
 export function GroupCard({ group, projectId }: Props) {
   const isEditing = useAuthStore((s) => s.isEditing)
+  const effortUnit = useEffortUnit(projectId)
   const deleteGroup = useDeleteGroup(group.swimline_id)
   const updateGroup = useUpdateGroup(group.swimline_id)
 
@@ -151,7 +155,7 @@ export function GroupCard({ group, projectId }: Props) {
         )}
         {totalEffort > 0 && (
           <span className="flex-shrink-0 text-xs bg-purple-100 text-purple-700 rounded px-1.5 py-0.5 font-medium">
-            {totalEffort}pt
+            {totalEffort}{effortUnit}
           </span>
         )}
       </div>

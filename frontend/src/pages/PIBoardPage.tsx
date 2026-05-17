@@ -24,6 +24,7 @@ import { useSprints } from '@/hooks/useSprints'
 import { useFeatures, useUpdateFeature } from '@/hooks/useFeatures'
 import { useAuthStore } from '@/stores/authStore'
 import { usePIs } from '@/hooks/usePIs'
+import { useEffortUnit } from '@/hooks/useProjects'
 import { SwimlaneRow } from '@/components/SwimlaneRow'
 import { CreateSwimlaneModal } from '@/components/CreateSwimlaneModal'
 import { SprintCapacityModal } from '@/components/SprintCapacityModal'
@@ -118,6 +119,7 @@ export function PIBoardPage({ projectId, piId }: Props) {
   const pi = pis?.find((p) => p.system_id === piId)
   const isClosedPI = pi?.state === 'closed'
   const canEdit = isEditing && !isClosedPI
+  const effortUnit = useEffortUnit(projectId)
   const swimlineIds = swimlines?.map((s) => `swimlane:${s.system_id}`) ?? []
 
   const sensors = useSensors(
@@ -248,7 +250,7 @@ export function PIBoardPage({ projectId, piId }: Props) {
             </div>
             {pi && (
               <div className="flex-1 max-w-xs">
-                <CapacityBar used={pi.total_effort ?? 0} capacity={pi.total_capacity ?? 0} />
+                <CapacityBar used={pi.total_effort ?? 0} capacity={pi.total_capacity ?? 0} unit={effortUnit} />
               </div>
             )}
             <button
@@ -273,6 +275,7 @@ export function PIBoardPage({ projectId, piId }: Props) {
                   <SprintColumnHeader
                     sprint={sprint}
                     usedEffort={sprint.effort ?? 0}
+                    unit={effortUnit}
                     onEditCapacity={canEdit ? () => setEditCapacitySprint(sprint) : undefined}
                   />
                 </div>

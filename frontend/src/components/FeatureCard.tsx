@@ -2,6 +2,8 @@ import { useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { useAuthStore } from '@/stores/authStore'
 import { useUpdateFeature } from '@/hooks/useFeatures'
+import { useEffortUnit } from '@/hooks/useProjects'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { PBISelectList } from './PBISelectList'
 import type { Feature } from '@/types'
 import type { FeatureDragData } from './BacklogPanel'
@@ -16,6 +18,8 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [selectedPbiIds, setSelectedPbiIds] = useState<Set<string>>(new Set())
   const isEditing = useAuthStore((s) => s.isEditing)
+  const effortUnit = useEffortUnit(projectId)
+  const showIds = useSettingsStore((s) => s.showIds)
   const updateFeature = useUpdateFeature(projectId)
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -28,7 +32,7 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
     } satisfies FeatureDragData,
   })
 
-  const idPrefix = feature.id == null ? '' : `[${feature.id}] `
+  const idPrefix = showIds && feature.id != null ? `[${feature.id}] ` : ''
 
   function handleReturnToBacklog() {
     updateFeature.mutate({ featureId: feature.system_id, body: { location: 'backlog' } })
@@ -71,7 +75,7 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
         </span>
         {feature.effort != null && (
           <span className="flex-shrink-0 text-xs bg-purple-100 text-purple-700 rounded px-1.5 py-0.5 font-medium">
-            {feature.effort}pt
+            {feature.effort}{effortUnit}
           </span>
         )}
       </div>

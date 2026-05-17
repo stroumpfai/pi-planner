@@ -5,6 +5,7 @@ import { PBIFormModal } from './PBIFormModal'
 import { ConfirmDialog } from './ConfirmDialog'
 import { useUpdatePBI, useDeletePBI } from '@/hooks/usePBIs'
 import { useAuthStore } from '@/stores/authStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 
 export interface PBIDragData {
   type: 'pbi'
@@ -27,6 +28,7 @@ export function PBIRow({ pbi, projectId, swimlaneId = '', isDraggable = false }:
   const [titleDraft, setTitleDraft] = useState('')
   const [confirming, setConfirming] = useState(false)
   const isEditing = useAuthStore((s) => s.isEditing)
+  const showIds = useSettingsStore((s) => s.showIds)
 
   function startTitleEdit() {
     if (!isEditing) return
@@ -45,7 +47,7 @@ export function PBIRow({ pbi, projectId, swimlaneId = '', isDraggable = false }:
   const updatePBI = useUpdatePBI(projectId)
   const deletePBI = useDeletePBI(projectId)
 
-  const displayId = pbi.id == null ? '' : `[${pbi.id}] `
+  const displayId = showIds && pbi.id != null ? `[${pbi.id}] ` : ''
   const effortLabel = pbi.effort == null ? null : `${pbi.effort}pts`
   const isBug = pbi.item_type === 'bug'
 

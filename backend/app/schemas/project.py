@@ -11,12 +11,14 @@ class ProjectCreate(BaseModel):
 class ProjectUpdate(BaseModel):
     name: str | None = Field(None, max_length=255)
     description: str | None = Field(None, max_length=2000)
+    effort_unit: str | None = Field(None, max_length=20)
 
 
 class ProjectResponse(BaseModel):
     system_id: str
     name: str
     description: str | None
+    effort_unit: str
     created_at: datetime
     modified_at: datetime
 

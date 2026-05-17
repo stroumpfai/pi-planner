@@ -3,6 +3,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useAuthStore } from '@/stores/authStore'
 import { useDeleteSwimline, useGroupsForSwimline } from '@/hooks/useSwimlinesAndGroups'
+import { useEffortUnit } from '@/hooks/useProjects'
 import { CapacityBar } from './CapacityBar'
 import { ConfirmDialog } from './ConfirmDialog'
 import { FeatureZone } from './FeatureZone'
@@ -21,6 +22,7 @@ export function SwimlaneRow({ swimline, sprints, features, projectId, piId }: Pr
   const [collapsed, setCollapsed] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const isEditing = useAuthStore((s) => s.isEditing)
+  const effortUnit = useEffortUnit(projectId)
   const deleteSwimline = useDeleteSwimline(piId)
   const { data: groups = [] } = useGroupsForSwimline(swimline.system_id)
 
@@ -77,7 +79,7 @@ export function SwimlaneRow({ swimline, sprints, features, projectId, piId }: Pr
           {featureCount}
         </span>
         <div className="flex-1 max-w-28">
-          <CapacityBar used={swimline.effort} capacity={swimline.capacity} />
+          <CapacityBar used={swimline.effort} capacity={swimline.capacity} unit={effortUnit} />
         </div>
         {isEditing && (
           <button

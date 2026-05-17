@@ -5,6 +5,8 @@ import { ConfirmDialog } from './ConfirmDialog'
 import { PBIList } from './PBIList'
 import { useUpdateFeature, useDeleteFeature } from '@/hooks/useFeatures'
 import { useAuthStore } from '@/stores/authStore'
+import { useEffortUnit } from '@/hooks/useProjects'
+import { useSettingsStore } from '@/stores/settingsStore'
 
 interface Props {
   readonly feature: Feature
@@ -16,12 +18,14 @@ export function FeatureRow({ feature, projectId }: Props) {
   const [editing, setEditing] = useState(false)
   const [confirming, setConfirming] = useState(false)
   const isEditing = useAuthStore((s) => s.isEditing)
+  const effortUnit = useEffortUnit(projectId)
+  const showIds = useSettingsStore((s) => s.showIds)
 
   const updateFeature = useUpdateFeature(projectId)
   const deleteFeature = useDeleteFeature(projectId)
 
-  const displayId = feature.id == null ? '' : `[${feature.id}] `
-  const effortLabel = feature.effort == null ? null : `${feature.effort}pts`
+  const displayId = showIds && feature.id != null ? `[${feature.id}] ` : ''
+  const effortLabel = feature.effort == null ? null : `${feature.effort}${effortUnit}`
 
   return (
     <div className="border-b border-gray-100 last:border-0">

@@ -420,6 +420,8 @@ export interface components {
       name: string;
       /** Description */
       description: string | null;
+      /** Effort Unit */
+      effort_unit: string;
       /**
        * Created At
        * Format: date-time
@@ -437,6 +439,8 @@ export interface components {
       name?: string | null;
       /** Description */
       description?: string | null;
+      /** Effort Unit */
+      effort_unit?: string | null;
     };
     /** SprintCreate */
     SprintCreate: {

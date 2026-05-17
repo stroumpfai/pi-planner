@@ -4,6 +4,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { FeatureRow } from '@/components/FeatureRow'
 import { FeatureFormModal } from '@/components/FeatureFormModal'
 import { ImportCSVModal } from '@/components/ImportCSVModal'
+import { ProjectSettingsPanel } from '@/components/ProjectSettingsPanel'
 
 type Sort = 'created_at' | 'name'
 
@@ -46,6 +47,8 @@ export function BacklogPage({ projectId }: Props) {
   }
 
   return (
+    <div className="flex h-full">
+    <div className="flex-1 overflow-y-auto">
     <div className="max-w-3xl mx-auto py-8 px-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-5">
@@ -134,6 +137,9 @@ export function BacklogPage({ projectId }: Props) {
         file={selectedFile}
         onClose={handleImportClose}
       />
+    </div>
+    </div>
+    <ProjectSettingsPanel projectId={projectId} />
     </div>
   )
 }

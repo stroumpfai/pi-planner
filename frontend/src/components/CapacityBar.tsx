@@ -1,6 +1,7 @@
 interface Props {
   readonly used: number
   readonly capacity: number
+  readonly unit?: string
 }
 
 function barColor(used: number, capacity: number): string {
@@ -11,9 +12,9 @@ function barColor(used: number, capacity: number): string {
   return 'bg-blue-500'
 }
 
-export function CapacityBar({ used, capacity }: Props) {
+export function CapacityBar({ used, capacity, unit = 'pts' }: Props) {
   const pct = capacity > 0 ? Math.min(used / capacity, 1) : 0
-  const label = capacity > 0 ? `${used}/${capacity} pts - ${Math.round((used / capacity) * 100)}%` : `${used}/0 pts - 0%`
+  const label = capacity > 0 ? `${used}/${capacity} ${unit} - ${Math.round((used / capacity) * 100)}%` : `${used}/0 ${unit} - 0%`
 
   return (
     <div className="space-y-1">
