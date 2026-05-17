@@ -1,4 +1,5 @@
 import { useCurrentUser, useLogout } from '@/hooks/useAuth'
+import { useProject } from '@/hooks/useProjects'
 import { useUiStore } from '@/stores/uiStore'
 import { useSSE } from '@/hooks/useSSE'
 import { EditLockButton } from '@/components/EditLockButton'
@@ -13,6 +14,7 @@ export default function App() {
   const { data: user, isLoading, isError } = useCurrentUser()
   const logout = useLogout()
   const { activeProjectId, activePIId, setActiveProject } = useUiStore()
+  const { data: activeProject } = useProject(activeProjectId ?? '')
 
   // Real-time updates for all open-project users
   useSSE(activeProjectId)
@@ -35,10 +37,20 @@ export default function App() {
         <div className="flex items-center gap-3">
           <button
             onClick={() => setActiveProject(null)}
-            className="text-lg font-semibold text-gray-900 hover:text-blue-600"
+            className="flex items-center gap-1.5 text-lg font-semibold text-gray-900 hover:text-blue-600"
           >
-            PI Planning
+            <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z" />
+              <polyline points="9 21 9 12 15 12 15 21" />
+            </svg>
+            PI Planner
           </button>
+          {activeProject && (
+            <>
+              <span className="text-gray-300">/</span>
+              <span className="text-sm font-medium text-gray-600">{activeProject.name}</span>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-4">
           {activeProjectId && <EditLockButton projectId={activeProjectId} />}
