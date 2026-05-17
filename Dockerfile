@@ -40,6 +40,7 @@ VOLUME /data
 ENV DATABASE_URL=sqlite+aiosqlite:////data/db.sqlite \
     SECRET_KEY=change-me-in-production \
     ALLOWED_ORIGINS=http://localhost:8000 \
+    USERS_FILE=/config/users.json \
     PYTHONUNBUFFERED=1
 
 EXPOSE 8000

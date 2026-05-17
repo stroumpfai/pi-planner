@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     edit_lock_timeout_minutes: int = 30
     # Accepts comma-separated ("http://a,https://b") or JSON array ('["http://a"]')
     allowed_origins: str = "http://localhost:5173"
+    users_file: str = "/config/users.json"
 
     def get_allowed_origins(self) -> list[str]:
         v = self.allowed_origins.strip()

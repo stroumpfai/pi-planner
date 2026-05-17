@@ -2,8 +2,9 @@
 import pytest
 from datetime import datetime, timezone, timedelta
 from app.models.edit_lock import EditLock
-from app.services.auth import hash_password
 from app.models.user import User
+from app.services import users as users_module
+from app.services.auth import hash_password
 
 
 @pytest.fixture
@@ -12,8 +13,26 @@ async def project(client):
 
 
 @pytest.fixture
-async def second_client(db):
-    """A second authenticated client representing a different user."""
+def _seed_otheruser():
+    """Seed otheruser (admin) into the in-memory store."""
+    u = User(username="otheruser", password_hash=hash_password("password"), display_name=None, is_admin=True)
+    users_module._store["otheruser"] = u
+    yield u
+    users_module._store.pop("otheruser", None)
+
+
+@pytest.fixture
+def _seed_readeruser():
+    """Seed readeruser (reader) into the in-memory store."""
+    u = User(username="readeruser", password_hash=hash_password("password"), display_name=None, is_admin=False)
+    users_module._store["readeruser"] = u
+    yield u
+    users_module._store.pop("readeruser", None)
+
+
+@pytest.fixture
+async def second_client(db, _seed_otheruser):
+    """A second authenticated admin client representing a different user."""
     from httpx import ASGITransport, AsyncClient
     from app.main import app
     from app.database import get_session
@@ -22,13 +41,27 @@ async def second_client(db):
         yield db
 
     app.dependency_overrides[get_session] = override_get_session
-
-    db.add(User(username="otheruser", password_hash=hash_password("password"), is_admin=False))
-    await db.commit()
-
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
         resp = await ac.post("/api/v1/auth/login", json={"username": "otheruser", "password": "password"})
+        assert resp.status_code == 200
+        yield ac
+
+
+@pytest.fixture
+async def reader_client(db, _seed_readeruser):
+    """An authenticated reader client that cannot acquire the edit lock."""
+    from httpx import ASGITransport, AsyncClient
+    from app.main import app
+    from app.database import get_session
+
+    async def override_get_session():
+        yield db
+
+    app.dependency_overrides[get_session] = override_get_session
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+        resp = await ac.post("/api/v1/auth/login", json={"username": "readeruser", "password": "password"})
         assert resp.status_code == 200
         yield ac
 
@@ -76,7 +109,6 @@ async def test_acquire_own_lock_again(client, project):
     second = (await client.post(f"/api/v1/projects/{pid}/edit-lock/acquire")).json()
     assert second["is_locked"] is True
     assert second["locked_by_username"] == "testuser"
-    # Second acquire should renew expiry (≥ first)
     first_exp = datetime.fromisoformat(first["expires_at"])
     second_exp = datetime.fromisoformat(second["expires_at"])
     assert second_exp >= first_exp
@@ -85,7 +117,7 @@ async def test_acquire_own_lock_again(client, project):
 @pytest.mark.asyncio
 async def test_acquire_lock_held_by_other_user_409(client, project, second_client):
     pid = project["system_id"]
-    # Other user acquires lock first
+    # Other admin user acquires lock first
     resp = await second_client.post(f"/api/v1/projects/{pid}/edit-lock/acquire")
     assert resp.status_code == 200
 
@@ -95,10 +127,17 @@ async def test_acquire_lock_held_by_other_user_409(client, project, second_clien
 
 
 @pytest.mark.asyncio
+async def test_acquire_lock_as_reader_returns_403(client, project, reader_client):
+    """Reader (is_admin=False) cannot acquire the edit lock."""
+    pid = project["system_id"]
+    resp = await reader_client.post(f"/api/v1/projects/{pid}/edit-lock/acquire")
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
 async def test_acquire_expired_lock_succeeds(client, db, project):
     """Can acquire a lock that was held by another user but has expired."""
     pid = project["system_id"]
-    # Manually insert an expired lock for otheruser
     expired = datetime.now(timezone.utc) - timedelta(minutes=5)
     lock = EditLock(
         project_id=pid,
@@ -140,10 +179,8 @@ async def test_release_other_users_lock_is_noop(client, project, second_client):
     """Releasing another user's lock does nothing."""
     pid = project["system_id"]
     await second_client.post(f"/api/v1/projects/{pid}/edit-lock/acquire")
-    # testuser tries to release otheruser's lock
     resp = await client.post(f"/api/v1/projects/{pid}/edit-lock/release")
     assert resp.status_code == 204
-    # Lock should still be active
     status_resp = (await client.get(f"/api/v1/projects/{pid}/edit-lock")).json()
     assert status_resp["is_locked"] is True
 

@@ -20,6 +20,9 @@ htmlcov/
 .env
 !.env.example
 
+# Config volume (contains credentials — copy from config/users.json.example)
+config/users.json
+
 # Database
 *.sqlite
 *.db

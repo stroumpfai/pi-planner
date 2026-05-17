@@ -47,6 +47,11 @@ async def acquire_edit_lock(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> EditLockResponse:
+    if not current_user.is_admin:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admin users can acquire the edit lock",
+        )
     lock = await _get_lock(db, project_id)
     now = datetime.now(timezone.utc)
 

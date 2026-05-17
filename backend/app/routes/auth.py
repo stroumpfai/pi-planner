@@ -15,7 +15,6 @@ from app.services.auth import (
     create_session,
     delete_session,
     sign_session_id,
-    unsign_session_token,
 )
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -27,7 +26,7 @@ async def login(
     response: Response,
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> TokenResponse:
-    user = await authenticate(db, body.username, body.password)
+    user = authenticate(body.username, body.password)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
@@ -55,7 +54,6 @@ async def logout(
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> None:
-    # Best-effort: extract session_id from cookie to delete it; cookie cleared regardless
     response.delete_cookie(key=SESSION_COOKIE, samesite="lax")
 
 

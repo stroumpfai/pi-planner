@@ -1,12 +1,12 @@
-import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.database import Base, get_session
 from app.main import app
-from app.services.auth import hash_password
 from app.models.user import User
+from app.services import users as users_module
+from app.services.auth import hash_password
 
 TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
 
@@ -36,15 +36,19 @@ async def client(db):
 
     app.dependency_overrides[get_session] = override_get_session
 
-    # Seed a test user
-    db.add(User(username="testuser", password_hash=hash_password("password"), is_admin=True))
-    await db.commit()
+    # Seed a test admin user into the in-memory user store
+    users_module._store["testuser"] = User(
+        username="testuser",
+        password_hash=hash_password("password"),
+        display_name="Test User",
+        is_admin=True,
+    )
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
-        # Log in to get a session cookie
         resp = await ac.post("/api/v1/auth/login", json={"username": "testuser", "password": "password"})
         assert resp.status_code == 200
         yield ac
 
     app.dependency_overrides.clear()
+    users_module._store.pop("testuser", None)

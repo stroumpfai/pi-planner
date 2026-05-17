@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.models.session import Session
 from app.models.user import User
+from app.services import users
 
 _signer = URLSafeTimedSerializer(settings.secret_key)
 
@@ -36,13 +37,8 @@ def unsign_session_token(token: str) -> str | None:
         return None
 
 
-async def get_user_by_username(db: AsyncSession, username: str) -> User | None:
-    result = await db.execute(select(User).where(User.username == username))
-    return result.scalar_one_or_none()
-
-
-async def authenticate(db: AsyncSession, username: str, password: str) -> User | None:
-    user = await get_user_by_username(db, username)
+def authenticate(username: str, password: str) -> User | None:
+    user = users.get(username)
     if user and verify_password(password, user.password_hash):
         return user
     return None
@@ -67,7 +63,7 @@ async def get_user_from_session_id(db: AsyncSession, session_id: str) -> User | 
     db_session = result.scalar_one_or_none()
     if not db_session:
         return None
-    return await get_user_by_username(db, db_session.username)
+    return users.get(db_session.username)
 
 
 async def delete_session(db: AsyncSession, session_id: str) -> None:
@@ -76,12 +72,3 @@ async def delete_session(db: AsyncSession, session_id: str) -> None:
     if db_session:
         await db.delete(db_session)
         await db.commit()
-
-
-async def ensure_default_admin(db: AsyncSession) -> None:
-    """Create a default admin user on first run if no users exist."""
-    result = await db.execute(select(User))
-    if result.first() is not None:
-        return
-    db.add(User(username="admin", password_hash=hash_password("pi-p!@anner"), display_name="Admin", is_admin=True))
-    await db.commit()

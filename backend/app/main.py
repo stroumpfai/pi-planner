@@ -7,7 +7,6 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
-from app.database import AsyncSessionLocal
 from app.routes import (
     auth,
     csv_import,
@@ -21,13 +20,12 @@ from app.routes import (
     sprints,
     swimlines,
 )
-from app.services.auth import ensure_default_admin
+from app.services import users as users_service
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    async with AsyncSessionLocal() as db:
-        await ensure_default_admin(db)
+    users_service.load(settings.users_file)
     yield
 
 

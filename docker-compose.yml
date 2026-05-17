@@ -5,11 +5,13 @@ services:
       - "8000:8000"
     volumes:
       - pi-data:/data
+      - ./config:/config:ro
     environment:
       # Generate a strong key: python -c "import secrets; print(secrets.token_hex(32))"
       SECRET_KEY: ${SECRET_KEY:-change-me-in-production}
       DATABASE_URL: sqlite+aiosqlite:////data/db.sqlite
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8000}
+      USERS_FILE: /config/users.json
     restart: unless-stopped
 
 volumes:
