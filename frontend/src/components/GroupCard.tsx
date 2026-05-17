@@ -59,7 +59,7 @@ function InlinePBITitle({ pbi, projectId }: { readonly pbi: PBI; readonly projec
       onClick={start}
       disabled={!isEditing}
       title={isEditing ? 'Click to edit' : undefined}
-      className="text-xs text-gray-600 truncate text-left disabled:cursor-default hover:enabled:text-gray-900 w-full"
+      className="text-xs text-gray-600 break-words text-left disabled:cursor-default hover:enabled:text-gray-900 w-full min-w-0"
     >
       {pbi.id != null && <span className="font-mono text-gray-400">[{pbi.id}] </span>}
       {pbi.title}
@@ -137,7 +137,7 @@ export function GroupCard({ group, projectId }: Props) {
             className="flex-1 text-xs border border-blue-300 rounded px-1 py-0.5 focus:outline-none"
           />
         ) : (
-          <span className={`text-xs font-semibold flex-1 truncate ${group.is_implicit ? 'text-blue-700 italic' : 'text-gray-800'}`}>
+          <span className={`text-xs font-semibold flex-1 min-w-0 line-clamp-2 break-words ${group.is_implicit ? 'text-blue-700 italic' : 'text-gray-800'}`}>
             {group.name}
           </span>
         )}

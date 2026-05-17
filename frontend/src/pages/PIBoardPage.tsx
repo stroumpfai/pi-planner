@@ -262,23 +262,25 @@ export function PIBoardPage({ projectId, piId }: Props) {
             </button>
           </div>
 
-          {/* Column headers: sprint headers with real effort/capacity */}
-          <div className="flex border-b border-gray-200 bg-gray-50 flex-shrink-0">
-            <div className="w-48 flex-shrink-0 border-r border-gray-200 px-3 py-1.5">
-              <span className="text-xs font-semibold text-gray-500">Swimlane / Features</span>
-            </div>
-            {sprints?.map((sprint) => (
-              <div key={sprint.system_id} className="flex-1 border-r border-gray-100 last:border-r-0">
-                <SprintColumnHeader
-                  sprint={sprint}
-                  usedEffort={sprint.effort ?? 0}
-                  onEditCapacity={canEdit ? () => setEditCapacitySprint(sprint) : undefined}
-                />
+          <div className="flex-1 overflow-y-auto">
+            {/* Column headers: sticky so they stay visible while swimlanes scroll */}
+            <div className="sticky top-0 z-10 flex border-b border-gray-200 bg-gray-50 flex-shrink-0">
+              <div className="w-48 flex-shrink-0 border-r border-gray-200 px-3 py-1.5">
+                <span className="text-xs font-semibold text-gray-500">Swimlane / Features</span>
               </div>
-            ))}
-          </div>
+              {sprints?.map((sprint) => (
+                <div key={sprint.system_id} className="flex-1 border-r border-gray-100 last:border-r-0">
+                  <SprintColumnHeader
+                    sprint={sprint}
+                    usedEffort={sprint.effort ?? 0}
+                    onEditCapacity={canEdit ? () => setEditCapacitySprint(sprint) : undefined}
+                  />
+                </div>
+              ))}
+            </div>
 
-          <div className="flex-1 overflow-y-auto">{renderBoardContent()}</div>
+            {renderBoardContent()}
+          </div>
         </div>
       </div>
 

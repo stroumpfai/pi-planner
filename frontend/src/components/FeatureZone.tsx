@@ -57,7 +57,6 @@ export function FeatureZone({ swimlineId, projectId, piId }: Props) {
           swimlaneId={swimlineId}
           featureId={pendingGroup.featureId}
           pbiIds={pendingGroup.pbiIds}
-          piId={piId}
           onClose={() => setPendingGroup(null)}
         />
       )}

@@ -65,7 +65,7 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
         {...attributes}
         {...listeners}
       >
-        <span className="text-sm text-gray-900 leading-snug flex-1">
+        <span className="text-sm text-gray-900 leading-snug flex-1 min-w-0 break-words">
           <span className="text-gray-400 font-mono text-xs">{idPrefix}</span>
           {feature.title}
         </span>
