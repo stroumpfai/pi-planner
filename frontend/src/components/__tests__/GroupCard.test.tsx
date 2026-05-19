@@ -68,7 +68,7 @@ describe('GroupCard', () => {
   it('shows effort total from grouped PBIs', async () => {
     vi.mocked(pbisService.pbisApi).list = vi.fn().mockResolvedValue([makePBI({ effort: 5 })])
     render(<GroupCard group={makeGroup()} projectId="p-1" />, { wrapper: makeWrapper() })
-    await waitFor(() => expect(screen.getByText('5pt')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('5pts')).toBeInTheDocument())
   })
 
   it('lists PBI titles', async () => {
