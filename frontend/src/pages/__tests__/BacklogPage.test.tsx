@@ -86,4 +86,31 @@ describe('BacklogPage', () => {
       expect(mockApi.list).toHaveBeenCalledWith('p-1', 'name')
     )
   })
+
+  it('shows total effort in footer', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([fakeFeature])
+    render(<BacklogPage projectId="p-1" />, { wrapper: makeWrapper() })
+    await waitFor(() =>
+      expect(screen.getByText('1 feature · 5 pts')).toBeInTheDocument()
+    )
+  })
+
+  it('sums effort across multiple features', async () => {
+    const feature2 = { ...fakeFeature, system_id: 'f-2', effort: 10 }
+    mockApi.list = vi.fn().mockResolvedValue([fakeFeature, feature2])
+    render(<BacklogPage projectId="p-1" />, { wrapper: makeWrapper() })
+    await waitFor(() =>
+      expect(screen.getByText('2 features · 15 pts')).toBeInTheDocument()
+    )
+  })
+
+  it('omits effort from footer when total is zero', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([{ ...fakeFeature, effort: 0 }])
+    render(<BacklogPage projectId="p-1" />, { wrapper: makeWrapper() })
+    await waitFor(() =>
+      expect(screen.getByText('1 feature')).toBeInTheDocument()
+    )
+    // Footer paragraph should contain only the count, no effort suffix
+    expect(screen.queryByText(/1 feature ·/)).not.toBeInTheDocument()
+  })
 })

@@ -75,4 +75,27 @@ describe('BacklogPanel', () => {
     await waitFor(() => expect(screen.getByText('0')).toBeInTheDocument())
     expect(screen.queryByText('Auth')).not.toBeInTheDocument()
   })
+
+  it('shows total effort in header', async () => {
+    vi.mocked(featuresService.featuresApi).list = vi.fn().mockResolvedValue([makeFeature()])
+    render(<BacklogPanel projectId="p-1" />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('5 pts')).toBeInTheDocument())
+  })
+
+  it('sums effort across multiple features', async () => {
+    vi.mocked(featuresService.featuresApi).list = vi.fn().mockResolvedValue([
+      makeFeature({ effort: 5 }),
+      makeFeature({ system_id: 'f-2', effort: 10 }),
+    ])
+    render(<BacklogPanel projectId="p-1" />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('15 pts')).toBeInTheDocument())
+  })
+
+  it('omits effort badge when total effort is zero', async () => {
+    vi.mocked(featuresService.featuresApi).list = vi.fn().mockResolvedValue([makeFeature({ effort: 0 })])
+    render(<BacklogPanel projectId="p-1" />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('1')).toBeInTheDocument())
+    // Header should not show the total-effort span (which uses a space before the unit)
+    expect(screen.queryByText(/^0 pts$/)).not.toBeInTheDocument()
+  })
 })

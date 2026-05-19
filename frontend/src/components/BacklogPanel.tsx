@@ -1,5 +1,6 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { useFeatures } from '@/hooks/useFeatures'
+import { useEffortUnit } from '@/hooks/useProjects'
 import type { Feature } from '@/types'
 
 export interface FeatureDragData {
@@ -54,6 +55,8 @@ interface Props {
 export function BacklogPanel({ projectId }: Props) {
   const { data: features, isLoading } = useFeatures(projectId)
   const backlogFeatures = features?.filter((f) => f.location === 'backlog') ?? []
+  const effortUnit = useEffortUnit(projectId)
+  const totalEffort = backlogFeatures.reduce((sum, f) => sum + (f.effort ?? 0), 0)
 
   const { setNodeRef, isOver } = useDroppable({
     id: 'backlog',
@@ -67,6 +70,9 @@ export function BacklogPanel({ projectId }: Props) {
         <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-1.5">
           {backlogFeatures.length}
         </span>
+        {totalEffort > 0 && (
+          <span className="text-xs text-gray-400">{totalEffort} {effortUnit}</span>
+        )}
       </div>
 
       <div

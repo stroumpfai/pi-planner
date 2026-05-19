@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useFeatures, useCreateFeature } from '@/hooks/useFeatures'
+import { useEffortUnit } from '@/hooks/useProjects'
 import { useAuthStore } from '@/stores/authStore'
 import { FeatureRow } from '@/components/FeatureRow'
 import { FeatureFormModal } from '@/components/FeatureFormModal'
@@ -24,12 +25,14 @@ export function BacklogPage({ projectId }: Props) {
 
   const { data: features, isLoading } = useFeatures(projectId, sort)
   const createFeature = useCreateFeature(projectId)
+  const effortUnit = useEffortUnit(projectId)
 
   useEffect(() => {
     localStorage.setItem(SORT_KEY, sort)
   }, [sort])
 
   const backlogFeatures = features?.filter((f) => f.location === 'backlog') ?? []
+  const totalEffort = backlogFeatures.reduce((sum, f) => sum + (f.effort ?? 0), 0)
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null
@@ -118,10 +121,11 @@ export function BacklogPage({ projectId }: Props) {
         </div>
       )}
 
-      {/* Feature count */}
+      {/* Feature count + total effort */}
       {backlogFeatures.length > 0 && (
         <p className="mt-3 text-xs text-gray-400 text-right">
           {backlogFeatures.length} feature{backlogFeatures.length === 1 ? '' : 's'}
+          {totalEffort > 0 && ` · ${totalEffort} ${effortUnit}`}
         </p>
       )}
 
