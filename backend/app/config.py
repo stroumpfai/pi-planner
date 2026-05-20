@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     # Accepts comma-separated ("http://a,https://b") or JSON array ('["http://a"]')
     allowed_origins: str = "http://localhost:5173"
     users_file: str = "/config/users.json"
+    allow_test_reset: bool = False
 
     def get_allowed_origins(self) -> list[str]:
         v = self.allowed_origins.strip()

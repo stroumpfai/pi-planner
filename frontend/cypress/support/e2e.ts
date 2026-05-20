@@ -1,2 +1,6 @@
-// Global Cypress support file — runs before each spec
-// Add custom commands here: Cypress.Commands.add('login', ...)
+import 'cypress-real-events'
+
+Cypress.Commands.add('login', (username = 'testuser', password = 'testpass') => {
+  cy.request('POST', '/api/v1/auth/login', { username, password })
+  cy.visit('/')
+})

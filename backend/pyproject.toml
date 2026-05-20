@@ -39,6 +39,7 @@ include = ["app*"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+addopts = "--cov=app --cov-fail-under=75"
 
 [tool.coverage.run]
 core = "sysmon"

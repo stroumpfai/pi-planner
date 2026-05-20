@@ -19,6 +19,7 @@ from app.routes import (
     projects,
     sprints,
     swimlines,
+    test_utils,
 )
 from app.services import users as users_service
 
@@ -60,6 +61,9 @@ for _router in [
     csv_import.router,
 ]:
     app.include_router(_router)
+
+if settings.allow_test_reset:
+    app.include_router(test_utils.router)
 
 
 @app.get("/health")

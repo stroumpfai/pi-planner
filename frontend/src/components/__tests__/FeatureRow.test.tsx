@@ -1,13 +1,14 @@
 import { vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { FeatureRow } from '../FeatureRow'
 import { useAuthStore } from '@/stores/authStore'
+import * as featuresService from '@/services/features'
 import type { Feature } from '@/types'
 
 vi.mock('@/services/features', () => ({
-  featuresApi: { update: vi.fn(), delete: vi.fn(), list: vi.fn().mockResolvedValue([]) },
+  featuresApi: { update: vi.fn(), delete: vi.fn().mockResolvedValue(undefined), list: vi.fn().mockResolvedValue([]) },
 }))
 vi.mock('@/services/pbis', () => ({
   pbisApi: { list: vi.fn().mockResolvedValue([]) },
@@ -80,5 +81,52 @@ describe('FeatureRow', () => {
     await userEvent.click(screen.getByRole('button', { name: /expand/i }))
     // PBIList renders — "No stories yet" confirms PBIList is mounted
     expect(await screen.findByText(/no stories yet/i)).toBeInTheDocument()
+  })
+
+  it('edit button click opens Edit Feature modal', async () => {
+    useAuthStore.setState({ isEditing: true })
+    render(<FeatureRow feature={baseFeature} projectId="p-1" />, { wrapper: makeWrapper() })
+    await userEvent.click(screen.getByRole('button', { name: /edit/i }))
+    expect(await screen.findByText('Edit Feature')).toBeInTheDocument()
+  })
+
+  it('Cancel button in edit modal calls handleClose and closes the dialog', async () => {
+    useAuthStore.setState({ isEditing: true })
+    render(<FeatureRow feature={baseFeature} projectId="p-1" />, { wrapper: makeWrapper() })
+    await userEvent.click(screen.getByRole('button', { name: /edit/i }))
+    await screen.findByText('Edit Feature')
+    await userEvent.click(screen.getByRole('button', { name: /cancel/i }))
+    await waitFor(() => expect(screen.queryByText('Edit Feature')).not.toBeInTheDocument())
+  })
+
+  it('submitting edit form calls featuresApi.update', async () => {
+    vi.mocked(featuresService.featuresApi.update).mockResolvedValue(baseFeature as any)
+    useAuthStore.setState({ isEditing: true })
+    render(<FeatureRow feature={baseFeature} projectId="p-1" />, { wrapper: makeWrapper() })
+    await userEvent.click(screen.getByRole('button', { name: /edit/i }))
+    await screen.findByText('Edit Feature')
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    await waitFor(() =>
+      expect(featuresService.featuresApi.update).toHaveBeenCalledWith(
+        baseFeature.system_id,
+        expect.any(Object),
+      ),
+    )
+  })
+
+  it('delete button click shows Delete feature confirm dialog', async () => {
+    useAuthStore.setState({ isEditing: true })
+    render(<FeatureRow feature={baseFeature} projectId="p-1" />, { wrapper: makeWrapper() })
+    await userEvent.click(screen.getByRole('button', { name: /delete/i }))
+    expect(await screen.findByText('Delete feature')).toBeInTheDocument()
+  })
+
+  it('confirming delete calls featuresApi.delete with feature id', async () => {
+    useAuthStore.setState({ isEditing: true })
+    render(<FeatureRow feature={baseFeature} projectId="p-1" />, { wrapper: makeWrapper() })
+    await userEvent.click(screen.getByRole('button', { name: /delete/i }))
+    const dialog = await screen.findByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: /delete/i }))
+    expect(featuresService.featuresApi.delete).toHaveBeenCalledWith(baseFeature.system_id)
   })
 })

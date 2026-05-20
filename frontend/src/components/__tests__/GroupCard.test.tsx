@@ -1,5 +1,5 @@
 import { vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DndContext } from '@dnd-kit/core'
@@ -98,5 +98,54 @@ describe('GroupCard', () => {
     render(<GroupCard group={makeGroup()} projectId="p-1" />, { wrapper: makeWrapper() })
     await userEvent.click(screen.getByTitle('Ungroup (PBIs remain)'))
     expect(groupsService.groupsApi.delete).toHaveBeenCalledWith('g-1')
+  })
+
+  it('changing sprint selector calls update mutation with new sprint index', async () => {
+    vi.mocked(pbisService.pbisApi).list = vi.fn().mockResolvedValue([])
+    useAuthStore.setState({ isEditing: true })
+    render(<GroupCard group={makeGroup()} projectId="p-1" />, { wrapper: makeWrapper() })
+    await userEvent.selectOptions(screen.getByTitle('Move to sprint'), '2')
+    expect(groupsService.groupsApi.update).toHaveBeenCalledWith('g-1', { sprint_index: 2 })
+  })
+
+  it('clicking rename button starts renaming and shows an input', async () => {
+    vi.mocked(pbisService.pbisApi).list = vi.fn().mockResolvedValue([])
+    useAuthStore.setState({ isEditing: true })
+    render(<GroupCard group={makeGroup()} projectId="p-1" />, { wrapper: makeWrapper() })
+    // Use fireEvent.click to avoid dnd-kit pointer listener interference inside drag handle
+    fireEvent.click(screen.getByTitle('Rename group'))
+    expect(await screen.findByRole('textbox')).toBeInTheDocument()
+  })
+
+  it('typing a new name and pressing Enter calls update mutation', async () => {
+    vi.mocked(pbisService.pbisApi).list = vi.fn().mockResolvedValue([])
+    useAuthStore.setState({ isEditing: true })
+    render(<GroupCard group={makeGroup()} projectId="p-1" />, { wrapper: makeWrapper() })
+    fireEvent.click(screen.getByTitle('Rename group'))
+    const input = await screen.findByRole('textbox')
+    await userEvent.clear(input)
+    await userEvent.type(input, 'Renamed{Enter}')
+    expect(groupsService.groupsApi.update).toHaveBeenCalledWith('g-1', { name: 'Renamed' })
+  })
+
+  it('clicking PBI title in edit mode starts inline editing', async () => {
+    vi.mocked(pbisService.pbisApi).list = vi.fn().mockResolvedValue([makePBI()])
+    useAuthStore.setState({ isEditing: true })
+    render(<GroupCard group={makeGroup()} projectId="p-1" />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByText('Login flow'))
+    // fireEvent avoids dnd-kit pointer listener interference inside the drag handle
+    fireEvent.click(screen.getByText('Login flow'))
+    expect(await screen.findByRole('textbox')).toBeInTheDocument()
+  })
+
+  it('pressing Enter on inline PBI title calls submit and closes the input', async () => {
+    vi.mocked(pbisService.pbisApi).list = vi.fn().mockResolvedValue([makePBI()])
+    useAuthStore.setState({ isEditing: true })
+    render(<GroupCard group={makeGroup()} projectId="p-1" />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByText('Login flow'))
+    fireEvent.click(screen.getByText('Login flow'))
+    const input = await screen.findByRole('textbox')
+    await userEvent.type(input, '{Enter}')
+    await waitFor(() => expect(screen.queryByRole('textbox')).not.toBeInTheDocument())
   })
 })
