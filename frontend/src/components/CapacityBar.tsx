@@ -1,3 +1,5 @@
+import { useSettingsStore } from '@/stores/settingsStore'
+
 interface Props {
   readonly used: number
   readonly capacity: number
@@ -13,8 +15,12 @@ function barColor(used: number, capacity: number): string {
 }
 
 export function CapacityBar({ used, capacity, unit = 'pts' }: Props) {
+  const showEffortUnit = useSettingsStore((s) => s.showEffortUnit)
+  const unitSuffix = showEffortUnit ? ` ${unit}` : ''
   const pct = capacity > 0 ? Math.min(used / capacity, 1) : 0
-  const label = capacity > 0 ? `${used}/${capacity} ${unit} - ${Math.round((used / capacity) * 100)}%` : `${used}/0 ${unit} - 0%`
+  const label = capacity > 0
+    ? `${used}/${capacity}${unitSuffix} - ${Math.round((used / capacity) * 100)}%`
+    : `${used}/0${unitSuffix} - 0%`
 
   return (
     <div className="space-y-1">

@@ -32,7 +32,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(useProject).mockReturnValue({ data: fakeProject } as ReturnType<typeof useProject>)
   vi.mocked(useUpdateProject).mockReturnValue({ mutate: updateMutate } as ReturnType<typeof useUpdateProject>)
-  useSettingsStore.setState({ showIds: true })
+  useSettingsStore.setState({ showIds: true, showEffortUnit: true })
 })
 
 describe('ProjectSettingsPanel', () => {
@@ -72,8 +72,21 @@ describe('ProjectSettingsPanel', () => {
 
   it('clicking Show IDs toggle calls setShowIds', async () => {
     render(<ProjectSettingsPanel projectId="p-1" />, { wrapper: makeWrapper() })
-    const toggle = screen.getByRole('switch')
+    const toggle = screen.getByRole('switch', { name: /show ids/i })
     await userEvent.click(toggle)
     expect(useSettingsStore.getState().showIds).toBe(false)
+  })
+
+  it('show effort unit toggle is on by default', () => {
+    render(<ProjectSettingsPanel projectId="p-1" />, { wrapper: makeWrapper() })
+    const toggle = screen.getByRole('switch', { name: /show effort unit/i })
+    expect(toggle).toHaveAttribute('aria-checked', 'true')
+  })
+
+  it('clicking show effort unit toggle updates the store', async () => {
+    render(<ProjectSettingsPanel projectId="p-1" />, { wrapper: makeWrapper() })
+    const toggle = screen.getByRole('switch', { name: /show effort unit/i })
+    await userEvent.click(toggle)
+    expect(useSettingsStore.getState().showEffortUnit).toBe(false)
   })
 })

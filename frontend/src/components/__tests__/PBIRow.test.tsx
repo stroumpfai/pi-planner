@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { PBIRow } from '../PBIRow'
 import { useAuthStore } from '@/stores/authStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import * as pbisService from '@/services/pbis'
 import type { PBI } from '@/types'
 
@@ -35,7 +36,10 @@ const basePBI: PBI = {
   modified_at: '2026-01-01T00:00:00Z',
 }
 
-beforeEach(() => useAuthStore.setState({ user: null, isEditing: false }))
+beforeEach(() => {
+  useAuthStore.setState({ user: null, isEditing: false })
+  useSettingsStore.setState({ showEffortUnit: true })
+})
 
 describe('PBIRow', () => {
   it('shows title without prefix when id is null', () => {

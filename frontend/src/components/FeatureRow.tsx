@@ -20,12 +20,14 @@ export function FeatureRow({ feature, projectId }: Props) {
   const isEditing = useAuthStore((s) => s.isEditing)
   const effortUnit = useEffortUnit(projectId)
   const showIds = useSettingsStore((s) => s.showIds)
+  const showEffortUnit = useSettingsStore((s) => s.showEffortUnit)
 
   const updateFeature = useUpdateFeature(projectId)
   const deleteFeature = useDeleteFeature(projectId)
 
   const displayId = showIds && feature.id != null ? `[${feature.id}] ` : ''
-  const effortLabel = feature.effort == null ? null : `${feature.effort}${effortUnit}`
+  const unitSuffix = showEffortUnit ? effortUnit : ''
+  const effortLabel = feature.effort == null ? null : `${feature.effort}${unitSuffix}`
 
   return (
     <div className="border-b border-gray-100 last:border-0">

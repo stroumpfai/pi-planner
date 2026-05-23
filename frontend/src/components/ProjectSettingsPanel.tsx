@@ -11,6 +11,8 @@ export function ProjectSettingsPanel({ projectId }: Props) {
   const updateProject = useUpdateProject(projectId)
   const showIds = useSettingsStore((s) => s.showIds)
   const setShowIds = useSettingsStore((s) => s.setShowIds)
+  const showEffortUnit = useSettingsStore((s) => s.showEffortUnit)
+  const setShowEffortUnit = useSettingsStore((s) => s.setShowEffortUnit)
 
   const [unitDraft, setUnitDraft] = useState('')
 
@@ -65,6 +67,7 @@ export function ProjectSettingsPanel({ projectId }: Props) {
             type="button"
             role="switch"
             aria-checked={showIds}
+            aria-label="Show IDs"
             onClick={() => setShowIds(!showIds)}
             className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${
               showIds ? 'bg-blue-600' : 'bg-gray-300'
@@ -73,6 +76,29 @@ export function ProjectSettingsPanel({ projectId }: Props) {
             <span
               className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
                 showIds ? 'translate-x-5' : 'translate-x-0'
+              }`}
+            />
+          </button>
+        </div>
+
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium text-gray-700">Show effort unit</p>
+            <p className="text-xs text-gray-400 mt-0.5">Unit label next to effort and capacity values</p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={showEffortUnit}
+            aria-label="Show effort unit"
+            onClick={() => setShowEffortUnit(!showEffortUnit)}
+            className={`relative flex-shrink-0 w-10 h-5 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${
+              showEffortUnit ? 'bg-blue-600' : 'bg-gray-300'
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${
+                showEffortUnit ? 'translate-x-5' : 'translate-x-0'
               }`}
             />
           </button>

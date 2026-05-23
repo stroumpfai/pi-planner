@@ -73,6 +73,7 @@ function InlinePBITitle({ pbi, projectId }: { readonly pbi: PBI; readonly projec
 export function GroupCard({ group, projectId }: Props) {
   const isEditing = useAuthStore((s) => s.isEditing)
   const effortUnit = useEffortUnit(projectId)
+  const showEffortUnit = useSettingsStore((s) => s.showEffortUnit)
   const deleteGroup = useDeleteGroup(group.swimline_id)
   const updateGroup = useUpdateGroup(group.swimline_id)
 
@@ -155,7 +156,7 @@ export function GroupCard({ group, projectId }: Props) {
         )}
         {totalEffort > 0 && (
           <span className="flex-shrink-0 text-xs bg-purple-100 text-purple-700 rounded px-1.5 py-0.5 font-medium">
-            {totalEffort}{effortUnit}
+            {totalEffort}{showEffortUnit ? effortUnit : ''}
           </span>
         )}
       </div>

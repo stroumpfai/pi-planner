@@ -52,7 +52,7 @@ describe('BacklogPanel', () => {
   it('renders effort badge', async () => {
     vi.mocked(featuresService.featuresApi).list = vi.fn().mockResolvedValue([makeFeature()])
     render(<BacklogPanel projectId="p-1" />, { wrapper: makeWrapper() })
-    await waitFor(() => expect(screen.getByText('5pt')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('5pts')).toBeInTheDocument())
   })
 
   it('shows [id] prefix when feature has user id', async () => {

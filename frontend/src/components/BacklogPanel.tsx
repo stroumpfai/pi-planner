@@ -1,6 +1,7 @@
 import { useDraggable, useDroppable } from '@dnd-kit/core'
 import { useFeatures } from '@/hooks/useFeatures'
 import { useEffortUnit } from '@/hooks/useProjects'
+import { useSettingsStore } from '@/stores/settingsStore'
 import type { Feature } from '@/types'
 
 export interface FeatureDragData {
@@ -12,9 +13,11 @@ export interface FeatureDragData {
 
 interface ItemProps {
   readonly feature: Feature
+  readonly effortUnit: string
+  readonly showEffortUnit: boolean
 }
 
-function DraggableBacklogItem({ feature }: ItemProps) {
+function DraggableBacklogItem({ feature, effortUnit, showEffortUnit }: ItemProps) {
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `feature:${feature.system_id}`,
     data: {
@@ -42,7 +45,7 @@ function DraggableBacklogItem({ feature }: ItemProps) {
       )}
       <span className="text-gray-800">{feature.title}</span>
       {feature.effort != null && (
-        <span className="ml-1 text-xs text-purple-600 font-medium">{feature.effort}pt</span>
+        <span className="ml-1 text-xs text-purple-600 font-medium">{feature.effort}{showEffortUnit ? effortUnit : ''}</span>
       )}
     </div>
   )
@@ -56,6 +59,7 @@ export function BacklogPanel({ projectId }: Props) {
   const { data: features, isLoading } = useFeatures(projectId)
   const backlogFeatures = features?.filter((f) => f.location === 'backlog') ?? []
   const effortUnit = useEffortUnit(projectId)
+  const showEffortUnit = useSettingsStore((s) => s.showEffortUnit)
   const totalEffort = backlogFeatures.reduce((sum, f) => sum + (f.effort ?? 0), 0)
 
   const { setNodeRef, isOver } = useDroppable({
@@ -71,7 +75,7 @@ export function BacklogPanel({ projectId }: Props) {
           {backlogFeatures.length}
         </span>
         {totalEffort > 0 && (
-          <span className="text-xs text-gray-400">{totalEffort} {effortUnit}</span>
+          <span className="text-xs text-gray-400">{totalEffort}{showEffortUnit ? ` ${effortUnit}` : ''}</span>
         )}
       </div>
 
@@ -89,7 +93,7 @@ export function BacklogPanel({ projectId }: Props) {
         )}
         {!isLoading && backlogFeatures.length > 0 && (
           backlogFeatures.map((f) => (
-            <DraggableBacklogItem key={f.system_id} feature={f} />
+            <DraggableBacklogItem key={f.system_id} feature={f} effortUnit={effortUnit} showEffortUnit={showEffortUnit} />
           ))
         )}
         {backlogFeatures.length > 0 && isOver && (

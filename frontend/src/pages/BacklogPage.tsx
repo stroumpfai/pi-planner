@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useFeatures, useCreateFeature } from '@/hooks/useFeatures'
 import { useEffortUnit } from '@/hooks/useProjects'
 import { useAuthStore } from '@/stores/authStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { FeatureRow } from '@/components/FeatureRow'
 import { FeatureFormModal } from '@/components/FeatureFormModal'
 import { ImportCSVModal } from '@/components/ImportCSVModal'
@@ -26,6 +27,8 @@ export function BacklogPage({ projectId }: Props) {
   const { data: features, isLoading } = useFeatures(projectId, sort)
   const createFeature = useCreateFeature(projectId)
   const effortUnit = useEffortUnit(projectId)
+  const showEffortUnit = useSettingsStore((s) => s.showEffortUnit)
+  const unitSuffix = showEffortUnit ? ` ${effortUnit}` : ''
 
   useEffect(() => {
     localStorage.setItem(SORT_KEY, sort)
@@ -125,7 +128,7 @@ export function BacklogPage({ projectId }: Props) {
       {backlogFeatures.length > 0 && (
         <p className="mt-3 text-xs text-gray-400 text-right">
           {backlogFeatures.length} feature{backlogFeatures.length === 1 ? '' : 's'}
-          {totalEffort > 0 && ` · ${totalEffort} ${effortUnit}`}
+          {totalEffort > 0 && ` · ${totalEffort}${unitSuffix}`}
         </p>
       )}
 

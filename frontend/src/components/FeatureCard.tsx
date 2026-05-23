@@ -20,6 +20,7 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
   const isEditing = useAuthStore((s) => s.isEditing)
   const effortUnit = useEffortUnit(projectId)
   const showIds = useSettingsStore((s) => s.showIds)
+  const showEffortUnit = useSettingsStore((s) => s.showEffortUnit)
   const updateFeature = useUpdateFeature(projectId)
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -75,7 +76,7 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
         </span>
         {feature.effort != null && (
           <span className="flex-shrink-0 text-xs bg-purple-100 text-purple-700 rounded px-1.5 py-0.5 font-medium">
-            {feature.effort}{effortUnit}
+            {feature.effort}{showEffortUnit ? effortUnit : ''}
           </span>
         )}
       </div>

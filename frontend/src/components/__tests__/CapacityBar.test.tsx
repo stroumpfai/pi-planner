@@ -1,5 +1,8 @@
 import { render, screen } from '@testing-library/react'
 import { CapacityBar } from '../CapacityBar'
+import { useSettingsStore } from '@/stores/settingsStore'
+
+beforeEach(() => useSettingsStore.setState({ showEffortUnit: true }))
 
 describe('CapacityBar', () => {
   it('shows 0/0 pts 0% when capacity is zero', () => {
