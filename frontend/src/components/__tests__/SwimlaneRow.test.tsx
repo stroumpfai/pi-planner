@@ -58,6 +58,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   useAuthStore.setState({ user: null, isEditing: false })
   vi.mocked(swimlineService.swimlinesApi).delete = vi.fn().mockResolvedValue({})
+  vi.mocked(swimlineService.swimlinesApi).update = vi.fn().mockResolvedValue(makeSwimlane())
   vi.mocked(featureService.featuresApi).list = vi.fn().mockResolvedValue([])
 })
 
@@ -136,5 +137,80 @@ describe('SwimlaneRow', () => {
     )
     await userEvent.click(screen.getByTitle('Delete swimlane'))
     await waitFor(() => expect(screen.getByRole('dialog')).toBeInTheDocument())
+  })
+
+  it('hides rename button when not in edit mode', () => {
+    useAuthStore.setState({ isEditing: false })
+    render(
+      <SwimlaneRow swimline={makeSwimlane()} sprints={[]} features={[]} projectId="p-1" piId="pi-1" />,
+      { wrapper: makeWrapper() }
+    )
+    expect(screen.queryByTitle('Rename swimlane')).not.toBeInTheDocument()
+  })
+
+  it('shows rename button in edit mode', () => {
+    useAuthStore.setState({ isEditing: true })
+    render(
+      <SwimlaneRow swimline={makeSwimlane()} sprints={[]} features={[]} projectId="p-1" piId="pi-1" />,
+      { wrapper: makeWrapper() }
+    )
+    expect(screen.getByTitle('Rename swimlane')).toBeInTheDocument()
+  })
+
+  it('clicking rename button shows input pre-filled with current name', async () => {
+    useAuthStore.setState({ isEditing: true })
+    render(
+      <SwimlaneRow swimline={makeSwimlane()} sprints={[]} features={[]} projectId="p-1" piId="pi-1" />,
+      { wrapper: makeWrapper() }
+    )
+    await userEvent.click(screen.getByTitle('Rename swimlane'))
+    const input = screen.getByRole('textbox')
+    expect(input).toBeInTheDocument()
+    expect(input).toHaveValue('Team Alpha')
+  })
+
+  it('typing a new name and pressing Enter calls swimlinesApi.update', async () => {
+    useAuthStore.setState({ isEditing: true })
+    render(
+      <SwimlaneRow swimline={makeSwimlane()} sprints={[]} features={[]} projectId="p-1" piId="pi-1" />,
+      { wrapper: makeWrapper() }
+    )
+    await userEvent.click(screen.getByTitle('Rename swimlane'))
+    const input = screen.getByRole('textbox')
+    await userEvent.clear(input)
+    await userEvent.type(input, 'Team Beta{Enter}')
+    expect(swimlineService.swimlinesApi.update).toHaveBeenCalledWith('sw-1', { name: 'Team Beta' })
+  })
+
+  it('pressing Escape cancels rename and restores the name display', async () => {
+    useAuthStore.setState({ isEditing: true })
+    render(
+      <SwimlaneRow swimline={makeSwimlane()} sprints={[]} features={[]} projectId="p-1" piId="pi-1" />,
+      { wrapper: makeWrapper() }
+    )
+    await userEvent.click(screen.getByTitle('Rename swimlane'))
+    expect(screen.getByRole('textbox')).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
+    expect(screen.getByText('Team Alpha')).toBeInTheDocument()
+  })
+
+  it('shows inline error when API returns a duplicate name conflict', async () => {
+    vi.mocked(swimlineService.swimlinesApi).update = vi.fn().mockRejectedValue({
+      response: { data: { detail: { message: 'A swimline with this name already exists in this PI' } } },
+    })
+    useAuthStore.setState({ isEditing: true })
+    render(
+      <SwimlaneRow swimline={makeSwimlane()} sprints={[]} features={[]} projectId="p-1" piId="pi-1" />,
+      { wrapper: makeWrapper() }
+    )
+    await userEvent.click(screen.getByTitle('Rename swimlane'))
+    const input = screen.getByRole('textbox')
+    await userEvent.clear(input)
+    await userEvent.type(input, 'Team Beta{Enter}')
+    await waitFor(() =>
+      expect(screen.getByText('A swimline with this name already exists in this PI')).toBeInTheDocument()
+    )
+    expect(screen.getByRole('textbox')).toBeInTheDocument()
   })
 })

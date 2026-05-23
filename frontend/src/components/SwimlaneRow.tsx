@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useAuthStore } from '@/stores/authStore'
-import { useDeleteSwimline, useGroupsForSwimline } from '@/hooks/useSwimlinesAndGroups'
+import { useDeleteSwimline, useUpdateSwimline, useGroupsForSwimline } from '@/hooks/useSwimlinesAndGroups'
 import { useEffortUnit } from '@/hooks/useProjects'
 import { CapacityBar } from './CapacityBar'
 import { ConfirmDialog } from './ConfirmDialog'
@@ -21,9 +21,34 @@ interface Props {
 export function SwimlaneRow({ swimline, sprints, features, projectId, piId }: Props) {
   const [collapsed, setCollapsed] = useState(false)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [renameError, setRenameError] = useState<string | null>(null)
   const isEditing = useAuthStore((s) => s.isEditing)
   const effortUnit = useEffortUnit(projectId)
   const deleteSwimline = useDeleteSwimline(piId)
+  const updateSwimline = useUpdateSwimline(piId)
+
+  function handleRenameSubmit() {
+    const trimmed = newName.trim()
+    if (!trimmed || trimmed === swimline.name) {
+      setRenaming(false)
+      setRenameError(null)
+      return
+    }
+    if (updateSwimline.isPending) return
+    updateSwimline.mutate(
+      { swimlineId: swimline.system_id, body: { name: trimmed } },
+      {
+        onSuccess: () => { setRenaming(false); setRenameError(null) },
+        onError: (err: unknown) => {
+          const msg = (err as { response?: { data?: { detail?: { message?: string } } } })
+            ?.response?.data?.detail?.message ?? 'Could not rename swimlane'
+          setRenameError(msg)
+        },
+      }
+    )
+  }
   const { data: groups = [] } = useGroupsForSwimline(swimline.system_id)
 
   const {
@@ -74,7 +99,26 @@ export function SwimlaneRow({ swimline, sprints, features, projectId, piId }: Pr
         >
           {collapsed ? '▶' : '▼'}
         </button>
-        <span className="text-sm font-semibold text-gray-800">{swimline.name}</span>
+        {renaming ? (
+          <div className="flex flex-col min-w-0">
+            <input
+              autoFocus
+              value={newName}
+              onChange={(e) => { setNewName(e.target.value); setRenameError(null) }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') { handleRenameSubmit() }
+                else if (e.key === 'Escape') { setRenaming(false); setRenameError(null) }
+              }}
+              onBlur={handleRenameSubmit}
+              className="text-sm font-semibold border border-blue-300 rounded px-1 py-0.5 bg-white focus:outline-none"
+            />
+            {renameError && (
+              <span className="text-xs text-red-500 mt-0.5">{renameError}</span>
+            )}
+          </div>
+        ) : (
+          <span className="text-sm font-semibold text-gray-800">{swimline.name}</span>
+        )}
         <span className="text-xs text-gray-400 bg-white border border-gray-200 rounded-full px-2 py-0.5">
           {featureCount}
         </span>
@@ -82,14 +126,22 @@ export function SwimlaneRow({ swimline, sprints, features, projectId, piId }: Pr
           <CapacityBar used={swimline.effort} capacity={swimline.capacity} unit={effortUnit} />
         </div>
         {isEditing && (
-          <button
-            type="button"
-            onClick={() => setShowDeleteConfirm(true)}
-            className="text-xs text-red-400 hover:text-red-600 ml-1"
-            title="Delete swimlane"
-          >
-            ✕
-          </button>
+          <>
+            {!renaming && (
+              <button
+                type="button"
+                onClick={() => { setNewName(swimline.name); setRenameError(null); setRenaming(true) }}
+                className="text-xs text-gray-400 hover:text-blue-600"
+                title="Rename swimlane"
+              >✎</button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowDeleteConfirm(true)}
+              className="text-xs text-red-400 hover:text-red-600 ml-1"
+              title="Delete swimlane"
+            >✕</button>
+          </>
         )}
       </div>
 
