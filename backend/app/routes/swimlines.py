@@ -51,6 +51,7 @@ async def _next_order_index(db: AsyncSession, pi_id: str) -> int:
 async def list_swimlines(
     pi_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> list[SwimlineResponse]:
     if not await db.get(PI, pi_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PI not found")
@@ -104,6 +105,7 @@ async def create_swimline(
 async def get_swimline(
     swimline_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> SwimlineResponse:
     return await _swimline_response(db, await _get_swimline_or_404(db, swimline_id))
 

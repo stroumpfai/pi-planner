@@ -45,6 +45,7 @@ async def _get_or_404(db: AsyncSession, pbi_id: str) -> PBI:
 async def list_pbis(
     project_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
     feature_id: Annotated[str | None, Query()] = None,
 ) -> list[PBIResponse]:
     if not await db.get(Project, project_id):
@@ -94,7 +95,11 @@ async def create_pbi(
 
 
 @router.get("/api/v1/pbis/{pbi_id}")
-async def get_pbi(pbi_id: str, db: Annotated[AsyncSession, Depends(get_session)]) -> PBIResponse:
+async def get_pbi(
+    pbi_id: str,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
+) -> PBIResponse:
     return PBIResponse.model_validate(await _get_or_404(db, pbi_id))
 
 

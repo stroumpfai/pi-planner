@@ -51,6 +51,7 @@ async def _validate_pbis_for_feature(
 async def list_groups(
     swimline_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> list[GroupResponse]:
     if not await db.get(Swimline, swimline_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Swimline not found")
@@ -121,6 +122,7 @@ async def create_group(
 async def get_group(
     group_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> GroupResponse:
     return GroupResponse.model_validate(await _get_group_or_404(db, group_id))
 

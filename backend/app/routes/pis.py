@@ -69,6 +69,7 @@ def _create_sprints(db: AsyncSession, pi_id: str) -> None:
 async def list_pis(
     project_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> list[PIResponse]:
     if not await db.get(Project, project_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
@@ -110,7 +111,11 @@ async def create_pi(
 
 
 @router.get("/api/v1/pis/{pi_id}")
-async def get_pi(pi_id: str, db: Annotated[AsyncSession, Depends(get_session)]) -> PIResponse:
+async def get_pi(
+    pi_id: str,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
+) -> PIResponse:
     return await _pi_response(db, await _get_or_404(db, pi_id))
 
 

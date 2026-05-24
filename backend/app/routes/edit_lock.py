@@ -37,7 +37,11 @@ async def _get_lock(db: AsyncSession, project_id: str) -> EditLock | None:
 
 
 @router.get("/api/v1/projects/{project_id}/edit-lock")
-async def get_edit_lock(project_id: str, db: Annotated[AsyncSession, Depends(get_session)]) -> EditLockResponse:
+async def get_edit_lock(
+    project_id: str,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
+) -> EditLockResponse:
     return _lock_response(await _get_lock(db, project_id))
 
 

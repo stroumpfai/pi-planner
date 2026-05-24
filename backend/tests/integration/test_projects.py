@@ -434,7 +434,7 @@ async def test_import_requires_auth(client: AsyncClient):
     from app.main import app
 
     transport = ASGITransport(app=app)
-    async with UnauthClient(transport=transport, base_url="http://test") as unauth:
+    async with UnauthClient(transport=transport, base_url="https://test") as unauth:
         resp = await unauth.post(
             "/api/v1/projects/import",
             files=[_upload(_make_export_payload("Auth Test"))],

@@ -1,8 +1,9 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
 from app.database import get_session
 from app.middleware.deps import get_current_user
 from app.models.user import User
@@ -15,6 +16,7 @@ from app.services.auth import (
     create_session,
     delete_session,
     sign_session_id,
+    unsign_session_token,
 )
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
@@ -40,7 +42,7 @@ async def login(
         max_age=max_age,
         httponly=True,
         samesite="lax",
-        secure=False,  # set True in production behind HTTPS
+        secure=not settings.debug,
     )
     return TokenResponse(
         user=UserResponse.model_validate(user),
@@ -53,7 +55,12 @@ async def logout(
     response: Response,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_session)],
+    session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE),
 ) -> None:
+    if session_token:
+        session_id = unsign_session_token(session_token)
+        if session_id:
+            await delete_session(db, session_id)
     response.delete_cookie(key=SESSION_COOKIE, samesite="lax")
 
 

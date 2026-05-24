@@ -42,7 +42,7 @@ async def second_client(db, _seed_otheruser):
 
     app.dependency_overrides[get_session] = override_get_session
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(transport=transport, base_url="https://test") as ac:
         resp = await ac.post("/api/v1/auth/login", json={"username": "otheruser", "password": "password"})
         assert resp.status_code == 200
         yield ac
@@ -60,7 +60,7 @@ async def reader_client(db, _seed_readeruser):
 
     app.dependency_overrides[get_session] = override_get_session
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(transport=transport, base_url="https://test") as ac:
         resp = await ac.post("/api/v1/auth/login", json={"username": "readeruser", "password": "password"})
         assert resp.status_code == 200
         yield ac

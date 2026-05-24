@@ -36,7 +36,10 @@ async def _get_or_404(db: AsyncSession, project_id: str) -> Project:
 
 
 @router.get("/")
-async def list_projects(db: Annotated[AsyncSession, Depends(get_session)]) -> list[ProjectResponse]:
+async def list_projects(
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
+) -> list[ProjectResponse]:
     result = await db.execute(select(Project).order_by(Project.modified_at.desc()))
     return [ProjectResponse.model_validate(p) for p in result.scalars().all()]
 
@@ -62,7 +65,11 @@ async def create_project(
 
 
 @router.get("/{project_id}")
-async def get_project(project_id: str, db: Annotated[AsyncSession, Depends(get_session)]) -> ProjectResponse:
+async def get_project(
+    project_id: str,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
+) -> ProjectResponse:
     return ProjectResponse.model_validate(await _get_or_404(db, project_id))
 
 
@@ -311,6 +318,7 @@ async def import_project(
 async def export_project(
     project_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> Response:
     project = await _get_or_404(db, project_id)
 

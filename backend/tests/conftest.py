@@ -45,7 +45,7 @@ async def client(db):
     )
 
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as ac:
+    async with AsyncClient(transport=transport, base_url="https://test") as ac:
         resp = await ac.post("/api/v1/auth/login", json={"username": "testuser", "password": "password"})
         assert resp.status_code == 200
         yield ac

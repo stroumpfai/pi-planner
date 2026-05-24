@@ -98,6 +98,7 @@ def _apply_generic_location_fields(feature: Feature, body: FeatureUpdate, fields
 async def list_features(
     project_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
     sort: Annotated[str, Query(pattern="^(created_at|name)$")] = "created_at",
 ) -> list[FeatureResponse]:
     if not await db.get(Project, project_id):
@@ -140,7 +141,11 @@ async def create_feature(
 
 
 @router.get("/api/v1/features/{feature_id}")
-async def get_feature(feature_id: str, db: Annotated[AsyncSession, Depends(get_session)]) -> FeatureResponse:
+async def get_feature(
+    feature_id: str,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
+) -> FeatureResponse:
     return await _enrich(db, await _get_feature_or_404(db, feature_id))
 
 

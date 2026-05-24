@@ -26,6 +26,8 @@ from app.services import users as users_service
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    if settings.secret_key == "change-me":
+        raise RuntimeError("SECRET_KEY is not configured. Set a strong random value in .env")
     users_service.load(settings.users_file)
     yield
 

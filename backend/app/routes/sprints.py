@@ -29,6 +29,7 @@ async def _get_or_404(db: AsyncSession, sprint_id: str) -> Sprint:
 async def list_sprints(
     pi_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
 ) -> list[SprintResponse]:
     pi = await db.get(PI, pi_id)
     if not pi:
