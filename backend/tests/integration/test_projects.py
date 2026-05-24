@@ -1,4 +1,7 @@
+import json
+
 import pytest
+from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
@@ -278,3 +281,251 @@ async def test_export_project_structure_keys(client):
     project = data["project"]
     for key in ("system_id", "name", "features", "pbis", "pis"):
         assert key in project
+
+
+# ── Import tests ──────────────────────────────────────────────────────────────
+
+def _make_export_payload(name: str = "Import Test", **overrides) -> dict:
+    """Minimal valid export payload."""
+    return {
+        "version": "1.0",
+        "exported_at": "2026-01-01T00:00:00+00:00",
+        "project": {
+            "system_id": "old-proj-uuid",
+            "name": name,
+            "description": "A description",
+            "effort_unit": "pts",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "modified_at": "2026-01-01T00:00:00+00:00",
+            "features": [],
+            "pbis": [],
+            "pis": [],
+            **overrides,
+        },
+    }
+
+
+def _upload(payload: dict) -> tuple[str, tuple[str, bytes, str]]:
+    return ("file", ("backup.json", json.dumps(payload).encode(), "application/json"))
+
+
+@pytest.mark.asyncio
+async def test_import_creates_new_project(client: AsyncClient):
+    resp = await client.post(
+        "/api/v1/projects/import",
+        files=[_upload(_make_export_payload("Imported Project"))],
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["name"] == "Imported Project"
+    assert "system_id" in data
+
+    projects = (await client.get("/api/v1/projects/")).json()
+    assert any(p["name"] == "Imported Project" for p in projects)
+
+
+@pytest.mark.asyncio
+async def test_import_preserves_scalar_fields(client: AsyncClient):
+    payload = _make_export_payload("Scalar Fields")
+    payload["project"]["description"] = "My desc"
+    payload["project"]["effort_unit"] = "days"
+    resp = await client.post("/api/v1/projects/import", files=[_upload(payload)])
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["description"] == "My desc"
+    assert data["effort_unit"] == "days"
+
+
+@pytest.mark.asyncio
+async def test_import_regenerates_uuids(client: AsyncClient):
+    """New system_id differs from original; PBI→Feature relationship preserved."""
+    old_feat_id = "old-feat-uuid"
+    old_pbi_id = "old-pbi-uuid"
+    payload = _make_export_payload("UUID Regen")
+    payload["project"]["features"] = [
+        {
+            "system_id": old_feat_id,
+            "id": None,
+            "title": "Auth",
+            "description": None,
+            "effort": 3,
+            "location": "backlog",
+            "pi_id": None,
+            "swimlane_id": None,
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "modified_at": "2026-01-01T00:00:00+00:00",
+        }
+    ]
+    payload["project"]["pbis"] = [
+        {
+            "system_id": old_pbi_id,
+            "id": None,
+            "parent_feature_system_id": old_feat_id,
+            "title": "Login",
+            "description": None,
+            "effort": 3,
+            "location": "backlog",
+            "pi_id": None,
+            "swimlane_id": None,
+            "group_id": None,
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "modified_at": "2026-01-01T00:00:00+00:00",
+        }
+    ]
+
+    resp = await client.post("/api/v1/projects/import", files=[_upload(payload)])
+    assert resp.status_code == 201
+    new_pid = resp.json()["system_id"]
+    assert new_pid != "old-proj-uuid"
+
+    export = (await client.get(f"/api/v1/projects/{new_pid}/export")).json()
+    feat = export["project"]["features"][0]
+    pbi = export["project"]["pbis"][0]
+
+    assert feat["system_id"] != old_feat_id
+    assert pbi["system_id"] != old_pbi_id
+    assert pbi["parent_feature_system_id"] == feat["system_id"]
+
+
+@pytest.mark.asyncio
+async def test_import_name_conflict_auto_suffix(client: AsyncClient):
+    payload = _make_export_payload("Conflict Name")
+    await client.post("/api/v1/projects/import", files=[_upload(payload)])
+
+    resp2 = await client.post("/api/v1/projects/import", files=[_upload(payload)])
+    assert resp2.status_code == 201
+    assert resp2.json()["name"] == "Conflict Name (imported)"
+
+    resp3 = await client.post("/api/v1/projects/import", files=[_upload(payload)])
+    assert resp3.status_code == 201
+    assert resp3.json()["name"] == "Conflict Name (imported 2)"
+
+
+@pytest.mark.asyncio
+async def test_import_invalid_json(client: AsyncClient):
+    resp = await client.post(
+        "/api/v1/projects/import",
+        files=[("file", ("bad.json", b"not valid json", "application/json"))],
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"] == "INVALID_JSON"
+
+
+@pytest.mark.asyncio
+async def test_import_missing_required_fields(client: AsyncClient):
+    payload = {"version": "1.0", "project": {"system_id": "x", "features": [], "pbis": [], "pis": []}}
+    resp = await client.post("/api/v1/projects/import", files=[_upload(payload)])
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"] == "INVALID_FORMAT"
+
+
+@pytest.mark.asyncio
+async def test_import_wrong_version(client: AsyncClient):
+    payload = _make_export_payload("Version Test")
+    payload["version"] = "2.0"
+    resp = await client.post("/api/v1/projects/import", files=[_upload(payload)])
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"] == "UNSUPPORTED_VERSION"
+
+
+@pytest.mark.asyncio
+async def test_import_requires_auth(client: AsyncClient):
+    from httpx import ASGITransport, AsyncClient as UnauthClient
+    from app.main import app
+
+    transport = ASGITransport(app=app)
+    async with UnauthClient(transport=transport, base_url="http://test") as unauth:
+        resp = await unauth.post(
+            "/api/v1/projects/import",
+            files=[_upload(_make_export_payload("Auth Test"))],
+        )
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_import_empty_project(client: AsyncClient):
+    """Project with no features, PBIs, or PIs imports successfully."""
+    resp = await client.post(
+        "/api/v1/projects/import",
+        files=[_upload(_make_export_payload("Empty Project"))],
+    )
+    assert resp.status_code == 201
+    new_pid = resp.json()["system_id"]
+    export = (await client.get(f"/api/v1/projects/{new_pid}/export")).json()
+    assert export["project"]["features"] == []
+    assert export["project"]["pbis"] == []
+    assert export["project"]["pis"] == []
+
+
+@pytest.mark.asyncio
+async def test_import_missing_project_system_id(client: AsyncClient):
+    """Project object missing system_id returns 422, not 500."""
+    payload = _make_export_payload("No SysID")
+    del payload["project"]["system_id"]
+    resp = await client.post("/api/v1/projects/import", files=[_upload(payload)])
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"] == "INVALID_FORMAT"
+
+
+@pytest.mark.asyncio
+async def test_import_dangling_group_feature_reference(client: AsyncClient):
+    """Group referencing an unknown feature_system_id returns 422, not 500."""
+    payload = _make_export_payload("Dangling Ref")
+    payload["project"]["features"] = [
+        {
+            "system_id": "real-feat-uuid",
+            "id": None,
+            "title": "Auth",
+            "description": None,
+            "effort": 0,
+            "location": "pi",
+            "pi_id": "pi-uuid",
+            "swimlane_id": "sl-uuid",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "modified_at": "2026-01-01T00:00:00+00:00",
+        }
+    ]
+    payload["project"]["pis"] = [
+        {
+            "system_id": "pi-uuid",
+            "name": "Q1",
+            "description": None,
+            "state": "draft",
+            "start_date": None,
+            "end_date": None,
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "modified_at": "2026-01-01T00:00:00+00:00",
+            "sprints": [],
+            "swimlines": [
+                {
+                    "system_id": "sl-uuid",
+                    "name": "Team A",
+                    "order_index": 0,
+                    "groups": [
+                        {
+                            "system_id": "g-uuid",
+                            "name": "Login",
+                            "feature_system_id": "DOES-NOT-EXIST",
+                            "sprint_index": 0,
+                            "order_index": 0,
+                        }
+                    ],
+                }
+            ],
+        }
+    ]
+    resp = await client.post("/api/v1/projects/import", files=[_upload(payload)])
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"] == "DANGLING_REFERENCE"
+
+
+@pytest.mark.asyncio
+async def test_import_file_too_large(client: AsyncClient):
+    """File over 10 MB returns 413."""
+    big = b"x" * (10 * 1024 * 1024 + 1)
+    resp = await client.post(
+        "/api/v1/projects/import",
+        files=[("file", ("big.json", big, "application/json"))],
+    )
+    assert resp.status_code == 413
+    assert resp.json()["detail"]["error"] == "FILE_TOO_LARGE"

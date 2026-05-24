@@ -25,6 +25,7 @@ const fakeProject = {
 
 describe('ProjectListPage', () => {
   beforeEach(() => vi.clearAllMocks())
+  afterEach(() => vi.unstubAllGlobals())
 
   it('renders project names from API', async () => {
     mockApi.list = vi.fn().mockResolvedValue([fakeProject])
@@ -91,6 +92,67 @@ describe('ProjectListPage', () => {
     await waitFor(() => expect(screen.getByText('Export')).toBeInTheDocument())
 
     clickSpy.mockRestore()
-    vi.unstubAllGlobals()
+  })
+
+  it('shows Import button in page header', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([])
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByRole('button', { name: /^import$/i })).toBeInTheDocument())
+  })
+
+  it('Import shows loading state while fetching', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([])
+
+    let resolveFetch!: (v: Response) => void
+    const fetchPromise = new Promise<Response>((res) => { resolveFetch = res })
+    vi.stubGlobal('fetch', vi.fn().mockReturnValue(fetchPromise))
+
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByRole('button', { name: /^import$/i }))
+
+    const file = new File(['{}'], 'backup.json', { type: 'application/json' })
+    await userEvent.upload(screen.getByLabelText('Import project file'), file)
+
+    expect(screen.getByText('Importing…')).toBeInTheDocument()
+
+    resolveFetch(new Response(JSON.stringify({ system_id: 'new-1', name: 'Imported' }), { status: 201 }))
+    await waitFor(() => expect(screen.getByRole('button', { name: /^import$/i })).toBeInTheDocument())
+  })
+
+  it('Import invalidates projects query on success', async () => {
+    let listCallCount = 0
+    mockApi.list = vi.fn().mockImplementation(() => {
+      listCallCount++
+      return Promise.resolve([])
+    })
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ system_id: 'new-1', name: 'Imported' }), { status: 201 })
+    ))
+
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByRole('button', { name: /^import$/i }))
+    const callsBefore = listCallCount
+
+    const file = new File(['{}'], 'backup.json', { type: 'application/json' })
+    await userEvent.upload(screen.getByLabelText('Import project file'), file)
+
+    await waitFor(() => expect(listCallCount).toBeGreaterThan(callsBefore))
+  })
+
+  it('Import shows error message on server failure', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([])
+
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: { message: 'Invalid format' } }), { status: 422 })
+    ))
+
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByRole('button', { name: /^import$/i }))
+
+    const file = new File(['bad'], 'bad.json', { type: 'application/json' })
+    await userEvent.upload(screen.getByLabelText('Import project file'), file)
+
+    await waitFor(() => expect(screen.getByText('Invalid format')).toBeInTheDocument())
   })
 })

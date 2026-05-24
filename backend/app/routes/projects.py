@@ -1,8 +1,9 @@
-from datetime import datetime, timezone
-
+import json
+from datetime import date, datetime, timezone
 from typing import Annotated
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -23,6 +24,8 @@ from app.services.effort import feature_efforts
 from app.services.events import broadcaster
 
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
+
+_IMPORT_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
 
 
 async def _get_or_404(db: AsyncSession, project_id: str) -> Project:
@@ -101,6 +104,207 @@ async def delete_project(
     await db.delete(project)
     await db.commit()
     await broadcaster.broadcast(project_id, "project:deleted", {"system_id": project_id})
+
+
+async def _unique_project_name(db: AsyncSession, base_name: str) -> str:
+    name = base_name
+    suffix = 1
+    while True:
+        result = await db.execute(select(Project).where(Project.name == name))
+        if not result.scalar_one_or_none():
+            return name
+        name = f"{base_name} (imported)" if suffix == 1 else f"{base_name} (imported {suffix})"
+        suffix += 1
+
+
+def _validate_import_payload(payload: object) -> dict:
+    if not isinstance(payload, dict) or "version" not in payload or "project" not in payload:
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "INVALID_FORMAT", "message": "Missing required top-level fields: version, project"},
+        )
+    if payload["version"] != "1.0":
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "UNSUPPORTED_VERSION", "message": f"Unsupported export version: {payload['version']}"},
+        )
+    proj_data = payload["project"]
+    if not isinstance(proj_data, dict):
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "INVALID_FORMAT", "message": "Field 'project' must be an object"},
+        )
+    for key in ("system_id", "name", "features", "pbis", "pis"):
+        if key not in proj_data:
+            raise HTTPException(
+                status_code=422,
+                detail={"error": "INVALID_FORMAT", "message": f"Missing required project field: {key}"},
+            )
+    return proj_data
+
+
+def _require_remap(id_map: dict[str, str], old_id: str | None, context: str) -> str:
+    if not old_id or old_id not in id_map:
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "DANGLING_REFERENCE", "message": f"Unknown {context} reference: {old_id!r}"},
+        )
+    return id_map[old_id]
+
+
+def _build_id_map(proj_data: dict, new_project_id: str) -> dict[str, str]:
+    id_map: dict[str, str] = {proj_data["system_id"]: new_project_id}
+    for f in proj_data["features"]:
+        id_map[f["system_id"]] = str(uuid4())
+    for p in proj_data["pbis"]:
+        id_map[p["system_id"]] = str(uuid4())
+    for pi in proj_data["pis"]:
+        id_map[pi["system_id"]] = str(uuid4())
+        for sl in pi.get("swimlines", []):
+            id_map[sl["system_id"]] = str(uuid4())
+            for g in sl.get("groups", []):
+                id_map[g["system_id"]] = str(uuid4())
+        for s in pi.get("sprints", []):
+            id_map[s["system_id"]] = str(uuid4())
+    return id_map
+
+
+def _opt_date(value: str | None) -> date | None:
+    return date.fromisoformat(value) if value else None
+
+
+def _remap(id_map: dict[str, str], old_id: str | None) -> str | None:
+    return id_map[old_id] if old_id and old_id in id_map else None
+
+
+def _add_pi_structures(db: AsyncSession, proj_data: dict, new_project_id: str, id_map: dict[str, str]) -> None:
+    for pi in proj_data["pis"]:
+        new_pi_id = id_map[pi["system_id"]]
+        db.add(PI(
+            system_id=new_pi_id,
+            project_id=new_project_id,
+            name=pi["name"],
+            description=pi.get("description"),
+            state=pi.get("state", "draft"),
+            start_date=_opt_date(pi.get("start_date")),
+            end_date=_opt_date(pi.get("end_date")),
+        ))
+        for sl in pi.get("swimlines", []):
+            db.add(Swimline(
+                system_id=id_map[sl["system_id"]],
+                pi_id=new_pi_id,
+                name=sl["name"],
+                order_index=sl.get("order_index"),
+            ))
+        for s in pi.get("sprints", []):
+            db.add(Sprint(
+                system_id=id_map[s["system_id"]],
+                pi_id=new_pi_id,
+                sprint_index=s.get("sprint_index"),
+                capacity=s.get("capacity") or 0,
+                start_date=_opt_date(s.get("start_date")),
+                end_date=_opt_date(s.get("end_date")),
+            ))
+
+
+def _add_features(db: AsyncSession, proj_data: dict, new_project_id: str, id_map: dict[str, str]) -> None:
+    for f in proj_data["features"]:
+        db.add(Feature(
+            system_id=id_map[f["system_id"]],
+            project_id=new_project_id,
+            user_id=f.get("id"),
+            title=f["title"],
+            description=f.get("description"),
+            location=f.get("location", "backlog"),
+            pi_id=_remap(id_map, f.get("pi_id")),
+            swimlane_id=_remap(id_map, f.get("swimlane_id")),
+        ))
+
+
+def _add_groups(db: AsyncSession, proj_data: dict, id_map: dict[str, str]) -> None:
+    for pi in proj_data["pis"]:
+        for sl in pi.get("swimlines", []):
+            new_sl_id = id_map[sl["system_id"]]
+            for g in sl.get("groups", []):
+                db.add(Group(
+                    system_id=id_map[g["system_id"]],
+                    swimline_id=new_sl_id,
+                    feature_system_id=_require_remap(id_map, g.get("feature_system_id"), "feature"),
+                    name=g["name"],
+                    sprint_index=g.get("sprint_index"),
+                    order_index=g.get("order_index"),
+                    is_implicit=False,
+                ))
+
+
+def _add_pbis(db: AsyncSession, proj_data: dict, new_project_id: str, id_map: dict[str, str]) -> None:
+    for p in proj_data["pbis"]:
+        db.add(PBI(
+            system_id=id_map[p["system_id"]],
+            project_id=new_project_id,
+            user_id=p.get("id"),
+            parent_feature_system_id=_require_remap(id_map, p.get("parent_feature_system_id"), "feature"),
+            title=p["title"],
+            description=p.get("description"),
+            effort=p.get("effort"),
+            location=p.get("location", "backlog"),
+            pi_id=_remap(id_map, p.get("pi_id")),
+            swimlane_id=_remap(id_map, p.get("swimlane_id")),
+            group_id=_remap(id_map, p.get("group_id")),
+        ))
+
+
+@router.post("/import", status_code=status.HTTP_201_CREATED)
+async def import_project(
+    file: UploadFile,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
+) -> ProjectResponse:
+    raw = await file.read(_IMPORT_MAX_BYTES + 1)
+    if len(raw) > _IMPORT_MAX_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail={"error": "FILE_TOO_LARGE", "message": "Import file must be ≤ 10 MB"},
+        )
+    try:
+        payload = json.loads(raw)
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise HTTPException(status_code=422, detail={"error": "INVALID_JSON", "message": str(exc)})
+
+    proj_data = _validate_import_payload(payload)
+    resolved_name = await _unique_project_name(db, proj_data["name"])
+
+    new_project_id = str(uuid4())
+    id_map = _build_id_map(proj_data, new_project_id)
+
+    project = Project(
+        system_id=new_project_id,
+        name=resolved_name,
+        description=proj_data.get("description"),
+        effort_unit=proj_data.get("effort_unit", "pts"),
+    )
+    db.add(project)
+    _add_pi_structures(db, proj_data, new_project_id, id_map)
+    await db.flush()
+
+    _add_features(db, proj_data, new_project_id, id_map)
+    await db.flush()
+
+    _add_groups(db, proj_data, id_map)
+    await db.flush()
+
+    _add_pbis(db, proj_data, new_project_id, id_map)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={"error": "NAME_TAKEN", "message": f"A project named '{resolved_name}' already exists"},
+        )
+    # No SSE broadcast: brand-new project has no subscribers yet.
+    await db.refresh(project)
+    return ProjectResponse.model_validate(project)
 
 
 @router.get("/{project_id}/export")

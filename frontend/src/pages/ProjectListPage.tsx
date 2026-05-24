@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 import { useProjects, useDeleteProject } from '@/hooks/useProjects'
 import { useUiStore } from '@/stores/uiStore'
 import { CreateProjectModal } from '@/components/CreateProjectModal'
@@ -39,6 +40,65 @@ function ExportButton({ project }: { readonly project: Project }) {
   )
 }
 
+function ImportButton() {
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const qc = useQueryClient()
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setLoading(true)
+    setError(null)
+    try {
+      const form = new FormData()
+      form.append('file', file)
+      const resp = await fetch('/api/v1/projects/import', {
+        method: 'POST',
+        body: form,
+        credentials: 'include',
+      })
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}))
+        setError(body?.detail?.message ?? 'Import failed')
+        return
+      }
+      await qc.invalidateQueries({ queryKey: ['projects'] })
+    } catch {
+      setError('Import failed')
+    } finally {
+      setLoading(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  return (
+    <div className="relative">
+      <input
+        ref={fileRef}
+        type="file"
+        accept=".json"
+        className="hidden"
+        onChange={handleFileChange}
+        aria-label="Import project file"
+      />
+      <button
+        onClick={() => fileRef.current?.click()}
+        disabled={loading}
+        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-md disabled:opacity-50"
+      >
+        {loading ? 'Importing…' : 'Import'}
+      </button>
+      {error && (
+        <p className="absolute top-full right-0 mt-1 text-xs text-red-500 whitespace-nowrap">
+          {error}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export function ProjectListPage() {
   const { data: projects, isLoading } = useProjects()
   const deleteProject = useDeleteProject()
@@ -58,12 +118,15 @@ export function ProjectListPage() {
     <div className="max-w-2xl mx-auto py-10 px-4">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold text-gray-900">Projects</h1>
-        <button
-          onClick={() => setShowCreate(true)}
-          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
-        >
-          + New Project
-        </button>
+        <div className="flex items-center gap-2">
+          <ImportButton />
+          <button
+            onClick={() => setShowCreate(true)}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
+          >
+            + New Project
+          </button>
+        </div>
       </div>
 
       {projects?.length === 0 ? (
