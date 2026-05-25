@@ -529,3 +529,54 @@ async def test_import_file_too_large(client: AsyncClient):
     )
     assert resp.status_code == 413
     assert resp.json()["detail"]["error"] == "FILE_TOO_LARGE"
+
+
+# ── Role enforcement ───────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_reader_cannot_create_project(reader_client):
+    resp = await reader_client.post("/api/v1/projects/", json={"name": "Should Fail"})
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_reader_cannot_update_project(client, reader_client):
+    pid = (await client.post("/api/v1/projects/", json={"name": "RO Project"})).json()["system_id"]
+    resp = await reader_client.patch(f"/api/v1/projects/{pid}", json={"name": "New Name"})
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_reader_cannot_delete_project(client, reader_client):
+    pid = (await client.post("/api/v1/projects/", json={"name": "RO Del"})).json()["system_id"]
+    resp = await reader_client.delete(f"/api/v1/projects/{pid}")
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_reader_cannot_export_project(client, reader_client):
+    pid = (await client.post("/api/v1/projects/", json={"name": "RO Export"})).json()["system_id"]
+    resp = await reader_client.get(f"/api/v1/projects/{pid}/export")
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_reader_can_list_projects(client, reader_client):
+    await client.post("/api/v1/projects/", json={"name": "Visible"})
+    resp = await reader_client.get("/api/v1/projects/")
+    assert resp.status_code == 200
+    names = [p["name"] for p in resp.json()]
+    assert "Visible" in names
+
+
+@pytest.mark.asyncio
+async def test_editor_can_create_project(editor_client):
+    resp = await editor_client.post("/api/v1/projects/", json={"name": "Editor Project"})
+    assert resp.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_editor_can_delete_project(editor_client):
+    pid = (await editor_client.post("/api/v1/projects/", json={"name": "Ed Del"})).json()["system_id"]
+    resp = await editor_client.delete(f"/api/v1/projects/{pid}")
+    assert resp.status_code == 204

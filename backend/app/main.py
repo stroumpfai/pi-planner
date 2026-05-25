@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -7,6 +8,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
+from app.database import AsyncSessionLocal
 from app.routes import (
     auth,
     csv_import,
@@ -20,15 +22,19 @@ from app.routes import (
     sprints,
     swimlines,
     test_utils,
+    users,
 )
 from app.services import users as users_service
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     if settings.secret_key == "change-me":
         raise RuntimeError("SECRET_KEY is not configured. Set a strong random value in .env")
-    users_service.load(settings.users_file)
+    async with AsyncSessionLocal() as db:
+        await users_service.seed_from_config(db, settings.users_file)
     yield
 
 
@@ -44,13 +50,14 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.get_allowed_origins(),
     allow_credentials=True,
-    allow_methods=["GET", "POST", "PATCH", "DELETE"],
+    allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
 )
 
 
 for _router in [
     auth.router,
+    users.router,
     projects.router,
     features.router,
     pbis.router,

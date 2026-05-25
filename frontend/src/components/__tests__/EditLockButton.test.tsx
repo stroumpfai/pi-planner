@@ -31,8 +31,8 @@ function setupHooks(lockData?: { is_locked: boolean; locked_by_username: string 
   } as ReturnType<typeof useKeepaliveEditLock>)
 }
 
-const admin: User = { username: 'admin', display_name: null, is_admin: true }
-const reader: User = { username: 'reader', display_name: null, is_admin: false }
+const admin: User = { username: 'admin', display_name: null, role: 'admin' }
+const reader: User = { username: 'reader', display_name: null, role: 'reader' }
 
 beforeEach(() => {
   vi.clearAllMocks()

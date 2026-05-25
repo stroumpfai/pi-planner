@@ -5,6 +5,7 @@ Covers:
   - POST /login with invalid credentials (→ 401)
   - POST /logout
   - GET /me
+  - POST /change-password
   - get_current_user: no cookie, tampered token, expired session (all → 401)
   - get_optional_user: no token, bad token, valid token
 """
@@ -19,7 +20,7 @@ from app.database import Base, get_session
 from app.main import app
 from app.middleware.deps import get_optional_user
 from app.models.session import Session
-from app.models.user import User
+from app.models.user import Role
 from app.services import users as users_module
 from app.services.auth import (
     create_session,
@@ -28,6 +29,11 @@ from app.services.auth import (
 )
 
 TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
+_BASE_URL = "https://test"
+_LOGIN_URL = "/api/v1/auth/login"
+_ALICE_SECRET = "secret"  # noqa: S105
+_NEW_SECRET = "new-secret-pw"  # noqa: S105
+_OWASP_BLOCKED = "baseball1"  # noqa: S105
 
 
 @pytest_asyncio.fixture
@@ -47,12 +53,16 @@ async def db(db_engine):
         yield session
 
 
-@pytest.fixture
-def alice():
-    u = User(username="alice", password_hash=hash_password("secret"), display_name=None, is_admin=False)
-    users_module._store["alice"] = u
-    yield u
-    users_module._store.pop("alice", None)
+@pytest_asyncio.fixture
+async def alice(db):
+    user = await users_module.create(
+        db,
+        username="alice",
+        password_hash=hash_password(_ALICE_SECRET),
+        display_name=None,
+        role=Role.reader,
+    )
+    return user
 
 
 @pytest_asyncio.fixture
@@ -63,7 +73,7 @@ async def anon_client(db):
 
     app.dependency_overrides[get_session] = override_get_session
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="https://test") as ac:
+    async with AsyncClient(transport=transport, base_url=_BASE_URL) as ac:
         yield ac
     app.dependency_overrides.clear()
 
@@ -76,8 +86,8 @@ async def auth_client(db, alice):
 
     app.dependency_overrides[get_session] = override_get_session
     transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="https://test") as ac:
-        resp = await ac.post("/api/v1/auth/login", json={"username": "alice", "password": "secret"})
+    async with AsyncClient(transport=transport, base_url=_BASE_URL) as ac:
+        resp = await ac.post(_LOGIN_URL, json={"username": "alice", "password": _ALICE_SECRET})
         assert resp.status_code == 200
         yield ac
     app.dependency_overrides.clear()
@@ -87,28 +97,35 @@ async def auth_client(db, alice):
 
 @pytest.mark.asyncio
 async def test_login_success(anon_client, alice):
-    resp = await anon_client.post("/api/v1/auth/login", json={"username": "alice", "password": "secret"})
+    resp = await anon_client.post(_LOGIN_URL, json={"username": "alice", "password": _ALICE_SECRET})
     assert resp.status_code == 200
     assert resp.json()["user"]["username"] == "alice"
 
 
 @pytest.mark.asyncio
+async def test_login_returns_role(anon_client, alice):
+    resp = await anon_client.post(_LOGIN_URL, json={"username": "alice", "password": _ALICE_SECRET})
+    assert resp.status_code == 200
+    assert resp.json()["user"]["role"] == "reader"
+
+
+@pytest.mark.asyncio
 async def test_login_wrong_password_returns_401(anon_client, alice):
-    resp = await anon_client.post("/api/v1/auth/login", json={"username": "alice", "password": "wrong"})
+    resp = await anon_client.post(_LOGIN_URL, json={"username": "alice", "password": "wrong"})
     assert resp.status_code == 401
 
 
 @pytest.mark.asyncio
 async def test_login_unknown_user_returns_401(anon_client):
-    resp = await anon_client.post("/api/v1/auth/login", json={"username": "ghost", "password": "x"})
+    resp = await anon_client.post(_LOGIN_URL, json={"username": "ghost", "password": "x"})
     assert resp.status_code == 401
 
 
 @pytest.mark.asyncio
 async def test_login_remember_me_sets_longer_cookie(anon_client, alice):
     resp = await anon_client.post(
-        "/api/v1/auth/login",
-        json={"username": "alice", "password": "secret", "remember_me": True},
+        _LOGIN_URL,
+        json={"username": "alice", "password": _ALICE_SECRET, "remember_me": True},
     )
     assert resp.status_code == 200
 
@@ -124,7 +141,7 @@ async def test_logout_clears_session(auth_client):
 # ── GET /me ───────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_me_returns_current_user(auth_client, alice):
+async def test_me_returns_current_user(auth_client):
     resp = await auth_client.get("/api/v1/auth/me")
     assert resp.status_code == 200
     assert resp.json()["username"] == "alice"
@@ -136,11 +153,49 @@ async def test_me_without_session_returns_401(anon_client):
     assert resp.status_code == 401
 
 
+# ── POST /change-password ─────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_change_password_success(auth_client):
+    resp = await auth_client.post(
+        "/api/v1/auth/change-password",
+        json={"old_password": _ALICE_SECRET, "new_password": _NEW_SECRET},
+    )
+    assert resp.status_code == 204
+
+
+@pytest.mark.asyncio
+async def test_change_password_wrong_old_returns_400(auth_client):
+    resp = await auth_client.post(
+        "/api/v1/auth/change-password",
+        json={"old_password": "wrong", "new_password": _NEW_SECRET},
+    )
+    assert resp.status_code == 400
+
+
+@pytest.mark.asyncio
+async def test_change_password_containing_username_returns_422(auth_client):
+    _contains_username = "alice-new-secret"  # noqa: S105
+    resp = await auth_client.post(
+        "/api/v1/auth/change-password",
+        json={"old_password": _ALICE_SECRET, "new_password": _contains_username},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_change_password_common_password_returns_422(auth_client):
+    resp = await auth_client.post(
+        "/api/v1/auth/change-password",
+        json={"old_password": _ALICE_SECRET, "new_password": _OWASP_BLOCKED},
+    )
+    assert resp.status_code == 422
+
+
 # ── get_current_user error paths (via any protected endpoint) ─────────────────
 
 @pytest.mark.asyncio
 async def test_protected_route_no_cookie_returns_401(anon_client):
-    """No cookie → get_current_user raises 401 (deps.py line 18)."""
     resp = await anon_client.get("/api/v1/auth/me")
     assert resp.status_code == 401
     assert resp.json()["detail"] == "Not authenticated"
@@ -148,7 +203,6 @@ async def test_protected_route_no_cookie_returns_401(anon_client):
 
 @pytest.mark.asyncio
 async def test_protected_route_tampered_cookie_returns_401(anon_client):
-    """Invalid/tampered token → get_current_user raises 401 (deps.py line 21)."""
     anon_client.cookies.set("pi_session", "tampered.garbage.token")
     resp = await anon_client.get("/api/v1/auth/me")
     assert resp.status_code == 401
@@ -157,7 +211,6 @@ async def test_protected_route_tampered_cookie_returns_401(anon_client):
 
 @pytest.mark.asyncio
 async def test_protected_route_expired_session_returns_401(anon_client, db, alice):
-    """Valid token but expired DB session → get_current_user raises 401 (deps.py line 24)."""
     expired_session = Session(
         session_id="expired-sess",
         username="alice",
@@ -173,7 +226,7 @@ async def test_protected_route_expired_session_returns_401(anon_client, db, alic
     assert resp.json()["detail"] == "Session expired"
 
 
-# ── get_optional_user (deps.py lines 32-37) ───────────────────────────────────
+# ── get_optional_user (deps.py) ───────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_optional_user_no_token_returns_none(db):

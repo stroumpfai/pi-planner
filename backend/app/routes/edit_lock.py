@@ -1,5 +1,4 @@
 from datetime import datetime, timedelta, timezone
-
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -8,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.database import get_session
-from app.middleware.deps import get_current_user
+from app.middleware.deps import get_current_user, require_editor_or_above
 from app.models.edit_lock import EditLock
 from app.models.user import User
 from app.schemas import EditLockResponse
@@ -48,14 +47,9 @@ async def get_edit_lock(
 @router.post("/api/v1/projects/{project_id}/edit-lock/acquire")
 async def acquire_edit_lock(
     project_id: str,
-    current_user: Annotated[User, Depends(get_current_user)],
+    current_user: Annotated[User, Depends(require_editor_or_above)],
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> EditLockResponse:
-    if not current_user.is_admin:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admin users can acquire the edit lock",
-        )
     lock = await _get_lock(db, project_id)
     now = datetime.now(timezone.utc)
 

@@ -1,10 +1,13 @@
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from uuid import uuid4
 
 import bcrypt
 from itsdangerous import BadSignature, URLSafeTimedSerializer
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
+
+from fastapi import HTTPException
 
 from app.config import settings
 from app.models.session import Session
@@ -16,6 +19,27 @@ _signer = URLSafeTimedSerializer(settings.secret_key)
 SESSION_COOKIE = "pi_session"
 SESSION_MAX_AGE_NORMAL = 3600          # 1 hour
 SESSION_MAX_AGE_REMEMBER = 30 * 86400  # 30 days
+
+_COMMON_PASSWORDS: frozenset[str] = frozenset(
+    line.strip().lower()
+    for line in (Path(__file__).parent.parent / "data" / "common-passwords.txt")
+    .read_text(encoding="utf-8")
+    .splitlines()
+    if len(line.strip()) >= 8
+)
+
+
+def assert_password_policy(password: str, username: str) -> None:
+    if username.lower() in password.lower():
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "WEAK_PASSWORD", "message": "Password must not contain the username"},
+        )
+    if password.lower() in _COMMON_PASSWORDS:
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "COMMON_PASSWORD", "message": "This password is too commonly used, please choose a more unique one"},
+        )
 
 
 def hash_password(password: str) -> str:
@@ -37,8 +61,8 @@ def unsign_session_token(token: str) -> str | None:
         return None
 
 
-def authenticate(username: str, password: str) -> User | None:
-    user = users.get(username)
+async def authenticate(db: AsyncSession, username: str, password: str) -> User | None:
+    user = await users.get(db, username)
     if user and verify_password(password, user.password_hash):
         return user
     return None
@@ -63,7 +87,7 @@ async def get_user_from_session_id(db: AsyncSession, session_id: str) -> User | 
     db_session = result.scalar_one_or_none()
     if not db_session:
         return None
-    return users.get(db_session.username)
+    return await users.get(db, db_session.username)
 
 
 async def delete_session(db: AsyncSession, session_id: str) -> None:
@@ -72,3 +96,8 @@ async def delete_session(db: AsyncSession, session_id: str) -> None:
     if db_session:
         await db.delete(db_session)
         await db.commit()
+
+
+async def invalidate_all_sessions(db: AsyncSession, username: str) -> None:
+    await db.execute(delete(Session).where(Session.username == username))
+    await db.commit()

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ProjectListPage } from '../ProjectListPage'
 import * as projectsService from '@/services/projects'
+import { useAuthStore } from '@/stores/authStore'
 
 vi.mock('@/services/projects')
 const mockApi = vi.mocked(projectsService.projectsApi)
@@ -154,5 +155,37 @@ describe('ProjectListPage', () => {
     await userEvent.upload(screen.getByLabelText('Import project file'), file)
 
     await waitFor(() => expect(screen.getByText('Invalid format')).toBeInTheDocument())
+  })
+
+  // ── Role-based visibility ────────────────────────────────────────────────────
+
+  it('reader sees project names but no edit buttons', async () => {
+    useAuthStore.setState({ user: { username: 'bob', display_name: 'Bob', role: 'reader' } })
+    mockApi.list = vi.fn().mockResolvedValue([fakeProject])
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('My Project')).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: /new project/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^import$/i })).not.toBeInTheDocument()
+    expect(screen.queryByText('Export')).not.toBeInTheDocument()
+    expect(screen.queryByText('Delete')).not.toBeInTheDocument()
+  })
+
+  it('editor sees all action buttons', async () => {
+    useAuthStore.setState({ user: { username: 'alice', display_name: 'Alice', role: 'editor' } })
+    mockApi.list = vi.fn().mockResolvedValue([fakeProject])
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByRole('button', { name: /new project/i })).toBeInTheDocument())
+    expect(screen.getByRole('button', { name: /^import$/i })).toBeInTheDocument()
+    expect(screen.getByText('Export')).toBeInTheDocument()
+    expect(screen.getByText('Delete')).toBeInTheDocument()
+  })
+
+  it('admin sees all action buttons', async () => {
+    useAuthStore.setState({ user: { username: 'admin', display_name: 'Admin', role: 'admin' } })
+    mockApi.list = vi.fn().mockResolvedValue([fakeProject])
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByRole('button', { name: /new project/i })).toBeInTheDocument())
+    expect(screen.getByText('Export')).toBeInTheDocument()
+    expect(screen.getByText('Delete')).toBeInTheDocument()
   })
 })

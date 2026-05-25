@@ -6,10 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 from app.database import Base
 from app.models.session import Session
-from app.models.user import User
+from app.models.user import Role
 from app.services import users as users_module
 from app.services.auth import (
-    SESSION_MAX_AGE_REMEMBER,
     authenticate,
     create_session,
     delete_session,
@@ -21,6 +20,7 @@ from app.services.auth import (
 )
 
 TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
+_SECRET = "secret"  # noqa: S105
 
 
 @pytest_asyncio.fixture
@@ -35,13 +35,15 @@ async def db():
     await engine.dispose()
 
 
-@pytest.fixture
-def user():
-    """Seed alice into the in-memory user store."""
-    u = User(username="alice", password_hash=hash_password("secret"), display_name=None, is_admin=False)
-    users_module._store["alice"] = u
-    yield u
-    users_module._store.pop("alice", None)
+@pytest_asyncio.fixture
+async def user(db):
+    return await users_module.create(
+        db,
+        username="alice",
+        password_hash=hash_password(_SECRET),
+        display_name=None,
+        role=Role.reader,
+    )
 
 
 # ── hash / verify ────────────────────────────────────────────────────────────
@@ -73,19 +75,22 @@ def test_unsign_garbage_returns_none():
 
 # ── authenticate ─────────────────────────────────────────────────────────────
 
-def test_authenticate_correct_password(user):
-    result = authenticate("alice", "secret")
+@pytest.mark.asyncio
+async def test_authenticate_correct_password(db, user):
+    result = await authenticate(db, "alice", _SECRET)
     assert result is not None
     assert result.username == "alice"
 
 
-def test_authenticate_wrong_password_returns_none(user):
-    result = authenticate("alice", "wrong")
+@pytest.mark.asyncio
+async def test_authenticate_wrong_password_returns_none(db, user):
+    result = await authenticate(db, "alice", "wrong")
     assert result is None
 
 
-def test_authenticate_unknown_user_returns_none():
-    result = authenticate("nobody", "secret")
+@pytest.mark.asyncio
+async def test_authenticate_unknown_user_returns_none(db):
+    result = await authenticate(db, "nobody", _SECRET)
     assert result is None
 
 
@@ -127,7 +132,7 @@ async def test_get_user_from_unknown_session_returns_none(db):
 
 @pytest.mark.asyncio
 async def test_get_user_from_session_unknown_username_returns_none(db):
-    """Session exists in DB but username is not in users store."""
+    """Session exists in DB but username does not exist in users table."""
     session = Session(
         session_id="valid-session",
         username="ghost",

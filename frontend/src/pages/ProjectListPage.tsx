@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useProjects, useDeleteProject } from '@/hooks/useProjects'
 import { useUiStore } from '@/stores/uiStore'
+import { useAuthStore } from '@/stores/authStore'
 import { CreateProjectModal } from '@/components/CreateProjectModal'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import type { Project } from '@/types'
@@ -103,6 +104,7 @@ export function ProjectListPage() {
   const { data: projects, isLoading } = useProjects()
   const deleteProject = useDeleteProject()
   const setActiveProject = useUiStore((s) => s.setActiveProject)
+  const canEdit = useAuthStore((s) => s.canEdit())
   const [showCreate, setShowCreate] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null)
 
@@ -118,15 +120,17 @@ export function ProjectListPage() {
     <div className="max-w-2xl mx-auto py-10 px-4">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-xl font-semibold text-gray-900">Projects</h1>
-        <div className="flex items-center gap-2">
-          <ImportButton />
-          <button
-            onClick={() => setShowCreate(true)}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
-          >
-            + New Project
-          </button>
-        </div>
+        {canEdit && (
+          <div className="flex items-center gap-2">
+            <ImportButton />
+            <button
+              onClick={() => setShowCreate(true)}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
+            >
+              + New Project
+            </button>
+          </div>
+        )}
       </div>
 
       {projects?.length === 0 ? (
@@ -147,15 +151,17 @@ export function ProjectListPage() {
                   <p className="text-xs text-gray-500 mt-0.5 truncate max-w-md">{project.description}</p>
                 )}
               </button>
-              <div className="flex items-center gap-3 ml-4 shrink-0">
-                <ExportButton project={project} />
-                <button
-                  onClick={() => setDeleteTarget(project)}
-                  className="text-xs text-red-500 hover:text-red-700"
-                >
-                  Delete
-                </button>
-              </div>
+              {canEdit && (
+                <div className="flex items-center gap-3 ml-4 shrink-0">
+                  <ExportButton project={project} />
+                  <button
+                    onClick={() => setDeleteTarget(project)}
+                    className="text-xs text-red-500 hover:text-red-700"
+                  >
+                    Delete
+                  </button>
+                </div>
+              )}
             </li>
           ))}
         </ul>

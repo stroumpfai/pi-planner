@@ -6,7 +6,10 @@ from app.schemas.sprint import SprintCreate, SprintUpdate, SprintResponse
 from app.schemas.feature import FeatureCreate, FeatureUpdate, FeatureResponse
 from app.schemas.group import GroupCreate, GroupUpdate, GroupResponse, PlaceStoryRequest, PlaceStoryResponse
 from app.schemas.pbi import PBICreate, PBIUpdate, PBIResponse
-from app.schemas.auth import LoginRequest, TokenResponse, UserResponse
+from app.schemas.auth import (
+    LoginRequest, TokenResponse, UserResponse,
+    UserCreate, UserUpdate, PasswordReset, ChangePassword,
+)
 from app.schemas.edit_lock import EditLockResponse
 from app.schemas.common import ApiResponse, ApiError
 
@@ -19,6 +22,7 @@ __all__ = [
     "GroupCreate", "GroupUpdate", "GroupResponse", "PlaceStoryRequest", "PlaceStoryResponse",
     "PBICreate", "PBIUpdate", "PBIResponse",
     "LoginRequest", "TokenResponse", "UserResponse",
+    "UserCreate", "UserUpdate", "PasswordReset", "ChangePassword",
     "EditLockResponse",
     "ApiResponse", "ApiError",
     "CsvRow", "CsvImportRequest", "CsvImportError", "CsvImportResult",

@@ -26,7 +26,7 @@ export function EditLockButton({ projectId }: Props) {
 
   const lockedByOther = lock?.is_locked && lock.locked_by_username !== user.username
 
-  if (!user.is_admin) {
+  if (user.role === 'reader') {
     if (lockedByOther) {
       return (
         <span className="inline-flex items-center gap-1 text-sm text-amber-700">

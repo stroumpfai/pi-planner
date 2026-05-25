@@ -1,3 +1,4 @@
+from app.models.user import User
 from app.models.session import Session
 from app.models.project import Project
 from app.models.pi import PI
@@ -9,6 +10,7 @@ from app.models.pbi import PBI
 from app.models.edit_lock import EditLock
 
 __all__ = [
+    "User",
     "Session",
     "Project",
     "PI",

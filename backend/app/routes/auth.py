@@ -7,17 +7,21 @@ from app.config import settings
 from app.database import get_session
 from app.middleware.deps import get_current_user
 from app.models.user import User
-from app.schemas import LoginRequest, TokenResponse, UserResponse
+from app.schemas import ChangePassword, LoginRequest, TokenResponse, UserResponse
 from app.services.auth import (
     SESSION_COOKIE,
     SESSION_MAX_AGE_NORMAL,
     SESSION_MAX_AGE_REMEMBER,
+    assert_password_policy,
     authenticate,
     create_session,
     delete_session,
+    hash_password,
     sign_session_id,
     unsign_session_token,
+    verify_password,
 )
+from app.services import users as users_service
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -28,7 +32,7 @@ async def login(
     response: Response,
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> TokenResponse:
-    user = authenticate(body.username, body.password)
+    user = await authenticate(db, body.username, body.password)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
@@ -67,3 +71,18 @@ async def logout(
 @router.get("/me")
 async def me(current_user: Annotated[User, Depends(get_current_user)]) -> UserResponse:
     return UserResponse.model_validate(current_user)
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    body: ChangePassword,
+    current_user: Annotated[User, Depends(get_current_user)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> None:
+    if not verify_password(body.old_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail={"error": "WRONG_PASSWORD", "message": "Current password is incorrect"},
+        )
+    assert_password_policy(body.new_password, current_user.username)
+    await users_service.set_password(db, current_user.username, hash_password(body.new_password))

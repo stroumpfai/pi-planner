@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
 from app.database import get_session
-from app.middleware.deps import get_current_user
+from app.middleware.deps import get_current_user, require_editor_or_above
 from app.models.feature import Feature
 from app.models.pbi import PBI
 from app.models.pi import PI
@@ -48,7 +48,7 @@ async def list_projects(
 async def create_project(
     body: ProjectCreate,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_editor_or_above)],
 ) -> ProjectResponse:
     project = Project(name=body.name, description=body.description)
     db.add(project)
@@ -78,7 +78,7 @@ async def update_project(
     project_id: str,
     body: ProjectUpdate,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_editor_or_above)],
 ) -> ProjectResponse:
     project = await _get_or_404(db, project_id)
     if body.name is not None:
@@ -105,7 +105,7 @@ async def update_project(
 async def delete_project(
     project_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_editor_or_above)],
 ) -> None:
     project = await _get_or_404(db, project_id)
     await db.delete(project)
@@ -265,7 +265,7 @@ def _add_pbis(db: AsyncSession, proj_data: dict, new_project_id: str, id_map: di
 async def import_project(
     file: UploadFile,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_editor_or_above)],
 ) -> ProjectResponse:
     raw = await file.read(_IMPORT_MAX_BYTES + 1)
     if len(raw) > _IMPORT_MAX_BYTES:
@@ -318,7 +318,7 @@ async def import_project(
 async def export_project(
     project_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_editor_or_above)],
 ) -> Response:
     project = await _get_or_404(db, project_id)
 

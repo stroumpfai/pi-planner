@@ -46,6 +46,10 @@ export interface PlaceStoryResponse {
 export type EditLock = components['schemas']['EditLockResponse']
 
 export type User = components['schemas']['UserResponse']
+export type UserCreate = components['schemas']['UserCreate']
+export type UserUpdate = components['schemas']['UserUpdate']
+export type PasswordReset = components['schemas']['PasswordReset']
+export type ChangePassword = components['schemas']['ChangePassword']
 export type LoginRequest = components['schemas']['LoginRequest']
 export type TokenResponse = components['schemas']['TokenResponse']
 

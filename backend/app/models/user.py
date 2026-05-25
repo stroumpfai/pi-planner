@@ -1,9 +1,21 @@
-from dataclasses import dataclass
+import enum
+
+from sqlalchemy import Enum as SAEnum, String
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.database import Base
 
 
-@dataclass
-class User:
-    username: str
-    password_hash: str
-    display_name: str | None
-    is_admin: bool
+class Role(str, enum.Enum):
+    admin = "admin"
+    editor = "editor"
+    reader = "reader"
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    username: Mapped[str] = mapped_column(String, primary_key=True)
+    password_hash: Mapped[str] = mapped_column(String, nullable=False)
+    display_name: Mapped[str | None] = mapped_column(String, nullable=True)
+    role: Mapped[Role] = mapped_column(SAEnum(Role, name="role"), nullable=False)

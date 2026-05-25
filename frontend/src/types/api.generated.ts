@@ -534,8 +534,38 @@ export interface components {
       username: string;
       /** Display Name */
       display_name: string | null;
-      /** Is Admin */
-      is_admin: boolean;
+      /** Role */
+      role: "admin" | "editor" | "reader";
+    };
+    /** UserCreate */
+    UserCreate: {
+      /** Username */
+      username: string;
+      /** Display Name */
+      display_name?: string | null;
+      /** Role */
+      role: "admin" | "editor" | "reader";
+      /** Password */
+      password: string;
+    };
+    /** UserUpdate */
+    UserUpdate: {
+      /** Display Name */
+      display_name?: string | null;
+      /** Role */
+      role?: "admin" | "editor" | "reader" | null;
+    };
+    /** PasswordReset */
+    PasswordReset: {
+      /** New Password */
+      new_password: string;
+    };
+    /** ChangePassword */
+    ChangePassword: {
+      /** Old Password */
+      old_password: string;
+      /** New Password */
+      new_password: string;
     };
     /** ValidationError */
     ValidationError: {
