@@ -2,7 +2,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from uuid import uuid4
 
-import bcrypt
+from argon2 import PasswordHasher
+from argon2.exceptions import InvalidHashError, VerifyMismatchError
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,8 +26,11 @@ _COMMON_PASSWORDS: frozenset[str] = frozenset(
     for line in (Path(__file__).parent.parent / "data" / "common-passwords.txt")
     .read_text(encoding="utf-8")
     .splitlines()
-    if len(line.strip()) >= 8
+    if len(line.strip()) >= 12
 )
+
+
+_APP_TERMS: frozenset[str] = frozenset({"piplanner", "pi-planner", "pi_planner", "piplan"})
 
 
 def assert_password_policy(password: str, username: str) -> None:
@@ -35,6 +39,11 @@ def assert_password_policy(password: str, username: str) -> None:
             status_code=422,
             detail={"error": "WEAK_PASSWORD", "message": "Password must not contain the username"},
         )
+    if any(term in password.lower() for term in _APP_TERMS):
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "WEAK_PASSWORD", "message": "Password must not relate to the application name"},
+        )
     if password.lower() in _COMMON_PASSWORDS:
         raise HTTPException(
             status_code=422,
@@ -42,12 +51,19 @@ def assert_password_policy(password: str, username: str) -> None:
         )
 
 
+_ph = PasswordHasher(time_cost=2, memory_cost=19456, parallelism=1, hash_len=32, salt_len=16)
+
+
 def hash_password(password: str) -> str:
-    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
+    return _ph.hash(password)
 
 
 def verify_password(password: str, hashed: str) -> bool:
-    return bcrypt.checkpw(password.encode(), hashed.encode())
+    try:
+        _ph.verify(hashed, password)
+        return True
+    except (VerifyMismatchError, InvalidHashError):
+        return False
 
 
 def sign_session_id(session_id: str) -> str:

@@ -17,9 +17,10 @@ from app.services import users as users_module
 from app.services.auth import hash_password
 from app.services.users import count_by_role
 
-_NEW_USER_SECRET = "newuser123"  # noqa: S105
-_USERNAME_IN_PWD = "alice-password"  # noqa: S105
-_OWASP_BLOCKED = "baseball1"  # noqa: S105
+_NEW_USER_SECRET = "newusertest12"  # noqa: S105
+_USERNAME_IN_PWD = "alice-password1"  # noqa: S105
+_OWASP_BLOCKED = "123456qwerty"  # noqa: S105
+_APPNAME_BLOCKED = "piplanner2024!"  # noqa: S105
 
 
 # ── GET /users ────────────────────────────────────────────────────────────────
@@ -224,6 +225,30 @@ async def test_create_user_password_containing_username_returns_422(client):
     resp = await client.post(
         "/api/v1/users/",
         json={"username": "alice", "role": "reader", "password": _USERNAME_IN_PWD},
+    )
+    assert resp.status_code == 422
+
+
+# ── App-name password blocking ───────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_admin_cannot_set_appname_password(client):
+    resp = await client.post(
+        "/api/v1/users/",
+        json={"username": "apptest", "role": "reader", "password": _APPNAME_BLOCKED},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_reset_appname_password_returns_422(client):
+    await client.post(
+        "/api/v1/users/",
+        json={"username": "resetapp", "role": "reader", "password": _NEW_USER_SECRET},
+    )
+    resp = await client.post(
+        "/api/v1/users/resetapp/reset-password",
+        json={"new_password": _APPNAME_BLOCKED},
     )
     assert resp.status_code == 422
 

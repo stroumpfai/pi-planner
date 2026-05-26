@@ -23,6 +23,9 @@ htmlcov/
 # Config volume (contains credentials — copy from config/users.json.example)
 config/users.json
 
+# Local data volume (Docker bind-mount for SQLite database)
+/data/
+
 # Database
 *.sqlite
 *.db

@@ -28,7 +28,7 @@ class UserCreate(BaseModel):
     username: str = Field(..., min_length=1, max_length=64)
     display_name: str | None = Field(None, max_length=128)
     role: Role
-    password: str = Field(..., min_length=8)
+    password: str = Field(..., min_length=12)
 
 
 class UserUpdate(BaseModel):
@@ -37,9 +37,9 @@ class UserUpdate(BaseModel):
 
 
 class PasswordReset(BaseModel):
-    new_password: str = Field(..., min_length=8)
+    new_password: str = Field(..., min_length=12)
 
 
 class ChangePassword(BaseModel):
     old_password: str
-    new_password: str = Field(..., min_length=8)
+    new_password: str = Field(..., min_length=12)

@@ -8,8 +8,9 @@ import type { AxiosError } from 'axios'
 import { usersApi } from '@/services/users'
 import { toast } from '@/stores/toastStore'
 import { useAuthStore } from '@/stores/authStore'
-import { isCommonPassword } from '@/utils/passwordPolicy'
+import { isAppNamePassword, isCommonPassword } from '@/utils/passwordPolicy'
 import { ConfirmDialog } from './ConfirmDialog'
+import { PasswordStrengthBar } from './PasswordStrengthBar'
 import type { User } from '@/types'
 
 type Role = 'admin' | 'editor' | 'reader'
@@ -25,7 +26,7 @@ const createSchema = z
     username: z.string().min(1, 'Username is required').max(64),
     display_name: z.string().max(128).optional(),
     role: z.enum(['admin', 'editor', 'reader']),
-    password: z.string().min(8, 'Password must be at least 8 characters'),
+    password: z.string().min(12, 'Password must be at least 12 characters'),
     confirm_password: z.string(),
   })
   .refine((d) => d.password === d.confirm_password, {
@@ -33,10 +34,14 @@ const createSchema = z
     path: ['confirm_password'],
   })
   .refine(
-    (d) => !d.username || !d.password.toLowerCase().includes(d.username.toLowerCase()),
+    (d) => d.password.length < 12 || !d.username || !d.password.toLowerCase().includes(d.username.toLowerCase()),
     { message: 'Password must not contain the username', path: ['password'] },
   )
-  .refine((d) => !isCommonPassword(d.password), {
+  .refine((d) => d.password.length < 12 || !isAppNamePassword(d.password), {
+    message: 'Password must not relate to the application name',
+    path: ['password'],
+  })
+  .refine((d) => d.password.length < 12 || !isCommonPassword(d.password), {
     message: 'This password is too commonly used',
     path: ['password'],
   })
@@ -58,14 +63,17 @@ function UserCard({ user, currentUsername, onDeleted }: UserCardProps) {
   const isSelf = user.username === currentUsername
 
   const resetPwdContainsUsername =
-    resetPassword.length >= 8 && resetPassword.toLowerCase().includes(user.username.toLowerCase())
-  const resetPwdCommon = resetPassword.length >= 8 && isCommonPassword(resetPassword)
-  const resetPwdValid = resetPassword.length >= 8 && !resetPwdContainsUsername && !resetPwdCommon
+    resetPassword.length >= 12 && resetPassword.toLowerCase().includes(user.username.toLowerCase())
+  const resetPwdAppName = resetPassword.length >= 12 && isAppNamePassword(resetPassword)
+  const resetPwdCommon = resetPassword.length >= 12 && isCommonPassword(resetPassword)
+  const resetPwdValid = resetPassword.length >= 12 && !resetPwdContainsUsername && !resetPwdAppName && !resetPwdCommon
   let resetPwdError: string | null = null
-  if (resetPassword.length > 0 && resetPassword.length < 8) {
-    resetPwdError = 'At least 8 characters required'
+  if (resetPassword.length > 0 && resetPassword.length < 12) {
+    resetPwdError = 'At least 12 characters required'
   } else if (resetPwdContainsUsername) {
     resetPwdError = 'Password must not contain the username'
+  } else if (resetPwdAppName) {
+    resetPwdError = 'Password must not relate to the application name'
   } else if (resetPwdCommon) {
     resetPwdError = 'This password is too commonly used'
   }
@@ -168,7 +176,7 @@ function UserCard({ user, currentUsername, onDeleted }: UserCardProps) {
                     type="password"
                     value={resetPassword}
                     onChange={(e) => setResetPassword(e.target.value)}
-                    placeholder="New password (min 8 chars)"
+                    placeholder="New password (min 12 chars)"
                     className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                   />
                   <button
@@ -180,6 +188,7 @@ function UserCard({ user, currentUsername, onDeleted }: UserCardProps) {
                     Reset
                   </button>
                 </div>
+                <PasswordStrengthBar password={resetPassword} />
                 {resetPwdError && (
                   <p className="mt-1 text-xs text-red-600">{resetPwdError}</p>
                 )}
@@ -226,10 +235,11 @@ function AddUserForm({ onCreated }: { readonly onCreated: () => void }) {
   const [open, setOpen] = useState(false)
   const queryClient = useQueryClient()
 
-  const { register, handleSubmit, reset, setError, formState: { errors, isSubmitting } } = useForm<CreateValues>({
+  const { register, handleSubmit, reset, watch, setError, formState: { errors, isSubmitting } } = useForm<CreateValues>({
     resolver: zodResolver(createSchema),
     defaultValues: { role: 'editor' },
   })
+  const pwdValue = watch('password')
 
   const mutation = useMutation({
     mutationFn: (values: CreateValues) =>
@@ -318,6 +328,7 @@ function AddUserForm({ onCreated }: { readonly onCreated: () => void }) {
               {...register('password')}
               className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
             />
+            <PasswordStrengthBar password={pwdValue ?? ''} />
             {errors.password && <p className="mt-0.5 text-xs text-red-600">{errors.password.message}</p>}
           </div>
           <div>

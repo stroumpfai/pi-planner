@@ -118,11 +118,11 @@ async def seed_from_config(db: AsyncSession, path: str) -> None:
                 "Use 'admin', 'editor', or 'reader'."
             )
         password_hash = entry.get("password_hash", "")
-        if not password_hash.startswith(("$2a$", "$2b$", "$2y$")):
+        if not password_hash.startswith("$argon2"):
             raise RuntimeError(
-                f"password_hash for '{username}' does not look like a bcrypt hash. "
-                "Generate one with: python3 -c \"import bcrypt, getpass; "
-                "print(bcrypt.hashpw(getpass.getpass().encode(), bcrypt.gensalt(12)).decode())\""
+                f"password_hash for '{username}' does not look like an argon2id hash. "
+                "Generate one with: python3 -c \"from app.services.auth import hash_password; "
+                "import getpass; print(hash_password(getpass.getpass()))\""
             )
         user = User(
             username=username,

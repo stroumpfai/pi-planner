@@ -21,7 +21,7 @@ RUN pip install --no-cache-dir \
     "pydantic>=2.0.0" \
     "pydantic-settings>=2.0.0" \
     "python-multipart>=0.0.6" \
-    "bcrypt>=4.0.0" \
+    "argon2-cffi>=23.1" \
     "itsdangerous>=2.1.0" \
     "python-dotenv>=1.0.0"
 

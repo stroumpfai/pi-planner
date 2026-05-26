@@ -7,12 +7,13 @@ import type { AxiosError } from 'axios'
 import { usersApi } from '@/services/users'
 import { toast } from '@/stores/toastStore'
 import { useAuthStore } from '@/stores/authStore'
-import { isCommonPassword } from '@/utils/passwordPolicy'
+import { isAppNamePassword, isCommonPassword } from '@/utils/passwordPolicy'
+import { PasswordStrengthBar } from './PasswordStrengthBar'
 
 const schema = z
   .object({
     old_password: z.string().min(1, 'Current password is required'),
-    new_password: z.string().min(8, 'Password must be at least 8 characters'),
+    new_password: z.string().min(12, 'Password must be at least 12 characters'),
     confirm_password: z.string(),
   })
   .refine((d) => d.new_password === d.confirm_password, {
@@ -33,9 +34,11 @@ export function ChangePasswordModal({ open, onClose }: Props) {
     register,
     handleSubmit,
     reset,
+    watch,
     setError,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema) })
+  const newPwd = watch('new_password')
 
   const mutation = useMutation({
     mutationFn: (values: FormValues) =>
@@ -65,6 +68,10 @@ export function ChangePasswordModal({ open, onClose }: Props) {
   const onSubmit = (values: FormValues) => {
     if (username && values.new_password.toLowerCase().includes(username.toLowerCase())) {
       setError('new_password', { message: 'Password must not contain your username' })
+      return
+    }
+    if (isAppNamePassword(values.new_password)) {
+      setError('new_password', { message: 'Password must not relate to the application name' })
       return
     }
     if (isCommonPassword(values.new_password)) {
@@ -106,6 +113,7 @@ export function ChangePasswordModal({ open, onClose }: Props) {
                 {...register('new_password')}
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               />
+              <PasswordStrengthBar password={newPwd ?? ''} />
               {errors.new_password && <p className="mt-1 text-xs text-red-600">{errors.new_password.message}</p>}
             </div>
 

@@ -32,8 +32,9 @@ TEST_DB_URL = "sqlite+aiosqlite:///:memory:"
 _BASE_URL = "https://test"
 _LOGIN_URL = "/api/v1/auth/login"
 _ALICE_SECRET = "secret"  # noqa: S105
-_NEW_SECRET = "new-secret-pw"  # noqa: S105
-_OWASP_BLOCKED = "baseball1"  # noqa: S105
+_NEW_SECRET = "new-secret-pw!"  # noqa: S105
+_OWASP_BLOCKED = "123456qwerty"  # noqa: S105
+_APPNAME_BLOCKED = "piplanner2024!"  # noqa: S105
 
 
 @pytest_asyncio.fixture
@@ -188,6 +189,15 @@ async def test_change_password_common_password_returns_422(auth_client):
     resp = await auth_client.post(
         "/api/v1/auth/change-password",
         json={"old_password": _ALICE_SECRET, "new_password": _OWASP_BLOCKED},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_change_password_appname_returns_422(auth_client):
+    resp = await auth_client.post(
+        "/api/v1/auth/change-password",
+        json={"old_password": _ALICE_SECRET, "new_password": "piplanner2024!"},
     )
     assert resp.status_code == 422
 

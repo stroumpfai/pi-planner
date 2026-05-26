@@ -2,7 +2,7 @@
   {
     "username": "admin",
     "display_name": "Administrator",
-    "password_hash": "$2b$12$IXz1KvxtrKNYMfWhQ8E/Je9cuEfpIXO7Wt0sLgQdWqCmKLjx9FuyK",
+    "password_hash": "$argon2id$v=19$m=19456,t=2,p=1$yZp1PWhHuKpyaxIgw3qqmA$W4bbUhdGBc3FNkw9zi2D6Va30SlMRo8aeofN8RWf7GI",
     "role": "admin"
   }
 ]

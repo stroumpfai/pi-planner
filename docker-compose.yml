@@ -4,7 +4,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - pi-data:/data
+      - ./data/:/data
       - ./config:/config:ro
     environment:
       # Generate a strong key: python -c "import secrets; print(secrets.token_hex(32))"
@@ -13,6 +13,3 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8000}
       USERS_FILE: /config/users.json
     restart: unless-stopped
-
-volumes:
-  pi-data:
