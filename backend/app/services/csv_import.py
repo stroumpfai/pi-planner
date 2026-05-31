@@ -86,7 +86,7 @@ def _cross_entity_errors(
                 row=row.row_number,
                 message=f"ID {row.user_id} already exists as a story in this project",
             ))
-        elif row.item_type in ("pbi", "bug") and row.user_id in feature_map:
+        elif row.item_type in ("story", "bug") and row.user_id in feature_map:
             errors.append(CsvImportError(
                 row=row.row_number,
                 message=f"ID {row.user_id} already exists as a feature in this project",

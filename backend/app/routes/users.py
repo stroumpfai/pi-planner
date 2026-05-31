@@ -5,9 +5,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
 from app.middleware.deps import require_admin
+from app.models.activity_log import ActorType
 from app.models.user import Role, User
 from app.schemas import PasswordReset, UserCreate, UserResponse, UserUpdate
 from app.services import users as users_service
+from app.services.activity import log_activity
 from app.services.auth import assert_password_policy, hash_password, invalidate_all_sessions
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
@@ -29,7 +31,7 @@ async def list_users(
 async def create_user(
     body: UserCreate,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(require_admin)],
+    current_user: Annotated[User, Depends(require_admin)],
 ) -> UserResponse:
     existing = await users_service.get(db, body.username)
     if existing:
@@ -44,6 +46,15 @@ async def create_user(
         password_hash=hash_password(body.password),
         display_name=body.display_name,
         role=body.role,
+    )
+    await log_activity(
+        db,
+        actor_type=ActorType.human,
+        actor_username=current_user.username,
+        action="user.create",
+        resource_type="user",
+        resource_id=body.username,
+        details={"role": body.role.value, "display_name": body.display_name},
     )
     return UserResponse.model_validate(user)
 
@@ -74,6 +85,16 @@ async def update_user(
     )
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_USER_NOT_FOUND)
+    changed = {k: v for k, v in {"display_name": body.display_name, "role": body.role.value if body.role else None}.items() if k in body.model_fields_set}
+    await log_activity(
+        db,
+        actor_type=ActorType.human,
+        actor_username=current_user.username,
+        action="user.update",
+        resource_type="user",
+        resource_id=username,
+        details=changed,
+    )
     return UserResponse.model_validate(user)
 
 
@@ -98,6 +119,14 @@ async def delete_user(
         )
     await invalidate_all_sessions(db, username)
     await users_service.delete(db, username)
+    await log_activity(
+        db,
+        actor_type=ActorType.human,
+        actor_username=current_user.username,
+        action="user.delete",
+        resource_type="user",
+        resource_id=username,
+    )
 
 
 @router.post("/{username}/reset-password", status_code=status.HTTP_204_NO_CONTENT)
@@ -118,3 +147,11 @@ async def reset_password(
     assert_password_policy(body.new_password, username)
     await invalidate_all_sessions(db, username)
     await users_service.set_password(db, username, hash_password(body.new_password))
+    await log_activity(
+        db,
+        actor_type=ActorType.human,
+        actor_username=current_user.username,
+        action="user.reset_password",
+        resource_type="user",
+        resource_id=username,
+    )
