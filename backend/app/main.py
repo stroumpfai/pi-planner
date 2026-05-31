@@ -2,6 +2,7 @@ import logging
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -51,6 +52,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.add_middleware(MCPActivityMiddleware)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.get_allowed_origins(),
@@ -58,8 +61,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
     allow_headers=["Content-Type", "Authorization", "X-MCP-Actor", "X-MCP-Key-Id"],
 )
-
-app.add_middleware(MCPActivityMiddleware)
 
 
 for _router in [
@@ -84,7 +85,7 @@ if settings.allow_test_reset:
 
 
 @app.get("/health")
-async def health(db: AsyncSession = Depends(get_session)) -> dict:
+async def health(db: Annotated[AsyncSession, Depends(get_session)]) -> dict:
     components: dict = {}
     overall = "healthy"
 

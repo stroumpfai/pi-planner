@@ -261,7 +261,11 @@ def _add_pbis(db: AsyncSession, proj_data: dict, new_project_id: str, id_map: di
         ))
 
 
-@router.post("/import", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/import",
+    status_code=status.HTTP_201_CREATED,
+    responses={422: {"description": "Invalid or malformed import payload"}},
+)
 async def import_project(
     file: UploadFile,
     db: Annotated[AsyncSession, Depends(get_session)],

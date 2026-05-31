@@ -159,7 +159,7 @@ function IssueKeyForm({ username, onCancel, onIssued }: IssueKeyFormProps) {
         purpose: values.purpose || undefined,
         expires_in_days:
           values.expires_in_days && values.expires_in_days !== 'never'
-            ? parseInt(values.expires_in_days, 10)
+            ? Number.parseInt(values.expires_in_days, 10)
             : undefined,
       }
       return apiKeysApi.create(body)

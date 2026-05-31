@@ -94,6 +94,19 @@ def prompt_role() -> str:
         print(f"  ✗ Invalid role. Choose from: {', '.join(VALID_ROLES)}")
 
 
+def prompt_username(existing_usernames: set, output_path: "Path") -> str:
+    while True:
+        username = input("Username: ").strip()
+        if not username:
+            print("  ✗ Username cannot be empty.")
+        elif len(username) > 64:
+            print("  ✗ Username must be 64 characters or fewer.")
+        elif username in existing_usernames:
+            print(f"  ✗ Username '{username}' already exists in {output_path}.")
+        else:
+            return username
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Create or append a user in users.json for PI Planning")
     parser.add_argument(
@@ -123,18 +136,7 @@ def main() -> None:
     print()
 
     # Username
-    while True:
-        username = input("Username: ").strip()
-        if not username:
-            print("  ✗ Username cannot be empty.")
-            continue
-        if len(username) > 64:
-            print("  ✗ Username must be 64 characters or fewer.")
-            continue
-        if username in existing_usernames:
-            print(f"  ✗ Username '{username}' already exists in {output_path}.")
-            continue
-        break
+    username = prompt_username(existing_usernames, output_path)
 
     # Display name (optional)
     display_name_raw = input("Display name (optional, press Enter to skip): ").strip()

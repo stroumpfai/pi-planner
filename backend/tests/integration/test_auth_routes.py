@@ -112,13 +112,13 @@ async def test_login_returns_role(anon_client, alice):
 
 @pytest.mark.asyncio
 async def test_login_wrong_password_returns_401(anon_client, alice):
-    resp = await anon_client.post(_LOGIN_URL, json={"username": "alice", "password": "wrong"})
+    resp = await anon_client.post(_LOGIN_URL, json={"username": "alice", "password": "wrong"})  # NOSONAR
     assert resp.status_code == 401
 
 
 @pytest.mark.asyncio
 async def test_login_unknown_user_returns_401(anon_client):
-    resp = await anon_client.post(_LOGIN_URL, json={"username": "ghost", "password": "x"})
+    resp = await anon_client.post(_LOGIN_URL, json={"username": "ghost", "password": "x"})  # NOSONAR
     assert resp.status_code == 401
 
 
@@ -169,7 +169,7 @@ async def test_change_password_success(auth_client):
 async def test_change_password_wrong_old_returns_400(auth_client):
     resp = await auth_client.post(
         "/api/v1/auth/change-password",
-        json={"old_password": "wrong", "new_password": _NEW_SECRET},
+        json={"old_password": "wrong", "new_password": _NEW_SECRET},  # NOSONAR
     )
     assert resp.status_code == 400
 
@@ -197,7 +197,7 @@ async def test_change_password_common_password_returns_422(auth_client):
 async def test_change_password_appname_returns_422(auth_client):
     resp = await auth_client.post(
         "/api/v1/auth/change-password",
-        json={"old_password": _ALICE_SECRET, "new_password": "piplanner2024!"},
+        json={"old_password": _ALICE_SECRET, "new_password": "piplanner2024!"},  # NOSONAR
     )
     assert resp.status_code == 422
 

@@ -59,7 +59,7 @@ async def logout(
     response: Response,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_session)],
-    session_token: str | None = Cookie(default=None, alias=SESSION_COOKIE),
+    session_token: Annotated[str | None, Cookie(alias=SESSION_COOKIE)] = None,
 ) -> None:
     if session_token:
         session_id = unsign_session_token(session_token)

@@ -175,7 +175,7 @@ async def test_admin_resets_password(client):
     )
     resp = await client.post(
         "/api/v1/users/resetme/reset-password",
-        json={"new_password": "brand-new-pw!"},
+        json={"new_password": "brand-new-pw!"},  # NOSONAR
     )
     assert resp.status_code == 204
 
@@ -184,7 +184,7 @@ async def test_admin_resets_password(client):
 async def test_admin_cannot_reset_own_password_via_admin_endpoint(client):
     resp = await client.post(
         "/api/v1/users/testuser/reset-password",
-        json={"new_password": "brand-new-pw!"},
+        json={"new_password": "brand-new-pw!"},  # NOSONAR
     )
     assert resp.status_code == 403
 
@@ -193,7 +193,7 @@ async def test_admin_cannot_reset_own_password_via_admin_endpoint(client):
 async def test_editor_cannot_reset_password(editor_client):
     resp = await editor_client.post(
         "/api/v1/users/editor_user/reset-password",
-        json={"new_password": "brand-new-pw!"},
+        json={"new_password": "brand-new-pw!"},  # NOSONAR
     )
     assert resp.status_code == 403
 
@@ -202,7 +202,7 @@ async def test_editor_cannot_reset_password(editor_client):
 async def test_reset_nonexistent_user_returns_404(client):
     resp = await client.post(
         "/api/v1/users/nobody/reset-password",
-        json={"new_password": "brand-new-pw!"},
+        json={"new_password": "brand-new-pw!"},  # NOSONAR
     )
     assert resp.status_code == 404
 
@@ -215,7 +215,7 @@ async def test_reset_password_containing_username_returns_422(client):
     )
     resp = await client.post(
         "/api/v1/users/pwpolicy/reset-password",
-        json={"new_password": "pwpolicy-extra"},
+        json={"new_password": "pwpolicy-extra"},  # NOSONAR
     )
     assert resp.status_code == 422
 

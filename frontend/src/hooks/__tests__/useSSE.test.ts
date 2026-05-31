@@ -7,7 +7,7 @@ import { useSSE } from '../useSSE'
 // ── Mock EventSource ───────────────────────────────────────────────────────────
 
 class MockEventSource {
-  static instance: MockEventSource | null = null
+  static instance: MockEventSource | null = null // NOSONAR
   onmessage: ((e: { data: string }) => void) | null = null
   onerror: (() => void) | null = null
   readonly url: string

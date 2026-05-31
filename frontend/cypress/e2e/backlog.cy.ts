@@ -26,8 +26,7 @@ describe('Core backlog journey', () => {
   })
 
   it('adds a PBI to a feature and it appears listed under it', () => {
-    cy.request('POST', `/api/v1/projects/${projectId}/features`, { title: 'Auth Feature' }).then((featureRes) => {
-      const featureId = featureRes.body.system_id
+    cy.request('POST', `/api/v1/projects/${projectId}/features`, { title: 'Auth Feature' }).then(() => {
       acquireEditLock()
       cy.contains('Auth Feature').should('be.visible')
       cy.contains('Auth Feature').closest('[data-feature-row], li').find('button[aria-label*="expand" i], button').first().click()
@@ -50,8 +49,7 @@ describe('Core backlog journey', () => {
   })
 
   it('edits feature title and user_id — changes persist after reload', () => {
-    cy.request('POST', `/api/v1/projects/${projectId}/features`, { title: 'Original Title' }).then((res) => {
-      const featureId = res.body.system_id
+    cy.request('POST', `/api/v1/projects/${projectId}/features`, { title: 'Original Title' }).then(() => {
       acquireEditLock()
       cy.contains('Original Title').closest('[data-feature-row], li').find('button[aria-label*="edit" i], button').first().click()
       cy.get('input[name="title"]').clear().type('Updated Title')

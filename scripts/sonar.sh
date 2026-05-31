@@ -3,12 +3,12 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-source "$SCRIPT_DIR/backend/venv/bin/activate"
+source "$SCRIPT_DIR/../backend/venv/bin/activate"
 
 # Load .env from project root if present
-if [[ -f "$SCRIPT_DIR/.env" ]]; then
+if [[ -f ".env" ]]; then
   set -a
-  source "$SCRIPT_DIR/.env"
+  source ".env"
   set +a
 fi
 
