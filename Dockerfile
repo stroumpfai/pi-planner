@@ -9,6 +9,10 @@ RUN npm run build
 # ── Stage 2: Production image ──────────────────────────────────────────────────
 FROM python:3.12-slim
 
+ARG APP_VERSION=1.3.0
+LABEL version="${APP_VERSION}"
+ENV APP_VERSION=${APP_VERSION}
+
 WORKDIR /app
 
 # Install Python dependencies (separate layer for cache efficiency)

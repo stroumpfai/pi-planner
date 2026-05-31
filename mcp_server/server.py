@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from contextlib import asynccontextmanager
 
 import httpx
@@ -17,6 +18,7 @@ log = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(server: FastMCP):
     """Create a shared httpx client at startup and close it on shutdown."""
+    log.info("PI Planner MCP server v%s starting...", os.environ.get("APP_VERSION", "dev"))
     async with httpx.AsyncClient(
         base_url=settings.backend_url,
         timeout=httpx.Timeout(10.0, connect=3.0),

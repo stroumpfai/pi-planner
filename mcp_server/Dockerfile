@@ -2,6 +2,10 @@ FROM python:3.12-slim
 
 # Place the package under /code/mcp_server so that pyproject.toml's
 # `where = [".."]` resolves to /code and finds the mcp_server package.
+ARG APP_VERSION=1.0.0
+LABEL version="${APP_VERSION}"
+ENV APP_VERSION=${APP_VERSION}
+
 WORKDIR /code/mcp_server
 
 COPY . .
