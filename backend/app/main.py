@@ -1,15 +1,20 @@
 import logging
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
-from app.database import AsyncSessionLocal
+from app.database import AsyncSessionLocal, get_session
+from app.middleware.mcp_activity import MCPActivityMiddleware
 from app.routes import (
+    api_keys,
     auth,
     csv_import,
     edit_lock,
@@ -51,8 +56,10 @@ app.add_middleware(
     allow_origins=settings.get_allowed_origins(),
     allow_credentials=True,
     allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE"],
-    allow_headers=["Content-Type", "Authorization"],
+    allow_headers=["Content-Type", "Authorization", "X-MCP-Actor", "X-MCP-Key-Id"],
 )
+
+app.add_middleware(MCPActivityMiddleware)
 
 
 for _router in [
@@ -68,6 +75,7 @@ for _router in [
     edit_lock.router,
     events.router,
     csv_import.router,
+    api_keys.router,
 ]:
     app.include_router(_router)
 
@@ -76,8 +84,33 @@ if settings.allow_test_reset:
 
 
 @app.get("/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok"}
+async def health(db: AsyncSession = Depends(get_session)) -> dict:
+    components: dict = {}
+    overall = "healthy"
+
+    # Database check
+    try:
+        start = time.monotonic()
+        await db.execute(text("SELECT 1"))
+        ms = int((time.monotonic() - start) * 1000)
+        components["database"] = {"status": "healthy", "response_ms": ms}
+    except Exception as exc:
+        components["database"] = {"status": "unhealthy", "error": str(exc)}
+        overall = "unhealthy"
+
+    # Disk check
+    try:
+        import shutil
+        usage = shutil.disk_usage("/")
+        free_gb = round(usage.free / 1e9, 1)
+        disk_status = "healthy" if free_gb > 1.0 else "degraded"
+        components["disk"] = {"status": disk_status, "free_gb": free_gb}
+        if disk_status == "degraded" and overall == "healthy":
+            overall = "degraded"
+    except Exception as exc:
+        components["disk"] = {"status": "unknown", "error": str(exc)}
+
+    return {"status": overall, "components": components}
 
 
 # Serve React SPA in production (when the frontend build exists)

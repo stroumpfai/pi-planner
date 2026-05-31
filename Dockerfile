@@ -23,6 +23,7 @@ RUN pip install --no-cache-dir \
     "python-multipart>=0.0.6" \
     "argon2-cffi>=23.1" \
     "itsdangerous>=2.1.0" \
+    "pyjwt>=2.8" \
     "python-dotenv>=1.0.0"
 
 # Copy backend source and migrations

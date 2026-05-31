@@ -8,6 +8,8 @@ from app.models.feature import Feature
 from app.models.group import Group
 from app.models.pbi import PBI
 from app.models.edit_lock import EditLock
+from app.models.api_key import APIKey
+from app.models.activity_log import ActivityLog, ActorType
 
 __all__ = [
     "User",
@@ -20,4 +22,7 @@ __all__ = [
     "Group",
     "PBI",
     "EditLock",
+    "APIKey",
+    "ActivityLog",
+    "ActorType",
 ]

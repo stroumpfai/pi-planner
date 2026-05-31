@@ -15,6 +15,7 @@ class Settings(BaseSettings):
     allowed_origins: str = "http://localhost:5173"
     users_file: str = "/config/users.json"
     allow_test_reset: bool = False
+    mcp_signing_secret: str = ""
 
     def get_allowed_origins(self) -> list[str]:
         v = self.allowed_origins.strip()

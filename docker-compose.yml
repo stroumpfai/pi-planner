@@ -12,4 +12,20 @@ services:
       DATABASE_URL: sqlite+aiosqlite:////data/db.sqlite
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8000}
       USERS_FILE: /config/users.json
+      # Shared secret for verifying MCP service JWTs — must match mcp-server
+      MCP_SIGNING_SECRET: ${MCP_SIGNING_SECRET:-change-me-in-production}
+    restart: unless-stopped
+
+  mcp-server:
+    build: ./mcp_server
+    ports:
+      - "8010:8010"
+    environment:
+      BACKEND_URL: http://app:8000
+      # Must match the value set on the app service above
+      MCP_SIGNING_SECRET: ${MCP_SIGNING_SECRET:-change-me-in-production}
+      PORT: 8010
+      FASTMCP_HOST: "0.0.0.0"
+    depends_on:
+      - app
     restart: unless-stopped

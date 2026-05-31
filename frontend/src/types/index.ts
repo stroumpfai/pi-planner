@@ -62,3 +62,30 @@ export interface ApiError {
   message: string
   details?: Record<string, unknown>
 }
+
+export interface ApiKey {
+  id: string
+  username: string
+  name: string
+  purpose: string | null
+  created_at: string
+  expires_at: string | null
+  last_used_at: string | null
+  is_active: boolean
+}
+
+export interface ApiKeyCreate {
+  username: string
+  name: string
+  purpose?: string
+  expires_in_days?: number
+}
+
+export interface ApiKeyCreateResponse {
+  id: string
+  full_token: string
+  username: string
+  name: string
+  created_at: string
+  expires_at: string | null
+}
