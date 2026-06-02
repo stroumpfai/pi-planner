@@ -1,3 +1,4 @@
+from datetime import timedelta
 from typing import Annotated
 
 import jwt as pyjwt
@@ -35,6 +36,7 @@ def _decode_service_jwt(token: str) -> dict | None:
             settings.mcp_signing_secret,
             algorithms=["HS256"],
             options={"require": ["exp"]},
+            leeway=timedelta(seconds=30),
         )
     except pyjwt.PyJWTError:
         return None

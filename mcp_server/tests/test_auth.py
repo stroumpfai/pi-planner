@@ -1,7 +1,9 @@
 import httpx
 import pytest
 
-from mcp_server.auth import verify_api_key
+from fastmcp.server.auth import TokenVerifier
+
+from mcp_server.auth import APIKeyAuthProvider, verify_api_key
 
 
 async def test_valid_token_returns_key_id_username_role(mock_backend):
@@ -70,3 +72,9 @@ async def test_editor_role_returned_correctly(mock_backend):
     )
     result = await verify_api_key("kid_xyz.secret")
     assert result == ("kid_xyz", "bob", "editor")
+
+
+def test_api_key_auth_provider_is_token_verifier():
+    """APIKeyAuthProvider must be a TokenVerifier so MultiAuth can use it as a verifier."""
+    provider = APIKeyAuthProvider()
+    assert isinstance(provider, TokenVerifier)

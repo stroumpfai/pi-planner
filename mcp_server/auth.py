@@ -1,12 +1,12 @@
-import jwt
-import time
 import httpx
 from collections import defaultdict
+import time
 
-from fastmcp.server.auth import AuthProvider
+from fastmcp.server.auth import TokenVerifier
 from fastmcp.server.dependencies import AccessToken, get_http_request
 
 from mcp_server.config import settings
+from mcp_server.jwt_utils import mint_service_jwt
 
 
 # Sliding-window rate limiter state (shared with server.py's ASGI middleware).
@@ -25,15 +25,6 @@ def record_auth_failure(ip: str) -> None:
     _failed_auth[ip].append(time.monotonic())
 
 
-def _mint_service_jwt() -> str:
-    now = int(time.time())
-    return jwt.encode(
-        {"iss": "mcp-server", "sub": "service", "iat": now, "exp": now + 300},
-        settings.mcp_signing_secret,
-        algorithm="HS256",
-    )
-
-
 async def verify_api_key(raw_token: str) -> tuple[str, str, str] | None:
     """
     Verify token by calling backend POST /api/v1/api-keys/admin/verify.
@@ -46,7 +37,7 @@ async def verify_api_key(raw_token: str) -> tuple[str, str, str] | None:
             r = await client.post(
                 "/api/v1/api-keys/admin/verify",
                 json={"token": raw_token},
-                headers={"Authorization": f"Bearer {_mint_service_jwt()}"},
+                headers={"Authorization": f"Bearer {mint_service_jwt()}"},
             )
             if r.status_code == 200:
                 data = r.json()
@@ -56,7 +47,7 @@ async def verify_api_key(raw_token: str) -> tuple[str, str, str] | None:
         return None
 
 
-class APIKeyAuthProvider(AuthProvider):
+class APIKeyAuthProvider(TokenVerifier):
     """FastMCP v3 native auth provider that verifies PI Planner API keys.
 
     Integrates with FastMCP's SSE transport correctly (no BaseHTTPMiddleware
@@ -71,6 +62,9 @@ class APIKeyAuthProvider(AuthProvider):
         except RuntimeError:
             ip = "unknown"
 
+        if is_rate_limited(ip):
+            return None
+
         result = await verify_api_key(token)
         if result is None:
             record_auth_failure(ip)
@@ -80,6 +74,10 @@ class APIKeyAuthProvider(AuthProvider):
         if role == "reader":
             record_auth_failure(ip)
             return None
+
+        # Clear failure history for this IP on successful auth so a legitimate
+        # user is not permanently locked out after earlier probe attempts.
+        _failed_auth.pop(ip, None)
 
         return AccessToken(
             token=token,

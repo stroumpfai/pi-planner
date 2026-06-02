@@ -11,14 +11,21 @@ async def edit_lock(project_id: str):
 
     Raises MCPBackendError(409, "LOCKED", ...) if another user holds the lock.
     A release failure is swallowed; the lock will expire naturally after 30 minutes.
+
+    The `acquired` flag ensures the finally block only attempts a release when the
+    acquire call returned successfully — preventing a spurious release attempt when
+    the acquire itself raised (e.g. 409 conflict or network error).
     """
-    await call_backend("POST", f"/api/v1/projects/{project_id}/edit-lock/acquire")
+    acquired = False
     try:
+        await call_backend("POST", f"/api/v1/projects/{project_id}/edit-lock/acquire")
+        acquired = True
         yield
     finally:
-        try:
-            await call_backend(
-                "POST", f"/api/v1/projects/{project_id}/edit-lock/release"
-            )
-        except MCPBackendError:
-            pass  # lock will expire naturally after 30 min timeout
+        if acquired:
+            try:
+                await call_backend(
+                    "POST", f"/api/v1/projects/{project_id}/edit-lock/release"
+                )
+            except MCPBackendError:
+                pass  # lock will expire naturally after 30 min timeout

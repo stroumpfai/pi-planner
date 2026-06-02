@@ -96,9 +96,9 @@ async def test_connection_error_raises_backend_unreachable(
 
 
 def test_minted_jwt_has_correct_claims(mock_settings):
-    from mcp_server.backend import _mint_service_jwt
+    from mcp_server.jwt_utils import mint_service_jwt
 
-    token = _mint_service_jwt()
+    token = mint_service_jwt()
     claims = jwt.decode(token, settings.mcp_signing_secret, algorithms=["HS256"])
     assert claims["iss"] == "mcp-server"
     assert claims["sub"] == "service"

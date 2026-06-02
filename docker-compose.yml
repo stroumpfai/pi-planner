@@ -18,9 +18,13 @@ services:
     env_file: ./mcp_server/.env
     ports:
       - "8010:8010"
+    volumes:
+      - ./data/:/data
     environment:
       BACKEND_URL: http://app:8000
       FASTMCP_HOST: "0.0.0.0"
+      OAUTH_BASE_URL: ${OAUTH_BASE_URL:-}
+      OAUTH_TOKEN_STORAGE: /data/oauth_tokens.json
     depends_on:
       - app
     restart: unless-stopped

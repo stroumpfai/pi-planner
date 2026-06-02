@@ -1,4 +1,3 @@
-import jwt
 import time
 import logging
 from typing import Optional
@@ -7,6 +6,7 @@ import httpx
 from fastmcp.server.dependencies import get_access_token
 
 from mcp_server.config import settings
+from mcp_server.jwt_utils import mint_service_jwt
 
 log = logging.getLogger(__name__)
 
@@ -33,15 +33,6 @@ class MCPBackendError(Exception):
         super().__init__(message)
 
 
-def _mint_service_jwt() -> str:
-    now = int(time.time())
-    return jwt.encode(
-        {"iss": "mcp-server", "sub": "service", "iat": now, "exp": now + 300},
-        settings.mcp_signing_secret,
-        algorithm="HS256",
-    )
-
-
 async def call_backend(method: str, path: str, **kwargs) -> dict:
     """
     Call the FastAPI backend using the shared httpx client.
@@ -53,7 +44,7 @@ async def call_backend(method: str, path: str, **kwargs) -> dict:
     client = get_client()
     access_token = get_access_token()
     headers = kwargs.pop("headers", {})
-    headers["Authorization"] = f"Bearer {_mint_service_jwt()}"
+    headers["Authorization"] = f"Bearer {mint_service_jwt()}"
     if access_token:
         headers["X-MCP-Actor"] = access_token.client_id
         headers["X-MCP-Key-Id"] = access_token.claims.get("key_id", "")
@@ -76,21 +67,19 @@ async def call_backend(method: str, path: str, **kwargs) -> dict:
         elapsed_ms,
     )
 
+    _raise_for_error(r)
+    data = r.json() if r.content else {}
+    # FastMCP v3 requires tools to return dicts; wrap list responses so they
+    # are consistent with the dict-only contract.
+    if isinstance(data, list):
+        return {"items": data}
+    return data
+
+
+def _raise_for_error(r: httpx.Response) -> None:
+    """Classify error responses into typed MCPBackendError exceptions."""
     if r.status_code == 409:
-        body = {}
-        try:
-            body = r.json()
-        except Exception:
-            pass
-        detail = body.get("detail", {}) if isinstance(body.get("detail"), dict) else {}
-        locked_by = detail.get("locked_by", "another user")
-        expires_at = detail.get("expires_at", "")
-        retry_hint = (
-            f" Lock expires at {expires_at}." if expires_at else " Try again in a few minutes."
-        )
-        raise MCPBackendError(
-            409, "LOCKED", f"Project is being edited by {locked_by}.{retry_hint}"
-        )
+        _raise_409(r)
     if r.status_code == 403:
         raise MCPBackendError(403, "FORBIDDEN", "Your role does not permit this action.")
     if r.status_code == 422:
@@ -99,11 +88,23 @@ async def call_backend(method: str, path: str, **kwargs) -> dict:
         )
     if r.status_code >= 500:
         raise MCPBackendError(r.status_code, "BACKEND_ERROR", "Backend error. Try again later.")
-
     r.raise_for_status()
-    data = r.json() if r.content else {}
-    # FastMCP v3 requires tools to return dicts; wrap list responses so they
-    # are consistent with the dict-only contract.
-    if isinstance(data, list):
-        return {"items": data}
-    return data
+
+
+def _raise_409(r: httpx.Response) -> None:
+    """Raise CONFLICT for business-logic 409s or LOCKED for edit-lock 409s."""
+    body = {}
+    try:
+        body = r.json()
+    except Exception:
+        pass
+    detail = body.get("detail")
+    detail_dict = detail if isinstance(detail, dict) else {}
+    # Business-logic 409s carry an "error" code (e.g. STORY_ALREADY_GROUPED).
+    # Edit-lock 409s use a plain string or a dict with locked_by/expires_at.
+    if isinstance(detail, dict) and "error" in detail:
+        raise MCPBackendError(409, "CONFLICT", detail_dict.get("message", "Conflict."))
+    locked_by = detail_dict.get("locked_by", "another user")
+    expires_at = detail_dict.get("expires_at", "")
+    retry_hint = f" Lock expires at {expires_at}." if expires_at else " Try again in a few minutes."
+    raise MCPBackendError(409, "LOCKED", f"Project is being edited by {locked_by}.{retry_hint}")
