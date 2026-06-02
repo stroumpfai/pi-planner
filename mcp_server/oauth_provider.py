@@ -17,7 +17,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from fastmcp.server.auth.auth import AccessToken, ClientRegistrationOptions, OAuthProvider
-from mcp.server.auth.handlers.metadata import ProtectedResourceMetadataHandler
+from mcp.server.auth.handlers.metadata import MetadataHandler, ProtectedResourceMetadataHandler
+from mcp.server.auth.routes import build_metadata
 from mcp.server.auth.provider import (
     AuthorizationCode,
     AuthorizationParams,
@@ -263,6 +264,30 @@ class PiPlannerOAuthProvider(OAuthProvider):
 
     def get_routes(self, mcp_path: str | None = None) -> list[Route]:
         routes = super().get_routes(mcp_path)
+
+        # RFC 8414 §2: the upstream library unconditionally advertises "refresh_token"
+        # in grant_types_supported, but we don't support it (exchange_refresh_token
+        # raises unsupported_grant_type).  Rebuild the metadata with the correct set
+        # and replace the route.
+        _metadata = build_metadata(
+            self.base_url,
+            self.service_documentation_url,
+            self.client_registration_options or ClientRegistrationOptions(enabled=True),
+            self.revocation_options or RevocationOptions(enabled=True),
+        )
+        _metadata.grant_types_supported = ["authorization_code"]
+        _corrected = cors_middleware(MetadataHandler(_metadata).handle, ["GET", "OPTIONS"])
+        routes = [
+            Route(
+                "/.well-known/oauth-authorization-server",
+                endpoint=_corrected,
+                methods=["GET", "OPTIONS"],
+            )
+            if isinstance(r, Route) and r.path == "/.well-known/oauth-authorization-server"
+            else r
+            for r in routes
+        ]
+
         routes.append(Route("/authorize/consent", self._consent_handler, methods=["GET", "POST"]))
 
         # FastMCP registers /.well-known/oauth-protected-resource/mcp (RFC 8414

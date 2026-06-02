@@ -151,6 +151,30 @@ def test_token_store_corrupted_file_starts_fresh(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# PiPlannerOAuthProvider — RFC 8414 metadata
+# ---------------------------------------------------------------------------
+
+
+async def test_metadata_does_not_advertise_refresh_token(tmp_path):
+    """/.well-known/oauth-authorization-server must not list refresh_token (RFC 8414 §2)."""
+    import httpx
+    from starlette.applications import Starlette
+
+    provider = _make_provider(tmp_path)
+    routes = provider.get_routes()
+    app = Starlette(routes=routes)
+
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+        r = await client.get("/.well-known/oauth-authorization-server")
+
+    assert r.status_code == 200
+    data = r.json()
+    grant_types = data.get("grant_types_supported", [])
+    assert "refresh_token" not in grant_types
+    assert "authorization_code" in grant_types
+
+
+# ---------------------------------------------------------------------------
 # PiPlannerOAuthProvider — client registration
 # ---------------------------------------------------------------------------
 
