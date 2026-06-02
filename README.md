@@ -64,6 +64,7 @@ docker run -d \
 | `ALLOWED_ORIGINS` | `http://localhost:8000` | CORS allowed origins (comma-separated) |
 | `USERS_FILE` | `/config/users.json` | Path to the users bootstrap file |
 | `MCP_SIGNING_SECRET` | `change-me-in-production` | Shared secret between the app and the MCP server |
+| `LOG_LEVEL` | `WARNING` | Log level for the application (`DEBUG`, `INFO`, `WARNING`, `ERROR`). Also controls uvicorn startup logs. Do not use `DEBUG` in production — request data may appear in logs. |
 
 The container runs `alembic upgrade head` on every startup before launching uvicorn, so schema migrations apply automatically on upgrade.
 
@@ -108,6 +109,19 @@ docker compose up -d
 # App   → http://localhost:8000
 # MCP   → http://localhost:8010
 ```
+
+### MCP server environment variables
+
+Configure the MCP server by editing `mcp_server/.env` (copy from `mcp_server/.env.example`):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MCP_SIGNING_SECRET` | — | **Required.** Must match the app's `MCP_SIGNING_SECRET` |
+| `BACKEND_URL` | `http://localhost:8000` | URL of the main app (overridden to `http://app:8000` in Docker Compose) |
+| `PORT` | `8010` | Port the MCP server listens on |
+| `LOG_LEVEL` | `WARNING` | Log level for MCP server code (`DEBUG`, `INFO`, `WARNING`, `ERROR`). Set to `INFO` to see the startup version line and OAuth flow logs. |
+| `FASTMCP_LOG_LEVEL` | `INFO` | Log level for FastMCP/uvicorn framework logs. Set to `warning` to suppress `INFO: Started server...` noise. |
+| `OAUTH_BASE_URL` | *(empty)* | Public URL of the MCP server — enables OAuth 2.1 for Claude.ai / ChatGPT. Leave empty for Claude Code (direct API key auth). |
 
 To rebuild after a code change:
 ```bash
@@ -165,7 +179,7 @@ npm run cypress:run       # headless E2E (CI)
 MCP server integration is live. Below are planned improvements:
 
 - [x] MCP server - Part I
-- [ ] MCP server - Part II
+- [x] MCP server - Part II
 - [ ] New front-end
 - [ ] Major upgrades of frontend libraries
 - [ ] Encrypt the SQLite database

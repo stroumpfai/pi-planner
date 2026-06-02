@@ -1,6 +1,12 @@
-import json
 import logging
 import os
+
+# Must run before any other imports so that FastMCP / uvicorn cannot pre-empt it.
+# force=True removes any handlers that may already exist (e.g. from a pytest run)
+# so the level always takes effect.
+logging.basicConfig(level=os.environ.get("LOG_LEVEL", "WARNING").upper(), force=True)
+
+import json
 from contextlib import asynccontextmanager
 
 import httpx
@@ -28,7 +34,12 @@ async def lifespan(server: FastMCP):
             "MCP_SIGNING_SECRET is not configured. "
             "Set a strong random value (e.g. `openssl rand -hex 32`) in the environment."
         )
-    log.info("PI Planner MCP server v%s starting...", os.environ.get("APP_VERSION", "dev"))
+    from importlib.metadata import version as _pkg_version
+    log.info(
+        "PI Planner MCP server v%s starting... (mcp=%s)",
+        os.environ.get("APP_VERSION", "dev"),
+        _pkg_version("mcp"),
+    )
     if settings.oauth_base_url:
         log.info("OAuth enabled — base URL: %s", settings.oauth_base_url)
         log.info("  discovery: %s/.well-known/oauth-authorization-server", settings.oauth_base_url.rstrip("/"))

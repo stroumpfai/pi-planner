@@ -1,4 +1,11 @@
 import logging
+import os
+
+# Must run before any other imports so that FastAPI / uvicorn cannot pre-empt it.
+# force=True removes any handlers that may already exist (e.g. from a pytest run)
+# so the level always takes effect.
+logging.basicConfig(level=os.environ.get("LOG_LEVEL", "WARNING").upper(), force=True)
+
 import time
 from contextlib import asynccontextmanager
 from pathlib import Path

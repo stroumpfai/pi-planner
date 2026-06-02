@@ -11,4 +11,5 @@ echo "Running database migrations..."
 alembic upgrade head
 
 echo "Starting PI Planning on :8000"
-exec uvicorn app.main:app --host 0.0.0.0 --port 8000
+LOG_LEVEL_LOWER=$(echo "${LOG_LEVEL:-warning}" | tr '[:upper:]' '[:lower:]')
+exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level "$LOG_LEVEL_LOWER"
