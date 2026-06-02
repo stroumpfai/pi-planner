@@ -23,7 +23,6 @@ services:
     environment:
       BACKEND_URL: http://app:8000
       FASTMCP_HOST: "0.0.0.0"
-      OAUTH_BASE_URL: ${OAUTH_BASE_URL:-}
       OAUTH_TOKEN_STORAGE: /data/oauth_tokens.json
     depends_on:
       - app

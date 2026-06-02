@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from fastmcp.server.auth.auth import AccessToken, ClientRegistrationOptions, OAuthProvider
+from mcp.server.auth.handlers.metadata import ProtectedResourceMetadataHandler
 from mcp.server.auth.provider import (
     AuthorizationCode,
     AuthorizationParams,
@@ -25,8 +26,9 @@ from mcp.server.auth.provider import (
     TokenError,
     construct_redirect_uri,
 )
+from mcp.server.auth.routes import cors_middleware
 from mcp.server.auth.settings import RevocationOptions
-from mcp.shared.auth import OAuthClientInformationFull, OAuthToken
+from mcp.shared.auth import OAuthClientInformationFull, OAuthToken, ProtectedResourceMetadata
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 from starlette.routing import Route
@@ -167,6 +169,11 @@ class PiPlannerOAuthProvider(OAuthProvider):
         if client_info.client_id is None:
             raise ValueError("client_id is required for registration")
         self._clients[client_info.client_id] = client_info
+        log.info(
+            "oauth_dcr_registered client_id=%.8s name=%s",
+            client_info.client_id,
+            client_info.client_name or "(unnamed)",
+        )
 
     async def authorize(
         self, client: OAuthClientInformationFull, params: AuthorizationParams
@@ -177,6 +184,11 @@ class PiPlannerOAuthProvider(OAuthProvider):
             client=client,
             params=params,
             expires_at=time.time() + _AUTH_CODE_TTL,
+        )
+        log.info(
+            "oauth_authorize_started client_id=%.8s redirect_uri=%s",
+            client.client_id or "?",
+            params.redirect_uri,
         )
         return f"{self._base_url_str}/authorize/consent?nonce={nonce}"
 
@@ -235,10 +247,16 @@ class PiPlannerOAuthProvider(OAuthProvider):
         raise TokenError("unsupported_grant_type", "Refresh tokens are not supported.")
 
     async def load_access_token(self, token: str) -> AccessToken | None:  # type: ignore[override]
-        return self._store.get_token(token)
+        result = self._store.get_token(token)
+        if result is None:
+            log.debug("oauth_token_lookup token=%.8s... result=miss", token)
+        else:
+            log.debug("oauth_token_lookup token=%.8s... user=%s result=hit", token, result.client_id)
+        return result
 
     async def revoke_token(self, token: AccessToken | RefreshToken) -> None:
         if isinstance(token, AccessToken):
+            log.info("oauth_token_revoked user=%s token=%.8s...", token.client_id, token.token)
             await self._store.delete_token(token.token)
 
     # ── Custom consent routes ────────────────────────────────────────────────
@@ -246,6 +264,26 @@ class PiPlannerOAuthProvider(OAuthProvider):
     def get_routes(self, mcp_path: str | None = None) -> list[Route]:
         routes = super().get_routes(mcp_path)
         routes.append(Route("/authorize/consent", self._consent_handler, methods=["GET", "POST"]))
+
+        # FastMCP registers /.well-known/oauth-protected-resource/mcp (RFC 8414
+        # path-aware), but clients like Claude.ai check the root-path variant
+        # /.well-known/oauth-protected-resource.  Add an alias that serves the
+        # same metadata so Claude.ai learns the actual MCP endpoint URL (/mcp).
+        if self._resource_url:
+            from urllib.parse import urlparse as _urlparse
+            resource_path = _urlparse(str(self._resource_url)).path
+            if resource_path and resource_path not in ("/", ""):
+                meta = ProtectedResourceMetadata(
+                    resource=self._resource_url,
+                    authorization_servers=[self.issuer_url],
+                )
+                handler = ProtectedResourceMetadataHandler(meta)
+                routes.append(Route(
+                    "/.well-known/oauth-protected-resource",
+                    endpoint=cors_middleware(handler.handle, ["GET", "OPTIONS"]),
+                    methods=["GET", "OPTIONS"],
+                ))
+
         return routes
 
     async def _consent_handler(self, request: Request) -> Response:
@@ -257,6 +295,7 @@ class PiPlannerOAuthProvider(OAuthProvider):
         nonce = request.query_params.get("nonce", "")
         pending = self._pending.get(nonce)
         if not pending or pending.expires_at < time.time():
+            log.warning("oauth_consent_get nonce=%.8s... result=expired_or_invalid", nonce or "?")
             return HTMLResponse(
                 "<h1>Authorization request expired or invalid.</h1>"
                 "<p>Please return to the application and try again.</p>",
@@ -264,6 +303,12 @@ class PiPlannerOAuthProvider(OAuthProvider):
             )
         client_name = (getattr(pending.client, "client_name", None) or pending.client.client_id or "An application")
         error = request.query_params.get("error", "")
+        log.info(
+            "oauth_consent_page_served client=%s nonce=%.8s... error=%s",
+            client_name,
+            nonce,
+            error or "none",
+        )
         return HTMLResponse(_render_consent_form(nonce, str(client_name), error))
 
     async def _consent_post(self, request: Request) -> Response:
@@ -273,13 +318,17 @@ class PiPlannerOAuthProvider(OAuthProvider):
 
         pending = self._pending.get(nonce)
         if not pending or pending.expires_at < time.time():
+            log.warning("oauth_consent_post nonce=%.8s... result=expired_or_invalid", nonce or "?")
             return HTMLResponse(
                 "<h1>Authorization request expired.</h1>"
                 "<p>Please return to the application and try again.</p>",
                 status_code=400,
             )
 
+        client_id_short = (pending.client.client_id or "?")[:8]
+
         if not api_key:
+            log.warning("oauth_consent_post nonce=%.8s... client=%.8s result=missing_key", nonce, client_id_short)
             return RedirectResponse(
                 url=f"/authorize/consent?nonce={nonce}&error=missing_key",
                 status_code=303,
@@ -287,6 +336,7 @@ class PiPlannerOAuthProvider(OAuthProvider):
 
         result = await verify_api_key(api_key)
         if result is None:
+            log.warning("oauth_consent_post nonce=%.8s... client=%.8s result=invalid_api_key", nonce, client_id_short)
             return RedirectResponse(
                 url=f"/authorize/consent?nonce={nonce}&error=invalid_key",
                 status_code=303,
@@ -294,6 +344,10 @@ class PiPlannerOAuthProvider(OAuthProvider):
 
         key_id, username, role = result
         if role == "reader":
+            log.warning(
+                "oauth_consent_post nonce=%.8s... client=%.8s user=%s result=reader_rejected",
+                nonce, client_id_short, username,
+            )
             return RedirectResponse(
                 url=f"/authorize/consent?nonce={nonce}&error=reader_not_allowed",
                 status_code=303,
@@ -315,6 +369,10 @@ class PiPlannerOAuthProvider(OAuthProvider):
         self._code_claims[code] = (key_id, username, role)
         del self._pending[nonce]
 
+        log.info(
+            "oauth_auth_code_issued nonce=%.8s... client=%.8s user=%s role=%s key_id=%.8s code=%.8s...",
+            nonce, client_id_short, username, role, key_id, code,
+        )
         redirect_url = construct_redirect_uri(
             str(params.redirect_uri), code=code, state=params.state
         )

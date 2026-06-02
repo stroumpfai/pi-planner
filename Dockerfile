@@ -9,7 +9,7 @@ RUN npm run build
 # ── Stage 2: Production image ──────────────────────────────────────────────────
 FROM python:3.12-slim
 
-ARG APP_VERSION=1.3.0
+ARG APP_VERSION=1.4.2
 LABEL version="${APP_VERSION}"
 ENV APP_VERSION=${APP_VERSION}
 

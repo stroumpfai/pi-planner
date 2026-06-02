@@ -41,7 +41,7 @@ Add the server to your project or global Claude Code configuration:
   "mcpServers": {
     "pi-planner": {
       "type": "http",
-      "url": "https://mcp.example.com/mcp",
+      "url": "https://mcp.example.com",
       "headers": {
         "Authorization": "Bearer YOUR_API_KEY"
       }
@@ -56,10 +56,28 @@ After saving, restart Claude Code. Run `/mcp` to confirm the `pi-planner` server
 
 ---
 
+## Verify the server is configured for OAuth
+
+Before connecting Claude.ai, confirm OAuth is enabled on the server:
+
+```bash
+curl https://mcp.example.com/.well-known/oauth-authorization-server
+```
+
+Expected: a JSON object containing `issuer`, `authorization_endpoint`, `token_endpoint`, etc.
+
+If you get a 404 or an empty response, OAuth is not enabled. Check:
+1. `OAUTH_BASE_URL` is set in `mcp_server/.env` (not in the root docker-compose `.env`).
+2. The MCP server container was restarted after the change: `docker compose restart mcp-server`
+3. Logs confirm OAuth is active: `docker compose logs mcp-server | grep OAuth`
+
+---
+
 ## Troubleshooting
 
 | Symptom | Likely cause |
 |---|---|
+| No authorization popup appears | OAuth not enabled — check `OAUTH_BASE_URL` in `mcp_server/.env` and restart |
 | Consent page shows "Invalid API key" | Wrong key, or key was deleted/expired |
 | "Reader accounts cannot authorize" | Your account has the reader role — ask an admin to upgrade it |
 | Connection refused / server unreachable | Check that the MCP server container is running: `docker compose ps` |

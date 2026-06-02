@@ -29,6 +29,16 @@ async def lifespan(server: FastMCP):
             "Set a strong random value (e.g. `openssl rand -hex 32`) in the environment."
         )
     log.info("PI Planner MCP server v%s starting...", os.environ.get("APP_VERSION", "dev"))
+    if settings.oauth_base_url:
+        log.info("OAuth enabled — base URL: %s", settings.oauth_base_url)
+        log.info("  discovery: %s/.well-known/oauth-authorization-server", settings.oauth_base_url.rstrip("/"))
+        log.info("  token storage: %s", settings.oauth_token_storage)
+    else:
+        log.warning(
+            "OAUTH_BASE_URL is not set — OAuth disabled. "
+            "Claude.ai and ChatGPT will not be able to connect. "
+            "Set OAUTH_BASE_URL=https://your-mcp-host in mcp_server/.env to enable OAuth."
+        )
     async with httpx.AsyncClient(
         base_url=settings.backend_url,
         timeout=httpx.Timeout(10.0, connect=3.0),
@@ -101,4 +111,6 @@ async def health_check(ctx: Context) -> str:
 
 
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http", port=settings.port)
+    # path="/" serves the MCP endpoint at root so Claude.ai/ChatGPT can connect
+    # using the bare server URL (e.g. https://mcp.example.com) without a /mcp suffix.
+    mcp.run(transport="streamable-http", port=settings.port, path="/")
