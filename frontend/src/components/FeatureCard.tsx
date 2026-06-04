@@ -23,9 +23,7 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
   const showIds = useSettingsStore((s) => s.showIds)
   const showEffortUnit = useSettingsStore((s) => s.showEffortUnit)
   const updateFeature = useUpdateFeature(projectId)
-  const { data: allPbis = [] } = usePBIs(projectId)
-
-  const featurePbis = allPbis.filter((p) => p.parent_feature_system_id === feature.system_id)
+  const { data: featurePbis = [] } = usePBIs(projectId, feature.system_id)
   const isFullyPlanned = featurePbis.length > 0 && featurePbis.every((p) => p.group_id != null)
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({

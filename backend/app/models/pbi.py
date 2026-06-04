@@ -23,7 +23,7 @@ class PBI(Base):
     location: Mapped[str] = mapped_column(Text, nullable=False, default="backlog")
     pi_id: Mapped[str | None] = mapped_column(Text, ForeignKey("pis.system_id"))
     swimlane_id: Mapped[str | None] = mapped_column(Text, ForeignKey("swimlines.system_id"))
-    group_id: Mapped[str | None] = mapped_column(Text, ForeignKey("groups.system_id"))
+    group_id: Mapped[str | None] = mapped_column(Text, ForeignKey("groups.system_id", ondelete="SET NULL"))
     created_at: Mapped[datetime] = mapped_column(default=func.now())
     modified_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
 

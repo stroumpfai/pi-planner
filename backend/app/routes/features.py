@@ -191,14 +191,19 @@ async def clear_backlog(
 ) -> BulkDeleteResponse:
     if not await db.get(Project, project_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-    features = (await db.execute(
-        select(Feature).where(Feature.project_id == project_id, Feature.location == "backlog")
-    )).scalars().all()
-    for f in features:
-        await db.delete(f)
+    count = (await db.execute(
+        select(func.count()).select_from(Feature).where(
+            Feature.project_id == project_id, Feature.location == "backlog"
+        )
+    )).scalar_one()
+    backlog_ids = select(Feature.system_id).where(
+        Feature.project_id == project_id, Feature.location == "backlog"
+    )
+    await db.execute(sql_delete(PBI).where(PBI.parent_feature_system_id.in_(backlog_ids)))
+    await db.execute(sql_delete(Feature).where(Feature.project_id == project_id, Feature.location == "backlog"))
     await db.commit()
     await broadcaster.broadcast(project_id, "backlog:cleared", {"project_id": project_id})
-    return BulkDeleteResponse(deleted_features=len(features))
+    return BulkDeleteResponse(deleted_features=count)
 
 
 @router.delete("/api/v1/projects/{project_id}/features")
@@ -215,6 +220,8 @@ async def clear_all_features(
     # PBI.group_id → Group and Group.story_system_id → PBI form a cycle that SQLAlchemy's
     # unit-of-work cannot topologically sort. Delete in explicit dependency order instead.
     feature_ids = select(Feature.system_id).where(Feature.project_id == project_id)
+    group_ids = select(Group.system_id).where(Group.feature_system_id.in_(feature_ids))
+    await db.execute(sql_update(PBI).where(PBI.group_id.in_(group_ids)).values(group_id=None))
     await db.execute(sql_delete(Group).where(Group.feature_system_id.in_(feature_ids)))
     await db.execute(sql_delete(PBI).where(PBI.project_id == project_id))
     await db.execute(sql_delete(Feature).where(Feature.project_id == project_id))

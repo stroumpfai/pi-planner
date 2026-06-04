@@ -47,10 +47,17 @@ function handleSSEEvent(
     // ── Features ──────────────────────────────────────────────────────────
     case 'feature:created':
     case 'feature:updated':
+      qc.invalidateQueries({ queryKey: ['features', projectId] })
+      qc.invalidateQueries({ queryKey: ['groups'] })
+      qc.invalidateQueries({ queryKey: ['swimlines'] })
+      qc.invalidateQueries({ queryKey: ['pis'] })
+      break
+
     case 'feature:deleted':
     case 'feature:moved':
     case 'features:cleared':
       qc.invalidateQueries({ queryKey: ['features', projectId] })
+      qc.invalidateQueries({ queryKey: ['pbis', projectId] })
       qc.invalidateQueries({ queryKey: ['groups'] })
       qc.invalidateQueries({ queryKey: ['swimlines'] })
       qc.invalidateQueries({ queryKey: ['pis'] })
@@ -58,6 +65,7 @@ function handleSSEEvent(
 
     case 'backlog:cleared':
       qc.invalidateQueries({ queryKey: ['features', projectId] })
+      qc.invalidateQueries({ queryKey: ['pbis', projectId] })
       break
 
     // ── PBIs ──────────────────────────────────────────────────────────────

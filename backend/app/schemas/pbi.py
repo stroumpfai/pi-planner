@@ -1,7 +1,8 @@
 from datetime import datetime
-from typing import Literal
+from typing import Annotated, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field
+from pydantic.functional_validators import AfterValidator
 
 PBILocation = Literal["backlog", "pi"]
 PBIItemType = Literal["story", "bug"]
@@ -15,35 +16,28 @@ def _validate_effort(v: float | None) -> float | None:
     return v
 
 
+ValidEffort = Annotated[float | None, AfterValidator(_validate_effort)]
+
+
 class PBICreate(BaseModel):
     title: str = Field(..., max_length=255)
     description: str | None = Field(None, max_length=2000)
-    effort: float | None = None
+    effort: ValidEffort = None
     id: int | None = Field(None, ge=1, le=999999)
     parent_feature_system_id: str
     item_type: PBIItemType = "story"
-
-    @field_validator('effort')
-    @classmethod
-    def effort_allowed(cls, v: float | None) -> float | None:
-        return _validate_effort(v)
 
 
 class PBIUpdate(BaseModel):
     title: str | None = Field(None, max_length=255)
     description: str | None = Field(None, max_length=2000)
-    effort: float | None = None
+    effort: ValidEffort = None
     id: int | None = Field(None, ge=1, le=999999)
     item_type: PBIItemType | None = None
     location: PBILocation | None = None
     pi_id: str | None = None
     swimlane_id: str | None = None
     group_id: str | None = None
-
-    @field_validator('effort')
-    @classmethod
-    def effort_allowed(cls, v: float | None) -> float | None:
-        return _validate_effort(v)
 
 
 class PBIResponse(BaseModel):

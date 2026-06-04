@@ -1,6 +1,6 @@
 from pydantic import BaseModel, field_validator
 
-from app.schemas.pbi import EFFORT_VALUES, _validate_effort
+from app.schemas.pbi import ValidEffort
 
 
 class CsvRow(BaseModel):
@@ -8,7 +8,7 @@ class CsvRow(BaseModel):
     item_type: str          # "feature" | "story" | "bug"  — validated in service
     user_id: int | None = None
     title: str
-    effort: float | None = None
+    effort: ValidEffort = None
     parent_id: int | None = None  # CSV user_id of the parent Feature row
 
     @field_validator('effort', mode='before')
@@ -28,11 +28,6 @@ class CsvRow(BaseModel):
             except ValueError:
                 return v  # pass through; the membership validator will raise
         return v
-
-    @field_validator('effort')
-    @classmethod
-    def effort_allowed(cls, v: float | None) -> float | None:
-        return _validate_effort(v)
 
 
 class CsvImportRequest(BaseModel):
