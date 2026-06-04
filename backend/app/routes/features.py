@@ -3,17 +3,18 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import delete as sql_delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.middleware.deps import get_current_user
+from app.middleware.deps import get_current_user, require_editor_or_above
 from app.models.feature import Feature
 from app.models.group import Group
+from app.models.pbi import PBI
 from app.models.project import Project
 from app.models.swimline import Swimline
 from app.models.user import User
-from app.schemas import FeatureCreate, FeatureResponse, FeatureUpdate
+from app.schemas import BulkDeleteResponse, FeatureCreate, FeatureResponse, FeatureUpdate
 from app.services.effort import feature_efforts
 from app.services.events import broadcaster
 from app.services.validation import is_user_id_available
@@ -177,6 +178,46 @@ async def update_feature(
     event = "feature:moved" if (moving_to_swimlane or moving_to_backlog) else "feature:updated"
     await broadcaster.broadcast(feature.project_id, event, {"system_id": feature_id})
     return await _enrich(db, feature)
+
+
+@router.delete("/api/v1/projects/{project_id}/backlog")
+async def clear_backlog(
+    project_id: str,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(require_editor_or_above)],
+) -> BulkDeleteResponse:
+    if not await db.get(Project, project_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    features = (await db.execute(
+        select(Feature).where(Feature.project_id == project_id, Feature.location == "backlog")
+    )).scalars().all()
+    for f in features:
+        await db.delete(f)
+    await db.commit()
+    await broadcaster.broadcast(project_id, "backlog:cleared", {"project_id": project_id})
+    return BulkDeleteResponse(deleted_features=len(features))
+
+
+@router.delete("/api/v1/projects/{project_id}/features")
+async def clear_all_features(
+    project_id: str,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(require_editor_or_above)],
+) -> BulkDeleteResponse:
+    if not await db.get(Project, project_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    count = (await db.execute(
+        select(func.count()).select_from(Feature).where(Feature.project_id == project_id)
+    )).scalar_one()
+    # PBI.group_id → Group and Group.story_system_id → PBI form a cycle that SQLAlchemy's
+    # unit-of-work cannot topologically sort. Delete in explicit dependency order instead.
+    feature_ids = select(Feature.system_id).where(Feature.project_id == project_id)
+    await db.execute(sql_delete(Group).where(Group.feature_system_id.in_(feature_ids)))
+    await db.execute(sql_delete(PBI).where(PBI.project_id == project_id))
+    await db.execute(sql_delete(Feature).where(Feature.project_id == project_id))
+    await db.commit()
+    await broadcaster.broadcast(project_id, "features:cleared", {"project_id": project_id})
+    return BulkDeleteResponse(deleted_features=count)
 
 
 @router.delete("/api/v1/features/{feature_id}", status_code=status.HTTP_204_NO_CONTENT)

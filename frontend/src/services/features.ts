@@ -1,6 +1,10 @@
 import { api } from './api'
 import type { Feature, FeatureCreate, FeatureUpdate } from '@/types'
 
+export interface BulkDeleteResult {
+  deleted_features: number
+}
+
 export const featuresApi = {
   list: (projectId: string, sort: 'created_at' | 'name' = 'created_at') =>
     api.get<Feature[]>(`/projects/${projectId}/features`, { params: { sort } }).then((r) => r.data),
@@ -16,4 +20,10 @@ export const featuresApi = {
 
   delete: (featureId: string) =>
     api.delete(`/features/${featureId}`),
+
+  clearBacklog: (projectId: string) =>
+    api.delete<BulkDeleteResult>(`/projects/${projectId}/backlog`).then((r) => r.data),
+
+  clearAll: (projectId: string) =>
+    api.delete<BulkDeleteResult>(`/projects/${projectId}/features`).then((r) => r.data),
 }

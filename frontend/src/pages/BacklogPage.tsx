@@ -6,6 +6,7 @@ import { useSettingsStore } from '@/stores/settingsStore'
 import { FeatureRow } from '@/components/FeatureRow'
 import { FeatureFormModal } from '@/components/FeatureFormModal'
 import { ImportCSVModal } from '@/components/ImportCSVModal'
+import { ClearBacklogModal } from '@/components/ClearBacklogModal'
 import { ProjectSettingsPanel } from '@/components/ProjectSettingsPanel'
 
 type Sort = 'created_at' | 'name'
@@ -19,6 +20,7 @@ interface Props {
 export function BacklogPage({ projectId }: Props) {
   const [sort, setSort] = useState<Sort>(() => (localStorage.getItem(SORT_KEY) as Sort) ?? 'created_at')
   const [showCreate, setShowCreate] = useState(false)
+  const [showClear, setShowClear] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [showImport, setShowImport] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -87,6 +89,15 @@ export function BacklogPage({ projectId }: Props) {
           />
 
           <button
+            onClick={() => setShowClear(true)}
+            disabled={!isEditing}
+            title={isEditing ? undefined : 'Request Edit Mode to clear features'}
+            className="px-3 py-1.5 text-sm font-medium text-red-600 bg-white border border-red-200 hover:bg-red-50 rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            Clear…
+          </button>
+
+          <button
             onClick={() => fileInputRef.current?.click()}
             disabled={!isEditing}
             title={isEditing ? undefined : 'Request Edit Mode to import'}
@@ -143,6 +154,14 @@ export function BacklogPage({ projectId }: Props) {
         projectId={projectId}
         file={selectedFile}
         onClose={handleImportClose}
+      />
+
+      <ClearBacklogModal
+        open={showClear}
+        projectId={projectId}
+        backlogCount={backlogFeatures.length}
+        totalCount={features?.length ?? 0}
+        onClose={() => setShowClear(false)}
       />
     </div>
     </div>

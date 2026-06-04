@@ -49,10 +49,15 @@ function handleSSEEvent(
     case 'feature:updated':
     case 'feature:deleted':
     case 'feature:moved':
+    case 'features:cleared':
       qc.invalidateQueries({ queryKey: ['features', projectId] })
       qc.invalidateQueries({ queryKey: ['groups'] })
       qc.invalidateQueries({ queryKey: ['swimlines'] })
       qc.invalidateQueries({ queryKey: ['pis'] })
+      break
+
+    case 'backlog:cleared':
+      qc.invalidateQueries({ queryKey: ['features', projectId] })
       break
 
     // ── PBIs ──────────────────────────────────────────────────────────────

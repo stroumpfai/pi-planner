@@ -40,3 +40,7 @@ class FeatureResponse(BaseModel):
     @classmethod
     def coerce_none_to_zero(cls, v: object) -> float:
         return float(v) if v is not None else 0.0
+
+
+class BulkDeleteResponse(BaseModel):
+    deleted_features: int

@@ -308,3 +308,132 @@ async def test_feature_effort_is_sum_of_pbi_efforts(client, project, feature):
     resp = await client.get(f"/api/v1/features/{fid}")
     assert resp.status_code == 200
     assert resp.json()["effort"] == 8
+
+
+# ── Clear backlog ─────────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_clear_backlog_deletes_only_backlog_features(client, project, pi, swimline):
+    pid = project["system_id"]
+    # Two backlog features
+    f1 = (await client.post(f"/api/v1/projects/{pid}/features", json={"title": "Backlog 1"})).json()
+    f2 = (await client.post(f"/api/v1/projects/{pid}/features", json={"title": "Backlog 2"})).json()
+    # One PI feature
+    f3 = (await client.post(f"/api/v1/projects/{pid}/features", json={"title": "PI Feature"})).json()
+    await client.patch(f"/api/v1/features/{f3['system_id']}", json={"swimlane_id": swimline["system_id"]})
+
+    resp = await client.delete(f"/api/v1/projects/{pid}/backlog")
+    assert resp.status_code == 200
+    assert resp.json()["deleted_features"] == 2
+
+    remaining = (await client.get(f"/api/v1/projects/{pid}/features")).json()
+    remaining_ids = {f["system_id"] for f in remaining}
+    assert f1["system_id"] not in remaining_ids
+    assert f2["system_id"] not in remaining_ids
+    assert f3["system_id"] in remaining_ids
+
+
+@pytest.mark.asyncio
+async def test_clear_backlog_cascades_to_pbis(client, project, feature):
+    pid, fid = project["system_id"], feature["system_id"]
+    pbi = (await client.post(
+        f"/api/v1/projects/{pid}/pbis",
+        json={"title": "Child PBI", "parent_feature_system_id": fid},
+    )).json()
+
+    resp = await client.delete(f"/api/v1/projects/{pid}/backlog")
+    assert resp.status_code == 200
+    assert (await client.get(f"/api/v1/pbis/{pbi['system_id']}")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_clear_backlog_empty_returns_zero(client, project):
+    resp = await client.delete(f"/api/v1/projects/{project['system_id']}/backlog")
+    assert resp.status_code == 200
+    assert resp.json()["deleted_features"] == 0
+
+
+@pytest.mark.asyncio
+async def test_clear_backlog_unknown_project(client):
+    resp = await client.delete("/api/v1/projects/nonexistent/backlog")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_clear_backlog_reader_forbidden(client, reader_client, project):
+    resp = await reader_client.delete(f"/api/v1/projects/{project['system_id']}/backlog")
+    assert resp.status_code == 403
+
+
+# ── Clear all features ────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_clear_all_features_removes_everything(client, project, pi, swimline):
+    pid = project["system_id"]
+    await client.post(f"/api/v1/projects/{pid}/features", json={"title": "Backlog F"})
+    f2 = (await client.post(f"/api/v1/projects/{pid}/features", json={"title": "PI Feature"})).json()
+    await client.patch(f"/api/v1/features/{f2['system_id']}", json={"swimlane_id": swimline["system_id"]})
+
+    resp = await client.delete(f"/api/v1/projects/{pid}/features")
+    assert resp.status_code == 200
+    assert resp.json()["deleted_features"] == 2
+
+    remaining = (await client.get(f"/api/v1/projects/{pid}/features")).json()
+    assert remaining == []
+
+    # PI structure untouched
+    assert (await client.get(f"/api/v1/pis/{pi['system_id']}")).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_clear_all_features_cascades_pbis(client, project, feature):
+    pid, fid = project["system_id"], feature["system_id"]
+    pbi = (await client.post(
+        f"/api/v1/projects/{pid}/pbis",
+        json={"title": "Child PBI", "parent_feature_system_id": fid},
+    )).json()
+
+    await client.delete(f"/api/v1/projects/{pid}/features")
+    assert (await client.get(f"/api/v1/pbis/{pbi['system_id']}")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_clear_all_features_empty_returns_zero(client, project):
+    resp = await client.delete(f"/api/v1/projects/{project['system_id']}/features")
+    assert resp.status_code == 200
+    assert resp.json()["deleted_features"] == 0
+
+
+@pytest.mark.asyncio
+async def test_clear_all_features_unknown_project(client):
+    resp = await client.delete("/api/v1/projects/nonexistent/features")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_clear_all_features_reader_forbidden(client, reader_client, project):
+    resp = await reader_client.delete(f"/api/v1/projects/{project['system_id']}/features")
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_clear_all_features_with_sprint_placed_pbis(client, project, pi, swimline):
+    """Regression: PBI.group_id ↔ Group.story_system_id circular FK must not cause
+    CircularDependencyError when deleting features that have sprint-placed stories."""
+    pid = project["system_id"]
+    feature = (await client.post(
+        f"/api/v1/projects/{pid}/features", json={"title": "PI Feature"}
+    )).json()
+    await client.patch(f"/api/v1/features/{feature['system_id']}", json={"swimlane_id": swimline["system_id"]})
+
+    pbi = (await client.post(
+        f"/api/v1/projects/{pid}/pbis",
+        json={"title": "Placed Story", "parent_feature_system_id": feature["system_id"]},
+    )).json()
+    place_resp = await client.post(f"/api/v1/pbis/{pbi['system_id']}/place", json={"sprint_index": 1})
+    assert place_resp.status_code == 200
+
+    resp = await client.delete(f"/api/v1/projects/{pid}/features")
+    assert resp.status_code == 200
+    assert resp.json()["deleted_features"] == 1
+    assert (await client.get(f"/api/v1/projects/{pid}/features")).json() == []

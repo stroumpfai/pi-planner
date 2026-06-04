@@ -52,3 +52,24 @@ export const useDeleteFeature = (projectId: string) => {
     onSuccess: () => qc.invalidateQueries({ queryKey: prefix(projectId) }),
   })
 }
+
+export const useClearBacklog = (projectId: string) => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => featuresApi.clearBacklog(projectId),
+    onSuccess: () => qc.invalidateQueries({ queryKey: prefix(projectId) }),
+  })
+}
+
+export const useClearAllFeatures = (projectId: string) => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: () => featuresApi.clearAll(projectId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: prefix(projectId) })
+      qc.invalidateQueries({ queryKey: ['groups'] })
+      qc.invalidateQueries({ queryKey: ['swimlines'] })
+      qc.invalidateQueries({ queryKey: ['pis'] })
+    },
+  })
+}
