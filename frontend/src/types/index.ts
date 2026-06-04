@@ -16,7 +16,12 @@ export type SwimlineCreate = components['schemas']['SwimlineCreate']
 export type SwimlineUpdate = components['schemas']['SwimlineUpdate']
 
 export type Sprint = components['schemas']['SprintResponse'] & { effort: number }
-export type SprintCreate = components['schemas']['SprintCreate']
+export interface SprintCreate {
+  sprint_index: number
+  capacity: number
+  start_date?: string | null
+  end_date?: string | null
+}
 export type SprintUpdate = components['schemas']['SprintUpdate']
 
 export type Feature = components['schemas']['FeatureResponse']

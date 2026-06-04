@@ -157,8 +157,8 @@ async def create_pbi(
         Field(default=None, max_length=2000, description="Optional description (max 2000 chars)"),
     ] = None,
     effort: Annotated[
-        int | None,
-        Field(default=None, gt=0, description="Effort estimate in the project's effort unit (must be > 0)"),
+        float | None,
+        Field(default=None, description="Effort estimate. Must be one of: 0, 0.5, 1, 2, 3, 5, 8, 13, 21."),
     ] = None,
     user_id: Annotated[
         int | None,
@@ -209,8 +209,8 @@ async def update_pbi(
         Field(default=None, max_length=2000, description="New description (max 2000 chars). Pass null to clear."),
     ] = _UNSET,
     effort: Annotated[
-        int | None,
-        Field(default=None, gt=0, description="New effort estimate (must be > 0). Pass null to clear."),
+        float | None,
+        Field(default=None, description="New effort estimate. Must be one of: 0, 0.5, 1, 2, 3, 5, 8, 13, 21. Pass null to clear."),
     ] = _UNSET,
     user_id: Annotated[
         int | None,

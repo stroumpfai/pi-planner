@@ -22,7 +22,7 @@ class SwimlineResponse(BaseModel):
     pi_id: str
     name: str
     order_index: int | None
-    effort: int = 0
+    effort: float = 0
     capacity: int = 0
     created_at: datetime
     modified_at: datetime

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import ForeignKey, Index, Integer, Text, UniqueConstraint, func
+from sqlalchemy import Float, ForeignKey, Index, Integer, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -18,7 +18,7 @@ class PBI(Base):
     parent_feature_system_id: Mapped[str] = mapped_column(Text, ForeignKey("features.system_id", ondelete="CASCADE"), nullable=False)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
-    effort: Mapped[int | None] = mapped_column(Integer)
+    effort: Mapped[float | None] = mapped_column(Float)
     item_type: Mapped[str] = mapped_column(Text, nullable=False, default="story")
     location: Mapped[str] = mapped_column(Text, nullable=False, default="backlog")
     pi_id: Mapped[str | None] = mapped_column(Text, ForeignKey("pis.system_id"))

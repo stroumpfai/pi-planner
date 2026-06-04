@@ -30,7 +30,7 @@ class PIResponse(BaseModel):
     state: str
     start_date: date | None
     end_date: date | None
-    total_effort: int = 0
+    total_effort: float = 0
     total_capacity: int = 0
     created_at: datetime
     modified_at: datetime

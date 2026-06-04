@@ -1,4 +1,5 @@
 import Papa from 'papaparse'
+import { EFFORT_VALUES } from '@/constants/effort'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -88,13 +89,21 @@ function parseEffort(
   rowNumber: number,
   errors: ParseError[],
 ): number | null {
-  const s = raw.trim()
-  if (s === '' || s === '0') return null
-  if (!/^\d+$/.test(s)) {
-    errors.push({ row: rowNumber, message: `effort "${s}" must be a positive integer` })
+  const s = raw.trim().replace(',', '.')  // accept "0,5" (comma decimal, quoted CSV cell)
+  if (s === '') return null
+  const n = Number(s)
+  if (Number.isNaN(n)) {
+    errors.push({ row: rowNumber, message: `effort "${raw.trim()}" is not a valid number` })
     return null
   }
-  return Number.parseInt(s, 10)
+  if (!(EFFORT_VALUES as readonly number[]).includes(n)) {
+    errors.push({
+      row: rowNumber,
+      message: `effort ${n} is not an allowed value (${EFFORT_VALUES.join(', ')})`,
+    })
+    return null
+  }
+  return n
 }
 
 function parseParentId(raw: string): number | null {

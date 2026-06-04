@@ -17,6 +17,26 @@ export interface paths {
     /** Me */
     get: operations["me_api_v1_auth_me_get"];
   };
+  "/api/v1/auth/change-password": {
+    /** Change Password */
+    post: operations["change_password_api_v1_auth_change_password_post"];
+  };
+  "/api/v1/users/": {
+    /** List Users */
+    get: operations["list_users_api_v1_users__get"];
+    /** Create User */
+    post: operations["create_user_api_v1_users__post"];
+  };
+  "/api/v1/users/{username}": {
+    /** Update User */
+    put: operations["update_user_api_v1_users__username__put"];
+    /** Delete User */
+    delete: operations["delete_user_api_v1_users__username__delete"];
+  };
+  "/api/v1/users/{username}/reset-password": {
+    /** Reset Password */
+    post: operations["reset_password_api_v1_users__username__reset_password_post"];
+  };
   "/api/v1/projects/": {
     /** List Projects */
     get: operations["list_projects_api_v1_projects__get"];
@@ -30,6 +50,14 @@ export interface paths {
     delete: operations["delete_project_api_v1_projects__project_id__delete"];
     /** Update Project */
     patch: operations["update_project_api_v1_projects__project_id__patch"];
+  };
+  "/api/v1/projects/import": {
+    /** Import Project */
+    post: operations["import_project_api_v1_projects_import_post"];
+  };
+  "/api/v1/projects/{project_id}/export": {
+    /** Export Project */
+    get: operations["export_project_api_v1_projects__project_id__export_get"];
   };
   "/api/v1/projects/{project_id}/features": {
     /** List Features */
@@ -59,6 +87,12 @@ export interface paths {
     /** Update Pbi */
     patch: operations["update_pbi_api_v1_pbis__pbi_id__patch"];
   };
+  "/api/v1/pbis/{pbi_id}/place": {
+    /** Place Story In Sprint */
+    post: operations["place_story_in_sprint_api_v1_pbis__pbi_id__place_post"];
+    /** Unplace Story */
+    delete: operations["unplace_story_api_v1_pbis__pbi_id__place_delete"];
+  };
   "/api/v1/projects/{project_id}/pis": {
     /** List Pis */
     get: operations["list_pis_api_v1_projects__project_id__pis_get"];
@@ -87,6 +121,10 @@ export interface paths {
     /** Update Swimline */
     patch: operations["update_swimline_api_v1_swimlines__swimline_id__patch"];
   };
+  "/api/v1/swimlines/{swimline_id}/reorder": {
+    /** Reorder Swimlines */
+    post: operations["reorder_swimlines_api_v1_swimlines__swimline_id__reorder_post"];
+  };
   "/api/v1/swimlines/{swimline_id}/groups": {
     /** List Groups */
     get: operations["list_groups_api_v1_swimlines__swimline_id__groups_get"];
@@ -104,8 +142,6 @@ export interface paths {
   "/api/v1/pis/{pi_id}/sprints": {
     /** List Sprints */
     get: operations["list_sprints_api_v1_pis__pi_id__sprints_get"];
-    /** Create Sprint */
-    post: operations["create_sprint_api_v1_pis__pi_id__sprints_post"];
   };
   "/api/v1/sprints/{sprint_id}": {
     /** Update Sprint */
@@ -131,6 +167,55 @@ export interface paths {
     /** Project Events */
     get: operations["project_events_api_v1_projects__project_id__events_get"];
   };
+  "/api/v1/projects/{project_id}/import/csv": {
+    /** Import Csv */
+    post: operations["import_csv_api_v1_projects__project_id__import_csv_post"];
+  };
+  "/api/v1/api-keys/my-keys": {
+    /** List My Keys */
+    get: operations["list_my_keys_api_v1_api_keys_my_keys_get"];
+  };
+  "/api/v1/api-keys/my-activities": {
+    /** List My Activities */
+    get: operations["list_my_activities_api_v1_api_keys_my_activities_get"];
+  };
+  "/api/v1/api-keys/admin/keys": {
+    /** Create Key */
+    post: operations["create_key_api_v1_api_keys_admin_keys_post"];
+  };
+  "/api/v1/api-keys/admin/cycle/{key_id}": {
+    /** Cycle Key */
+    post: operations["cycle_key_api_v1_api_keys_admin_cycle__key_id__post"];
+  };
+  "/api/v1/api-keys/admin/keys/{key_id}": {
+    /** Revoke Key */
+    delete: operations["revoke_key_api_v1_api_keys_admin_keys__key_id__delete"];
+  };
+  "/api/v1/api-keys/admin/all-keys": {
+    /** List All Keys */
+    get: operations["list_all_keys_api_v1_api_keys_admin_all_keys_get"];
+  };
+  "/api/v1/api-keys/admin/activities": {
+    /** List All Activities */
+    get: operations["list_all_activities_api_v1_api_keys_admin_activities_get"];
+  };
+  "/api/v1/api-keys/admin/verify": {
+    /**
+     * Verify Key
+     * @description Verify an API key token on behalf of the MCP server.
+     *
+     * Protected by a short-lived HS256 service JWT — not the normal session cookie.
+     * Returns the username and role associated with the key.
+     */
+    post: operations["verify_key_api_v1_api_keys_admin_verify_post"];
+  };
+  "/api/v1/test/reset": {
+    /**
+     * Reset Database
+     * @description Delete all rows from every table in dependency order. Test use only.
+     */
+    post: operations["reset_database_api_v1_test_reset_post"];
+  };
   "/health": {
     /** Health */
     get: operations["health_health_get"];
@@ -141,6 +226,149 @@ export type webhooks = Record<string, never>;
 
 export interface components {
   schemas: {
+    /** APIKeyCreate */
+    APIKeyCreate: {
+      /** Username */
+      username: string;
+      /** Name */
+      name: string;
+      /** Purpose */
+      purpose?: string | null;
+      /** Expires In Days */
+      expires_in_days?: number | null;
+    };
+    /** APIKeyCreateResponse */
+    APIKeyCreateResponse: {
+      /** Id */
+      id: string;
+      /** Full Token */
+      full_token: string;
+      /** Username */
+      username: string;
+      /** Name */
+      name: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Expires At */
+      expires_at: string | null;
+    };
+    /** APIKeyResponse */
+    APIKeyResponse: {
+      /** Id */
+      id: string;
+      /** Username */
+      username: string;
+      /** Name */
+      name: string;
+      /** Purpose */
+      purpose: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Expires At */
+      expires_at: string | null;
+      /** Last Used At */
+      last_used_at: string | null;
+      /** Is Active */
+      is_active: boolean;
+    };
+    /** APIKeyVerifyRequest */
+    APIKeyVerifyRequest: {
+      /** Token */
+      token: string;
+    };
+    /** APIKeyVerifyResponse */
+    APIKeyVerifyResponse: {
+      /** Username */
+      username: string;
+      role: components["schemas"]["Role"];
+      /** Key Id */
+      key_id: string;
+    };
+    /** ActivityLogResponse */
+    ActivityLogResponse: {
+      /** Id */
+      id: number;
+      actor_type: components["schemas"]["ActorType"];
+      /** Actor Username */
+      actor_username: string;
+      /** Api Key Id */
+      api_key_id: string | null;
+      /** Action */
+      action: string;
+      /** Resource Type */
+      resource_type: string | null;
+      /** Resource Id */
+      resource_id: string | null;
+      /** Project Id */
+      project_id: string | null;
+      /** Details */
+      details: {
+        [key: string]: unknown;
+      } | null;
+      /**
+       * Timestamp
+       * Format: date-time
+       */
+      timestamp: string;
+      /** Status */
+      status: string;
+    };
+    /**
+     * ActorType
+     * @enum {string}
+     */
+    ActorType: "human" | "mcp_bot";
+    /** Body_import_project_api_v1_projects_import_post */
+    Body_import_project_api_v1_projects_import_post: {
+      /** File */
+      file: string;
+    };
+    /** ChangePassword */
+    ChangePassword: {
+      /** Old Password */
+      old_password: string;
+      /** New Password */
+      new_password: string;
+    };
+    /** CsvImportRequest */
+    CsvImportRequest: {
+      /** Rows */
+      rows: components["schemas"]["CsvRow"][];
+    };
+    /** CsvImportResult */
+    CsvImportResult: {
+      /** Created Features */
+      created_features: number;
+      /** Created Stories */
+      created_stories: number;
+      /** Updated Features */
+      updated_features: number;
+      /** Updated Stories */
+      updated_stories: number;
+      /** Orphan Stories */
+      orphan_stories: number;
+    };
+    /** CsvRow */
+    CsvRow: {
+      /** Row Number */
+      row_number: number;
+      /** Item Type */
+      item_type: string;
+      /** User Id */
+      user_id?: number | null;
+      /** Title */
+      title: string;
+      /** Effort */
+      effort?: number | null;
+      /** Parent Id */
+      parent_id?: number | null;
+    };
     /** EditLockResponse */
     EditLockResponse: {
       /** Project Id */
@@ -160,8 +388,6 @@ export interface components {
       title: string;
       /** Description */
       description?: string | null;
-      /** Effort */
-      effort?: number | null;
       /** Id */
       id?: number | null;
     };
@@ -175,8 +401,11 @@ export interface components {
       title: string;
       /** Description */
       description: string | null;
-      /** Effort */
-      effort: number | null;
+      /**
+       * Effort
+       * @default 0
+       */
+      effort?: number;
       /** Location */
       location: string;
       /** Pi Id */
@@ -202,8 +431,6 @@ export interface components {
       title?: string | null;
       /** Description */
       description?: string | null;
-      /** Effort */
-      effort?: number | null;
       /** Id */
       id?: number | null;
       /** Location */
@@ -219,10 +446,19 @@ export interface components {
       name: string;
       /** Feature System Id */
       feature_system_id: string;
+      /** Pbi Ids */
+      pbi_ids?: string[];
       /** Sprint Index */
       sprint_index?: number | null;
       /** Order Index */
       order_index?: number | null;
+      /**
+       * Is Implicit
+       * @default false
+       */
+      is_implicit?: boolean;
+      /** Story System Id */
+      story_system_id?: string | null;
     };
     /** GroupResponse */
     GroupResponse: {
@@ -238,6 +474,10 @@ export interface components {
       sprint_index: number | null;
       /** Order Index */
       order_index: number | null;
+      /** Is Implicit */
+      is_implicit: boolean;
+      /** Story System Id */
+      story_system_id: string | null;
       /**
        * Created At
        * Format: date-time
@@ -287,7 +527,11 @@ export interface components {
       id?: number | null;
       /** Parent Feature System Id */
       parent_feature_system_id: string;
-      /** Item Type */
+      /**
+       * Item Type
+       * @default story
+       * @enum {string}
+       */
       item_type?: "story" | "bug";
     };
     /** PBIResponse */
@@ -304,7 +548,10 @@ export interface components {
       description: string | null;
       /** Effort */
       effort: number | null;
-      /** Item Type */
+      /**
+       * Item Type
+       * @enum {string}
+       */
       item_type: "story" | "bug";
       /** Location */
       location: string;
@@ -382,6 +629,16 @@ export interface components {
       /** End Date */
       end_date: string | null;
       /**
+       * Total Effort
+       * @default 0
+       */
+      total_effort?: number;
+      /**
+       * Total Capacity
+       * @default 0
+       */
+      total_capacity?: number;
+      /**
        * Created At
        * Format: date-time
        */
@@ -404,6 +661,21 @@ export interface components {
       start_date?: string | null;
       /** End Date */
       end_date?: string | null;
+    };
+    /** PasswordReset */
+    PasswordReset: {
+      /** New Password */
+      new_password: string;
+    };
+    /** PlaceStoryRequest */
+    PlaceStoryRequest: {
+      /** Sprint Index */
+      sprint_index: number;
+    };
+    /** PlaceStoryResponse */
+    PlaceStoryResponse: {
+      story: components["schemas"]["PBIResponse"];
+      group: components["schemas"]["GroupResponse"];
     };
     /** ProjectCreate */
     ProjectCreate: {
@@ -442,17 +714,11 @@ export interface components {
       /** Effort Unit */
       effort_unit?: string | null;
     };
-    /** SprintCreate */
-    SprintCreate: {
-      /** Sprint Index */
-      sprint_index: number;
-      /** Capacity */
-      capacity: number;
-      /** Start Date */
-      start_date?: string | null;
-      /** End Date */
-      end_date?: string | null;
-    };
+    /**
+     * Role
+     * @enum {string}
+     */
+    Role: "admin" | "editor" | "reader";
     /** SprintResponse */
     SprintResponse: {
       /** System Id */
@@ -463,6 +729,11 @@ export interface components {
       sprint_index: number | null;
       /** Capacity */
       capacity: number;
+      /**
+       * Effort
+       * @default 0
+       */
+      effort?: number;
       /** Start Date */
       start_date: string | null;
       /** End Date */
@@ -494,6 +765,14 @@ export interface components {
       /** Order Index */
       order_index?: number | null;
     };
+    /** SwimlineReorder */
+    SwimlineReorder: {
+      /**
+       * Order
+       * @description Ordered list of swimline system_ids
+       */
+      order: string[];
+    };
     /** SwimlineResponse */
     SwimlineResponse: {
       /** System Id */
@@ -504,6 +783,16 @@ export interface components {
       name: string;
       /** Order Index */
       order_index: number | null;
+      /**
+       * Effort
+       * @default 0
+       */
+      effort?: number;
+      /**
+       * Capacity
+       * @default 0
+       */
+      capacity?: number;
       /**
        * Created At
        * Format: date-time
@@ -528,44 +817,33 @@ export interface components {
       /** Session Id */
       session_id: string;
     };
-    /** UserResponse */
-    UserResponse: {
-      /** Username */
-      username: string;
-      /** Display Name */
-      display_name: string | null;
-      /** Role */
-      role: "admin" | "editor" | "reader";
-    };
     /** UserCreate */
     UserCreate: {
       /** Username */
       username: string;
       /** Display Name */
       display_name?: string | null;
-      /** Role */
-      role: "admin" | "editor" | "reader";
+      role: components["schemas"]["Role"];
       /** Password */
       password: string;
+    };
+    /** UserResponse */
+    UserResponse: {
+      /** Username */
+      username: string;
+      /** Display Name */
+      display_name: string | null;
+      /**
+       * Role
+       * @enum {string}
+       */
+      role: "admin" | "editor" | "reader";
     };
     /** UserUpdate */
     UserUpdate: {
       /** Display Name */
       display_name?: string | null;
-      /** Role */
-      role?: "admin" | "editor" | "reader" | null;
-    };
-    /** PasswordReset */
-    PasswordReset: {
-      /** New Password */
-      new_password: string;
-    };
-    /** ChangePassword */
-    ChangePassword: {
-      /** Old Password */
-      old_password: string;
-      /** New Password */
-      new_password: string;
+      role?: components["schemas"]["Role"] | null;
     };
     /** ValidationError */
     ValidationError: {
@@ -579,39 +857,6 @@ export interface components {
       input?: unknown;
       /** Context */
       ctx?: Record<string, never>;
-    };
-    /** CsvRow */
-    CsvRow: {
-      /** Row Number */
-      row_number: number;
-      /** Item Type */
-      item_type: "feature" | "story" | "bug";
-      /** User Id */
-      user_id: number | null;
-      /** Title */
-      title: string;
-      /** Effort */
-      effort: number | null;
-      /** Parent Id */
-      parent_id: number | null;
-    };
-    /** CsvImportRequest */
-    CsvImportRequest: {
-      /** Rows */
-      rows: components["schemas"]["CsvRow"][];
-    };
-    /** CsvImportResult */
-    CsvImportResult: {
-      /** Created Features */
-      created_features: number;
-      /** Created Stories */
-      created_stories: number;
-      /** Updated Features */
-      updated_features: number;
-      /** Updated Stories */
-      updated_stories: number;
-      /** Orphan Stories */
-      orphan_stories: number;
     };
   };
   responses: never;
@@ -651,15 +896,31 @@ export interface operations {
   };
   /** Logout */
   logout_api_v1_auth_logout_post: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
     responses: {
       /** @description Successful Response */
       204: {
         content: never;
       };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
     };
   };
   /** Me */
   me_api_v1_auth_me_get: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
     responses: {
       /** @description Successful Response */
       200: {
@@ -667,10 +928,176 @@ export interface operations {
           "application/json": components["schemas"]["UserResponse"];
         };
       };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Change Password */
+  change_password_api_v1_auth_change_password_post: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ChangePassword"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** List Users */
+  list_users_api_v1_users__get: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["UserResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Create User */
+  create_user_api_v1_users__post: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UserCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["UserResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Update User */
+  update_user_api_v1_users__username__put: {
+    parameters: {
+      path: {
+        username: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UserUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["UserResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Delete User */
+  delete_user_api_v1_users__username__delete: {
+    parameters: {
+      path: {
+        username: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Reset Password */
+  reset_password_api_v1_users__username__reset_password_post: {
+    parameters: {
+      path: {
+        username: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PasswordReset"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
     };
   };
   /** List Projects */
   list_projects_api_v1_projects__get: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
     responses: {
       /** @description Successful Response */
       200: {
@@ -678,10 +1105,21 @@ export interface operations {
           "application/json": components["schemas"]["ProjectResponse"][];
         };
       };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
     };
   };
   /** Create Project */
   create_project_api_v1_projects__post: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
     requestBody: {
       content: {
         "application/json": components["schemas"]["ProjectCreate"];
@@ -708,6 +1146,9 @@ export interface operations {
       path: {
         project_id: string;
       };
+      cookie?: {
+        pi_session?: string | null;
+      };
     };
     responses: {
       /** @description Successful Response */
@@ -730,6 +1171,9 @@ export interface operations {
       path: {
         project_id: string;
       };
+      cookie?: {
+        pi_session?: string | null;
+      };
     };
     responses: {
       /** @description Successful Response */
@@ -749,6 +1193,9 @@ export interface operations {
     parameters: {
       path: {
         project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
       };
     };
     requestBody: {
@@ -771,11 +1218,67 @@ export interface operations {
       };
     };
   };
-  /** List Features */
-  list_features_api_v1_projects__project_id__features_get: {
+  /** Import Project */
+  import_project_api_v1_projects_import_post: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "multipart/form-data": components["schemas"]["Body_import_project_api_v1_projects_import_post"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["ProjectResponse"];
+        };
+      };
+      /** @description Invalid or malformed import payload */
+      422: {
+        content: never;
+      };
+    };
+  };
+  /** Export Project */
+  export_project_api_v1_projects__project_id__export_get: {
     parameters: {
       path: {
         project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** List Features */
+  list_features_api_v1_projects__project_id__features_get: {
+    parameters: {
+      query?: {
+        sort?: string;
+      };
+      path: {
+        project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
       };
     };
     responses: {
@@ -798,6 +1301,9 @@ export interface operations {
     parameters: {
       path: {
         project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
       };
     };
     requestBody: {
@@ -826,6 +1332,9 @@ export interface operations {
       path: {
         feature_id: string;
       };
+      cookie?: {
+        pi_session?: string | null;
+      };
     };
     responses: {
       /** @description Successful Response */
@@ -848,6 +1357,9 @@ export interface operations {
       path: {
         feature_id: string;
       };
+      cookie?: {
+        pi_session?: string | null;
+      };
     };
     responses: {
       /** @description Successful Response */
@@ -867,6 +1379,9 @@ export interface operations {
     parameters: {
       path: {
         feature_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
       };
     };
     requestBody: {
@@ -892,8 +1407,14 @@ export interface operations {
   /** List Pbis */
   list_pbis_api_v1_projects__project_id__pbis_get: {
     parameters: {
+      query?: {
+        feature_id?: string | null;
+      };
       path: {
         project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
       };
     };
     responses: {
@@ -916,6 +1437,9 @@ export interface operations {
     parameters: {
       path: {
         project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
       };
     };
     requestBody: {
@@ -944,6 +1468,9 @@ export interface operations {
       path: {
         pbi_id: string;
       };
+      cookie?: {
+        pi_session?: string | null;
+      };
     };
     responses: {
       /** @description Successful Response */
@@ -966,6 +1493,9 @@ export interface operations {
       path: {
         pbi_id: string;
       };
+      cookie?: {
+        pi_session?: string | null;
+      };
     };
     responses: {
       /** @description Successful Response */
@@ -985,6 +1515,9 @@ export interface operations {
     parameters: {
       path: {
         pbi_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
       };
     };
     requestBody: {
@@ -1007,11 +1540,67 @@ export interface operations {
       };
     };
   };
+  /** Place Story In Sprint */
+  place_story_in_sprint_api_v1_pbis__pbi_id__place_post: {
+    parameters: {
+      path: {
+        pbi_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PlaceStoryRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PlaceStoryResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Unplace Story */
+  unplace_story_api_v1_pbis__pbi_id__place_delete: {
+    parameters: {
+      path: {
+        pbi_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   /** List Pis */
   list_pis_api_v1_projects__project_id__pis_get: {
     parameters: {
       path: {
         project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
       };
     };
     responses: {
@@ -1034,6 +1623,9 @@ export interface operations {
     parameters: {
       path: {
         project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
       };
     };
     requestBody: {
@@ -1062,6 +1654,9 @@ export interface operations {
       path: {
         pi_id: string;
       };
+      cookie?: {
+        pi_session?: string | null;
+      };
     };
     responses: {
       /** @description Successful Response */
@@ -1084,6 +1679,9 @@ export interface operations {
       path: {
         pi_id: string;
       };
+      cookie?: {
+        pi_session?: string | null;
+      };
     };
     responses: {
       /** @description Successful Response */
@@ -1103,6 +1701,9 @@ export interface operations {
     parameters: {
       path: {
         pi_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
       };
     };
     requestBody: {
@@ -1131,6 +1732,9 @@ export interface operations {
       path: {
         pi_id: string;
       };
+      cookie?: {
+        pi_session?: string | null;
+      };
     };
     responses: {
       /** @description Successful Response */
@@ -1152,6 +1756,9 @@ export interface operations {
     parameters: {
       path: {
         pi_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
       };
     };
     requestBody: {
@@ -1180,6 +1787,9 @@ export interface operations {
       path: {
         swimline_id: string;
       };
+      cookie?: {
+        pi_session?: string | null;
+      };
     };
     responses: {
       /** @description Successful Response */
@@ -1202,6 +1812,9 @@ export interface operations {
       path: {
         swimline_id: string;
       };
+      cookie?: {
+        pi_session?: string | null;
+      };
     };
     responses: {
       /** @description Successful Response */
@@ -1221,6 +1834,9 @@ export interface operations {
     parameters: {
       path: {
         swimline_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
       };
     };
     requestBody: {
@@ -1243,11 +1859,44 @@ export interface operations {
       };
     };
   };
+  /** Reorder Swimlines */
+  reorder_swimlines_api_v1_swimlines__swimline_id__reorder_post: {
+    parameters: {
+      path: {
+        swimline_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SwimlineReorder"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["SwimlineResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   /** List Groups */
   list_groups_api_v1_swimlines__swimline_id__groups_get: {
     parameters: {
       path: {
         swimline_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
       };
     };
     responses: {
@@ -1270,6 +1919,9 @@ export interface operations {
     parameters: {
       path: {
         swimline_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
       };
     };
     requestBody: {
@@ -1298,6 +1950,9 @@ export interface operations {
       path: {
         group_id: string;
       };
+      cookie?: {
+        pi_session?: string | null;
+      };
     };
     responses: {
       /** @description Successful Response */
@@ -1320,6 +1975,9 @@ export interface operations {
       path: {
         group_id: string;
       };
+      cookie?: {
+        pi_session?: string | null;
+      };
     };
     responses: {
       /** @description Successful Response */
@@ -1339,6 +1997,9 @@ export interface operations {
     parameters: {
       path: {
         group_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
       };
     };
     requestBody: {
@@ -1367,6 +2028,9 @@ export interface operations {
       path: {
         pi_id: string;
       };
+      cookie?: {
+        pi_session?: string | null;
+      };
     };
     responses: {
       /** @description Successful Response */
@@ -1383,38 +2047,14 @@ export interface operations {
       };
     };
   };
-  /** Create Sprint */
-  create_sprint_api_v1_pis__pi_id__sprints_post: {
-    parameters: {
-      path: {
-        pi_id: string;
-      };
-    };
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["SprintCreate"];
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      201: {
-        content: {
-          "application/json": components["schemas"]["SprintResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
   /** Update Sprint */
   update_sprint_api_v1_sprints__sprint_id__patch: {
     parameters: {
       path: {
         sprint_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
       };
     };
     requestBody: {
@@ -1443,6 +2083,9 @@ export interface operations {
       path: {
         project_id: string;
       };
+      cookie?: {
+        pi_session?: string | null;
+      };
     };
     responses: {
       /** @description Successful Response */
@@ -1464,6 +2107,9 @@ export interface operations {
     parameters: {
       path: {
         project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
       };
     };
     responses: {
@@ -1487,6 +2133,9 @@ export interface operations {
       path: {
         project_id: string;
       };
+      cookie?: {
+        pi_session?: string | null;
+      };
     };
     responses: {
       /** @description Successful Response */
@@ -1506,6 +2155,9 @@ export interface operations {
     parameters: {
       path: {
         project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
       };
     };
     responses: {
@@ -1529,6 +2181,9 @@ export interface operations {
       path: {
         project_id: string;
       };
+      cookie?: {
+        pi_session?: string | null;
+      };
     };
     responses: {
       /** @description Successful Response */
@@ -1545,6 +2200,248 @@ export interface operations {
       };
     };
   };
+  /** Import Csv */
+  import_csv_api_v1_projects__project_id__import_csv_post: {
+    parameters: {
+      path: {
+        project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CsvImportRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CsvImportResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** List My Keys */
+  list_my_keys_api_v1_api_keys_my_keys_get: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["APIKeyResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** List My Activities */
+  list_my_activities_api_v1_api_keys_my_activities_get: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ActivityLogResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Create Key */
+  create_key_api_v1_api_keys_admin_keys_post: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["APIKeyCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["APIKeyCreateResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Cycle Key */
+  cycle_key_api_v1_api_keys_admin_cycle__key_id__post: {
+    parameters: {
+      path: {
+        key_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["APIKeyCreateResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Revoke Key */
+  revoke_key_api_v1_api_keys_admin_keys__key_id__delete: {
+    parameters: {
+      path: {
+        key_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** List All Keys */
+  list_all_keys_api_v1_api_keys_admin_all_keys_get: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["APIKeyResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** List All Activities */
+  list_all_activities_api_v1_api_keys_admin_activities_get: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ActivityLogResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Verify Key
+   * @description Verify an API key token on behalf of the MCP server.
+   *
+   * Protected by a short-lived HS256 service JWT — not the normal session cookie.
+   * Returns the username and role associated with the key.
+   */
+  verify_key_api_v1_api_keys_admin_verify_post: {
+    parameters: {
+      header?: {
+        authorization?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["APIKeyVerifyRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["APIKeyVerifyResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Reset Database
+   * @description Delete all rows from every table in dependency order. Test use only.
+   */
+  reset_database_api_v1_test_reset_post: {
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": {
+            [key: string]: string;
+          };
+        };
+      };
+    };
+  };
   /** Health */
   health_health_get: {
     responses: {
@@ -1552,7 +2449,7 @@ export interface operations {
       200: {
         content: {
           "application/json": {
-            [key: string]: string;
+            [key: string]: unknown;
           };
         };
       };

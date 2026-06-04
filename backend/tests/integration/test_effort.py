@@ -1,5 +1,6 @@
 """Tests for M8 effort & capacity computed fields."""
 import pytest
+from pytest import approx
 
 
 @pytest.fixture
@@ -78,7 +79,7 @@ async def test_sprint_effort_sums_pbi_efforts(client, project, pi, swimline, fea
 
 @pytest.mark.asyncio
 async def test_sprint_effort_zero_for_unassigned_group(client, project, pi, swimline, feature):
-    pbi = await _make_pbi(client, project, feature, 4)
+    pbi = await _make_pbi(client, project, feature, 5)
     await _make_group(client, swimline, feature, pbi_ids=[pbi["system_id"]])
 
     sprints = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()
@@ -89,14 +90,14 @@ async def test_sprint_effort_zero_for_unassigned_group(client, project, pi, swim
 @pytest.mark.asyncio
 async def test_sprint_effort_isolated_per_sprint(client, project, pi, swimline, feature):
     pbi1 = await _make_pbi(client, project, feature, 3)
-    pbi2 = await _make_pbi(client, project, feature, 7)
+    pbi2 = await _make_pbi(client, project, feature, 8)
     await _make_group(client, swimline, feature, pbi_ids=[pbi1["system_id"]], sprint_index=0)
     await _make_group(client, swimline, feature, pbi_ids=[pbi2["system_id"]], sprint_index=1)
 
     sprints = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()
     by_index = {s["sprint_index"]: s["effort"] for s in sprints}
     assert by_index[0] == 3
-    assert by_index[1] == 7
+    assert by_index[1] == 8
     assert by_index[2] == 0
 
 
@@ -111,13 +112,13 @@ async def test_swimline_effort_zero_initially(client, pi, swimline):
 @pytest.mark.asyncio
 async def test_swimline_effort_sums_all_groups(client, project, pi, swimline, feature):
     pbi1 = await _make_pbi(client, project, feature, 3)
-    pbi2 = await _make_pbi(client, project, feature, 4)
+    pbi2 = await _make_pbi(client, project, feature, 5)
     await _make_group(client, swimline, feature, pbi_ids=[pbi1["system_id"]], sprint_index=0)
     await _make_group(client, swimline, feature, pbi_ids=[pbi2["system_id"]], sprint_index=1)
 
     swimlines = (await client.get(f"/api/v1/pis/{pi['system_id']}/swimlines")).json()
     sw = next(s for s in swimlines if s["system_id"] == swimline["system_id"])
-    assert sw["effort"] == 7
+    assert sw["effort"] == 8
 
 
 @pytest.mark.asyncio
@@ -178,7 +179,7 @@ async def test_sprint_capacity_zero_no_crash(client, pi):
 
 @pytest.mark.asyncio
 async def test_patch_sprint_capacity_returns_effort(client, project, pi, swimline, feature):
-    pbi = await _make_pbi(client, project, feature, 6)
+    pbi = await _make_pbi(client, project, feature, 5)
     await _make_group(client, swimline, feature, pbi_ids=[pbi["system_id"]], sprint_index=0)
 
     sprints = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()
@@ -188,4 +189,44 @@ async def test_patch_sprint_capacity_returns_effort(client, project, pi, swimlin
     assert resp.status_code == 200
     data = resp.json()
     assert data["capacity"] == 20
-    assert data["effort"] == 6
+    assert data["effort"] == 5
+
+
+# ── Half-point and zero-point effort values ────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_sprint_effort_half_point(client, project, pi, swimline, feature):
+    """A 0.5-point PBI contributes 0.5 to the sprint effort sum."""
+    pbi = await _make_pbi(client, project, feature, 0.5)
+    await _make_group(client, swimline, feature, pbi_ids=[pbi["system_id"]], sprint_index=0)
+
+    sprints = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()
+    s0 = next(s for s in sprints if s["sprint_index"] == 0)
+    assert s0["effort"] == approx(0.5)
+
+
+@pytest.mark.asyncio
+async def test_sprint_effort_zero_point(client, project, pi, swimline, feature):
+    """A 0-point PBI (effort=0, not null) contributes 0 to the sprint effort sum."""
+    pbi = await _make_pbi(client, project, feature, 0)
+    await _make_group(client, swimline, feature, pbi_ids=[pbi["system_id"]], sprint_index=0)
+
+    sprints = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()
+    s0 = next(s for s in sprints if s["sprint_index"] == 0)
+    assert s0["effort"] == approx(0)
+
+
+@pytest.mark.asyncio
+async def test_mixed_half_and_whole_effort(client, project, pi, swimline, feature):
+    """Mixed 0.5 and integer effort values sum correctly."""
+    pbi1 = await _make_pbi(client, project, feature, 3)
+    pbi2 = await _make_pbi(client, project, feature, 0.5)
+    await _make_group(
+        client, swimline, feature,
+        pbi_ids=[pbi1["system_id"], pbi2["system_id"]],
+        sprint_index=0,
+    )
+
+    sprints = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()
+    s0 = next(s for s in sprints if s["sprint_index"] == 0)
+    assert s0["effort"] == approx(3.5)

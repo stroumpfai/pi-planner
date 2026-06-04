@@ -7,7 +7,7 @@ from app.models.sprint import Sprint
 from app.models.swimline import Swimline
 
 
-async def sprint_efforts_for_pi(db: AsyncSession, pi_id: str) -> dict[int, int]:
+async def sprint_efforts_for_pi(db: AsyncSession, pi_id: str) -> dict[int, float]:
     """Return {sprint_index: effort} for all sprints in the PI."""
     result = await db.execute(
         select(
@@ -20,13 +20,13 @@ async def sprint_efforts_for_pi(db: AsyncSession, pi_id: str) -> dict[int, int]:
         .group_by(Group.sprint_index)
     )
     return {
-        row.sprint_index: int(row.effort)
+        row.sprint_index: float(row.effort)
         for row in result.all()
         if row.sprint_index is not None
     }
 
 
-async def swimline_efforts(db: AsyncSession, swimline_ids: list[str]) -> dict[str, int]:
+async def swimline_efforts(db: AsyncSession, swimline_ids: list[str]) -> dict[str, float]:
     """Return {swimline_id: effort} for the given swimlane IDs."""
     if not swimline_ids:
         return {}
@@ -39,10 +39,10 @@ async def swimline_efforts(db: AsyncSession, swimline_ids: list[str]) -> dict[st
         .where(Group.swimline_id.in_(swimline_ids), PBI.effort.is_not(None))
         .group_by(Group.swimline_id)
     )
-    return {row.swimline_id: int(row.effort) for row in result.all()}
+    return {row.swimline_id: float(row.effort) for row in result.all()}
 
 
-async def pi_effort_and_capacity(db: AsyncSession, pi_id: str) -> tuple[int, int]:
+async def pi_effort_and_capacity(db: AsyncSession, pi_id: str) -> tuple[float, int]:
     """Return (total_effort, total_capacity) for a PI."""
     effort_result = await db.execute(
         select(func.coalesce(func.sum(PBI.effort), 0))
@@ -54,10 +54,10 @@ async def pi_effort_and_capacity(db: AsyncSession, pi_id: str) -> tuple[int, int
         select(func.coalesce(func.sum(Sprint.capacity), 0))
         .where(Sprint.pi_id == pi_id)
     )
-    return int(effort_result.scalar_one()), int(capacity_result.scalar_one())
+    return float(effort_result.scalar_one()), int(capacity_result.scalar_one())
 
 
-async def feature_efforts(db: AsyncSession, feature_ids: list[str]) -> dict[str, int]:
+async def feature_efforts(db: AsyncSession, feature_ids: list[str]) -> dict[str, float]:
     """Return {feature_system_id: effort} — sum of child PBI efforts."""
     if not feature_ids:
         return {}
@@ -69,7 +69,7 @@ async def feature_efforts(db: AsyncSession, feature_ids: list[str]) -> dict[str,
         .where(PBI.parent_feature_system_id.in_(feature_ids), PBI.effort.is_not(None))
         .group_by(PBI.parent_feature_system_id)
     )
-    return {row.parent_feature_system_id: int(row.effort) for row in result.all()}
+    return {row.parent_feature_system_id: float(row.effort) for row in result.all()}
 
 
 async def pi_capacity(db: AsyncSession, pi_id: str) -> int:

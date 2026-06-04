@@ -80,6 +80,38 @@ describe('parseImportCSV', () => {
     expect(result.errors).toHaveLength(0)
     expect(result.totalRows).toBe(0)
   })
+
+  // ── Effort value tests ───────────────────────────────────────────────────────
+
+  it('accepts effort=0 as a valid zero-point story', () => {
+    const result = parseImportCSV(csv('Product Backlog Item,Story,,0,101,'))
+    expect(result.errors).toHaveLength(0)
+    expect(result.rows[0].effort).toBe(0)
+  })
+
+  it('accepts effort=0.5 with period decimal', () => {
+    const result = parseImportCSV(csv('Product Backlog Item,Story,,0.5,101,'))
+    expect(result.errors).toHaveLength(0)
+    expect(result.rows[0].effort).toBe(0.5)
+  })
+
+  it('accepts effort "0,5" with comma decimal separator (quoted CSV cell)', () => {
+    // PapaParse gives us the unquoted string "0,5" when the cell is quoted in the CSV
+    const result = parseImportCSV(csv('Product Backlog Item,Story,,"0,5",101,'))
+    expect(result.errors).toHaveLength(0)
+    expect(result.rows[0].effort).toBe(0.5)
+  })
+
+  it('rejects effort=4 as not in the allowed set', () => {
+    const result = parseImportCSV(csv('Product Backlog Item,Story,,4,101,'))
+    expect(result.errors.some((e) => /not an allowed value/i.test(e.message))).toBe(true)
+    expect(result.rows[0].effort).toBeNull()
+  })
+
+  it('rejects non-numeric effort', () => {
+    const result = parseImportCSV(csv('Product Backlog Item,Story,,XL,101,'))
+    expect(result.errors.some((e) => /not a valid number/i.test(e.message))).toBe(true)
+  })
 })
 
 // ── buildPreview ───────────────────────────────────────────────────────────────

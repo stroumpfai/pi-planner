@@ -86,4 +86,60 @@ describe('PBIFormModal', () => {
       expect(screen.getByText(/already used in this project/i)).toBeInTheDocument(),
     )
   })
+
+  // ── Effort button-group ──────────────────────────────────────────────────────
+
+  it('renders effort button-group with clear and all allowed value buttons', () => {
+    render(<PBIFormModal {...defaultProps} />, { wrapper: makeWrapper() })
+    expect(screen.getByRole('button', { name: '—' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '0' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '½' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '21' })).toBeInTheDocument()
+  })
+
+  it('selecting effort=0 submits 0, not null', async () => {
+    onSubmit.mockResolvedValue(undefined)
+    render(<PBIFormModal {...defaultProps} />, { wrapper: makeWrapper() })
+    await userEvent.type(screen.getByLabelText(/title/i), 'Zero story')
+    await userEvent.click(screen.getByRole('button', { name: '0' }))
+    await userEvent.click(screen.getByRole('button', { name: /create pbi/i }))
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ effort: 0 }),
+      ),
+    )
+  })
+
+  it('selecting effort=0.5 submits 0.5', async () => {
+    onSubmit.mockResolvedValue(undefined)
+    render(<PBIFormModal {...defaultProps} />, { wrapper: makeWrapper() })
+    await userEvent.type(screen.getByLabelText(/title/i), 'Half story')
+    await userEvent.click(screen.getByRole('button', { name: '½' }))
+    await userEvent.click(screen.getByRole('button', { name: /create pbi/i }))
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ effort: 0.5 }),
+      ),
+    )
+  })
+
+  it('pre-selects the active effort button when editing a PBI with effort=0.5', () => {
+    const halfPBI: PBI = { ...basePBI, effort: 0.5 }
+    render(<PBIFormModal {...defaultProps} pbi={halfPBI} />, { wrapper: makeWrapper() })
+    expect(screen.getByRole('button', { name: '½' })).toHaveClass('bg-blue-600')
+  })
+
+  it('clear button (—) deselects effort and submits null', async () => {
+    onSubmit.mockResolvedValue(undefined)
+    const pbiWithEffort: PBI = { ...basePBI, effort: 5 }
+    render(<PBIFormModal {...defaultProps} pbi={pbiWithEffort} />, { wrapper: makeWrapper() })
+    await userEvent.click(screen.getByRole('button', { name: '—' }))
+    await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        expect.objectContaining({ effort: null }),
+      ),
+    )
+  })
 })

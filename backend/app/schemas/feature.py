@@ -26,7 +26,7 @@ class FeatureResponse(BaseModel):
     id: int | None = Field(None, validation_alias="user_id")
     title: str
     description: str | None
-    effort: int = 0  # computed: sum of child PBI efforts
+    effort: float = 0  # computed: sum of child PBI efforts
     location: str
     pi_id: str | None
     swimlane_id: str | None
@@ -38,5 +38,5 @@ class FeatureResponse(BaseModel):
 
     @field_validator("effort", mode="before")
     @classmethod
-    def coerce_none_to_zero(cls, v: object) -> int:
-        return v if v is not None else 0
+    def coerce_none_to_zero(cls, v: object) -> float:
+        return float(v) if v is not None else 0.0

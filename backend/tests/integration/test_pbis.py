@@ -415,3 +415,64 @@ async def test_update_pbi_all_fields(client, project, feature):
     assert data["description"] == "A description"
     assert data["effort"] == 5
     assert data["item_type"] == "bug"
+
+
+# ── Effort validation ─────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_create_pbi_effort_zero(client, project, feature):
+    """effort=0 is a valid value."""
+    pid, fid = project["system_id"], feature["system_id"]
+    resp = await client.post(
+        f"/api/v1/projects/{pid}/pbis",
+        json={"title": "Zero effort", "parent_feature_system_id": fid, "effort": 0},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["effort"] == 0
+
+
+@pytest.mark.asyncio
+async def test_create_pbi_effort_half(client, project, feature):
+    """effort=0.5 is a valid value."""
+    pid, fid = project["system_id"], feature["system_id"]
+    resp = await client.post(
+        f"/api/v1/projects/{pid}/pbis",
+        json={"title": "Half point", "parent_feature_system_id": fid, "effort": 0.5},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["effort"] == pytest.approx(0.5)
+
+
+@pytest.mark.asyncio
+async def test_create_pbi_effort_invalid_value(client, project, feature):
+    """effort=4 is not in the allowed set."""
+    pid, fid = project["system_id"], feature["system_id"]
+    resp = await client.post(
+        f"/api/v1/projects/{pid}/pbis",
+        json={"title": "Bad effort", "parent_feature_system_id": fid, "effort": 4},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_pbi_effort_negative_rejected(client, project, feature):
+    """Negative effort is not in the allowed set."""
+    pid, fid = project["system_id"], feature["system_id"]
+    resp = await client.post(
+        f"/api/v1/projects/{pid}/pbis",
+        json={"title": "Neg effort", "parent_feature_system_id": fid, "effort": -1},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_update_pbi_effort_to_zero(client, project, feature):
+    """Patching effort to 0 stores and returns 0 (not null)."""
+    pid, fid = project["system_id"], feature["system_id"]
+    p = (await client.post(
+        f"/api/v1/projects/{pid}/pbis",
+        json={"title": "Story", "parent_feature_system_id": fid, "effort": 3},
+    )).json()
+    resp = await client.patch(f"/api/v1/pbis/{p['system_id']}", json={"effort": 0})
+    assert resp.status_code == 200
+    assert resp.json()["effort"] == 0

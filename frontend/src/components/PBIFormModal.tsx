@@ -3,6 +3,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { useForm } from 'react-hook-form'
 import type { AxiosError } from 'axios'
 import type { PBI } from '@/types'
+import { EFFORT_VALUES } from '@/constants/effort'
 
 export type PBIFormValues = {
   title: string
@@ -34,6 +35,7 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', onClose, onSubm
   }, [open, defaultType, isEdit, reset])
 
   const itemType = watch('item_type')
+  const effortValue = watch('effort')
   const typeLabel = itemType === 'bug' ? 'Bug' : 'PBI'
   const actionLabel = isEdit ? 'Save Changes' : `Create ${typeLabel}`
 
@@ -44,7 +46,7 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', onClose, onSubm
       await onSubmit({
         ...values,
         description: values.description || null,
-        effort: values.effort || null,
+        effort: values.effort ?? null,
         id: values.id || null,
       })
       reset()
@@ -125,17 +127,36 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', onClose, onSubm
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="pbi-effort" className="block text-sm font-medium text-gray-700">
+                <p className="block text-sm font-medium text-gray-700">
                   Effort <span className="text-gray-400 font-normal">(pts)</span>
-                </label>
-                <input
-                  id="pbi-effort"
-                  type="number"
-                  min={1}
-                  {...register('effort', { valueAsNumber: true })}
-                  className={inputClass}
-                  placeholder="e.g. 3"
-                />
+                </p>
+                <div className="flex flex-wrap gap-1 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setValue('effort', null)}
+                    className={`px-2 py-1 text-xs rounded border transition-colors ${
+                      effortValue == null
+                        ? 'bg-gray-600 text-white border-gray-600'
+                        : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                    }`}
+                  >
+                    —
+                  </button>
+                  {EFFORT_VALUES.map((v) => (
+                    <button
+                      key={v}
+                      type="button"
+                      onClick={() => setValue('effort', v)}
+                      className={`px-2 py-1 text-xs rounded border transition-colors ${
+                        effortValue === v
+                          ? 'bg-blue-600 text-white border-blue-600'
+                          : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {v === 0.5 ? '½' : v}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div>
                 <label htmlFor="pbi-id" className="block text-sm font-medium text-gray-700">

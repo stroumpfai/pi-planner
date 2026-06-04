@@ -20,7 +20,7 @@ class FeatureInput(BaseModel):
 class PBIInput(BaseModel):
     title: str = Field(..., max_length=255)
     description: str | None = Field(None, max_length=2000)
-    effort: int | None = Field(None, gt=0)
+    effort: float | None = Field(None, description="Must be one of: 0, 0.5, 1, 2, 3, 5, 8, 13, 21")
     user_id: int | None = Field(None, ge=1, le=999999)
     item_type: str = Field("story", pattern="^(story|bug)$")
 
