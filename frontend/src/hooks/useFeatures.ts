@@ -36,6 +36,7 @@ export const useUpdateFeature = (projectId: string) => {
       qc.invalidateQueries({ queryKey: prefix(projectId) })
       // Feature move operations may delete groups and affect capacity
       if ('location' in body || 'swimlane_id' in body) {
+        qc.invalidateQueries({ queryKey: ['pbis', projectId] })
         qc.invalidateQueries({ queryKey: ['groups'] })
         qc.invalidateQueries({ queryKey: ['sprints'] })
         qc.invalidateQueries({ queryKey: ['swimlines'] })

@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { useAuthStore } from '@/stores/authStore'
 import { useUpdateFeature } from '@/hooks/useFeatures'
+import { usePBIs } from '@/hooks/usePBIs'
 import { useEffortUnit } from '@/hooks/useProjects'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { PBISelectList } from './PBISelectList'
@@ -22,6 +23,10 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
   const showIds = useSettingsStore((s) => s.showIds)
   const showEffortUnit = useSettingsStore((s) => s.showEffortUnit)
   const updateFeature = useUpdateFeature(projectId)
+  const { data: allPbis = [] } = usePBIs(projectId)
+
+  const featurePbis = allPbis.filter((p) => p.parent_feature_system_id === feature.system_id)
+  const isFullyPlanned = featurePbis.length > 0 && featurePbis.every((p) => p.group_id != null)
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `feature:${feature.system_id}`,
@@ -77,6 +82,14 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
         {feature.effort != null && (
           <span className="flex-shrink-0 text-xs bg-purple-100 text-purple-700 rounded px-1.5 py-0.5 font-medium">
             {feature.effort}{showEffortUnit ? effortUnit : ''}
+          </span>
+        )}
+        {isFullyPlanned && (
+          <span
+            className="flex-shrink-0 text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5 font-medium"
+            title="All PBIs assigned to sprints"
+          >
+            ✓
           </span>
         )}
       </div>

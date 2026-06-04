@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import delete as sql_delete, func, select
+from sqlalchemy import delete as sql_delete, func, select, update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
@@ -79,6 +79,9 @@ async def _apply_move_to_backlog(db: AsyncSession, feature: Feature) -> None:
     groups = (await db.execute(
         select(Group).where(Group.feature_system_id == feature.system_id)
     )).scalars().all()
+    if groups:
+        group_ids = [g.system_id for g in groups]
+        await db.execute(sql_update(PBI).where(PBI.group_id.in_(group_ids)).values(group_id=None))
     for g in groups:
         await db.delete(g)
     feature.location = "backlog"
