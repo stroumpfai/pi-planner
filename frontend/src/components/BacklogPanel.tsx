@@ -18,6 +18,7 @@ interface ItemProps {
 }
 
 function DraggableBacklogItem({ feature, effortUnit, showEffortUnit }: ItemProps) {
+  const showIds = useSettingsStore((s) => s.showIds)
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `feature:${feature.system_id}`,
     data: {
@@ -27,7 +28,7 @@ function DraggableBacklogItem({ feature, effortUnit, showEffortUnit }: ItemProps
     } satisfies FeatureDragData,
   })
 
-  const displayId = feature.id == null ? '' : `[${feature.id}] `
+  const displayId = showIds && feature.id != null ? `[${feature.id}] ` : ''
 
   return (
     <div
