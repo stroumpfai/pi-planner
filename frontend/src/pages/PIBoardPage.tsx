@@ -23,6 +23,7 @@ import { pbisApi } from '@/services/pbis'
 import { useSprints } from '@/hooks/useSprints'
 import { useFeatures, useUpdateFeature } from '@/hooks/useFeatures'
 import { useAuthStore } from '@/stores/authStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { usePIs } from '@/hooks/usePIs'
 import { useEffortUnit } from '@/hooks/useProjects'
 import { SwimlaneRow } from '@/components/SwimlaneRow'
@@ -101,11 +102,44 @@ function PIStateBadgeInline({ state }: { readonly state: string }) {
   )
 }
 
+function ResizeHandle({ onResize, currentWidth }: { readonly onResize: (w: number) => void; readonly currentWidth: number }) {
+  function handleMouseDown(e: React.MouseEvent) {
+    e.preventDefault()
+    const startX = e.clientX
+    const startWidth = currentWidth
+    function onMove(ev: MouseEvent) {
+      const next = Math.min(480, Math.max(120, startWidth + ev.clientX - startX))
+      onResize(next)
+    }
+    function onUp() {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === 'ArrowRight') onResize(Math.min(480, currentWidth + 8))
+    else if (e.key === 'ArrowLeft') onResize(Math.max(120, currentWidth - 8))
+  }
+  return (
+    <button
+      type="button"
+      aria-label="Resize feature column"
+      onMouseDown={handleMouseDown}
+      onKeyDown={handleKeyDown}
+      className="absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize hover:bg-blue-300 transition-colors focus:outline-none focus:bg-blue-300 p-0 border-0 bg-transparent"
+    />
+  )
+}
+
 export function PIBoardPage({ projectId, piId }: Props) {
   const [showCreateSwimline, setShowCreateSwimline] = useState(false)
   const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null)
   const [editCapacitySprint, setEditCapacitySprint] = useState<Sprint | null>(null)
   const isEditing = useAuthStore((s) => s.isEditing)
+  const featureColumnWidth = useSettingsStore((s) => s.featureColumnWidth)
+  const setFeatureColumnWidth = useSettingsStore((s) => s.setFeatureColumnWidth)
 
   const { data: pis } = usePIs(projectId)
   const { data: swimlines } = useSwimlinesForPI(piId)
@@ -241,7 +275,10 @@ export function PIBoardPage({ projectId, piId }: Props) {
       <div className="flex h-full overflow-hidden">
         <BacklogPanel projectId={projectId} />
 
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <div
+          className="flex flex-col flex-1 overflow-hidden"
+          style={{ '--feature-col-width': `${featureColumnWidth}px` } as React.CSSProperties}
+        >
           {/* Board header: name + PI capacity summary + Add Swimlane */}
           <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-white flex-shrink-0 gap-4">
             <div className="flex items-center gap-2 flex-shrink-0">
@@ -267,8 +304,12 @@ export function PIBoardPage({ projectId, piId }: Props) {
           <div className="flex-1 overflow-y-auto">
             {/* Column headers: sticky so they stay visible while swimlanes scroll */}
             <div className="sticky top-0 z-10 flex border-b border-gray-200 bg-gray-50 flex-shrink-0">
-              <div className="w-48 flex-shrink-0 border-r border-gray-200 px-3 py-1.5">
+              <div
+                className="flex-shrink-0 border-r border-gray-200 px-3 py-1.5 relative"
+                style={{ width: 'var(--feature-col-width, 192px)' }}
+              >
                 <span className="text-xs font-semibold text-gray-500">Swimlane / Features</span>
+                <ResizeHandle onResize={setFeatureColumnWidth} currentWidth={featureColumnWidth} />
               </div>
               {sprints?.map((sprint) => (
                 <div key={sprint.system_id} className="flex-1 border-r border-gray-100 last:border-r-0">

@@ -148,7 +148,10 @@ export function SwimlaneRow({ swimline, sprints, features, projectId, piId }: Pr
       {/* Grid: feature zone + sprint columns */}
       {!collapsed && (
         <div className="flex min-h-24">
-          <div className="w-48 flex-shrink-0 border-r border-gray-200">
+          <div
+            className="flex-shrink-0 border-r border-gray-200"
+            style={{ width: 'var(--feature-col-width, 192px)' }}
+          >
             <div className="text-xs text-gray-400 px-2 pt-1 pb-0.5 bg-gray-50 border-b border-gray-100">
               Features
             </div>

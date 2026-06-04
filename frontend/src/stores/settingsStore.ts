@@ -2,12 +2,16 @@ import { create } from 'zustand'
 
 const SHOW_IDS_KEY = 'pi-planner:show-ids'
 const SHOW_EFFORT_UNIT_KEY = 'pi-planner:show-effort-unit'
+const FEATURE_COL_WIDTH_KEY = 'pi-planner:feature-col-width'
+const DEFAULT_COL_WIDTH = 192
 
 interface SettingsState {
   showIds: boolean
   setShowIds: (v: boolean) => void
   showEffortUnit: boolean
   setShowEffortUnit: (v: boolean) => void
+  featureColumnWidth: number
+  setFeatureColumnWidth: (v: number) => void
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -20,5 +24,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setShowEffortUnit: (showEffortUnit) => {
     localStorage.setItem(SHOW_EFFORT_UNIT_KEY, String(showEffortUnit))
     set({ showEffortUnit })
+  },
+  featureColumnWidth: Number(localStorage.getItem(FEATURE_COL_WIDTH_KEY)) || DEFAULT_COL_WIDTH,
+  setFeatureColumnWidth: (featureColumnWidth) => {
+    localStorage.setItem(FEATURE_COL_WIDTH_KEY, String(featureColumnWidth))
+    set({ featureColumnWidth })
   },
 }))

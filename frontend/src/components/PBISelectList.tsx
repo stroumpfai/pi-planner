@@ -1,5 +1,6 @@
 import { useDraggable } from '@dnd-kit/core'
 import { usePBIs } from '@/hooks/usePBIs'
+import { useSettingsStore } from '@/stores/settingsStore'
 import type { PBI } from '@/types'
 import type { PBIDragData } from './PBIRow'
 
@@ -19,7 +20,8 @@ function PBISelectRow({ pbi, selected, onToggle, swimlaneId, canDragToSprint }: 
   readonly swimlaneId: string
   readonly canDragToSprint: boolean
 }) {
-  const displayId = pbi.id == null ? '' : `[${pbi.id}] `
+  const showIds = useSettingsStore((s) => s.showIds)
+  const displayId = showIds && pbi.id != null ? `[${pbi.id}] ` : ''
   const isGrouped = pbi.group_id != null
   const isBug = pbi.item_type === 'bug'
   const draggable = canDragToSprint && !isGrouped
@@ -60,7 +62,10 @@ function PBISelectRow({ pbi, selected, onToggle, swimlaneId, canDragToSprint }: 
             Bug
           </span>
         )}
-        <span className={`text-xs truncate ${isGrouped ? 'text-gray-400' : 'text-gray-700'}`}>
+        <span
+          className={`text-xs line-clamp-2 ${isGrouped ? 'text-gray-400' : 'text-gray-700'}`}
+          title={pbi.title}
+        >
           {displayId && <span className="font-mono text-gray-400">{displayId}</span>}
           {pbi.title}
         </span>
