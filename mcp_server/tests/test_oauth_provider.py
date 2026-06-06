@@ -246,8 +246,7 @@ async def test_exchange_code_creates_token_with_claims(tmp_path):
         expires_at=time.time() + 300,
         code_challenge="challenge",
     )
-    provider._auth_codes[code] = auth_code
-    provider._code_claims[code] = ("kid_abc", "alice", "admin")
+    await provider._store.save_auth_code(code, auth_code, ("kid_abc", "alice", "admin"))
 
     token_response = await provider.exchange_authorization_code(client, auth_code)
 
@@ -277,8 +276,7 @@ async def test_exchange_code_token_persisted_to_store(tmp_path):
         expires_at=time.time() + 300,
         code_challenge="challenge",
     )
-    provider._auth_codes[code] = auth_code
-    provider._code_claims[code] = ("kid_xyz", "bob", "editor")
+    await provider._store.save_auth_code(code, auth_code, ("kid_xyz", "bob", "editor"))
 
     token_response = await provider.exchange_authorization_code(client, auth_code)
 
@@ -302,8 +300,7 @@ async def test_exchange_code_twice_raises_invalid_grant(tmp_path):
         expires_at=time.time() + 300,
         code_challenge="challenge",
     )
-    provider._auth_codes[code] = auth_code
-    provider._code_claims[code] = ("kid_abc", "alice", "admin")
+    await provider._store.save_auth_code(code, auth_code, ("kid_abc", "alice", "admin"))
 
     await provider.exchange_authorization_code(client, auth_code)
 
@@ -505,8 +502,12 @@ async def test_consent_post_reader_key_redirects_with_reader_error(provider_with
             data={"nonce": nonce, "api_key": "kid_r.secret"},
         )
 
-    assert r.status_code == 303
-    assert "error=reader_not_allowed" in r.headers["location"]
+    # Finding 12: reader rejection must redirect to client's redirect_uri with error=access_denied,
+    # not back to the consent form, so the OAuth client receives a machine-readable response.
+    assert r.status_code == 302
+    location = r.headers["location"]
+    assert location.startswith(_REDIRECT_URI)
+    assert "error=access_denied" in location
 
 
 # ---------------------------------------------------------------------------

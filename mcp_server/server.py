@@ -16,6 +16,7 @@ from fastmcp.server.auth import MultiAuth
 from mcp_server.auth import APIKeyAuthProvider
 from mcp_server.backend import get_client, set_http_client
 from mcp_server.config import settings
+from mcp_server.oauth_provider import ScopeHintMiddleware
 from mcp_server.tools.read import read_mcp
 from mcp_server.tools.projects import projects_mcp
 from mcp_server.tools.swimlines import swimlines_mcp
@@ -67,6 +68,7 @@ if settings.oauth_base_url:
         base_url=settings.oauth_base_url,
         token_storage_path=settings.oauth_token_storage,
         token_ttl=settings.oauth_token_ttl,
+        refresh_token_ttl=settings.oauth_refresh_token_ttl,
     )
     _auth = MultiAuth(server=_oauth, verifiers=[_api_key_auth])
 else:
@@ -122,6 +124,15 @@ async def health_check(ctx: Context) -> str:
 
 
 if __name__ == "__main__":
+    from starlette.middleware import Middleware as _Middleware
+
     # path="/" serves the MCP endpoint at root so Claude.ai/ChatGPT can connect
     # using the bare server URL (e.g. https://mcp.example.com) without a /mcp suffix.
-    mcp.run(transport="streamable-http", port=settings.port, path="/")
+    # ScopeHintMiddleware adds scope="admin editor" to WWW-Authenticate headers on
+    # 401/403 responses so spec-compliant clients know what scopes to request (Finding 6).
+    mcp.run(
+        transport="streamable-http",
+        port=settings.port,
+        path="/",
+        middleware=[_Middleware(ScopeHintMiddleware, scopes=["admin", "editor"])],
+    )

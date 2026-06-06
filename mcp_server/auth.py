@@ -52,8 +52,20 @@ class APIKeyAuthProvider(TokenVerifier):
 
     Integrates with FastMCP's SSE transport correctly (no BaseHTTPMiddleware
     buffering). Records auth failures for the rate limiter.
-    Readers are rejected — only admin and editor roles can use the MCP server.
+
+    Scope model:
+      admin  → AccessToken(scopes=["admin", "editor"])  — passes required_scopes=["editor"]
+      editor → AccessToken(scopes=["editor"])            — passes required_scopes=["editor"]
+      reader → AccessToken(scopes=["reader"])            — fails required_scopes=["editor"] → 403
+      invalid → None                                     → 401
+
+    required_scopes=["editor"] ensures RequireAuthMiddleware returns a proper
+    403 insufficient_scope (not a generic 401) when a valid reader key is used,
+    allowing MCP clients to trigger a step-up authorization flow.
     """
+
+    def __init__(self) -> None:
+        super().__init__(required_scopes=["editor"])
 
     async def verify_token(self, token: str) -> AccessToken | None:
         try:
@@ -71,17 +83,16 @@ class APIKeyAuthProvider(TokenVerifier):
             return None
 
         key_id, username, role = result
-        if role == "reader":
-            record_auth_failure(ip)
-            return None
 
-        # Clear failure history for this IP on successful auth so a legitimate
-        # user is not permanently locked out after earlier probe attempts.
+        # Clear failure history on any valid credential (admin, editor, or reader).
         _failed_auth.pop(ip, None)
+
+        # Admin tokens carry both scopes so required_scopes=["editor"] passes for admins too.
+        scopes = ["admin", "editor"] if role == "admin" else [role]
 
         return AccessToken(
             token=token,
             client_id=username,
-            scopes=[role],
+            scopes=scopes,
             claims={"key_id": key_id, "role": role},
         )

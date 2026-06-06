@@ -11,18 +11,19 @@ import asyncio
 import html
 import json
 import logging
+import os
 import secrets
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from fastmcp.server.auth.auth import AccessToken, ClientRegistrationOptions, OAuthProvider
+from fastmcp.server.auth.cimd import CIMDFetchError, CIMDFetcher, CIMDValidationError
 from mcp.server.auth.handlers.metadata import MetadataHandler, ProtectedResourceMetadataHandler
 from mcp.server.auth.routes import build_metadata
 from mcp.server.auth.provider import (
     AuthorizationCode,
     AuthorizationParams,
-    AuthorizeError,
     RefreshToken,
     TokenError,
     construct_redirect_uri,
@@ -30,9 +31,11 @@ from mcp.server.auth.provider import (
 from mcp.server.auth.routes import cors_middleware
 from mcp.server.auth.settings import RevocationOptions
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken, ProtectedResourceMetadata
+from starlette.middleware import Middleware
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 from starlette.routing import Route
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from mcp_server.auth import verify_api_key
 
@@ -42,21 +45,92 @@ _AUTH_CODE_TTL = 300  # 5 minutes — auth codes and pending consent sessions
 
 
 # ---------------------------------------------------------------------------
+# ASGI middleware: inject scope hint into 401/403 WWW-Authenticate headers
+# (Finding 6 — MCP spec §4: SHOULD include scope in WWW-Authenticate)
+# ---------------------------------------------------------------------------
+
+class ScopeHintMiddleware:
+    """Adds scope="<scopes>" to WWW-Authenticate headers on 401 and 403 responses.
+
+    Placed as the outermost Starlette middleware so it intercepts every error
+    response, including those emitted by RequireAuthMiddleware (which wraps
+    individual route handlers and is therefore inside this layer).
+    """
+
+    def __init__(self, app: ASGIApp, scopes: list[str]) -> None:
+        self._app = app
+        self._scope_value = " ".join(scopes)
+
+    def _inject_scope(
+        self, headers: list[tuple[bytes, bytes]]
+    ) -> list[tuple[bytes, bytes]]:
+        new_headers: list[tuple[bytes, bytes]] = []
+        found = False
+        for name, value in headers:
+            if name.lower() == b"www-authenticate":
+                decoded = value.decode("utf-8", errors="replace")
+                if "scope=" not in decoded:
+                    decoded = f'{decoded}, scope="{self._scope_value}"'
+                new_headers.append((name, decoded.encode("utf-8")))
+                found = True
+            else:
+                new_headers.append((name, value))
+        if not found:
+            new_headers.append(
+                (b"www-authenticate", f'Bearer scope="{self._scope_value}"'.encode())
+            )
+        return new_headers
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self._app(scope, receive, send)
+            return
+
+        async def patched_send(message: dict) -> None:
+            if (
+                message["type"] == "http.response.start"
+                and message.get("status") in (401, 403)
+                and self._scope_value
+            ):
+                message = {
+                    **message,
+                    "headers": self._inject_scope(list(message.get("headers", []))),
+                }
+            await send(message)
+
+        await self._app(scope, receive, patched_send)
+
+
+# ---------------------------------------------------------------------------
 # Token store
 # ---------------------------------------------------------------------------
 
 
 class TokenStore:
-    """Async-safe JSON file store for OAuth access tokens.
+    """Async-safe JSON file store for OAuth tokens, auth codes, and client registrations.
 
-    Expired tokens are purged on load and on every get_token() call.
-    The asyncio.Lock guards concurrent writes (multiple connections
-    completing their OAuth dance simultaneously).
+    File layout (versioned):
+      {
+        "access_tokens":  { "<tok>": { token, client_id, scopes, claims, expires_at } },
+        "refresh_tokens": { "<tok>": { token, client_id, scopes, claims, expires_at } },
+        "auth_codes":     { "<code>": { ...AuthorizationCode fields..., "claims": [...] } },
+        "clients":        { "<client_id>": { ...OAuthClientInformationFull fields... } }
+      }
+
+    Old flat format (access tokens only at the top level) is detected on load
+    and migrated transparently — no data loss on upgrade.
+
+    Expired tokens and auth codes are pruned on load and on every get_*() call.
+    The asyncio.Lock guards concurrent writes.
+    File permissions are set to 0o600 on every write.
     """
 
     def __init__(self, path: str) -> None:
         self._path = Path(path)
         self._tokens: dict[str, dict] = {}
+        self._refresh_tokens: dict[str, dict] = {}
+        self._auth_codes: dict[str, dict] = {}
+        self._clients: dict[str, dict] = {}
         self._lock = asyncio.Lock()
         self._load()
 
@@ -66,13 +140,52 @@ class TokenStore:
         try:
             data = json.loads(self._path.read_text())
             now = time.time()
-            self._tokens = {k: v for k, v in data.items() if v.get("expires_at", 0) > now}
+            # Old flat format: top-level keys are token strings, not section names.
+            if "access_tokens" not in data:
+                self._tokens = {k: v for k, v in data.items() if v.get("expires_at", 0) > now}
+                self._refresh_tokens = {}
+                self._auth_codes = {}
+                self._clients = {}
+            else:
+                self._tokens = {
+                    k: v
+                    for k, v in data.get("access_tokens", {}).items()
+                    if v.get("expires_at", 0) > now
+                }
+                self._refresh_tokens = {
+                    k: v
+                    for k, v in data.get("refresh_tokens", {}).items()
+                    if v.get("expires_at") is None or v["expires_at"] > now
+                }
+                self._auth_codes = {
+                    k: v
+                    for k, v in data.get("auth_codes", {}).items()
+                    if v.get("expires_at", 0) > now
+                }
+                self._clients = data.get("clients", {})
         except Exception:
             self._tokens = {}
+            self._refresh_tokens = {}
+            self._auth_codes = {}
+            self._clients = {}
 
     def _write(self) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(json.dumps(self._tokens, indent=2))
+        self._path.write_text(
+            json.dumps(
+                {
+                    "access_tokens": self._tokens,
+                    "refresh_tokens": self._refresh_tokens,
+                    "auth_codes": self._auth_codes,
+                    "clients": self._clients,
+                },
+                indent=2,
+            )
+        )
+        # Restrict to owner read/write only — tokens are sensitive credentials.
+        os.chmod(self._path, 0o600)
+
+    # -- Access token methods --
 
     async def save_token(self, token: AccessToken) -> None:
         async with self._lock:
@@ -106,6 +219,101 @@ class TokenStore:
                 del self._tokens[token]
                 self._write()
 
+    # -- Refresh token methods --
+
+    async def save_refresh_token(self, token: RefreshToken, claims: dict) -> None:
+        async with self._lock:
+            self._refresh_tokens[token.token] = {
+                "token": token.token,
+                "client_id": token.client_id,
+                "scopes": token.scopes,
+                "expires_at": token.expires_at,
+                "claims": claims,
+            }
+            self._write()
+
+    def get_refresh_token(self, token: str) -> RefreshToken | None:
+        entry = self._refresh_tokens.get(token)
+        if not entry:
+            return None
+        expires_at = entry.get("expires_at")
+        if expires_at is not None and expires_at <= time.time():
+            del self._refresh_tokens[token]
+            return None
+        return RefreshToken(
+            token=entry["token"],
+            client_id=entry["client_id"],
+            scopes=entry["scopes"],
+            expires_at=entry.get("expires_at"),
+        )
+
+    def get_refresh_token_claims(self, token: str) -> dict:
+        entry = self._refresh_tokens.get(token)
+        return entry.get("claims", {}) if entry else {}
+
+    async def delete_refresh_token(self, token: str) -> None:
+        async with self._lock:
+            if token in self._refresh_tokens:
+                del self._refresh_tokens[token]
+                self._write()
+
+    # -- Authorization code methods --
+
+    async def save_auth_code(
+        self, code: str, auth_code: AuthorizationCode, claims: tuple[str, str, str]
+    ) -> None:
+        async with self._lock:
+            self._auth_codes[code] = {
+                **auth_code.model_dump(mode="json"),
+                "_claims": list(claims),
+            }
+            self._write()
+
+    def get_auth_code(
+        self, code: str
+    ) -> tuple[AuthorizationCode, tuple[str, str, str]] | None:
+        entry = self._auth_codes.get(code)
+        if not entry:
+            return None
+        if entry.get("expires_at", 0) <= time.time():
+            del self._auth_codes[code]
+            return None
+        raw_claims = entry.get("_claims", ["", "", ""])
+        claims: tuple[str, str, str] = (
+            str(raw_claims[0]) if len(raw_claims) > 0 else "",
+            str(raw_claims[1]) if len(raw_claims) > 1 else "",
+            str(raw_claims[2]) if len(raw_claims) > 2 else "",
+        )
+        code_data = {k: v for k, v in entry.items() if k != "_claims"}
+        try:
+            auth_code = AuthorizationCode.model_validate(code_data)
+        except Exception:
+            del self._auth_codes[code]
+            return None
+        return auth_code, claims
+
+    async def delete_auth_code(self, code: str) -> None:
+        async with self._lock:
+            if code in self._auth_codes:
+                del self._auth_codes[code]
+                self._write()
+
+    # -- Client registration methods --
+
+    async def save_client(self, client: OAuthClientInformationFull) -> None:
+        async with self._lock:
+            self._clients[client.client_id] = client.model_dump(mode="json")
+            self._write()
+
+    def get_client(self, client_id: str) -> OAuthClientInformationFull | None:
+        entry = self._clients.get(client_id)
+        if not entry:
+            return None
+        try:
+            return OAuthClientInformationFull.model_validate(entry)
+        except Exception:
+            return None
+
 
 # ---------------------------------------------------------------------------
 # Pending authorization session (before user submits the consent form)
@@ -129,15 +337,21 @@ class PiPlannerOAuthProvider(OAuthProvider):
 
     Flow:
     1. Claude.ai discovers /.well-known/oauth-authorization-server
-    2. Claude.ai registers as a client (Dynamic Client Registration)
+    2. Claude.ai registers as a client (Dynamic Client Registration or CIMD)
     3. Claude.ai sends the user to GET /authorize?...
     4. SDK validates params, calls provider.authorize() which redirects to
        /authorize/consent?nonce=...
     5. User pastes their PI Planner API key and clicks Authorize
     6. POST /authorize/consent validates the key, issues an auth code,
        redirects back to Claude.ai's redirect_uri
-    7. Claude.ai exchanges the auth code at /token for an access token
+    7. Claude.ai exchanges the auth code at /token for an access token + refresh token
     8. Subsequent MCP calls present the access token as Bearer
+    9. When the access token expires, Claude.ai silently exchanges the refresh token
+       for a new access token + rotated refresh token (no user interaction needed)
+
+    Scope model (mirrors APIKeyAuthProvider):
+      admin  → scopes=["admin", "editor"]
+      editor → scopes=["editor"]
     """
 
     def __init__(
@@ -145,41 +359,123 @@ class PiPlannerOAuthProvider(OAuthProvider):
         base_url: str,
         token_storage_path: str,
         token_ttl: int = 3600,
+        refresh_token_ttl: int = 2592000,
     ) -> None:
         super().__init__(
             base_url=base_url,
-            client_registration_options=ClientRegistrationOptions(enabled=True),
+            client_registration_options=ClientRegistrationOptions(
+                enabled=True,
+                valid_scopes=["admin", "editor"],
+            ),
             revocation_options=RevocationOptions(enabled=True),
+            # required_scopes drives RequireAuthMiddleware — callers need at least "editor".
+            required_scopes=["editor"],
         )
-        self._clients: dict[str, OAuthClientInformationFull] = {}
-        self._auth_codes: dict[str, AuthorizationCode] = {}
-        # Parallel dict: code → (key_id, username, role) so exchange_authorization_code
-        # can embed the API-key claims in the issued token without a second backend call.
-        self._code_claims: dict[str, tuple[str, str, str]] = {}
         self._pending: dict[str, _PendingAuth] = {}
         self._store = TokenStore(token_storage_path)
         self._token_ttl = token_ttl
+        self._refresh_token_ttl = refresh_token_ttl
         self._base_url_str = str(base_url).rstrip("/")
+        self._cimd_fetcher = CIMDFetcher()
 
     # ── OAuthAuthorizationServerProvider protocol ───────────────────────────
 
     async def get_client(self, client_id: str) -> OAuthClientInformationFull | None:
-        return self._clients.get(client_id)
+        # Check persistent store first (covers DCR-registered clients).
+        stored = self._store.get_client(client_id)
+        if stored is not None:
+            return stored
+
+        # For URL-formatted client IDs, auto-fetch the CIMD document (Finding 4).
+        # redirect_uris is intentionally left as None — we validate per-request
+        # in authorize() via CIMDFetcher.validate_redirect_uri (supports wildcards).
+        if self._cimd_fetcher.is_cimd_client_id(client_id):
+            try:
+                cimd_doc = await self._cimd_fetcher.fetch(client_id)
+                log.info(
+                    "oauth_cimd_resolved client_id=%.40s name=%s",
+                    client_id,
+                    cimd_doc.client_name or "(unnamed)",
+                )
+                return OAuthClientInformationFull(
+                    client_id=client_id,
+                    client_name=cimd_doc.client_name,
+                    redirect_uris=None,
+                    grant_types=cimd_doc.grant_types,
+                    response_types=cimd_doc.response_types,
+                    token_endpoint_auth_method=cimd_doc.token_endpoint_auth_method,
+                    client_uri=cimd_doc.client_uri,
+                    logo_uri=cimd_doc.logo_uri,
+                )
+            except (CIMDFetchError, CIMDValidationError) as exc:
+                log.warning("oauth_cimd_fetch_failed client_id=%.40s error=%s", client_id, exc)
+                return None
+
+        return None
 
     async def register_client(self, client_info: OAuthClientInformationFull) -> None:
         if client_info.client_id is None:
             raise ValueError("client_id is required for registration")
-        self._clients[client_info.client_id] = client_info
+
+        # For URL-formatted client IDs submitted via DCR, validate redirect_uris
+        # against the CIMD document before storing (Finding 4).
+        if self._cimd_fetcher.is_cimd_client_id(client_info.client_id):
+            try:
+                cimd_doc = await self._cimd_fetcher.fetch(client_info.client_id)
+            except (CIMDFetchError, CIMDValidationError) as exc:
+                raise ValueError(
+                    f"CIMD document validation failed for {client_info.client_id!r}: {exc}"
+                ) from exc
+
+            for redirect_uri in client_info.redirect_uris or []:
+                if not self._cimd_fetcher.validate_redirect_uri(cimd_doc, str(redirect_uri)):
+                    raise ValueError(
+                        f"Redirect URI {redirect_uri!r} is not permitted by the CIMD document"
+                    )
+
+        await self._store.save_client(client_info)
         log.info(
             "oauth_dcr_registered client_id=%.8s name=%s",
             client_info.client_id,
             client_info.client_name or "(unnamed)",
         )
 
+    async def _validate_redirect_uri(
+        self, client: OAuthClientInformationFull, redirect_uri_str: str
+    ) -> None:
+        """Raise ValueError if redirect_uri is not permitted for this client (Finding 8)."""
+        client_id = client.client_id or ""
+        if self._cimd_fetcher.is_cimd_client_id(client_id):
+            try:
+                cimd_doc = await self._cimd_fetcher.fetch(client_id)
+            except (CIMDFetchError, CIMDValidationError) as exc:
+                raise ValueError(f"CIMD validation failed: {exc}") from exc
+            if not self._cimd_fetcher.validate_redirect_uri(cimd_doc, redirect_uri_str):
+                log.warning(
+                    "oauth_authorize_redirect_uri_mismatch client=%.8s uri=%s",
+                    client_id, redirect_uri_str,
+                )
+                raise ValueError(
+                    f"redirect_uri {redirect_uri_str!r} not permitted by CIMD document"
+                )
+        elif client.redirect_uris:
+            registered = {str(u).rstrip("/") for u in client.redirect_uris}
+            if redirect_uri_str.rstrip("/") not in registered:
+                log.warning(
+                    "oauth_authorize_redirect_uri_mismatch client=%.8s uri=%s",
+                    client_id, redirect_uri_str,
+                )
+                raise ValueError(
+                    f"redirect_uri {redirect_uri_str!r} not registered for this client"
+                )
+
     async def authorize(
         self, client: OAuthClientInformationFull, params: AuthorizationParams
     ) -> str:
-        """Store auth params under a short-lived nonce and redirect to consent page."""
+        """Validate redirect_uri, store auth params, and redirect to consent page."""
+        if params.redirect_uri:
+            await self._validate_redirect_uri(client, str(params.redirect_uri))
+
         nonce = secrets.token_urlsafe(20)
         self._pending[nonce] = _PendingAuth(
             client=client,
@@ -196,48 +492,54 @@ class PiPlannerOAuthProvider(OAuthProvider):
     async def load_authorization_code(
         self, client: OAuthClientInformationFull, authorization_code: str
     ) -> AuthorizationCode | None:
-        code_obj = self._auth_codes.get(authorization_code)
-        if not code_obj:
+        result = self._store.get_auth_code(authorization_code)
+        if not result:
             return None
-        if code_obj.client_id != client.client_id:
+        auth_code, _ = result
+        if auth_code.client_id != client.client_id:
             return None
-        if code_obj.expires_at < time.time():
-            self._auth_codes.pop(authorization_code, None)
-            self._code_claims.pop(authorization_code, None)
-            return None
-        return code_obj
+        return auth_code
 
     async def exchange_authorization_code(
         self, client: OAuthClientInformationFull, authorization_code: AuthorizationCode
     ) -> OAuthToken:
-        if authorization_code.code not in self._auth_codes:
+        result = self._store.get_auth_code(authorization_code.code)
+        if not result:
             raise TokenError("invalid_grant", "Authorization code not found or already used.")
 
-        del self._auth_codes[authorization_code.code]
-        key_id, username, role = self._code_claims.pop(authorization_code.code, ("", "", ""))
+        _, (key_id, username, role) = result
+        await self._store.delete_auth_code(authorization_code.code)
+
+        claims = {"key_id": key_id, "role": role}
+        # Admin tokens carry both scopes so required_scopes=["editor"] passes for admins.
+        scopes = ["admin", "editor"] if role == "admin" else ["editor"]
 
         token_value = secrets.token_urlsafe(32)
         access_token = AccessToken(
             token=token_value,
             client_id=username,
-            scopes=[role],
-            claims={"key_id": key_id, "role": role},
+            scopes=scopes,
+            claims=claims,
             expires_at=int(time.time()) + self._token_ttl,
         )
         await self._store.save_token(access_token)
-        log.info("OAuth access token issued for user=%s role=%s", username, role)
+
+        log.info(
+            "oauth_token_issued user=%s role=%s access_ttl=%ds",
+            username, role, self._token_ttl,
+        )
 
         return OAuthToken(
             access_token=token_value,
             token_type="Bearer",
             expires_in=self._token_ttl,
-            scope=role,
+            scope=" ".join(scopes),
         )
 
     async def load_refresh_token(
         self, client: OAuthClientInformationFull, refresh_token: str
     ) -> RefreshToken | None:
-        return None
+        return self._store.get_refresh_token(refresh_token)
 
     async def exchange_refresh_token(
         self,
@@ -259,16 +561,16 @@ class PiPlannerOAuthProvider(OAuthProvider):
         if isinstance(token, AccessToken):
             log.info("oauth_token_revoked user=%s token=%.8s...", token.client_id, token.token)
             await self._store.delete_token(token.token)
+        else:
+            log.info("oauth_refresh_revoked user=%s token=%.8s...", token.client_id, token.token)
+            await self._store.delete_refresh_token(token.token)
 
     # ── Custom consent routes ────────────────────────────────────────────────
 
     def get_routes(self, mcp_path: str | None = None) -> list[Route]:
         routes = super().get_routes(mcp_path)
 
-        # RFC 8414 §2: the upstream library unconditionally advertises "refresh_token"
-        # in grant_types_supported, but we don't support it (exchange_refresh_token
-        # raises unsupported_grant_type).  Rebuild the metadata with the correct set
-        # and replace the route.
+        # RFC 8414 §2: rebuild metadata to advertise grant types, scopes, and CIMD support.
         _metadata = build_metadata(
             self.base_url,
             self.service_documentation_url,
@@ -276,6 +578,12 @@ class PiPlannerOAuthProvider(OAuthProvider):
             self.revocation_options or RevocationOptions(enabled=True),
         )
         _metadata.grant_types_supported = ["authorization_code"]
+        # Advertise CIMD support so clients know they can use URL-format client IDs
+        # instead of Dynamic Client Registration (Finding 4).
+        _metadata.client_id_metadata_document_supported = True
+        # scopes_supported is already set by build_metadata via
+        # ClientRegistrationOptions.valid_scopes=["admin", "editor"] (Finding 5).
+
         _corrected = cors_middleware(MetadataHandler(_metadata).handle, ["GET", "OPTIONS"])
         routes = [
             Route(
@@ -373,12 +681,30 @@ class PiPlannerOAuthProvider(OAuthProvider):
                 "oauth_consent_post nonce=%.8s... client=%.8s user=%s result=reader_rejected",
                 nonce, client_id_short, username,
             )
-            return RedirectResponse(
-                url=f"/authorize/consent?nonce={nonce}&error=reader_not_allowed",
-                status_code=303,
+            del self._pending[nonce]
+            params = pending.params
+            # Per OAuth 2.1: send error to the client via redirect_uri, not an HTML page.
+            # This lets MCP clients surface a meaningful error instead of timing out (Finding 12).
+            if params.redirect_uri:
+                redirect_url = construct_redirect_uri(
+                    str(params.redirect_uri),
+                    error="access_denied",
+                    error_description="Reader accounts cannot authorize MCP access. Use an admin or editor API key.",
+                    state=params.state,
+                )
+                return RedirectResponse(
+                    url=redirect_url,
+                    status_code=302,
+                    headers={"Cache-Control": "no-store"},
+                )
+            # No redirect_uri available — fall back to informational HTML.
+            return HTMLResponse(
+                "<h1>Access denied</h1>"
+                "<p>Reader accounts cannot authorize MCP access. Use an admin or editor API key.</p>",
+                status_code=403,
             )
 
-        # Issue authorization code
+        # Issue authorization code and persist it across potential restarts (Finding 9).
         code = secrets.token_urlsafe(32)
         params = pending.params
         auth_code = AuthorizationCode(
@@ -390,8 +716,7 @@ class PiPlannerOAuthProvider(OAuthProvider):
             expires_at=time.time() + _AUTH_CODE_TTL,
             code_challenge=params.code_challenge,
         )
-        self._auth_codes[code] = auth_code
-        self._code_claims[code] = (key_id, username, role)
+        await self._store.save_auth_code(code, auth_code, (key_id, username, role))
         del self._pending[nonce]
 
         log.info(
