@@ -103,3 +103,21 @@ def test_minted_jwt_has_correct_claims(mock_settings):
     assert claims["iss"] == "mcp-server"
     assert claims["sub"] == "service"
     assert claims["exp"] - claims["iat"] == 300
+
+
+async def test_list_response_wrapped_in_items(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.get("/api/v1/projects/").mock(
+        return_value=httpx.Response(200, json=[{"system_id": "p1"}])
+    )
+    result = await call_backend("GET", "/api/v1/projects/")
+    assert result == {"items": [{"system_id": "p1"}]}
+
+
+async def test_actor_headers_sent_to_backend(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.get("/api/v1/projects/").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    await call_backend("GET", "/api/v1/projects/")
+    req = mock_backend.calls.last.request
+    assert req.headers["X-MCP-Actor"] == "testuser"
+    assert req.headers["X-MCP-Key-Id"] == "kid_testkey"

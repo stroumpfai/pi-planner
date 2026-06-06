@@ -204,3 +204,43 @@ async def test_set_sprint_capacities_length_constraint():
     cap_schema = props.get("capacities", {})
     schema_str = str(cap_schema)
     assert "5" in schema_str, f"capacities min/maxItems=5 missing: {cap_schema}"
+
+
+# ---------------------------------------------------------------------------
+# projects_mcp schema constraints
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_project_name_max_length():
+    schema = await _get_tool_schema(projects_mcp, "create_project")
+    props = schema.get("properties", {})
+    assert props["name"].get("maxLength") == 255
+
+
+@pytest.mark.asyncio
+async def test_update_project_effort_unit_max_length():
+    schema = await _get_tool_schema(projects_mcp, "update_project")
+    props = schema.get("properties", {})
+    effort_unit = props.get("effort_unit", {})
+    # Optional str|None is wrapped in anyOf — find the string variant
+    any_of = effort_unit.get("anyOf", [])
+    max_lengths = [s.get("maxLength") for s in any_of if "maxLength" in s]
+    assert 20 in max_lengths, f"effort_unit maxLength=20 not found: {effort_unit}"
+
+
+@pytest.mark.asyncio
+async def test_create_pi_name_max_length():
+    schema = await _get_tool_schema(projects_mcp, "create_pi")
+    props = schema.get("properties", {})
+    assert props["name"].get("maxLength") == 100
+
+
+@pytest.mark.asyncio
+async def test_update_sprint_capacity_gt_zero():
+    schema = await _get_tool_schema(projects_mcp, "update_sprint")
+    props = schema.get("properties", {})
+    cap_schema = props.get("capacity", {})
+    schema_str = str(cap_schema)
+    # Pydantic emits gt=0 as exclusiveMinimum: 0
+    assert "0" in schema_str, f"capacity gt=0 constraint missing: {cap_schema}"
