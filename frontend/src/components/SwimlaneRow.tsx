@@ -117,7 +117,13 @@ export function SwimlaneRow({ swimline, sprints, features, projectId, piId }: Pr
             )}
           </div>
         ) : (
-          <span className="text-sm font-semibold text-gray-800">{swimline.name}</span>
+          <span
+            className="text-sm font-semibold text-gray-800 truncate"
+            style={{ width: 'var(--swimlane-title-width, auto)' }}
+            title={swimline.name}
+          >
+            {swimline.name}
+          </span>
         )}
         <span className="text-xs text-gray-400 bg-white border border-gray-200 rounded-full px-2 py-0.5">
           {featureCount}

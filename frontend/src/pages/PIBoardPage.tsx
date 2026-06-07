@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import {
   DndContext,
   DragOverlay,
@@ -26,6 +26,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { usePIs } from '@/hooks/usePIs'
 import { useEffortUnit } from '@/hooks/useProjects'
+import { useMaxTextWidth } from '@/hooks/useMaxTextWidth'
 import { SwimlaneRow } from '@/components/SwimlaneRow'
 import { CreateSwimlaneModal } from '@/components/CreateSwimlaneModal'
 import { SprintCapacityModal } from '@/components/SprintCapacityModal'
@@ -48,6 +49,8 @@ interface ActiveDrag {
 }
 
 type OverData = { type?: string; swimlaneId?: string; piId?: string; sprintIndex?: number }
+
+const SWIMLANE_TITLE_MAX_WIDTH = 220
 
 function getFeatureLabel(feature: Feature): string {
   const prefix = feature.id == null ? '' : `[${feature.id}] `
@@ -155,6 +158,8 @@ export function PIBoardPage({ projectId, piId }: Props) {
   const canEdit = isEditing && !isClosedPI
   const effortUnit = useEffortUnit(projectId)
   const swimlineIds = swimlines?.map((s) => `swimlane:${s.system_id}`) ?? []
+  const swimlaneNames = useMemo(() => swimlines?.map((s) => s.name) ?? [], [swimlines])
+  const swimlaneTitleWidth = useMaxTextWidth(swimlaneNames, 'text-sm font-semibold', SWIMLANE_TITLE_MAX_WIDTH)
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -277,7 +282,10 @@ export function PIBoardPage({ projectId, piId }: Props) {
 
         <div
           className="flex flex-col flex-1 overflow-hidden"
-          style={{ '--feature-col-width': `${featureColumnWidth}px` } as React.CSSProperties}
+          style={{
+            '--feature-col-width': `${featureColumnWidth}px`,
+            '--swimlane-title-width': `${swimlaneTitleWidth}px`,
+          } as React.CSSProperties}
         >
           {/* Board header: name + PI capacity summary + Add Swimlane */}
           <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-white flex-shrink-0 gap-4">
