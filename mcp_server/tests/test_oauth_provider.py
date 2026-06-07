@@ -256,8 +256,11 @@ async def test_exchange_code_creates_token_with_claims(tmp_path):
 
     stored = provider._store.get_token(token_response.access_token)
     assert stored is not None
-    assert stored.client_id == "alice"
+    # client_id identifies the calling OAuth client; the acting PI Planner
+    # user travels as claims["username"] (read via auth.actor_username()).
+    assert stored.client_id == "test-client"
     assert stored.claims["key_id"] == "kid_abc"
+    assert stored.claims["username"] == "alice"
     assert stored.claims["role"] == "admin"
 
 
@@ -282,9 +285,9 @@ async def test_exchange_code_also_issues_refresh_token(tmp_path):
 
     assert token_response.refresh_token
 
-    # Refresh tokens belong to the OAuth *client*, not the PI Planner username —
-    # the SDK matches refresh_token.client_id against the authenticated client_id
-    # on every refresh exchange (different from AccessToken.client_id=username).
+    # Refresh and access tokens both carry the OAuth client's client_id — the
+    # SDK matches refresh_token.client_id against the authenticated client_id
+    # on every refresh exchange. The acting PI Planner user travels as claims.
     stored_refresh = provider._store.get_refresh_token(token_response.refresh_token)
     assert stored_refresh is not None
     assert stored_refresh.client_id == "test-client"
@@ -487,12 +490,13 @@ async def test_exchange_refresh_token_rotates_tokens(tmp_path):
         "key_id": "kid_abc", "username": "alice", "role": "admin"
     }
 
-    # New access token follows the same client_id=username convention as
-    # exchange_authorization_code (downstream code relies on this for activity logging).
+    # New access token follows the same client_id=OAuth-client convention as
+    # exchange_authorization_code; the acting user travels as claims["username"]
+    # (downstream code reads it via auth.actor_username() for activity logging).
     new_access = provider._store.get_token(token_response.access_token)
     assert new_access is not None
-    assert new_access.client_id == "alice"
-    assert new_access.claims == {"key_id": "kid_abc", "role": "admin"}
+    assert new_access.client_id == "test-client"
+    assert new_access.claims == {"key_id": "kid_abc", "username": "alice", "role": "admin"}
 
 
 async def test_exchange_refresh_token_narrows_scope(tmp_path):
@@ -759,7 +763,8 @@ async def test_multi_auth_direct_api_key_resolves_via_verifier(tmp_path, mock_ba
 
     result = await multi.verify_token("kid_direct.secret")
     assert result is not None
-    assert result.client_id == "bob"
+    assert result.client_id == "kid_direct"
+    assert result.claims["username"] == "bob"
 
 
 async def test_multi_auth_invalid_token_rejected_by_both(tmp_path, mock_backend):

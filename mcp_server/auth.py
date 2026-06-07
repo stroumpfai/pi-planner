@@ -29,6 +29,16 @@ def clear_auth_failures(ip: str) -> None:
     _failed_auth.pop(ip, None)
 
 
+def actor_username(token: AccessToken) -> str:
+    """The PI Planner username this token acts as.
+
+    The single, documented source of truth for X-MCP-Actor: always
+    server-derived from verify_api_key(), never from client-supplied data
+    such as an OAuth client_id (which AccessToken.client_id now carries).
+    """
+    return token.claims.get("username", "")
+
+
 async def verify_api_key(raw_token: str) -> tuple[str, str, str] | None:
     """
     Verify token by calling backend POST /api/v1/api-keys/admin/verify.
@@ -96,7 +106,7 @@ class APIKeyAuthProvider(TokenVerifier):
 
         return AccessToken(
             token=token,
-            client_id=username,
+            client_id=key_id,
             scopes=scopes,
-            claims={"key_id": key_id, "role": role},
+            claims={"key_id": key_id, "username": username, "role": role},
         )

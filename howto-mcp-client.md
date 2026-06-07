@@ -21,8 +21,9 @@ These clients connect via **OAuth**. The server handles authentication — you j
    https://mcp.example.com
    ```
 3. The client redirects you to a PI Planner consent page.
-4. Paste your **API key** and click **Authorize**.
-5. The client completes the OAuth flow and connects.
+4. **Check the consent page before entering anything**: it shows the requesting application's name and the URL you'll be redirected back to after authorizing. Make sure both match the client you're actually trying to connect (e.g. `claude.ai`) — a mismatch is a sign the link may be malicious.
+5. Paste your **API key** and click **Authorize**.
+6. The client completes the OAuth flow and connects.
 
 > **Note:** Replace `mcp.example.com` with your actual server hostname.
 
@@ -79,6 +80,7 @@ If you get a 404 or an empty response, OAuth is not enabled. Check:
 |---|---|
 | No authorization popup appears | OAuth not enabled — check `OAUTH_BASE_URL` in `mcp_server/.env` and restart |
 | Consent page shows "Invalid API key" | Wrong key, or key was deleted/expired |
+| Consent page shows "Too many failed attempts" | Rate-limited after repeated invalid key submissions from your IP — wait about a minute and try again |
 | "Reader accounts cannot authorize" | Your account has the reader role — ask an admin to upgrade it |
 | Connection refused / server unreachable | Check that the MCP server container is running: `docker compose ps` |
 | Claude Code shows auth error | Verify the `Authorization` header value starts with `Bearer ` (with a space) |

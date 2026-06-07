@@ -47,9 +47,9 @@ def mock_access_token():
     fake_api_key = "kid_testkey.testsecret"  # synthetic test fixture, not a real secret
     return AccessToken(
         token=fake_api_key,
-        client_id="testuser",
+        client_id="kid_testkey",
         scopes=["admin"],
-        claims={"key_id": "kid_testkey", "role": "admin"},
+        claims={"key_id": "kid_testkey", "username": "testuser", "role": "admin"},
     )
 
 

@@ -5,6 +5,7 @@ from typing import Optional
 import httpx
 from fastmcp.server.dependencies import get_access_token
 
+from mcp_server.auth import actor_username
 from mcp_server.config import settings
 from mcp_server.jwt_utils import mint_service_jwt
 
@@ -46,7 +47,7 @@ async def call_backend(method: str, path: str, **kwargs) -> dict:
     headers = kwargs.pop("headers", {})
     headers["Authorization"] = f"Bearer {mint_service_jwt()}"
     if access_token:
-        headers["X-MCP-Actor"] = access_token.client_id
+        headers["X-MCP-Actor"] = actor_username(access_token)
         headers["X-MCP-Key-Id"] = access_token.claims.get("key_id", "")
 
     start = time.monotonic()

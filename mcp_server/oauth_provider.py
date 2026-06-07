@@ -357,6 +357,11 @@ class PiPlannerOAuthProvider(OAuthProvider):
     Scope model (mirrors APIKeyAuthProvider):
       admin  → scopes=["admin", "editor"]
       editor → scopes=["editor"]
+
+    Token identity model: AccessToken.client_id is the calling OAuth client
+    (matches RefreshToken.client_id and the SDK's expectations for both); the
+    PI Planner user this token acts as travels as claims["username"] — read it
+    via auth.actor_username(), the single trusted source for X-MCP-Actor.
     """
 
     def __init__(
@@ -515,24 +520,27 @@ class PiPlannerOAuthProvider(OAuthProvider):
         _, (key_id, username, role) = result
         await self._store.delete_auth_code(authorization_code.code)
 
-        claims = {"key_id": key_id, "role": role}
+        claims = {"key_id": key_id, "username": username, "role": role}
         # Admin tokens carry both scopes so required_scopes=["editor"] passes for admins.
         scopes = ["admin", "editor"] if role == "admin" else ["editor"]
 
+        # client_id identifies the calling OAuth client (mirrors RefreshToken
+        # and APIKeyAuthProvider's key_id convention) — the acting PI Planner
+        # user travels as claims["username"], the only trusted source for
+        # X-MCP-Actor (see auth.actor_username()).
         token_value = secrets.token_urlsafe(32)
         access_token = AccessToken(
             token=token_value,
-            client_id=username,
+            client_id=client.client_id or "",
             scopes=scopes,
             claims=claims,
             expires_at=int(time.time()) + self._token_ttl,
         )
         await self._store.save_token(access_token)
 
-        # Refresh tokens are scoped to the OAuth client (not the PI Planner
-        # username — that distinction matters because the SDK matches
-        # refresh_token.client_id against the authenticated OAuth client_id
-        # on every refresh exchange). Username/key_id/role travel as claims.
+        # Refresh tokens are scoped to the OAuth client too — the SDK matches
+        # refresh_token.client_id against the authenticated OAuth client_id on
+        # every refresh exchange. Username/key_id/role travel as claims.
         refresh_value = secrets.token_urlsafe(32)
         refresh_token = RefreshToken(
             token=refresh_value,
@@ -585,12 +593,14 @@ class PiPlannerOAuthProvider(OAuthProvider):
         # Single-use rotation — invalidate the presented refresh token.
         await self._store.delete_refresh_token(refresh_token.token)
 
+        # Same convention as exchange_authorization_code: client_id is the
+        # OAuth client, the acting user travels as claims["username"].
         token_value = secrets.token_urlsafe(32)
         access_token = AccessToken(
             token=token_value,
-            client_id=username,
+            client_id=client.client_id or "",
             scopes=scopes,
-            claims={"key_id": key_id, "role": role},
+            claims={"key_id": key_id, "username": username, "role": role},
             expires_at=int(time.time()) + self._token_ttl,
         )
         await self._store.save_token(access_token)

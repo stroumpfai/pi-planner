@@ -108,9 +108,9 @@ async def test_verify_token_admin_gets_admin_and_editor_scopes(mock_backend):
     provider = APIKeyAuthProvider()
     token = await provider.verify_token("kid_a.secret")
     assert token is not None
-    assert token.client_id == "alice"
+    assert token.client_id == "kid_a"
     assert set(token.scopes) == {"admin", "editor"}
-    assert token.claims == {"key_id": "kid_a", "role": "admin"}
+    assert token.claims == {"key_id": "kid_a", "username": "alice", "role": "admin"}
 
 
 async def test_verify_token_editor_gets_editor_scope_only(mock_backend):
