@@ -524,13 +524,29 @@ class PiPlannerOAuthProvider(OAuthProvider):
         )
         await self._store.save_token(access_token)
 
+        # Refresh tokens are scoped to the OAuth client (not the PI Planner
+        # username — that distinction matters because the SDK matches
+        # refresh_token.client_id against the authenticated OAuth client_id
+        # on every refresh exchange). Username/key_id/role travel as claims.
+        refresh_value = secrets.token_urlsafe(32)
+        refresh_token = RefreshToken(
+            token=refresh_value,
+            client_id=client.client_id or "",
+            scopes=scopes,
+            expires_at=int(time.time()) + self._refresh_token_ttl,
+        )
+        await self._store.save_refresh_token(
+            refresh_token, claims={"key_id": key_id, "username": username, "role": role}
+        )
+
         log.info(
-            "oauth_token_issued user=%s role=%s access_ttl=%ds",
-            username, role, self._token_ttl,
+            "oauth_token_issued user=%s role=%s access_ttl=%ds refresh_ttl=%ds",
+            username, role, self._token_ttl, self._refresh_token_ttl,
         )
 
         return OAuthToken(
             access_token=token_value,
+            refresh_token=refresh_value,
             token_type="Bearer",
             expires_in=self._token_ttl,
             scope=" ".join(scopes),
@@ -547,7 +563,57 @@ class PiPlannerOAuthProvider(OAuthProvider):
         refresh_token: RefreshToken,
         scopes: list[str],
     ) -> OAuthToken:
-        raise TokenError("unsupported_grant_type", "Refresh tokens are not supported.")
+        """Rotate the refresh token: invalidate the old one, issue a new pair.
+
+        The SDK has already verified the refresh token exists, is unexpired,
+        belongs to `client`, and that `scopes` is a subset of its granted
+        scopes before calling us.
+        """
+        claims = self._store.get_refresh_token_claims(refresh_token.token)
+        if not claims or "key_id" not in claims or "username" not in claims or "role" not in claims:
+            raise TokenError("invalid_grant", "Refresh token claims not found.")
+
+        key_id = claims["key_id"]
+        username = claims["username"]
+        role = claims["role"]
+
+        # Single-use rotation — invalidate the presented refresh token.
+        await self._store.delete_refresh_token(refresh_token.token)
+
+        token_value = secrets.token_urlsafe(32)
+        access_token = AccessToken(
+            token=token_value,
+            client_id=username,
+            scopes=scopes,
+            claims={"key_id": key_id, "role": role},
+            expires_at=int(time.time()) + self._token_ttl,
+        )
+        await self._store.save_token(access_token)
+
+        # New refresh token keeps the *original* granted scope ceiling so the
+        # client can request a broader scope again on a later refresh, even if
+        # this exchange asked for a narrower one.
+        new_refresh_value = secrets.token_urlsafe(32)
+        new_refresh_token = RefreshToken(
+            token=new_refresh_value,
+            client_id=client.client_id or "",
+            scopes=refresh_token.scopes,
+            expires_at=int(time.time()) + self._refresh_token_ttl,
+        )
+        await self._store.save_refresh_token(new_refresh_token, claims=claims)
+
+        log.info(
+            "oauth_token_refreshed user=%s role=%s access_ttl=%ds refresh_ttl=%ds",
+            username, role, self._token_ttl, self._refresh_token_ttl,
+        )
+
+        return OAuthToken(
+            access_token=token_value,
+            refresh_token=new_refresh_value,
+            token_type="Bearer",
+            expires_in=self._token_ttl,
+            scope=" ".join(scopes),
+        )
 
     async def load_access_token(self, token: str) -> AccessToken | None:  # type: ignore[override]
         result = self._store.get_token(token)
@@ -577,7 +643,9 @@ class PiPlannerOAuthProvider(OAuthProvider):
             self.client_registration_options or ClientRegistrationOptions(enabled=True),
             self.revocation_options or RevocationOptions(enabled=True),
         )
-        _metadata.grant_types_supported = ["authorization_code"]
+        # build_metadata() already sets grant_types_supported to
+        # ["authorization_code", "refresh_token"], which is accurate now that
+        # exchange_refresh_token() rotates and issues real refresh tokens.
         # Advertise CIMD support so clients know they can use URL-format client IDs
         # instead of Dynamic Client Registration (Finding 4).
         _metadata.client_id_metadata_document_supported = True

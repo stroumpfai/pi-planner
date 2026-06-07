@@ -155,8 +155,8 @@ def test_token_store_corrupted_file_starts_fresh(tmp_path):
 # ---------------------------------------------------------------------------
 
 
-async def test_metadata_does_not_advertise_refresh_token(tmp_path):
-    """/.well-known/oauth-authorization-server must not list refresh_token (RFC 8414 §2)."""
+async def test_metadata_advertises_refresh_token(tmp_path):
+    """/.well-known/oauth-authorization-server must list refresh_token (RFC 8414 §2)."""
     import httpx
     from starlette.applications import Starlette
 
@@ -170,7 +170,7 @@ async def test_metadata_does_not_advertise_refresh_token(tmp_path):
     assert r.status_code == 200
     data = r.json()
     grant_types = data.get("grant_types_supported", [])
-    assert "refresh_token" not in grant_types
+    assert "refresh_token" in grant_types
     assert "authorization_code" in grant_types
 
 
@@ -261,6 +261,39 @@ async def test_exchange_code_creates_token_with_claims(tmp_path):
     assert stored.claims["role"] == "admin"
 
 
+async def test_exchange_code_also_issues_refresh_token(tmp_path):
+    provider = _make_provider(tmp_path)
+    client = _make_client()
+    await provider.register_client(client)
+
+    code = "test_code_refresh"
+    auth_code = AuthorizationCode(
+        code=code,
+        client_id="test-client",
+        redirect_uri=AnyUrl(_REDIRECT_URI),
+        redirect_uri_provided_explicitly=True,
+        scopes=["admin"],
+        expires_at=time.time() + 300,
+        code_challenge="challenge",
+    )
+    await provider._store.save_auth_code(code, auth_code, ("kid_abc", "alice", "admin"))
+
+    token_response = await provider.exchange_authorization_code(client, auth_code)
+
+    assert token_response.refresh_token
+
+    # Refresh tokens belong to the OAuth *client*, not the PI Planner username —
+    # the SDK matches refresh_token.client_id against the authenticated client_id
+    # on every refresh exchange (different from AccessToken.client_id=username).
+    stored_refresh = provider._store.get_refresh_token(token_response.refresh_token)
+    assert stored_refresh is not None
+    assert stored_refresh.client_id == "test-client"
+    assert stored_refresh.scopes == ["admin", "editor"]
+
+    claims = provider._store.get_refresh_token_claims(token_response.refresh_token)
+    assert claims == {"key_id": "kid_abc", "username": "alice", "role": "admin"}
+
+
 async def test_exchange_code_token_persisted_to_store(tmp_path):
     provider = _make_provider(tmp_path)
     client = _make_client()
@@ -283,6 +316,33 @@ async def test_exchange_code_token_persisted_to_store(tmp_path):
     # Reload store from disk — token should survive
     store2 = TokenStore(str(tmp_path / "tokens.json"))
     assert store2.get_token(token_response.access_token) is not None
+
+
+async def test_exchange_code_refresh_token_persisted_to_store(tmp_path):
+    provider = _make_provider(tmp_path)
+    client = _make_client()
+    await provider.register_client(client)
+
+    code = "test_code_refresh_persist"
+    auth_code = AuthorizationCode(
+        code=code,
+        client_id="test-client",
+        redirect_uri=AnyUrl(_REDIRECT_URI),
+        redirect_uri_provided_explicitly=True,
+        scopes=["editor"],
+        expires_at=time.time() + 300,
+        code_challenge="challenge",
+    )
+    await provider._store.save_auth_code(code, auth_code, ("kid_xyz", "bob", "editor"))
+
+    token_response = await provider.exchange_authorization_code(client, auth_code)
+
+    # Reload store from disk — refresh token and its claims should survive
+    store2 = TokenStore(str(tmp_path / "tokens.json"))
+    assert store2.get_refresh_token(token_response.refresh_token) is not None
+    assert store2.get_refresh_token_claims(token_response.refresh_token) == {
+        "key_id": "kid_xyz", "username": "bob", "role": "editor"
+    }
 
 
 async def test_exchange_code_twice_raises_invalid_grant(tmp_path):
@@ -345,28 +405,122 @@ async def test_revoke_token_removes_from_store(tmp_path):
     assert provider._store.get_token(token.token) is None
 
 
+async def test_revoke_refresh_token_removes_from_store(tmp_path):
+    from mcp.server.auth.provider import RefreshToken
+
+    provider = _make_provider(tmp_path)
+    token = RefreshToken(token="rt_revoke", client_id="test-client", scopes=["editor"])
+    await provider._store.save_refresh_token(token, claims={"key_id": "k", "username": "alice", "role": "editor"})
+
+    await provider.revoke_token(token)
+    assert provider._store.get_refresh_token(token.token) is None
+
+
 # ---------------------------------------------------------------------------
-# PiPlannerOAuthProvider — no refresh token support
+# PiPlannerOAuthProvider — load_refresh_token
 # ---------------------------------------------------------------------------
 
 
-async def test_no_refresh_token_support(tmp_path):
-    from mcp.server.auth.provider import RefreshToken, TokenError
+async def test_load_refresh_token_returns_stored_token(tmp_path):
+    from mcp.server.auth.provider import RefreshToken
 
     provider = _make_provider(tmp_path)
     client = _make_client()
-    fake_refresh = RefreshToken(token="rt_abc", client_id="test-client", scopes=["admin"])
+    stored = RefreshToken(token="rt_stored", client_id="test-client", scopes=["editor"])
+    await provider._store.save_refresh_token(
+        stored, claims={"key_id": "kid_abc", "username": "alice", "role": "editor"}
+    )
 
-    with pytest.raises(TokenError) as exc_info:
-        await provider.exchange_refresh_token(client, fake_refresh, ["admin"])
-    assert exc_info.value.error == "unsupported_grant_type"
+    result = await provider.load_refresh_token(client, "rt_stored")
+    assert result is not None
+    assert result.client_id == "test-client"
+    assert result.scopes == ["editor"]
 
 
-async def test_load_refresh_token_always_none(tmp_path):
+async def test_load_refresh_token_returns_none_for_unknown(tmp_path):
     provider = _make_provider(tmp_path)
     client = _make_client()
     result = await provider.load_refresh_token(client, "any_rt")
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# PiPlannerOAuthProvider — exchange_refresh_token() rotation
+# ---------------------------------------------------------------------------
+
+
+async def _seed_refresh_token(
+    provider: PiPlannerOAuthProvider,
+    token_value: str = "rt_seed",
+    client_id: str = "test-client",
+    scopes: list[str] | None = None,
+    claims: dict | None = None,
+):
+    from mcp.server.auth.provider import RefreshToken
+
+    scopes = scopes if scopes is not None else ["admin", "editor"]
+    claims = claims if claims is not None else {"key_id": "kid_abc", "username": "alice", "role": "admin"}
+    refresh_token = RefreshToken(token=token_value, client_id=client_id, scopes=scopes)
+    await provider._store.save_refresh_token(refresh_token, claims=claims)
+    return refresh_token
+
+
+async def test_exchange_refresh_token_rotates_tokens(tmp_path):
+    provider = _make_provider(tmp_path)
+    client = _make_client()
+    refresh_token = await _seed_refresh_token(provider)
+
+    token_response = await provider.exchange_refresh_token(client, refresh_token, ["admin", "editor"])
+
+    assert token_response.access_token
+    assert token_response.refresh_token
+    assert token_response.refresh_token != refresh_token.token
+
+    # Old refresh token is single-use — gone after rotation.
+    assert provider._store.get_refresh_token(refresh_token.token) is None
+
+    # New refresh token persisted with the same claims and OAuth client_id.
+    new_refresh = provider._store.get_refresh_token(token_response.refresh_token)
+    assert new_refresh is not None
+    assert new_refresh.client_id == "test-client"
+    assert provider._store.get_refresh_token_claims(token_response.refresh_token) == {
+        "key_id": "kid_abc", "username": "alice", "role": "admin"
+    }
+
+    # New access token follows the same client_id=username convention as
+    # exchange_authorization_code (downstream code relies on this for activity logging).
+    new_access = provider._store.get_token(token_response.access_token)
+    assert new_access is not None
+    assert new_access.client_id == "alice"
+    assert new_access.claims == {"key_id": "kid_abc", "role": "admin"}
+
+
+async def test_exchange_refresh_token_narrows_scope(tmp_path):
+    provider = _make_provider(tmp_path)
+    client = _make_client()
+    refresh_token = await _seed_refresh_token(provider, scopes=["admin", "editor"])
+
+    token_response = await provider.exchange_refresh_token(client, refresh_token, ["editor"])
+
+    assert token_response.scope == "editor"
+    new_access = provider._store.get_token(token_response.access_token)
+    assert new_access.scopes == ["editor"]
+
+    # The rotated refresh token keeps the original (broader) scope ceiling.
+    new_refresh = provider._store.get_refresh_token(token_response.refresh_token)
+    assert new_refresh.scopes == ["admin", "editor"]
+
+
+async def test_exchange_refresh_token_missing_claims_raises_invalid_grant(tmp_path):
+    from mcp.server.auth.provider import TokenError
+
+    provider = _make_provider(tmp_path)
+    client = _make_client()
+    refresh_token = await _seed_refresh_token(provider, token_value="rt_corrupt", claims={})
+
+    with pytest.raises(TokenError) as exc_info:
+        await provider.exchange_refresh_token(client, refresh_token, ["admin", "editor"])
+    assert exc_info.value.error == "invalid_grant"
 
 
 # ---------------------------------------------------------------------------
@@ -508,6 +662,67 @@ async def test_consent_post_reader_key_redirects_with_reader_error(provider_with
     location = r.headers["location"]
     assert location.startswith(_REDIRECT_URI)
     assert "error=access_denied" in location
+
+
+# ---------------------------------------------------------------------------
+# Full OAuth flow — authorize → consent → code exchange → refresh rotation
+# ---------------------------------------------------------------------------
+
+
+async def test_full_oauth_flow_with_refresh(tmp_path, mock_backend):
+    """Drive authorize → consent → code exchange → refresh exchange end to end.
+
+    This is the regression test for the AccessToken vs. RefreshToken client_id
+    semantics mismatch: a registered OAuth client_id ("claude-app") that
+    differs from the PI Planner username ("alice") would surface as
+    invalid_grant on refresh if RefreshToken.client_id were set incorrectly.
+    """
+    provider = _make_provider(tmp_path)
+    client = _make_client(client_id="claude-app")
+    await provider.register_client(client)
+
+    mock_backend.post("/api/v1/api-keys/admin/verify").mock(
+        return_value=httpx.Response(200, json={"key_id": "kid_abc", "username": "alice", "role": "admin"})
+    )
+
+    # 1. authorize() stashes a pending session and redirects to consent.
+    params = _make_params(state="full_flow")
+    redirect_url = await provider.authorize(client, params)
+    nonce = redirect_url.split("nonce=")[1]
+
+    # 2. Submit the consent form — issues an auth code, redirected with ?code=.
+    from starlette.applications import Starlette
+    from starlette.routing import Route
+
+    app = Starlette(routes=[Route("/authorize/consent", provider._consent_handler, methods=["GET", "POST"])])
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=app), base_url="http://test", follow_redirects=False
+    ) as http_client:
+        r = await http_client.post("/authorize/consent", data={"nonce": nonce, "api_key": "kid_abc.secret"})
+    assert r.status_code == 302
+    code = r.headers["location"].split("code=")[1].split("&")[0]
+
+    auth_code = await provider.load_authorization_code(client, code)
+    assert auth_code is not None
+
+    # 3. Exchange the code — first access + refresh token pair.
+    first = await provider.exchange_authorization_code(client, auth_code)
+    assert first.access_token and first.refresh_token
+
+    refresh_token = await provider.load_refresh_token(client, first.refresh_token)
+    assert refresh_token is not None
+    assert refresh_token.client_id == "claude-app"
+
+    # 4. Exchange the refresh token — rotation issues a new pair and the old
+    #    refresh token is invalidated, but the still-valid access token lives on.
+    second = await provider.exchange_refresh_token(client, refresh_token, refresh_token.scopes)
+    assert second.access_token != first.access_token
+    assert second.refresh_token != first.refresh_token
+
+    assert await provider.load_access_token(first.access_token) is not None
+    assert await provider.load_access_token(second.access_token) is not None
+    assert await provider.load_refresh_token(client, first.refresh_token) is None
+    assert await provider.load_refresh_token(client, second.refresh_token) is not None
 
 
 # ---------------------------------------------------------------------------
