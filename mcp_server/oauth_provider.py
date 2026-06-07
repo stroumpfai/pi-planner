@@ -37,7 +37,12 @@ from starlette.responses import HTMLResponse, RedirectResponse, Response
 from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from mcp_server.auth import verify_api_key
+from mcp_server.auth import (
+    clear_auth_failures,
+    is_rate_limited,
+    record_auth_failure,
+    verify_api_key,
+)
 
 log = logging.getLogger(__name__)
 
@@ -703,6 +708,7 @@ class PiPlannerOAuthProvider(OAuthProvider):
                 status_code=400,
             )
         client_name = (getattr(pending.client, "client_name", None) or pending.client.client_id or "An application")
+        redirect_uri = str(pending.params.redirect_uri) if pending.params.redirect_uri else "(none provided)"
         error = request.query_params.get("error", "")
         log.info(
             "oauth_consent_page_served client=%s nonce=%.8s... error=%s",
@@ -710,7 +716,7 @@ class PiPlannerOAuthProvider(OAuthProvider):
             nonce,
             error or "none",
         )
-        return HTMLResponse(_render_consent_form(nonce, str(client_name), error))
+        return HTMLResponse(_render_consent_form(nonce, str(client_name), redirect_uri, error))
 
     async def _consent_post(self, request: Request) -> Response:
         form = await request.form()
@@ -727,6 +733,7 @@ class PiPlannerOAuthProvider(OAuthProvider):
             )
 
         client_id_short = (pending.client.client_id or "?")[:8]
+        ip = request.client.host if request.client else "unknown"
 
         if not api_key:
             log.warning("oauth_consent_post nonce=%.8s... client=%.8s result=missing_key", nonce, client_id_short)
@@ -735,8 +742,18 @@ class PiPlannerOAuthProvider(OAuthProvider):
                 status_code=303,
             )
 
+        # Reuse the same sliding-window limiter as the Bearer-token path (auth.py)
+        # so this form can't be used as an unthrottled API-key brute-force oracle.
+        if is_rate_limited(ip):
+            log.warning("oauth_consent_post nonce=%.8s... client=%.8s ip=%s result=rate_limited", nonce, client_id_short, ip)
+            return RedirectResponse(
+                url=f"/authorize/consent?nonce={nonce}&error=rate_limited",
+                status_code=303,
+            )
+
         result = await verify_api_key(api_key)
         if result is None:
+            record_auth_failure(ip)
             log.warning("oauth_consent_post nonce=%.8s... client=%.8s result=invalid_api_key", nonce, client_id_short)
             return RedirectResponse(
                 url=f"/authorize/consent?nonce={nonce}&error=invalid_key",
@@ -744,6 +761,7 @@ class PiPlannerOAuthProvider(OAuthProvider):
             )
 
         key_id, username, role = result
+        clear_auth_failures(ip)
         if role == "reader":
             log.warning(
                 "oauth_consent_post nonce=%.8s... client=%.8s user=%s result=reader_rejected",
@@ -809,10 +827,11 @@ _ERROR_MESSAGES: dict[str, str] = {
     "invalid_key": "Invalid API key. Please check your key and try again.",
     "missing_key": "Please enter your API key.",
     "reader_not_allowed": "Reader accounts cannot authorize MCP access. Use an admin or editor API key.",
+    "rate_limited": "Too many failed attempts. Please wait a minute and try again.",
 }
 
 
-def _render_consent_form(nonce: str, client_name: str, error: str = "") -> str:
+def _render_consent_form(nonce: str, client_name: str, redirect_uri: str, error: str = "") -> str:
     error_html = ""
     if error:
         msg = html.escape(_ERROR_MESSAGES.get(error, "An error occurred. Please try again."))
@@ -820,6 +839,7 @@ def _render_consent_form(nonce: str, client_name: str, error: str = "") -> str:
 
     safe_nonce = html.escape(nonce)
     safe_client = html.escape(client_name)
+    safe_redirect = html.escape(redirect_uri)
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -855,11 +875,16 @@ def _render_consent_form(nonce: str, client_name: str, error: str = "") -> str:
       margin-bottom: 1rem;
     }}
     .hint {{ color: #6b7280; font-size: .8rem; margin-top: .4rem; }}
+    .destination {{ color: #555; font-size: .85rem; margin: 0 0 1.25rem; word-break: break-all; }}
+    .destination code {{
+      background: #f3f4f6; padding: .1rem .35rem; border-radius: 4px; font-size: .8rem;
+    }}
   </style>
 </head>
 <body>
   <h1>PI Planner</h1>
   <p class="subtitle"><strong>{safe_client}</strong> is requesting access to PI Planner.</p>
+  <p class="destination">After you authorize, you'll be redirected to:<br><code>{safe_redirect}</code></p>
   {error_html}
   <form method="post" action="/authorize/consent">
     <input type="hidden" name="nonce" value="{safe_nonce}">

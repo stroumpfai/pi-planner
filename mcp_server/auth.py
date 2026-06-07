@@ -25,6 +25,10 @@ def record_auth_failure(ip: str) -> None:
     _failed_auth[ip].append(time.monotonic())
 
 
+def clear_auth_failures(ip: str) -> None:
+    _failed_auth.pop(ip, None)
+
+
 async def verify_api_key(raw_token: str) -> tuple[str, str, str] | None:
     """
     Verify token by calling backend POST /api/v1/api-keys/admin/verify.
@@ -85,7 +89,7 @@ class APIKeyAuthProvider(TokenVerifier):
         key_id, username, role = result
 
         # Clear failure history on any valid credential (admin, editor, or reader).
-        _failed_auth.pop(ip, None)
+        clear_auth_failures(ip)
 
         # Admin tokens carry both scopes so required_scopes=["editor"] passes for admins too.
         scopes = ["admin", "editor"] if role == "admin" else [role]
