@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { fmtDate } from '@/utils/dates'
 import { usePIs, useDeletePI } from '@/hooks/usePIs'
 import { useAuthStore } from '@/stores/authStore'
-import { useUiStore } from '@/stores/uiStore'
+import { useUiStore, BACKLOG_VIEW_ID } from '@/stores/uiStore'
 import { PIStateBadge } from './PIStateBadge'
 import { PIStateButton } from './PIStateButton'
 import { CreatePIModal } from './CreatePIModal'
@@ -25,10 +25,13 @@ export function PIListPanel({ projectId }: Props) {
   const { data: pis, isLoading } = usePIs(projectId)
   const deletePI = useDeletePI(projectId)
 
+  const isBacklogSelected = activePIId === BACKLOG_VIEW_ID
+  const backlogSelectedClass = isBacklogSelected ? 'bg-blue-50 border-l-2 border-blue-500' : ''
+
   return (
     <div className="w-64 border-r border-gray-200 bg-white flex flex-col h-full">
       <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
-        <h2 className="text-sm font-semibold text-gray-700">Program Increments</h2>
+        <h2 className="text-base font-bold text-gray-900">Views</h2>
         <button
           onClick={() => setShowCreate(true)}
           disabled={!isEditing}
@@ -47,6 +50,20 @@ export function PIListPanel({ projectId }: Props) {
       )}
 
       <div className="flex-1 overflow-y-auto">
+        <ul className="divide-y divide-gray-100">
+          <li className={backlogSelectedClass}>
+            <button
+              type="button"
+              className="w-full pl-6 pr-4 py-3 text-left space-y-1 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-blue-300"
+              onClick={() => setActivePI(BACKLOG_VIEW_ID)}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-medium text-gray-900 truncate">Backlog</span>
+              </div>
+            </button>
+          </li>
+        </ul>
+
         {isLoading && <p className="text-xs text-gray-400 px-4 py-3">Loading…</p>}
         {!isLoading && pis?.length === 0 && <p className="text-xs text-gray-400 px-4 py-4">No PIs yet</p>}
         {!isLoading && !!pis?.length && (
@@ -59,8 +76,8 @@ export function PIListPanel({ projectId }: Props) {
                 <li key={pi.system_id} className={selectedClass}>
                   <button
                     type="button"
-                    className="w-full px-4 py-3 text-left space-y-1 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-blue-300"
-                    onClick={() => setActivePI(isSelected ? null : pi.system_id)}
+                    className="w-full pl-6 pr-4 py-3 text-left space-y-1 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-blue-300"
+                    onClick={() => setActivePI(isSelected ? BACKLOG_VIEW_ID : pi.system_id)}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-medium text-gray-900 truncate">{pi.name}</span>
@@ -74,7 +91,7 @@ export function PIListPanel({ projectId }: Props) {
                   </button>
 
                   {isEditing && (
-                    <div className="flex items-center gap-2 px-4 pb-3">
+                    <div className="flex items-center gap-2 pl-6 pr-4 pb-3">
                       <PIStateButton
                         pi={pi}
                         projectId={projectId}
@@ -128,7 +145,7 @@ export function PIListPanel({ projectId }: Props) {
         destructive
         onConfirm={() => {
           if (deleteTarget) {
-            if (activePIId === deleteTarget.system_id) setActivePI(null)
+            if (activePIId === deleteTarget.system_id) setActivePI(BACKLOG_VIEW_ID)
             deletePI.mutate(deleteTarget.system_id)
           }
           setDeleteTarget(null)

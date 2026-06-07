@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { PIListPanel } from '../PIListPanel'
 import * as pisService from '@/services/pis'
 import { useAuthStore } from '@/stores/authStore'
+import { useUiStore, BACKLOG_VIEW_ID } from '@/stores/uiStore'
 
 vi.mock('@/services/pis')
 const mockApi = vi.mocked(pisService.pisApi)
@@ -31,9 +32,24 @@ const fakePI = {
 beforeEach(() => {
   vi.clearAllMocks()
   useAuthStore.setState({ user: null, isEditing: false })
+  useUiStore.setState({ activePIId: null })
 })
 
 describe('PIListPanel', () => {
+  it('shows "Views" as the panel title', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([])
+    render(<PIListPanel projectId="p-1" />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('Views')).toBeInTheDocument())
+  })
+
+  it('renders a pinned Backlog entry above the PI list and selects it on click', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([fakePI])
+    render(<PIListPanel projectId="p-1" />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByText('Q1-2026'))
+    await userEvent.click(screen.getByRole('button', { name: 'Backlog' }))
+    expect(useUiStore.getState().activePIId).toBe(BACKLOG_VIEW_ID)
+  })
+
   it('shows "No PIs yet" when empty', async () => {
     mockApi.list = vi.fn().mockResolvedValue([])
     render(<PIListPanel projectId="p-1" />, { wrapper: makeWrapper() })
@@ -105,14 +121,14 @@ describe('PIListPanel', () => {
     expect(mockApi.delete).toHaveBeenCalledWith(fakePI.system_id)
   })
 
-  it('clicking a PI item calls setActivePI', async () => {
+  it('clicking a PI item selects it, and clicking again returns to Backlog', async () => {
     mockApi.list = vi.fn().mockResolvedValue([fakePI])
     render(<PIListPanel projectId="p-1" />, { wrapper: makeWrapper() })
     await waitFor(() => screen.getByText('Q1-2026'))
-    // Click the PI item button (accessible by its text content)
     await userEvent.click(screen.getByRole('button', { name: /Q1-2026/i }))
-    // setActivePI is called — verify by clicking again (toggles to null, no errors thrown)
+    expect(useUiStore.getState().activePIId).toBe(fakePI.system_id)
     await userEvent.click(screen.getByRole('button', { name: /Q1-2026/i }))
+    expect(useUiStore.getState().activePIId).toBe(BACKLOG_VIEW_ID)
   })
 
   it('clicking Start PI and confirming calls pisApi.update with in_progress state', async () => {
