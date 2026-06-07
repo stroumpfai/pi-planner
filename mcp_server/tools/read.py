@@ -166,6 +166,23 @@ async def list_groups(
 
 
 @read_mcp.tool()
+async def list_snapshots(
+    project_id: Annotated[str, Field(description="Project system_id (UUID)")],
+    ctx: Context,
+) -> dict:
+    """
+    List available named snapshots for a project.
+
+    Snapshots are point-in-time captures of a project's full state (PIs,
+    features, PBIs, swimlines, sprints, groups), created via create_snapshot.
+    Returns each snapshot's system_id, name, created_at, and created_by —
+    the system_id can be passed to restore_snapshot to roll the project back
+    to that captured state.
+    """
+    return await call_backend("GET", f"/api/v1/projects/{project_id}/snapshots")
+
+
+@read_mcp.tool()
 async def get_edit_lock_status(
     project_id: Annotated[str, Field(description="Project system_id (UUID)")],
     ctx: Context,

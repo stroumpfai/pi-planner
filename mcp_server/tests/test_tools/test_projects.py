@@ -7,6 +7,8 @@ from mcp_server.tools.projects import (
     create_project,
     update_project,
     export_project,
+    create_snapshot,
+    restore_snapshot,
     create_pi,
     update_pi,
     update_sprint,
@@ -15,6 +17,7 @@ from mcp_server.tools.projects import (
 PROJECT_ID = "proj-uuid-1"
 PI_ID = "pi-uuid-1"
 SPRINT_ID = "sprint-uuid-1"
+SNAPSHOT_ID = "snap-uuid-1"
 
 PROJECT_RESP = {
     "system_id": PROJECT_ID,
@@ -46,6 +49,13 @@ EXPORT_RESP = {
     "version": "1.0",
     "exported_at": "2026-06-06T00:00:00Z",
     "project": {**PROJECT_RESP, "pis": []},
+}
+
+SNAPSHOT_RESP = {
+    "system_id": SNAPSHOT_ID,
+    "name": "Pre-refactor",
+    "created_at": "2026-06-06T00:00:00Z",
+    "created_by": "alice",
 }
 
 
@@ -143,6 +153,63 @@ async def test_export_project(mock_backend, mock_ctx, patch_get_http_request):
     result = await export_project(project_id=PROJECT_ID, ctx=mock_ctx)
     assert result["version"] == "1.0"
     assert result["project"]["system_id"] == PROJECT_ID
+
+
+# ---------------------------------------------------------------------------
+# create_snapshot
+# ---------------------------------------------------------------------------
+
+
+async def test_create_snapshot(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.post(f"/api/v1/projects/{PROJECT_ID}/snapshots").mock(
+        return_value=httpx.Response(201, json=SNAPSHOT_RESP)
+    )
+    result = await create_snapshot(project_id=PROJECT_ID, name="Pre-refactor", ctx=mock_ctx)
+    assert result["system_id"] == SNAPSHOT_ID
+    assert result["name"] == "Pre-refactor"
+    body = _last_call_body(mock_backend, f"/projects/{PROJECT_ID}/snapshots", method="POST")
+    assert body == {"name": "Pre-refactor"}
+
+
+async def test_create_snapshot_does_not_acquire_lock(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.post(f"/api/v1/projects/{PROJECT_ID}/snapshots").mock(
+        return_value=httpx.Response(201, json=SNAPSHOT_RESP)
+    )
+    await create_snapshot(project_id=PROJECT_ID, name="Pre-refactor", ctx=mock_ctx)
+    lock_calls = [c for c in mock_backend.calls if "edit-lock" in str(c.request.url)]
+    assert lock_calls == []
+
+
+# ---------------------------------------------------------------------------
+# restore_snapshot
+# ---------------------------------------------------------------------------
+
+
+async def test_restore_snapshot(mock_backend, mock_ctx, patch_get_http_request):
+    _lock_mocks(mock_backend)
+    mock_backend.post(
+        f"/api/v1/projects/{PROJECT_ID}/snapshots/{SNAPSHOT_ID}/restore"
+    ).mock(return_value=httpx.Response(200, json=PROJECT_RESP))
+    result = await restore_snapshot(project_id=PROJECT_ID, snapshot_id=SNAPSHOT_ID, ctx=mock_ctx)
+    assert result["system_id"] == PROJECT_ID
+    restore_calls = [
+        c for c in mock_backend.calls
+        if f"/snapshots/{SNAPSHOT_ID}/restore" in str(c.request.url)
+    ]
+    assert len(restore_calls) == 1
+    assert restore_calls[0].request.method == "POST"
+
+
+async def test_restore_snapshot_acquires_and_releases_lock(mock_backend, mock_ctx, patch_get_http_request):
+    _lock_mocks(mock_backend)
+    mock_backend.post(
+        f"/api/v1/projects/{PROJECT_ID}/snapshots/{SNAPSHOT_ID}/restore"
+    ).mock(return_value=httpx.Response(200, json=PROJECT_RESP))
+    await restore_snapshot(project_id=PROJECT_ID, snapshot_id=SNAPSHOT_ID, ctx=mock_ctx)
+    acquire_calls = [c for c in mock_backend.calls if "edit-lock/acquire" in str(c.request.url)]
+    release_calls = [c for c in mock_backend.calls if "edit-lock/release" in str(c.request.url)]
+    assert len(acquire_calls) == 1
+    assert len(release_calls) == 1
 
 
 # ---------------------------------------------------------------------------

@@ -86,6 +86,51 @@ async def export_project(
 
 
 @projects_mcp.tool()
+async def create_snapshot(
+    project_id: Annotated[str, Field(description="Project system_id (UUID)")],
+    name: Annotated[str, Field(max_length=255, description="User-given name for the snapshot (max 255 chars)")],
+    ctx: Context,
+) -> dict:
+    """
+    Capture the full current state of the project under a user-given name, for later restoration.
+
+    Snapshots record everything (PIs, features, PBIs, swimlines, sprints, groups)
+    as of the moment they're taken. Use list_snapshots to see existing snapshots
+    and restore_snapshot to roll the project back to one of them.
+    This does not change project structure — like export_project, no lock is acquired.
+    Returns the new snapshot object (system_id, name, created_at, created_by).
+    """
+    return await call_backend(
+        "POST", f"/api/v1/projects/{project_id}/snapshots", json={"name": name}
+    )
+
+
+@projects_mcp.tool()
+async def restore_snapshot(
+    project_id: Annotated[str, Field(description="Project system_id (UUID)")],
+    snapshot_id: Annotated[str, Field(description="Snapshot system_id (UUID) — use list_snapshots to find it")],
+    ctx: Context,
+) -> dict:
+    """
+    Restore the project to a previously captured snapshot — a heavyweight, destructive operation.
+
+    ⚠️ This OVERWRITES all current PIs, features, PBIs, swimlines, sprints, and
+    groups with the data captured in the target snapshot. Anything created or
+    changed since that snapshot was taken will be wiped from the project.
+    Reassurance: a safety snapshot of the current state is automatically created
+    first, so the operation itself is recoverable — you can restore_snapshot back
+    to that safety snapshot if needed.
+    Acquires the edit lock for the duration of the operation (it rebuilds the
+    entire project).
+    Returns the updated project object (same shape as update_project/export_project).
+    """
+    async with edit_lock(project_id):
+        return await call_backend(
+            "POST", f"/api/v1/projects/{project_id}/snapshots/{snapshot_id}/restore"
+        )
+
+
+@projects_mcp.tool()
 async def create_pi(
     project_id: Annotated[str, Field(description="Project system_id (UUID)")],
     name: Annotated[str, Field(max_length=100, description="PI name (max 100 chars)")],

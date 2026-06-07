@@ -3,6 +3,7 @@ import { renderHook } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createElement } from 'react'
 import { useSSE } from '../useSSE'
+import { useToastStore } from '@/stores/toastStore'
 
 // ── Mock EventSource ───────────────────────────────────────────────────────────
 
@@ -154,5 +155,28 @@ describe('useSSE', () => {
     expect(() => {
       MockEventSource.instance!.onmessage?.({ data: 'not-json' })
     }).not.toThrow()
+  })
+
+  it('project:restored event broadly invalidates project-scoped queries and shows a toast', () => {
+    const { qc, wrapper } = makeWrapper()
+    vi.spyOn(qc, 'invalidateQueries')
+    renderHook(() => useSSE('p-1'), { wrapper })
+    MockEventSource.instance!.emit('project:restored', {
+      system_id: 'p-1',
+      snapshot_id: 'snap-1',
+      snapshot_name: 'Before refactor',
+      safety_snapshot_id: 'snap-2',
+    })
+
+    expect(qc.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['projects'] })
+    expect(qc.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['features', 'p-1'] })
+    expect(qc.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['pbis', 'p-1'] })
+    expect(qc.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['pis', 'p-1'] })
+    expect(qc.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['snapshots', 'p-1'] })
+    expect(qc.invalidateQueries).toHaveBeenCalledWith(
+      expect.objectContaining({ predicate: expect.any(Function) }),
+    )
+
+    expect(useToastStore.getState().toasts.some((t) => t.message === 'Project restored from a snapshot')).toBe(true)
   })
 })

@@ -67,6 +67,16 @@ describe('ProjectListPage', () => {
     await waitFor(() => expect(screen.getByText('Export')).toBeInTheDocument())
   })
 
+  it('shows Snapshots button per project and opens the modal on click', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([fakeProject])
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('Snapshots')).toBeInTheDocument())
+
+    await userEvent.click(screen.getByText('Snapshots'))
+    expect(screen.getByRole('dialog')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Snapshots' })).toBeInTheDocument()
+  })
+
   it('Export button shows loading state during fetch', async () => {
     mockApi.list = vi.fn().mockResolvedValue([fakeProject])
 
@@ -167,6 +177,7 @@ describe('ProjectListPage', () => {
     expect(screen.queryByRole('button', { name: /new project/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^import$/i })).not.toBeInTheDocument()
     expect(screen.queryByText('Export')).not.toBeInTheDocument()
+    expect(screen.queryByText('Snapshots')).not.toBeInTheDocument()
     expect(screen.queryByText('Delete')).not.toBeInTheDocument()
   })
 
@@ -177,6 +188,7 @@ describe('ProjectListPage', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /new project/i })).toBeInTheDocument())
     expect(screen.getByRole('button', { name: /^import$/i })).toBeInTheDocument()
     expect(screen.getByText('Export')).toBeInTheDocument()
+    expect(screen.getByText('Snapshots')).toBeInTheDocument()
     expect(screen.getByText('Delete')).toBeInTheDocument()
   })
 
@@ -186,6 +198,7 @@ describe('ProjectListPage', () => {
     render(<ProjectListPage />, { wrapper: makeWrapper() })
     await waitFor(() => expect(screen.getByRole('button', { name: /new project/i })).toBeInTheDocument())
     expect(screen.getByText('Export')).toBeInTheDocument()
+    expect(screen.getByText('Snapshots')).toBeInTheDocument()
     expect(screen.getByText('Delete')).toBeInTheDocument()
   })
 })

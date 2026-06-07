@@ -10,6 +10,7 @@ from app.models.pbi import PBI
 from app.models.edit_lock import EditLock
 from app.models.api_key import APIKey
 from app.models.activity_log import ActivityLog, ActorType
+from app.models.project_snapshot import ProjectSnapshot
 
 __all__ = [
     "User",
@@ -25,4 +26,5 @@ __all__ = [
     "APIKey",
     "ActivityLog",
     "ActorType",
+    "ProjectSnapshot",
 ]

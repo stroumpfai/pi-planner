@@ -25,5 +25,6 @@ class Project(Base):
     features: Mapped[list[Feature]] = relationship("Feature", back_populates="project", cascade=_CASCADE)
     pbis: Mapped[list[PBI]] = relationship("PBI", back_populates="project", cascade=_CASCADE)
     edit_lock: Mapped[EditLock | None] = relationship("EditLock", back_populates="project", uselist=False, cascade=_CASCADE)
+    snapshots: Mapped[list[ProjectSnapshot]] = relationship("ProjectSnapshot", back_populates="project", cascade=_CASCADE)
 
     __table_args__ = (Index("idx_projects_name", "name"),)

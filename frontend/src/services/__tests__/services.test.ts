@@ -7,6 +7,7 @@ import { groupsApi } from '../groups'
 import { pbisApi } from '../pbis'
 import { pisApi } from '../pis'
 import { projectsApi } from '../projects'
+import { snapshotsApi } from '../snapshots'
 import { sprintsApi } from '../sprints'
 import { swimlinesApi } from '../swimlines'
 import { api } from '../api'
@@ -328,5 +329,33 @@ describe('swimlinesApi', () => {
     mockPost.mockResolvedValue({ data: [] } as never)
     await swimlinesApi.reorder('sw-1', ['sw-2', 'sw-3'])
     expect(mockPost).toHaveBeenCalledWith('/swimlines/sw-1/reorder', { order: ['sw-2', 'sw-3'] })
+  })
+})
+
+// ── snapshotsApi ───────────────────────────────────────────────────────────────
+
+describe('snapshotsApi', () => {
+  it('list calls GET /projects/:id/snapshots/', async () => {
+    mockGet.mockResolvedValue({ data: [] } as never)
+    await snapshotsApi.list('p-1')
+    expect(mockGet).toHaveBeenCalledWith('/projects/p-1/snapshots/')
+  })
+
+  it('create calls POST /projects/:id/snapshots/ with name', async () => {
+    mockPost.mockResolvedValue({ data: {} } as never)
+    await snapshotsApi.create('p-1', { name: 'Before refactor' })
+    expect(mockPost).toHaveBeenCalledWith('/projects/p-1/snapshots/', { name: 'Before refactor' })
+  })
+
+  it('delete calls DELETE /projects/:id/snapshots/:snapshotId', async () => {
+    mockDelete.mockResolvedValue({} as never)
+    await snapshotsApi.delete('p-1', 'snap-1')
+    expect(mockDelete).toHaveBeenCalledWith('/projects/p-1/snapshots/snap-1')
+  })
+
+  it('restore calls POST /projects/:id/snapshots/:snapshotId/restore', async () => {
+    mockPost.mockResolvedValue({ data: {} } as never)
+    await snapshotsApi.restore('p-1', 'snap-1')
+    expect(mockPost).toHaveBeenCalledWith('/projects/p-1/snapshots/snap-1/restore')
   })
 })

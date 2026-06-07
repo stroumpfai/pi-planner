@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { invalidateAllProjectData } from './useSnapshots'
+import { toast } from '@/stores/toastStore'
 
 type SSEEvent = {
   type: string
@@ -115,6 +117,11 @@ function handleSSEEvent(
     case 'project:updated':
     case 'project:deleted':
       qc.invalidateQueries({ queryKey: ['projects'] })
+      break
+
+    case 'project:restored':
+      invalidateAllProjectData(qc, projectId)
+      toast.info('Project restored from a snapshot')
       break
 
     // ── Edit lock ─────────────────────────────────────────────────────────

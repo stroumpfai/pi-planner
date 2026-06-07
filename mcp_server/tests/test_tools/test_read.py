@@ -13,6 +13,7 @@ from mcp_server.tools.read import (
     get_feature,
     list_pbis,
     list_groups,
+    list_snapshots,
     get_edit_lock_status,
 )
 
@@ -111,6 +112,25 @@ async def test_list_groups_calls_correct_path(mock_backend, mock_ctx, patch_get_
     )
     result = await list_groups(swimline_id=SWIMLINE_ID, ctx=mock_ctx)
     assert result == {"items": []}
+
+
+async def test_list_snapshots_calls_correct_path(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.get(f"/api/v1/projects/{PROJECT_ID}/snapshots").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "system_id": "snap-uuid-1",
+                    "name": "Pre-refactor",
+                    "created_at": "2026-06-06T00:00:00Z",
+                    "created_by": "alice",
+                }
+            ],
+        )
+    )
+    result = await list_snapshots(project_id=PROJECT_ID, ctx=mock_ctx)
+    assert result["items"][0]["system_id"] == "snap-uuid-1"
+    assert result["items"][0]["name"] == "Pre-refactor"
 
 
 async def test_get_edit_lock_status_no_lock(mock_backend, mock_ctx, patch_get_http_request):

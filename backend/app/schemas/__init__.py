@@ -11,6 +11,7 @@ from app.schemas.auth import (
     UserCreate, UserUpdate, PasswordReset, ChangePassword,
 )
 from app.schemas.edit_lock import EditLockResponse
+from app.schemas.snapshot import SnapshotCreate, SnapshotResponse
 from app.schemas.common import ApiResponse, ApiError
 
 __all__ = [
@@ -24,6 +25,7 @@ __all__ = [
     "LoginRequest", "TokenResponse", "UserResponse",
     "UserCreate", "UserUpdate", "PasswordReset", "ChangePassword",
     "EditLockResponse",
+    "SnapshotCreate", "SnapshotResponse",
     "ApiResponse", "ApiError",
     "CsvRow", "CsvImportRequest", "CsvImportError", "CsvImportResult",
 ]

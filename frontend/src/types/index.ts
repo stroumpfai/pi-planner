@@ -94,3 +94,10 @@ export interface ApiKeyCreateResponse {
   created_at: string
   expires_at: string | null
 }
+
+export interface Snapshot {
+  system_id: string
+  name: string
+  created_at: string
+  created_by: string | null
+}

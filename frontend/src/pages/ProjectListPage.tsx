@@ -5,6 +5,7 @@ import { useUiStore } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
 import { CreateProjectModal } from '@/components/CreateProjectModal'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { SnapshotsModal } from '@/components/SnapshotsModal'
 import type { Project } from '@/types'
 
 function ExportButton({ project }: { readonly project: Project }) {
@@ -107,6 +108,7 @@ export function ProjectListPage() {
   const canEdit = useAuthStore((s) => s.canEdit())
   const [showCreate, setShowCreate] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null)
+  const [snapshotsTarget, setSnapshotsTarget] = useState<Project | null>(null)
 
   if (isLoading) {
     return (
@@ -155,6 +157,12 @@ export function ProjectListPage() {
                 <div className="flex items-center gap-3 ml-4 shrink-0">
                   <ExportButton project={project} />
                   <button
+                    onClick={() => setSnapshotsTarget(project)}
+                    className="text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    Snapshots
+                  </button>
+                  <button
                     onClick={() => setDeleteTarget(project)}
                     className="text-xs text-red-500 hover:text-red-700"
                   >
@@ -168,6 +176,14 @@ export function ProjectListPage() {
       )}
 
       <CreateProjectModal open={showCreate} onClose={() => setShowCreate(false)} />
+
+      {snapshotsTarget && (
+        <SnapshotsModal
+          projectId={snapshotsTarget.system_id}
+          open={snapshotsTarget !== null}
+          onClose={() => setSnapshotsTarget(null)}
+        />
+      )}
 
       <ConfirmDialog
         open={deleteTarget !== null}
