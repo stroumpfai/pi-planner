@@ -24,6 +24,7 @@ import { useSprints } from '@/hooks/useSprints'
 import { useFeatures, useUpdateFeature } from '@/hooks/useFeatures'
 import { useAuthStore } from '@/stores/authStore'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { useSwimlaneCollapseStore } from '@/stores/swimlaneCollapseStore'
 import { usePIs } from '@/hooks/usePIs'
 import { useEffortUnit } from '@/hooks/useProjects'
 import { useMaxTextWidth } from '@/hooks/useMaxTextWidth'
@@ -158,6 +159,8 @@ export function PIBoardPage({ projectId, piId }: Props) {
   const canEdit = isEditing && !isClosedPI
   const effortUnit = useEffortUnit(projectId)
   const swimlineIds = swimlines?.map((s) => `swimlane:${s.system_id}`) ?? []
+  const swimlaneSystemIds = useMemo(() => swimlines?.map((s) => s.system_id) ?? [], [swimlines])
+  const setAllSwimlanesCollapsed = useSwimlaneCollapseStore((s) => s.setAll)
   const swimlaneNames = useMemo(() => swimlines?.map((s) => s.name) ?? [], [swimlines])
   const swimlaneTitleWidth = useMaxTextWidth(swimlaneNames, 'text-sm font-semibold', SWIMLANE_TITLE_MAX_WIDTH)
 
@@ -298,6 +301,22 @@ export function PIBoardPage({ projectId, piId }: Props) {
                 <CapacityBar used={pi.total_effort ?? 0} capacity={pi.total_capacity ?? 0} unit={effortUnit} />
               </div>
             )}
+            <button
+              type="button"
+              onClick={() => setAllSwimlanesCollapsed(piId, swimlaneSystemIds, true)}
+              disabled={!swimlaneSystemIds.length}
+              className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-300 disabled:cursor-not-allowed font-medium flex-shrink-0"
+            >
+              Collapse All
+            </button>
+            <button
+              type="button"
+              onClick={() => setAllSwimlanesCollapsed(piId, swimlaneSystemIds, false)}
+              disabled={!swimlaneSystemIds.length}
+              className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-300 disabled:cursor-not-allowed font-medium flex-shrink-0"
+            >
+              Expand All
+            </button>
             <button
               type="button"
               onClick={() => setShowCreateSwimline(true)}

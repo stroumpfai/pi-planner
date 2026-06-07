@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { useAuthStore } from '@/stores/authStore'
+import { useSwimlaneCollapseStore } from '@/stores/swimlaneCollapseStore'
 import { useDeleteSwimline, useUpdateSwimline, useGroupsForSwimline } from '@/hooks/useSwimlinesAndGroups'
 import { useEffortUnit } from '@/hooks/useProjects'
 import { CapacityBar } from './CapacityBar'
@@ -19,7 +20,8 @@ interface Props {
 }
 
 export function SwimlaneRow({ swimline, sprints, features, projectId, piId }: Props) {
-  const [collapsed, setCollapsed] = useState(false)
+  const collapsed = useSwimlaneCollapseStore((s) => s.isCollapsed(piId, swimline.system_id))
+  const toggleCollapsed = useSwimlaneCollapseStore((s) => s.toggle)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [renaming, setRenaming] = useState(false)
   const [newName, setNewName] = useState('')
@@ -93,7 +95,7 @@ export function SwimlaneRow({ swimline, sprints, features, projectId, piId }: Pr
         )}
         <button
           type="button"
-          onClick={() => setCollapsed((c) => !c)}
+          onClick={() => toggleCollapsed(piId, swimline.system_id)}
           className="text-gray-500 hover:text-gray-700 text-xs w-4"
           aria-label={collapsed ? 'Expand swimlane' : 'Collapse swimlane'}
         >

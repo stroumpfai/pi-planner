@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SwimlaneRow } from '../SwimlaneRow'
 import { useAuthStore } from '@/stores/authStore'
+import { useSwimlaneCollapseStore } from '@/stores/swimlaneCollapseStore'
 import * as swimlineService from '@/services/swimlines'
 import * as featureService from '@/services/features'
 import type { Feature, Sprint, Swimline } from '@/types'
@@ -57,6 +58,8 @@ const makeFeature = (overrides: Partial<Feature> = {}): Feature => ({
 beforeEach(() => {
   vi.clearAllMocks()
   useAuthStore.setState({ user: null, isEditing: false })
+  useSwimlaneCollapseStore.setState({ collapsed: {} })
+  localStorage.clear()
   vi.mocked(swimlineService.swimlinesApi).delete = vi.fn().mockResolvedValue({})
   vi.mocked(swimlineService.swimlinesApi).update = vi.fn().mockResolvedValue(makeSwimlane())
   vi.mocked(featureService.featuresApi).list = vi.fn().mockResolvedValue([])
