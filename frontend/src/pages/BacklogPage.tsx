@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useFeatures, useCreateFeature } from '@/hooks/useFeatures'
+import { usePBIs } from '@/hooks/usePBIs'
 import { useEffortUnit } from '@/hooks/useProjects'
 import { useAuthStore } from '@/stores/authStore'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -27,6 +28,7 @@ export function BacklogPage({ projectId }: Props) {
   const isEditing = useAuthStore((s) => s.isEditing)
 
   const { data: features, isLoading } = useFeatures(projectId, sort)
+  const { data: pbis } = usePBIs(projectId)
   const createFeature = useCreateFeature(projectId)
   const effortUnit = useEffortUnit(projectId)
   const showEffortUnit = useSettingsStore((s) => s.showEffortUnit)
@@ -38,6 +40,10 @@ export function BacklogPage({ projectId }: Props) {
 
   const backlogFeatures = features?.filter((f) => f.location === 'backlog') ?? []
   const totalEffort = backlogFeatures.reduce((sum, f) => sum + (f.effort ?? 0), 0)
+
+  const backlogPBIs = pbis?.filter((p) => p.location === 'backlog') ?? []
+  const pbiCount = backlogPBIs.filter((p) => p.item_type === 'story').length
+  const bugCount = backlogPBIs.filter((p) => p.item_type === 'bug').length
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0] ?? null
@@ -59,9 +65,50 @@ export function BacklogPage({ projectId }: Props) {
     <div className="flex-1 overflow-y-auto">
     <div className="max-w-3xl mx-auto py-8 px-4">
       {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <h2 className="text-lg font-semibold text-gray-900">Backlog</h2>
-        <div className="flex items-center gap-3">
+      <div className="mb-5">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-lg font-semibold text-gray-900">Backlog</h2>
+
+          <div className="flex items-center gap-3 shrink-0">
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+
+            <button
+              onClick={() => setShowClear(true)}
+              disabled={!isEditing}
+              title={isEditing ? undefined : 'Request Edit Mode to clear features'}
+              className="px-3 py-1.5 text-sm font-medium text-red-600 bg-white border border-red-200 hover:bg-red-50 rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Clear
+            </button>
+
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={!isEditing}
+              title={isEditing ? undefined : 'Request Edit Mode to import'}
+              className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              Import CSV
+            </button>
+
+            <button
+              onClick={() => setShowCreate(true)}
+              disabled={!isEditing}
+              title={isEditing ? undefined : 'Request Edit Mode to add features'}
+              className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              + Feature
+            </button>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between gap-4 mt-2">
           {/* Sort toggle */}
           <div className="flex items-center gap-1 text-xs text-gray-500">
             <span>Sort:</span>
@@ -79,41 +126,21 @@ export function BacklogPage({ projectId }: Props) {
             </button>
           </div>
 
-          {/* Hidden file input */}
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".csv"
-            className="hidden"
-            onChange={handleFileChange}
-          />
-
-          <button
-            onClick={() => setShowClear(true)}
-            disabled={!isEditing}
-            title={isEditing ? undefined : 'Request Edit Mode to clear features'}
-            className="px-3 py-1.5 text-sm font-medium text-red-600 bg-white border border-red-200 hover:bg-red-50 rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Clear…
-          </button>
-
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={!isEditing}
-            title={isEditing ? undefined : 'Request Edit Mode to import'}
-            className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            Import CSV
-          </button>
-
-          <button
-            onClick={() => setShowCreate(true)}
-            disabled={!isEditing}
-            title={isEditing ? undefined : 'Request Edit Mode to add features'}
-            className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
-          >
-            + Feature
-          </button>
+          {/* Summary chips */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs text-gray-400 bg-white border border-gray-200 rounded-full px-2 py-0.5">
+              {backlogFeatures.length} feature{backlogFeatures.length === 1 ? '' : 's'}
+            </span>
+            <span className="text-xs text-gray-400 bg-white border border-gray-200 rounded-full px-2 py-0.5">
+              {pbiCount} PBI{pbiCount === 1 ? '' : 's'}
+            </span>
+            <span className="text-xs text-gray-400 bg-white border border-gray-200 rounded-full px-2 py-0.5">
+              {bugCount} bug{bugCount === 1 ? '' : 's'}
+            </span>
+            {totalEffort > 0 && (
+              <span className="text-xs text-gray-400">{totalEffort}{unitSuffix} total</span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -133,14 +160,6 @@ export function BacklogPage({ projectId }: Props) {
             <FeatureRow key={feature.system_id} feature={feature} projectId={projectId} />
           ))}
         </div>
-      )}
-
-      {/* Feature count + total effort */}
-      {backlogFeatures.length > 0 && (
-        <p className="mt-3 text-xs text-gray-400 text-right">
-          {backlogFeatures.length} feature{backlogFeatures.length === 1 ? '' : 's'}
-          {totalEffort > 0 && ` · ${totalEffort}${unitSuffix}`}
-        </p>
       )}
 
       <FeatureFormModal

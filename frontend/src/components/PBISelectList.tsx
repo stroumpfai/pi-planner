@@ -1,5 +1,6 @@
 import { useDraggable } from '@dnd-kit/core'
 import { usePBIs } from '@/hooks/usePBIs'
+import { useEffortUnit } from '@/hooks/useProjects'
 import { useSettingsStore } from '@/stores/settingsStore'
 import type { PBI } from '@/types'
 import type { PBIDragData } from './PBIRow'
@@ -13,18 +14,23 @@ interface Props {
   readonly canDragToSprint?: boolean
 }
 
-function PBISelectRow({ pbi, selected, onToggle, swimlaneId, canDragToSprint }: {
+function PBISelectRow({ pbi, projectId, selected, onToggle, swimlaneId, canDragToSprint }: {
   readonly pbi: PBI
+  readonly projectId: string
   readonly selected: boolean
   readonly onToggle: () => void
   readonly swimlaneId: string
   readonly canDragToSprint: boolean
 }) {
   const showIds = useSettingsStore((s) => s.showIds)
+  const showEffortUnit = useSettingsStore((s) => s.showEffortUnit)
+  const effortUnit = useEffortUnit(projectId)
   const displayId = showIds && pbi.id != null ? `[${pbi.id}] ` : ''
   const isGrouped = pbi.group_id != null
   const isBug = pbi.item_type === 'bug'
   const draggable = canDragToSprint && !isGrouped
+  const unitSuffix = showEffortUnit ? effortUnit : ''
+  const effortLabel = pbi.effort == null ? null : `${pbi.effort}${unitSuffix}`
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `pbi:${pbi.system_id}`,
@@ -58,7 +64,7 @@ function PBISelectRow({ pbi, selected, onToggle, swimlaneId, canDragToSprint }: 
           className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-40"
         />
         {isBug && (
-          <span className="flex-shrink-0 text-xs font-medium bg-red-50 text-red-600 border border-red-200 px-1 rounded">
+          <span className="flex-shrink-0 text-xs font-medium bg-red-50 text-red-600 border border-red-200 px-1.5 rounded">
             Bug
           </span>
         )}
@@ -69,8 +75,10 @@ function PBISelectRow({ pbi, selected, onToggle, swimlaneId, canDragToSprint }: 
           {displayId && <span className="font-mono text-gray-400">{displayId}</span>}
           {pbi.title}
         </span>
-        {pbi.effort != null && (
-          <span className="ml-auto flex-shrink-0 text-xs text-purple-600">{pbi.effort}pt</span>
+        {effortLabel && (
+          <span className="ml-auto flex-shrink-0 text-xs font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
+            {effortLabel}
+          </span>
         )}
         {isGrouped && (
           <span className="flex-shrink-0 text-xs text-gray-400 italic">grouped</span>
@@ -92,6 +100,7 @@ export function PBISelectList({ featureId, projectId, selectedIds, onToggle, swi
         <PBISelectRow
           key={pbi.system_id}
           pbi={pbi}
+          projectId={projectId}
           selected={selectedIds.has(pbi.system_id)}
           onToggle={() => onToggle(pbi.system_id)}
           swimlaneId={swimlaneId}

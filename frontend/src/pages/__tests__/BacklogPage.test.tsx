@@ -4,14 +4,17 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BacklogPage } from '../BacklogPage'
 import * as featuresService from '@/services/features'
+import * as pbisService from '@/services/pbis'
 import { useAuthStore } from '@/stores/authStore'
 
 vi.mock('@/services/features')
+vi.mock('@/services/pbis')
 vi.mock('@/components/ImportCSVModal', () => ({
   ImportCSVModal: ({ open, onClose }: { open: boolean; onClose: () => void }) =>
     open ? <button data-testid="mock-import-close" onClick={onClose}>close-import</button> : null,
 }))
 const mockApi = vi.mocked(featuresService.featuresApi)
+const mockPbiApi = vi.mocked(pbisService.pbisApi)
 
 const makeWrapper = () => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -34,9 +37,27 @@ const fakeFeature = {
   modified_at: '2026-01-01T00:00:00Z',
 }
 
+const fakePBI = {
+  system_id: 'pbi-1',
+  id: 201,
+  title: 'Login flow',
+  description: null,
+  item_type: 'story' as const,
+  effort: 3,
+  location: 'backlog' as const,
+  parent_feature_system_id: 'f-1',
+  pi_id: null,
+  swimlane_id: null,
+  group_id: null,
+  project_id: 'p-1',
+  created_at: '2026-01-01T00:00:00Z',
+  modified_at: '2026-01-01T00:00:00Z',
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   useAuthStore.setState({ user: null, isEditing: false })
+  mockPbiApi.list = vi.fn().mockResolvedValue([])
 })
 
 describe('BacklogPage', () => {
@@ -91,31 +112,43 @@ describe('BacklogPage', () => {
     )
   })
 
-  it('shows total effort in footer', async () => {
+  it('shows summary chips with feature/PBI/bug counts and total effort', async () => {
     mockApi.list = vi.fn().mockResolvedValue([fakeFeature])
+    mockPbiApi.list = vi.fn().mockResolvedValue([fakePBI, { ...fakePBI, system_id: 'pbi-2', item_type: 'bug' as const }])
     render(<BacklogPage projectId="p-1" />, { wrapper: makeWrapper() })
-    await waitFor(() =>
-      expect(screen.getByText('1 feature · 5 pts')).toBeInTheDocument()
-    )
+    await waitFor(() => expect(screen.getByText('1 feature')).toBeInTheDocument())
+    expect(screen.getByText('1 PBI')).toBeInTheDocument()
+    expect(screen.getByText('1 bug')).toBeInTheDocument()
+    expect(screen.getByText('5 pts total')).toBeInTheDocument()
   })
 
-  it('sums effort across multiple features', async () => {
+  it('sums effort across multiple features in the summary', async () => {
     const feature2 = { ...fakeFeature, system_id: 'f-2', effort: 10 }
     mockApi.list = vi.fn().mockResolvedValue([fakeFeature, feature2])
     render(<BacklogPage projectId="p-1" />, { wrapper: makeWrapper() })
-    await waitFor(() =>
-      expect(screen.getByText('2 features · 15 pts')).toBeInTheDocument()
-    )
+    await waitFor(() => expect(screen.getByText('2 features')).toBeInTheDocument())
+    expect(screen.getByText('15 pts total')).toBeInTheDocument()
   })
 
-  it('omits effort from footer when total is zero', async () => {
+  it('only counts backlog-located PBIs in the summary', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([fakeFeature])
+    mockPbiApi.list = vi.fn().mockResolvedValue([fakePBI, { ...fakePBI, system_id: 'pbi-2', location: 'pi' }])
+    render(<BacklogPage projectId="p-1" />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('1 PBI')).toBeInTheDocument())
+  })
+
+  it('omits total effort from the summary when it is zero', async () => {
     mockApi.list = vi.fn().mockResolvedValue([{ ...fakeFeature, effort: 0 }])
     render(<BacklogPage projectId="p-1" />, { wrapper: makeWrapper() })
-    await waitFor(() =>
-      expect(screen.getByText('1 feature')).toBeInTheDocument()
-    )
-    // Footer paragraph should contain only the count, no effort suffix
-    expect(screen.queryByText(/1 feature ·/)).not.toBeInTheDocument()
+    await waitFor(() => expect(screen.getByText('1 feature')).toBeInTheDocument())
+    expect(screen.queryByText(/total$/)).not.toBeInTheDocument()
+  })
+
+  it('renders the Clear button without an ellipsis', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([])
+    render(<BacklogPage projectId="p-1" />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Clear' })).toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: /clear…/i })).not.toBeInTheDocument()
   })
 
   it('Import CSV button is disabled when not in edit mode', async () => {

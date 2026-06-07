@@ -62,7 +62,7 @@ function InlinePBITitle({ pbi, projectId }: { readonly pbi: PBI; readonly projec
       onClick={start}
       disabled={!isEditing}
       title={isEditing ? 'Click to edit' : undefined}
-      className="text-xs text-gray-600 break-words text-left disabled:cursor-default hover:enabled:text-gray-900 w-full min-w-0"
+      className="text-xs text-gray-600 break-words text-left disabled:cursor-default hover:enabled:text-gray-900 flex-1 min-w-0"
     >
       {showIds && pbi.id != null && <span className="font-mono text-gray-400">[{pbi.id}] </span>}
       {pbi.title}
@@ -155,7 +155,7 @@ export function GroupCard({ group, projectId }: Props) {
           >✎</button>
         )}
         {totalEffort > 0 && (
-          <span className="flex-shrink-0 text-xs bg-purple-100 text-purple-700 rounded px-1.5 py-0.5 font-medium">
+          <span className="flex-shrink-0 text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5 font-medium">
             {totalEffort}{showEffortUnit ? effortUnit : ''}
           </span>
         )}
@@ -164,11 +164,26 @@ export function GroupCard({ group, projectId }: Props) {
       {/* PBI list */}
       {groupPbis.length > 0 && (
         <ul className="px-2 py-1 space-y-0.5">
-          {groupPbis.map((pbi) => (
-            <li key={pbi.system_id} className="flex items-center min-w-0">
-              <InlinePBITitle pbi={pbi} projectId={projectId} />
-            </li>
-          ))}
+          {groupPbis.map((pbi) => {
+            const isBug = pbi.item_type === 'bug'
+            const unitSuffix = showEffortUnit ? effortUnit : ''
+            const effortLabel = pbi.effort == null ? null : `${pbi.effort}${unitSuffix}`
+            return (
+              <li key={pbi.system_id} className="flex items-center gap-2 min-w-0">
+                {isBug && (
+                  <span className="flex-shrink-0 text-xs font-medium bg-red-50 text-red-600 border border-red-200 px-1.5 rounded">
+                    Bug
+                  </span>
+                )}
+                <InlinePBITitle pbi={pbi} projectId={projectId} />
+                {effortLabel && (
+                  <span className="ml-auto flex-shrink-0 text-xs font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
+                    {effortLabel}
+                  </span>
+                )}
+              </li>
+            )
+          })}
         </ul>
       )}
 

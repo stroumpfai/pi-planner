@@ -87,4 +87,19 @@ describe('PBISelectList', () => {
     await waitFor(() => screen.getByText('Crash on login'))
     expect(screen.getByText('Bug')).toBeInTheDocument()
   })
+
+  it('shows effort with the project effort-unit suffix, like the Backlog view', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([makePBI({ effort: 5 })])
+    render(<PBISelectList {...defaultProps} />, { wrapper: makeWrapper() })
+    const badge = await screen.findByText('5pts')
+    expect(badge.className).toContain('bg-gray-100')
+    expect(badge.className).toContain('text-gray-500')
+  })
+
+  it('omits the effort badge when effort is null', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([makePBI({ effort: null })])
+    render(<PBISelectList {...defaultProps} />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByText('Login form'))
+    expect(screen.queryByText(/^\d+pts?$/)).not.toBeInTheDocument()
+  })
 })

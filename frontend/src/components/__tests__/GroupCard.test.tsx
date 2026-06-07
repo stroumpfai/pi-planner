@@ -66,9 +66,33 @@ describe('GroupCard', () => {
   })
 
   it('shows effort total from grouped PBIs', async () => {
-    vi.mocked(pbisService.pbisApi).list = vi.fn().mockResolvedValue([makePBI({ effort: 5 })])
+    vi.mocked(pbisService.pbisApi).list = vi.fn().mockResolvedValue([
+      makePBI({ system_id: 'pbi-1', effort: 5 }),
+      makePBI({ system_id: 'pbi-2', effort: 3 }),
+    ])
     render(<GroupCard group={makeGroup()} projectId="p-1" />, { wrapper: makeWrapper() })
-    await waitFor(() => expect(screen.getByText('5pts')).toBeInTheDocument())
+    const badge = await screen.findByText('8pts')
+    expect(badge.className).toContain('bg-amber-100')
+    expect(badge.className).toContain('text-amber-700')
+  })
+
+  it('keeps the gray effort pill and Bug badge on each PBI/Bug once placed in a sprint', async () => {
+    vi.mocked(pbisService.pbisApi).list = vi.fn().mockResolvedValue([
+      makePBI({ system_id: 'pbi-1', item_type: 'bug', effort: 2, title: 'Crash on save' }),
+      makePBI({ system_id: 'pbi-2', item_type: 'story', effort: 5, title: 'Login flow' }),
+    ])
+    render(<GroupCard group={makeGroup()} projectId="p-1" />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('Crash on save')).toBeInTheDocument())
+
+    expect(screen.getByText('Bug')).toBeInTheDocument()
+
+    const bugEffort = screen.getByText('2pts')
+    expect(bugEffort.className).toContain('bg-gray-100')
+    expect(bugEffort.className).toContain('text-gray-500')
+
+    const storyEffort = screen.getByText('5pts')
+    expect(storyEffort.className).toContain('bg-gray-100')
+    expect(storyEffort.className).toContain('text-gray-500')
   })
 
   it('lists PBI titles', async () => {
