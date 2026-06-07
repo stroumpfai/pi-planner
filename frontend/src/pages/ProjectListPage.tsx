@@ -6,6 +6,7 @@ import { useAuthStore } from '@/stores/authStore'
 import { CreateProjectModal } from '@/components/CreateProjectModal'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { SnapshotsModal } from '@/components/SnapshotsModal'
+import { ProjectSettingsModal } from '@/components/ProjectSettingsModal'
 import type { Project } from '@/types'
 
 function ExportButton({ project }: { readonly project: Project }) {
@@ -109,6 +110,7 @@ export function ProjectListPage() {
   const [showCreate, setShowCreate] = useState(false)
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null)
   const [snapshotsTarget, setSnapshotsTarget] = useState<Project | null>(null)
+  const [settingsTarget, setSettingsTarget] = useState<Project | null>(null)
 
   if (isLoading) {
     return (
@@ -157,6 +159,12 @@ export function ProjectListPage() {
                 <div className="flex items-center gap-3 ml-4 shrink-0">
                   <ExportButton project={project} />
                   <button
+                    onClick={() => setSettingsTarget(project)}
+                    className="text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    Settings
+                  </button>
+                  <button
                     onClick={() => setSnapshotsTarget(project)}
                     className="text-xs text-gray-500 hover:text-gray-700"
                   >
@@ -182,6 +190,14 @@ export function ProjectListPage() {
           projectId={snapshotsTarget.system_id}
           open={snapshotsTarget !== null}
           onClose={() => setSnapshotsTarget(null)}
+        />
+      )}
+
+      {settingsTarget && (
+        <ProjectSettingsModal
+          projectId={settingsTarget.system_id}
+          open={settingsTarget !== null}
+          onClose={() => setSettingsTarget(null)}
         />
       )}
 

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import { useCurrentUser, useLogout } from '@/hooks/useAuth'
 import { useProject } from '@/hooks/useProjects'
 import { useUiStore, BACKLOG_VIEW_ID } from '@/stores/uiStore'
@@ -8,53 +8,11 @@ import { EditLockButton } from '@/components/EditLockButton'
 import { PIListPanel } from '@/components/PIListPanel'
 import { ToastContainer } from '@/components/ToastContainer'
 import { UserManagementModal } from '@/components/UserManagementModal'
-import { ChangePasswordModal } from '@/components/ChangePasswordModal'
+import { UserMenu } from '@/components/UserMenu'
 import { LoginPage } from '@/pages/LoginPage'
 import { ProjectListPage } from '@/pages/ProjectListPage'
 import { BacklogPage } from '@/pages/BacklogPage'
 import { PIBoardPage } from '@/pages/PIBoardPage'
-
-function UserMenu({ displayName }: { readonly displayName: string }) {
-  const [open, setOpen] = useState(false)
-  const [changePwdOpen, setChangePwdOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
-
-  return (
-    <>
-      <div className="relative" ref={ref}>
-        <button
-          type="button"
-          onClick={() => setOpen((o) => !o)}
-          className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
-        >
-          {displayName}
-          <span className="text-gray-400 text-xs">▾</span>
-        </button>
-        {open && (
-          <div className="absolute right-0 top-full mt-1 w-44 bg-white border border-gray-200 rounded-md shadow-lg z-50 py-1">
-            <button
-              type="button"
-              onClick={() => { setOpen(false); setChangePwdOpen(true) }}
-              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-            >
-              Change Password
-            </button>
-          </div>
-        )}
-      </div>
-
-      <ChangePasswordModal open={changePwdOpen} onClose={() => setChangePwdOpen(false)} />
-    </>
-  )
-}
 
 export default function App() {
   const { data: user, isLoading, isError } = useCurrentUser()
