@@ -89,7 +89,7 @@ function ImportButton() {
       <button
         onClick={() => fileRef.current?.click()}
         disabled={loading}
-        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-md disabled:opacity-50"
+        className="px-4 py-2 text-sm font-medium text-gray-700 bg-canvas shadow-soft-sm hover:shadow-soft rounded-xl border-none transition-shadow disabled:opacity-50"
       >
         {loading ? 'Importing…' : 'Import'}
       </button>
@@ -138,14 +138,14 @@ export function ProjectListPage() {
       </div>
 
       {projects?.length === 0 ? (
-        <div className="text-center py-16 text-gray-400">
+        <div className="text-center py-16 text-gray-400 bg-canvas shadow-soft rounded-xl">
           <p className="text-lg font-medium">No projects yet</p>
           <p className="text-sm mt-1">Create your first project to get started.</p>
         </div>
       ) : (
-        <ul className="divide-y divide-gray-200 border border-gray-200 rounded-lg bg-white">
+        <ul className="divide-y divide-white/60 shadow-soft rounded-xl bg-canvas">
           {projects?.map((project) => (
-            <li key={project.system_id} className="flex items-center justify-between px-4 py-3 hover:bg-gray-50">
+            <li key={project.system_id} className="flex items-center justify-between px-4 py-3 hover:bg-[#e4eaf1]/40">
               <button
                 className="flex-1 text-left"
                 onClick={() => setActiveProject(project.system_id)}

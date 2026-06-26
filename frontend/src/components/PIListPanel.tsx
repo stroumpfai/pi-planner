@@ -26,11 +26,13 @@ export function PIListPanel({ projectId }: Props) {
   const deletePI = useDeletePI(projectId)
 
   const isBacklogSelected = activePIId === BACKLOG_VIEW_ID
-  const backlogSelectedClass = isBacklogSelected ? 'bg-blue-50 border-l-2 border-blue-500' : ''
+  const backlogSelectedClass = isBacklogSelected
+    ? 'bg-canvas shadow-soft-inset border-l-4 border-blue-400 mx-1 my-0.5 rounded-xl overflow-hidden'
+    : ''
 
   return (
-    <div className="w-64 border-r border-gray-200 bg-white flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200">
+    <div className="w-64 border-r border-white/50 bg-canvas flex flex-col h-full">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-white/60 bg-[#e4eaf1]">
         <h2 className="text-base font-bold text-gray-900">Views</h2>
         <button
           onClick={() => setShowCreate(true)}
@@ -43,7 +45,7 @@ export function PIListPanel({ projectId }: Props) {
       </div>
 
       {stateError && (
-        <div className="mx-3 mt-2 px-3 py-2 bg-red-50 border border-red-200 rounded text-xs text-red-700 flex justify-between">
+        <div className="mx-3 mt-2 px-3 py-2 bg-red-50 shadow-soft-sm rounded-lg text-xs text-red-700 flex justify-between">
           <span>{stateError}</span>
           <button onClick={() => setStateError(null)} className="ml-2 text-red-500">✕</button>
         </div>
@@ -54,7 +56,7 @@ export function PIListPanel({ projectId }: Props) {
           <li className={backlogSelectedClass}>
             <button
               type="button"
-              className="w-full pl-6 pr-4 py-3 text-left space-y-1 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-blue-300"
+              className="w-full pl-6 pr-4 py-3 text-left space-y-1 hover:bg-[#e4eaf1]/40 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-blue-300"
               onClick={() => setActivePI(BACKLOG_VIEW_ID)}
             >
               <div className="flex items-center justify-between gap-2">
@@ -67,16 +69,18 @@ export function PIListPanel({ projectId }: Props) {
         {isLoading && <p className="text-xs text-gray-400 px-4 py-3">Loading…</p>}
         {!isLoading && pis?.length === 0 && <p className="text-xs text-gray-400 px-4 py-4">No PIs yet</p>}
         {!isLoading && !!pis?.length && (
-          <ul className="divide-y divide-gray-100">
+          <ul className="divide-y divide-white/50">
             {pis?.map((pi) => {
               const isSelected = activePIId === pi.system_id
-              const selectedClass = isSelected ? 'bg-blue-50 border-l-2 border-blue-500' : ''
+              const selectedClass = isSelected
+                ? 'bg-canvas shadow-soft-inset border-l-4 border-blue-400 mx-1 my-0.5 rounded-xl overflow-hidden'
+                : ''
               const canEditPI = isEditing && pi.state !== 'closed'
               return (
                 <li key={pi.system_id} className={selectedClass}>
                   <button
                     type="button"
-                    className="w-full pl-6 pr-4 py-3 text-left space-y-1 hover:bg-gray-50 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-blue-300"
+                    className="w-full pl-6 pr-4 py-3 text-left space-y-1 hover:bg-[#e4eaf1]/40 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-blue-300"
                     onClick={() => setActivePI(isSelected ? BACKLOG_VIEW_ID : pi.system_id)}
                   >
                     <div className="flex items-center justify-between gap-2">

@@ -35,10 +35,10 @@ function DraggableBacklogItem({ feature, effortUnit, showEffortUnit }: ItemProps
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      className={`px-2 py-1.5 rounded border bg-white text-sm select-none cursor-grab active:cursor-grabbing transition-opacity ${
+      className={`px-2 py-1.5 rounded-lg bg-canvas text-sm select-none cursor-grab active:cursor-grabbing transition-all ${
         isDragging
-          ? 'opacity-40 border-blue-400'
-          : 'border-gray-200 hover:border-blue-300 hover:shadow-sm'
+          ? 'opacity-40 shadow-soft-sm border border-blue-300'
+          : 'shadow-soft-sm hover:shadow-soft'
       }`}
     >
       {displayId && (
@@ -69,10 +69,10 @@ export function BacklogPanel({ projectId }: Props) {
   })
 
   return (
-    <div className="flex flex-col h-full border-r border-gray-200 bg-white w-48 flex-shrink-0">
-      <div className="px-3 py-4 border-b border-gray-200 bg-gray-50 flex items-center gap-2">
+    <div className="flex flex-col h-full border-r border-white/50 bg-canvas w-48 flex-shrink-0">
+      <div className="px-3 py-4 border-b border-white/60 bg-[#e4eaf1] flex items-center gap-2">
         <span className="text-xs font-semibold text-gray-600">Backlog</span>
-        <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-1.5">
+        <span className="text-xs text-gray-400 bg-canvas shadow-soft-sm rounded-full px-1.5">
           {backlogFeatures.length}
         </span>
         {totalEffort > 0 && (

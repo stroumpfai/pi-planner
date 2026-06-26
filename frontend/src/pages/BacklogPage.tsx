@@ -60,7 +60,7 @@ export function BacklogPage({ projectId }: Props) {
   }
 
   return (
-    <div className="h-full overflow-y-auto">
+    <div className="h-full overflow-y-auto bg-canvas">
     <div className="max-w-3xl mx-auto py-8 px-4">
       {/* Header */}
       <div className="mb-5">
@@ -126,13 +126,13 @@ export function BacklogPage({ projectId }: Props) {
 
           {/* Summary chips */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-gray-400 bg-white border border-gray-200 rounded-full px-2 py-0.5">
+            <span className="text-xs text-gray-400 bg-canvas shadow-soft-sm rounded-full px-2 py-0.5">
               {backlogFeatures.length} feature{backlogFeatures.length === 1 ? '' : 's'}
             </span>
-            <span className="text-xs text-gray-400 bg-white border border-gray-200 rounded-full px-2 py-0.5">
+            <span className="text-xs text-gray-400 bg-canvas shadow-soft-sm rounded-full px-2 py-0.5">
               {pbiCount} PBI{pbiCount === 1 ? '' : 's'}
             </span>
-            <span className="text-xs text-gray-400 bg-white border border-gray-200 rounded-full px-2 py-0.5">
+            <span className="text-xs text-gray-400 bg-canvas shadow-soft-sm rounded-full px-2 py-0.5">
               {bugCount} bug{bugCount === 1 ? '' : 's'}
             </span>
             {totalEffort > 0 && (
@@ -153,7 +153,7 @@ export function BacklogPage({ projectId }: Props) {
         </div>
       )}
       {!isLoading && backlogFeatures.length > 0 && (
-        <div className="border border-gray-200 rounded-lg bg-white divide-y divide-gray-100">
+        <div className="shadow-soft rounded-xl bg-canvas divide-y divide-white/60">
           {backlogFeatures.map((feature) => (
             <FeatureRow key={feature.system_id} feature={feature} projectId={projectId} />
           ))}

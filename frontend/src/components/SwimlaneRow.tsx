@@ -27,8 +27,8 @@ function FeatureDropZone({ swimlaneId, piId, isEmpty, sprints }: FeatureDropZone
     <div className="flex min-h-16">
       <div
         ref={setNodeRef}
-        className={`flex-shrink-0 border-r border-gray-200 p-2 transition-colors ${
-          isOver ? 'bg-blue-50 ring-2 ring-inset ring-blue-300' : ''
+        className={`flex-shrink-0 border-r border-white/50 p-2 transition-colors ${
+          isOver ? 'bg-blue-50/80 ring-1 ring-blue-200' : ''
         }`}
         style={{ width: 'var(--feature-col-width, 192px)' }}
       >
@@ -39,7 +39,7 @@ function FeatureDropZone({ swimlaneId, piId, isEmpty, sprints }: FeatureDropZone
         )}
       </div>
       {sprints.map((sprint) => (
-        <div key={sprint.system_id} className="flex-1 border-r border-gray-100 last:border-r-0" />
+        <div key={sprint.system_id} className="flex-1 border-r border-white/50 last:border-r-0" />
       ))}
     </div>
   )
@@ -114,10 +114,10 @@ export function SwimlaneRow({ swimline, sprints, features, projectId, piId }: Pr
     <div
       ref={setNodeRef}
       style={style}
-      className={`border-b border-gray-200 ${isDragging ? 'opacity-50 z-10 shadow-lg' : ''}`}
+      className={`border-b border-white/50 ${isDragging ? 'opacity-50 z-10 shadow-lg' : ''}`}
     >
       {/* Swimlane header */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-gray-100 border-b border-gray-200">
+      <div className="flex items-center gap-2 px-3 py-2 bg-[#e4eaf1] border-b border-white/60">
         {isEditing && (
           <button
             type="button"
@@ -165,7 +165,7 @@ export function SwimlaneRow({ swimline, sprints, features, projectId, piId }: Pr
             {swimline.name}
           </span>
         )}
-        <span className="text-xs text-gray-400 bg-white border border-gray-200 rounded-full px-2 py-0.5">
+        <span className="text-xs text-gray-400 bg-canvas shadow-soft-sm rounded-full px-2 py-0.5">
           {featureCount}
         </span>
         <div className="flex-1 max-w-28">

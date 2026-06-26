@@ -65,8 +65,8 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
   return (
     <div
       ref={setNodeRef}
-      className={`bg-white border rounded-md shadow-sm transition-opacity select-none ${
-        isDragging ? 'opacity-40 border-blue-400' : `border-gray-200 border-l-4 ${borderColor}`
+      className={`bg-canvas rounded-xl2 shadow-soft transition-shadow select-none ${
+        isDragging ? 'opacity-40 border border-blue-400' : `border-l-4 ${borderColor}`
       }`}
     >
       {/* Card header — drag handle */}
@@ -83,13 +83,13 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
           {feature.title}
         </span>
         {feature.effort != null && (
-          <span className="flex-shrink-0 text-xs bg-purple-100 text-purple-700 rounded px-1.5 py-0.5 font-medium">
+          <span className="flex-shrink-0 text-xs bg-purple-100 text-purple-700 rounded-full shadow-soft-sm px-1.5 py-0.5 font-medium">
             {feature.effort}{showEffortUnit ? effortUnit : ''}
           </span>
         )}
         {isFullyPlanned && (
           <span
-            className="flex-shrink-0 text-xs bg-green-100 text-green-700 rounded px-1.5 py-0.5 font-medium"
+            className="flex-shrink-0 text-xs bg-green-100 text-green-700 rounded-full shadow-soft-sm px-1.5 py-0.5 font-medium"
             title="All PBIs assigned to sprints"
           >
             ✓
@@ -121,7 +121,7 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
 
       {/* PBI selection panel */}
       {expanded && (
-        <div className="border-t border-gray-100 px-2 py-1.5 space-y-1">
+        <div className="border-t border-white/60 px-2 py-1.5 space-y-1">
           <PBISelectList
             featureId={feature.system_id}
             projectId={projectId}

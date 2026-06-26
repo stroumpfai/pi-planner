@@ -129,13 +129,13 @@ export function GroupCard({ group, projectId }: Props) {
   return (
     <div
       ref={setNodeRef}
-      className={`bg-white border rounded-md shadow-sm transition-opacity ${
-        isDragging ? 'opacity-40 border-blue-400' : `border-gray-200 border-l-4 ${borderColor}`
+      className={`bg-canvas rounded-xl2 shadow-soft transition-shadow ${
+        isDragging ? 'opacity-40 border border-blue-400' : `border-l-4 ${borderColor}`
       }`}
     >
       {/* Drag handle + name row */}
       <div
-        className={`flex items-center gap-2 px-2 py-1.5 cursor-grab active:cursor-grabbing border-b border-gray-100 ${headerBg}`}
+        className={`flex items-center gap-2 px-2 py-1.5 cursor-grab active:cursor-grabbing border-b border-white/60 ${headerBg}`}
         {...attributes}
         {...listeners}
       >
@@ -171,7 +171,7 @@ export function GroupCard({ group, projectId }: Props) {
           >✎</button>
         )}
         {totalEffort > 0 && (
-          <span className="flex-shrink-0 text-xs bg-amber-100 text-amber-700 rounded px-1.5 py-0.5 font-medium">
+          <span className="flex-shrink-0 text-xs bg-amber-100 text-amber-700 rounded-full shadow-soft-sm px-1.5 py-0.5 font-medium">
             {totalEffort}{showEffortUnit ? effortUnit : ''}
           </span>
         )}
@@ -193,7 +193,7 @@ export function GroupCard({ group, projectId }: Props) {
                 )}
                 <InlinePBITitle pbi={pbi} projectId={projectId} />
                 {effortLabel && (
-                  <span className="ml-auto flex-shrink-0 text-xs font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
+                  <span className="ml-auto flex-shrink-0 text-xs font-mono bg-[#e4eaf1] text-gray-500 px-1.5 py-0.5 rounded-full">
                     {effortLabel}
                   </span>
                 )}
@@ -205,7 +205,7 @@ export function GroupCard({ group, projectId }: Props) {
 
       {/* Actions */}
       {isEditing && (
-        <div className="flex items-center gap-2 px-2 py-1.5 border-t border-gray-100">
+        <div className="flex items-center gap-2 px-2 py-1.5 border-t border-white/60">
           <select
             value={group.sprint_index ?? 0}
             onChange={handleMoveSprint}

@@ -25,8 +25,8 @@ export function SprintCell({ swimlaneId, sprintIndex, groups, projectId, feature
   return (
     <div
       ref={setNodeRef}
-      className={`p-2 min-h-16 space-y-2 transition-colors ${
-        isOver ? 'bg-blue-50 ring-2 ring-inset ring-blue-300' : ''
+      className={`m-1.5 p-2 rounded-xl min-h-16 space-y-2 transition-colors ${
+        isOver ? 'bg-blue-50/80 ring-1 ring-blue-200' : ''
       }`}
     >
       {cellGroups.length === 0 && isOver && (

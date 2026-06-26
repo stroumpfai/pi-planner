@@ -27,7 +27,7 @@ export function CapacityBar({ used, capacity, unit = 'pts' }: Props) {
       <div className="flex justify-between text-xs text-gray-500">
         <span>{label}</span>
       </div>
-      <div className="h-1.5 w-full bg-gray-100 rounded-full overflow-hidden">
+      <div className="h-1.5 w-full bg-canvas shadow-soft-inset rounded-full overflow-hidden">
         <div
           className={`h-full rounded-full transition-all ${barColor(used, capacity)}`}
           style={{ width: `${pct * 100}%` }}

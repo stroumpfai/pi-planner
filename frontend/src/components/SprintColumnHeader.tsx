@@ -16,7 +16,7 @@ export function SprintColumnHeader({ sprint, usedEffort, unit, onEditCapacity }:
     : null
 
   return (
-    <div className="p-2 border-b border-gray-200 bg-gray-50 space-y-1">
+    <div className="p-2 border-b border-white/50 bg-canvas space-y-1">
       <div className="flex items-center justify-between">
         <span className="text-xs font-semibold text-gray-700">{label}</span>
         {onEditCapacity && (

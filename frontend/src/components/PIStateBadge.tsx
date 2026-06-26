@@ -13,7 +13,7 @@ interface Props {
 export function PIStateBadge({ state }: Props) {
   const { label, className } = CONFIG[state] ?? CONFIG.draft
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${className}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full shadow-soft-sm text-xs font-medium ${className}`}>
       {label}
     </span>
   )

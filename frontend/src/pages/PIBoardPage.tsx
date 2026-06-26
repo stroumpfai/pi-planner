@@ -280,7 +280,7 @@ export function PIBoardPage({ projectId, piId }: Props) {
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
     >
-      <div className="flex h-full overflow-hidden">
+      <div className="flex h-full overflow-hidden bg-canvas">
         <BacklogPanel projectId={projectId} />
 
         <div
@@ -291,7 +291,7 @@ export function PIBoardPage({ projectId, piId }: Props) {
           } as React.CSSProperties}
         >
           {/* Board header: name + PI capacity summary + Add Swimlane */}
-          <div className="flex items-center justify-between px-4 py-[11px] border-b border-gray-200 bg-white flex-shrink-0 gap-4">
+          <div className="flex items-center justify-between px-4 py-[11px] border-b border-white/50 bg-canvas flex-shrink-0 gap-4">
             <div className="flex items-center gap-2 flex-shrink-0">
               <h2 className="text-sm font-semibold text-gray-800">{pi?.name ?? 'PI Board'}</h2>
               {pi?.state && <PIStateBadgeInline state={pi.state} />}
@@ -333,16 +333,16 @@ export function PIBoardPage({ projectId, piId }: Props) {
 
           <div className="flex-1 overflow-y-auto">
             {/* Column headers: sticky so they stay visible while swimlanes scroll */}
-            <div className="sticky top-0 z-10 flex border-b border-gray-200 bg-gray-50 flex-shrink-0">
+            <div className="sticky top-0 z-10 flex border-b border-white/50 bg-canvas flex-shrink-0">
               <div
-                className="flex-shrink-0 border-r border-gray-200 px-3 py-1.5 relative"
+                className="flex-shrink-0 border-r border-white/50 px-3 py-1.5 relative"
                 style={{ width: 'var(--feature-col-width, 192px)' }}
               >
                 <span className="text-xs font-semibold text-gray-500">Swimlane / Features</span>
                 <ResizeHandle onResize={setFeatureColumnWidth} currentWidth={featureColumnWidth} />
               </div>
               {sprints?.map((sprint) => (
-                <div key={sprint.system_id} className="flex-1 border-r border-gray-100 last:border-r-0">
+                <div key={sprint.system_id} className="flex-1 border-r border-white/50 last:border-r-0">
                   <SprintColumnHeader
                     sprint={sprint}
                     usedEffort={sprint.effort ?? 0}
