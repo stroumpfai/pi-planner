@@ -30,26 +30,26 @@ export function FeatureRow({ feature, projectId }: Props) {
   const effortLabel = feature.effort == null ? null : `${feature.effort}${unitSuffix}`
 
   return (
-    <div className="border-b border-gray-100 last:border-0">
-      <div className="flex items-center gap-2 px-4 py-2.5 hover:bg-gray-50 group">
+    <div className="border-b border-gray-100 dark:border-gray-700 last:border-0">
+      <div className="flex items-center gap-2 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-band/40 group">
         {/* Expand toggle */}
         <button
           onClick={() => setExpanded((e) => !e)}
-          className="text-gray-400 hover:text-gray-600 w-5 text-xs shrink-0"
+          className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 w-5 text-xs shrink-0"
           aria-label={expanded ? 'Collapse' : 'Expand'}
         >
           {expanded ? '▾' : '▸'}
         </button>
 
         {/* Title */}
-        <span className="flex-1 text-sm text-gray-900 truncate">
-          {displayId && <span className="font-mono text-gray-500">{displayId}</span>}
+        <span className="flex-1 text-sm text-gray-900 dark:text-gray-100 truncate">
+          {displayId && <span className="font-mono text-gray-500 dark:text-gray-400">{displayId}</span>}
           {feature.title}
         </span>
 
         {/* Effort badge */}
         {effortLabel && (
-          <span className="text-xs bg-purple-100 text-purple-700 rounded px-1.5 py-0.5 font-medium shrink-0">
+          <span className="text-xs bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded px-1.5 py-0.5 font-medium shrink-0">
             {effortLabel}
           </span>
         )}
@@ -60,7 +60,7 @@ export function FeatureRow({ feature, projectId }: Props) {
             onClick={() => isEditing && setEditing(true)}
             disabled={!isEditing}
             title={isEditing ? 'Edit' : 'Request Edit Mode to make changes'}
-            className="text-xs text-blue-500 hover:text-blue-700 disabled:text-gray-300 disabled:cursor-not-allowed"
+            className="text-xs text-blue-500 hover:text-blue-700 disabled:text-gray-300 dark:disabled:text-gray-600 disabled:cursor-not-allowed"
           >
             Edit
           </button>
@@ -68,7 +68,7 @@ export function FeatureRow({ feature, projectId }: Props) {
             onClick={() => isEditing && setConfirming(true)}
             disabled={!isEditing}
             title={isEditing ? 'Delete' : 'Request Edit Mode to make changes'}
-            className="text-xs text-red-500 hover:text-red-700 disabled:text-gray-300 disabled:cursor-not-allowed"
+            className="text-xs text-red-500 hover:text-red-700 disabled:text-gray-300 dark:disabled:text-gray-600 disabled:cursor-not-allowed"
           >
             Delete
           </button>

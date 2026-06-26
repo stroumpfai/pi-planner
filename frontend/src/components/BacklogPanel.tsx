@@ -39,12 +39,12 @@ function DraggableBacklogItem({ feature, effortUnit, showEffortUnit }: ItemProps
         isDragging
           ? 'opacity-40 shadow-soft-sm border border-blue-300'
           : 'shadow-soft-sm hover:shadow-soft'
-      }`}
+      } text-gray-800 dark:text-gray-200`}
     >
       {displayId && (
         <span className="font-mono text-xs text-gray-400">{displayId}</span>
       )}
-      <span className="text-gray-800">{feature.title}</span>
+      <span className="text-gray-800 dark:text-gray-200">{feature.title}</span>
       {feature.effort != null && (
         <span className="ml-1 text-xs text-purple-600 font-medium">{feature.effort}{showEffortUnit ? effortUnit : ''}</span>
       )}
@@ -69,14 +69,14 @@ export function BacklogPanel({ projectId }: Props) {
   })
 
   return (
-    <div className="flex flex-col h-full border-r border-white/50 bg-canvas w-48 flex-shrink-0">
-      <div className="px-3 py-4 border-b border-white/60 bg-[#e4eaf1] flex items-center gap-2">
-        <span className="text-xs font-semibold text-gray-600">Backlog</span>
-        <span className="text-xs text-gray-400 bg-canvas shadow-soft-sm rounded-full px-1.5">
+    <div className="flex flex-col h-full border-r border-white/50 dark:border-white/8 bg-canvas w-48 flex-shrink-0">
+      <div className="px-3 py-4 border-b border-white/60 dark:border-white/10 bg-band flex items-center gap-2">
+        <span className="text-xs font-semibold text-gray-600 dark:text-gray-300">Backlog</span>
+        <span className="text-xs text-gray-400 dark:text-gray-500 bg-canvas shadow-soft-sm rounded-full px-1.5">
           {backlogFeatures.length}
         </span>
         {totalEffort > 0 && (
-          <span className="text-xs text-gray-400">{totalEffort}{showEffortUnit ? ` ${effortUnit}` : ''}</span>
+          <span className="text-xs text-gray-400 dark:text-gray-500">{totalEffort}{showEffortUnit ? ` ${effortUnit}` : ''}</span>
         )}
       </div>
 
@@ -86,9 +86,9 @@ export function BacklogPanel({ projectId }: Props) {
           isOver ? 'bg-blue-50 ring-2 ring-inset ring-blue-300' : ''
         }`}
       >
-        {isLoading && <p className="text-xs text-gray-400 py-4 text-center">Loading…</p>}
+        {isLoading && <p className="text-xs text-gray-400 dark:text-gray-500 py-4 text-center">Loading…</p>}
         {!isLoading && backlogFeatures.length === 0 && (
-          <p className="text-xs text-gray-300 py-6 text-center">
+          <p className="text-xs text-gray-300 dark:text-gray-600 py-6 text-center">
             {isOver ? 'Drop here' : 'Empty'}
           </p>
         )}

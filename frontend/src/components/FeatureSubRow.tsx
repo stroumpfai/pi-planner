@@ -17,9 +17,9 @@ export function FeatureSubRow({ feature, sprints, groups, projectId, swimlaneId 
 
   return (
     <>
-      <div className="flex border-b border-white/50 min-h-16">
+      <div className="flex border-b border-white/50 dark:border-white/5 min-h-16">
         <div
-          className="flex-shrink-0 border-r border-white/50 p-2"
+          className="flex-shrink-0 border-r border-white/50 dark:border-white/5 p-2"
           style={{ width: 'var(--feature-col-width, 192px)' }}
         >
           <FeatureCard
@@ -30,7 +30,7 @@ export function FeatureSubRow({ feature, sprints, groups, projectId, swimlaneId 
         </div>
 
         {sprints.map((sprint) => (
-          <div key={sprint.system_id} className="flex-1 border-r border-white/50 last:border-r-0">
+          <div key={sprint.system_id} className="flex-1 border-r border-white/50 dark:border-white/5 last:border-r-0">
             <SprintCell
               swimlaneId={swimlaneId}
               sprintIndex={sprint.sprint_index ?? 0}

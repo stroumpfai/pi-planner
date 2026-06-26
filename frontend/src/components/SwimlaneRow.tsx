@@ -27,7 +27,7 @@ function FeatureDropZone({ swimlaneId, piId, isEmpty, sprints }: FeatureDropZone
     <div className="flex min-h-16">
       <div
         ref={setNodeRef}
-        className={`flex-shrink-0 border-r border-white/50 p-2 transition-colors ${
+        className={`flex-shrink-0 border-r border-white/50 dark:border-white/5 p-2 transition-colors ${
           isOver ? 'bg-blue-50/80 ring-1 ring-blue-200' : ''
         }`}
         style={{ width: 'var(--feature-col-width, 192px)' }}
@@ -39,7 +39,7 @@ function FeatureDropZone({ swimlaneId, piId, isEmpty, sprints }: FeatureDropZone
         )}
       </div>
       {sprints.map((sprint) => (
-        <div key={sprint.system_id} className="flex-1 border-r border-white/50 last:border-r-0" />
+        <div key={sprint.system_id} className="flex-1 border-r border-white/50 dark:border-white/5 last:border-r-0" />
       ))}
     </div>
   )
@@ -114,17 +114,17 @@ export function SwimlaneRow({ swimline, sprints, features, projectId, piId }: Pr
     <div
       ref={setNodeRef}
       style={style}
-      className={`border-b border-white/50 ${isDragging ? 'opacity-50 z-10 shadow-lg' : ''}`}
+      className={`border-b border-white/50 dark:border-white/5 ${isDragging ? 'opacity-50 z-10 shadow-lg' : ''}`}
     >
       {/* Swimlane header */}
-      <div className="flex items-center gap-2 px-3 py-2 bg-[#e4eaf1] border-b border-white/60">
+      <div className="flex items-center gap-2 px-3 py-2 bg-band border-b border-white/60 dark:border-white/10">
         {isEditing && (
           <button
             type="button"
             ref={setActivatorNodeRef}
             {...attributes}
             {...listeners}
-            className="text-gray-400 hover:text-gray-600 cursor-grab active:cursor-grabbing px-0.5"
+            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-grab active:cursor-grabbing px-0.5"
             aria-label="Drag to reorder swimlane"
             title="Drag to reorder"
           >
@@ -150,7 +150,7 @@ export function SwimlaneRow({ swimline, sprints, features, projectId, piId }: Pr
                 else if (e.key === 'Escape') { setRenaming(false); setRenameError(null) }
               }}
               onBlur={handleRenameSubmit}
-              className="text-sm font-semibold border border-blue-300 rounded px-1 py-0.5 bg-white focus:outline-none"
+              className="text-sm font-semibold border border-blue-300 rounded px-1 py-0.5 bg-white dark:bg-gray-700 dark:text-gray-100 focus:outline-none"
             />
             {renameError && (
               <span className="text-xs text-red-500 mt-0.5">{renameError}</span>
@@ -158,14 +158,14 @@ export function SwimlaneRow({ swimline, sprints, features, projectId, piId }: Pr
           </div>
         ) : (
           <span
-            className="text-sm font-semibold text-gray-800 truncate"
+            className="text-sm font-semibold text-gray-800 dark:text-gray-200 truncate"
             style={{ width: 'var(--swimlane-title-width, auto)' }}
             title={swimline.name}
           >
             {swimline.name}
           </span>
         )}
-        <span className="text-xs text-gray-400 bg-canvas shadow-soft-sm rounded-full px-2 py-0.5">
+        <span className="text-xs text-gray-400 dark:text-gray-500 bg-canvas shadow-soft-sm rounded-full px-2 py-0.5">
           {featureCount}
         </span>
         <div className="flex-1 max-w-28">

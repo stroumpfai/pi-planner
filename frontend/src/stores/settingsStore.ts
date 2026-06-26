@@ -4,7 +4,10 @@ const SHOW_IDS_KEY = 'pi-planner:show-ids'
 const SHOW_EFFORT_UNIT_KEY = 'pi-planner:show-effort-unit'
 const FEATURE_COL_WIDTH_KEY = 'pi-planner:feature-col-width'
 const SHOW_FEATURE_NAME_IN_CARD_KEY = 'pi-planner:show-feature-name-in-card'
+const COLOR_SCHEME_KEY = 'pi-planner:color-scheme'
 const DEFAULT_COL_WIDTH = 192
+
+export type ColorScheme = 'light' | 'dark' | 'system'
 
 interface SettingsState {
   showIds: boolean
@@ -15,6 +18,14 @@ interface SettingsState {
   setFeatureColumnWidth: (v: number) => void
   showFeatureNameInCard: boolean
   setShowFeatureNameInCard: (v: boolean) => void
+  colorScheme: ColorScheme
+  setColorScheme: (v: ColorScheme) => void
+}
+
+function readColorScheme(): ColorScheme {
+  const stored = localStorage.getItem(COLOR_SCHEME_KEY)
+  if (stored === 'light' || stored === 'dark' || stored === 'system') return stored
+  return 'system'
 }
 
 export const useSettingsStore = create<SettingsState>((set) => ({
@@ -37,5 +48,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setShowFeatureNameInCard: (showFeatureNameInCard) => {
     localStorage.setItem(SHOW_FEATURE_NAME_IN_CARD_KEY, String(showFeatureNameInCard))
     set({ showFeatureNameInCard })
+  },
+  colorScheme: readColorScheme(),
+  setColorScheme: (colorScheme) => {
+    localStorage.setItem(COLOR_SCHEME_KEY, colorScheme)
+    set({ colorScheme })
   },
 }))

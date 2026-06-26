@@ -77,14 +77,14 @@ export function PBIRow({ pbi, projectId, swimlaneId = '', isDraggable = false }:
         <span
           {...attributes}
           {...listeners}
-          className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing text-xs w-3 shrink-0 select-none"
+          className="text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 cursor-grab active:cursor-grabbing text-xs w-3 shrink-0 select-none"
           title="Drag to sprint"
         >⠿</span>
       )}
 
       {isBug
         ? <span className="text-red-400 text-xs w-3 shrink-0" title="Bug">⬤</span>
-        : <span className="text-gray-300 text-xs w-3 shrink-0">○</span>
+        : <span className="text-gray-300 dark:text-gray-600 text-xs w-3 shrink-0">○</span>
       }
 
       {editingTitle ? (
@@ -94,7 +94,7 @@ export function PBIRow({ pbi, projectId, swimlaneId = '', isDraggable = false }:
           onChange={(e) => setTitleDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') { submitTitle() } else if (e.key === 'Escape') { setEditingTitle(false) } }}
           onBlur={submitTitle}
-          className="flex-1 text-sm border border-blue-300 rounded px-1 py-0.5 focus:outline-none"
+          className="flex-1 text-sm border border-blue-300 dark:border-blue-600 rounded px-1 py-0.5 focus:outline-none dark:bg-gray-700 dark:text-gray-100"
         />
       ) : (
         <button
@@ -102,21 +102,21 @@ export function PBIRow({ pbi, projectId, swimlaneId = '', isDraggable = false }:
           onClick={startTitleEdit}
           disabled={!isEditing}
           title={isEditing ? 'Click to edit title' : undefined}
-          className="flex-1 text-sm text-gray-700 truncate text-left disabled:cursor-default hover:enabled:text-gray-900"
+          className="flex-1 text-sm text-gray-700 dark:text-gray-200 truncate text-left disabled:cursor-default hover:enabled:text-gray-900 dark:hover:enabled:text-gray-100"
         >
-          {displayId && <span className="font-mono text-gray-400 text-xs">{displayId}</span>}
+          {displayId && <span className="font-mono text-gray-400 dark:text-gray-500 text-xs">{displayId}</span>}
           {pbi.title}
         </button>
       )}
 
       {isBug && (
-        <span className="text-xs font-medium bg-red-50 text-red-600 border border-red-200 px-1.5 py-0.5 rounded shrink-0">
+        <span className="text-xs font-medium bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 px-1.5 py-0.5 rounded shrink-0">
           Bug
         </span>
       )}
 
       {effortLabel && (
-        <span className="text-xs font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded shrink-0">
+        <span className="text-xs font-mono bg-gray-100 dark:bg-band text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded shrink-0">
           {effortLabel}
         </span>
       )}
@@ -126,7 +126,7 @@ export function PBIRow({ pbi, projectId, swimlaneId = '', isDraggable = false }:
           onClick={() => isEditing && setEditing(true)}
           disabled={!isEditing}
           title={isEditing ? 'Edit' : 'Request Edit Mode to make changes'}
-          className="text-xs text-blue-500 hover:text-blue-700 disabled:text-gray-300 disabled:cursor-not-allowed"
+          className="text-xs text-blue-500 hover:text-blue-700 disabled:text-gray-300 dark:disabled:text-gray-600 disabled:cursor-not-allowed"
         >
           Edit
         </button>
@@ -134,7 +134,7 @@ export function PBIRow({ pbi, projectId, swimlaneId = '', isDraggable = false }:
           onClick={() => isEditing && setConfirming(true)}
           disabled={!isEditing}
           title={isEditing ? 'Delete' : 'Request Edit Mode to make changes'}
-          className="text-xs text-red-500 hover:text-red-700 disabled:text-gray-300 disabled:cursor-not-allowed"
+          className="text-xs text-red-500 hover:text-red-700 disabled:text-gray-300 dark:disabled:text-gray-600 disabled:cursor-not-allowed"
         >
           Delete
         </button>

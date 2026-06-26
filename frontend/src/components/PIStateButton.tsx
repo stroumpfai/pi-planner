@@ -47,8 +47,8 @@ export function PIStateButton({ pi, projectId, onError }: Props) {
         onClick={() => setConfirming(true)}
         className={`px-3 py-1 text-xs font-medium rounded-md ${
           action.destructive
-            ? 'text-red-700 bg-red-50 hover:bg-red-100 border border-red-200'
-            : 'text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-200'
+            ? 'text-red-700 dark:text-red-400 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 border border-red-200 dark:border-red-800'
+            : 'text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:bg-blue-100 dark:hover:bg-blue-900/50 border border-blue-200 dark:border-blue-800'
         }`}
       >
         {action.label}

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { useTheme } from '@/hooks/useTheme'
 import { useCurrentUser, useLogout } from '@/hooks/useAuth'
 import { useProject } from '@/hooks/useProjects'
 import { useUiStore, BACKLOG_VIEW_ID } from '@/stores/uiStore'
@@ -15,6 +16,7 @@ import { BacklogPage } from '@/pages/BacklogPage'
 import { PIBoardPage } from '@/pages/PIBoardPage'
 
 export default function App() {
+  useTheme()
   const { data: user, isLoading, isError } = useCurrentUser()
   const logout = useLogout()
   const { activeProjectId, activePIId, setActiveProject } = useUiStore()
@@ -38,11 +40,11 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-canvas">
-      <header className="bg-canvas border-b border-white/60 shadow-sm px-6 py-3 flex items-center justify-between">
+      <header className="bg-canvas border-b border-white/60 dark:border-white/10 shadow-sm px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setActiveProject(null)}
-            className="flex items-center gap-1.5 text-lg font-semibold text-gray-900 hover:text-blue-600"
+            className="flex items-center gap-1.5 text-lg font-semibold text-gray-900 dark:text-gray-100 hover:text-blue-600"
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9.5z" />
@@ -52,8 +54,8 @@ export default function App() {
           </button>
           {activeProject && (
             <>
-              <span className="text-gray-300">/</span>
-              <span className="text-sm font-medium text-gray-600">{activeProject.name}</span>
+              <span className="text-gray-300 dark:text-gray-600">/</span>
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-300">{activeProject.name}</span>
             </>
           )}
         </div>
@@ -64,7 +66,7 @@ export default function App() {
               type="button"
               onClick={() => setUserMgmtOpen(true)}
               title="Manage users"
-              className="text-gray-400 hover:text-gray-700 transition-colors"
+              className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="12" cy="12" r="3" />
@@ -75,7 +77,7 @@ export default function App() {
           <UserMenu displayName={user.display_name ?? user.username} />
           <button
             onClick={() => logout.mutate()}
-            className="text-sm text-gray-500 hover:text-gray-700"
+            className="text-sm text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
           >
             Sign out
           </button>

@@ -38,7 +38,7 @@ export function PBIList({ featureId, projectId }: Props) {
           onClick={() => setCreateType('story')}
           disabled={!isEditing}
           title={isEditing ? undefined : 'Request Edit Mode to add items'}
-          className="text-xs text-blue-500 hover:text-blue-700 disabled:text-gray-300 disabled:cursor-not-allowed"
+          className="text-xs text-blue-500 hover:text-blue-700 disabled:text-gray-300 dark:disabled:text-gray-600 disabled:cursor-not-allowed"
         >
           + PBI
         </button>
@@ -46,7 +46,7 @@ export function PBIList({ featureId, projectId }: Props) {
           onClick={() => setCreateType('bug')}
           disabled={!isEditing}
           title={isEditing ? undefined : 'Request Edit Mode to add items'}
-          className="text-xs text-red-500 hover:text-red-700 disabled:text-gray-300 disabled:cursor-not-allowed"
+          className="text-xs text-red-500 hover:text-red-700 disabled:text-gray-300 dark:disabled:text-gray-600 disabled:cursor-not-allowed"
         >
           + Bug
         </button>

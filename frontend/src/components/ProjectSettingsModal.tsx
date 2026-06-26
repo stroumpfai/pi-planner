@@ -33,13 +33,13 @@ export function ProjectSettingsModal({ projectId, open, onClose }: Props) {
     <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onClose() }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-40" />
-        <Dialog.Content className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-          <Dialog.Title className="text-base font-semibold text-gray-900">
+        <Dialog.Content className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
+          <Dialog.Title className="text-base font-semibold text-gray-900 dark:text-gray-100">
             Project Settings{project?.name ? ` — ${project.name}` : ''}
           </Dialog.Title>
 
           <div className="mt-4">
-            <label htmlFor="effort-unit" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="effort-unit" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
               Effort unit
             </label>
             <input
@@ -50,10 +50,10 @@ export function ProjectSettingsModal({ projectId, open, onClose }: Props) {
               onBlur={handleUnitBlur}
               onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
               maxLength={20}
-              className="w-full border border-gray-300 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="pts"
             />
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
               Label shown next to effort and capacity values
             </p>
           </div>
@@ -62,7 +62,7 @@ export function ProjectSettingsModal({ projectId, open, onClose }: Props) {
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+              className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
             >
               Done
             </button>

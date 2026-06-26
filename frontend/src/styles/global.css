@@ -1,3 +1,23 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+@layer base {
+  :root {
+    --color-canvas: 240 244 248;   /* #f0f4f8 */
+    --color-band:   228 234 241;   /* #e4eaf1 */
+    --shadow-soft:        4px 4px 10px rgba(163,177,198,0.6), -4px -4px 10px rgba(255,255,255,0.8);
+    --shadow-soft-sm:     2px 2px 6px rgba(163,177,198,0.5), -2px -2px 6px rgba(255,255,255,0.7);
+    --shadow-soft-inset:  inset 3px 3px 8px rgba(163,177,198,0.5), inset -3px -3px 8px rgba(255,255,255,0.7);
+    --shadow-soft-hover:  6px 6px 14px rgba(163,177,198,0.7), -6px -6px 14px rgba(255,255,255,0.95);
+  }
+
+  .dark {
+    --color-canvas: 30 36 50;      /* #1e2432 */
+    --color-band:   23 28 40;      /* #171c28 */
+    --shadow-soft:        4px 4px 10px rgba(0,0,0,0.5), -4px -4px 10px rgba(255,255,255,0.04);
+    --shadow-soft-sm:     2px 2px 6px rgba(0,0,0,0.4), -2px -2px 6px rgba(255,255,255,0.03);
+    --shadow-soft-inset:  inset 3px 3px 8px rgba(0,0,0,0.5), inset -3px -3px 8px rgba(255,255,255,0.03);
+    --shadow-soft-hover:  6px 6px 14px rgba(0,0,0,0.6), -6px -6px 14px rgba(255,255,255,0.06);
+  }
+}

@@ -18,7 +18,7 @@ export function SprintColumnHeader({ sprint, usedEffort, unit, onEditCapacity }:
   return (
     <div className="p-2 border-b border-white/50 bg-canvas space-y-1">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold text-gray-700">{label}</span>
+        <span className="text-xs font-semibold text-gray-700 dark:text-gray-300">{label}</span>
         {onEditCapacity && (
           <button
             type="button"
@@ -30,7 +30,7 @@ export function SprintColumnHeader({ sprint, usedEffort, unit, onEditCapacity }:
           </button>
         )}
       </div>
-      {dates && <p className="text-xs text-gray-400">{dates}</p>}
+      {dates && <p className="text-xs text-gray-400 dark:text-gray-500">{dates}</p>}
       <CapacityBar used={usedEffort} capacity={sprint.capacity ?? 0} unit={unit} />
     </div>
   )

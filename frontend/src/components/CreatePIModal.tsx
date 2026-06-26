@@ -50,13 +50,13 @@ export function CreatePIModal({ open, projectId, onClose }: Props) {
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-40" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl p-6 w-full max-w-md"
+          className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md"
         >
-          <Dialog.Title className="text-base font-semibold text-gray-900">New PI</Dialog.Title>
+          <Dialog.Title className="text-base font-semibold text-gray-900 dark:text-gray-100">New PI</Dialog.Title>
 
           <form onSubmit={handleSubmit(onSubmit)} className="mt-4 space-y-4">
             <div>
-              <label htmlFor="pi-name" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="pi-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Name <span className="text-red-500">*</span>
               </label>
               <input
@@ -70,7 +70,7 @@ export function CreatePIModal({ open, projectId, onClose }: Props) {
             </div>
 
             <div>
-              <label htmlFor="pi-desc" className="block text-sm font-medium text-gray-700">Description</label>
+              <label htmlFor="pi-desc" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
               <textarea
                 id="pi-desc"
                 {...register('description')}
@@ -81,7 +81,7 @@ export function CreatePIModal({ open, projectId, onClose }: Props) {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="pi-start" className="block text-sm font-medium text-gray-700">Start date</label>
+                <label htmlFor="pi-start" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Start date</label>
                 <Controller
                   name="start_date"
                   control={control}
@@ -96,7 +96,7 @@ export function CreatePIModal({ open, projectId, onClose }: Props) {
                 />
               </div>
               <div>
-                <label htmlFor="pi-end" className="block text-sm font-medium text-gray-700">End date</label>
+                <label htmlFor="pi-end" className="block text-sm font-medium text-gray-700 dark:text-gray-300">End date</label>
                 <Controller
                   name="end_date"
                   control={control}
@@ -118,7 +118,7 @@ export function CreatePIModal({ open, projectId, onClose }: Props) {
 
             <div className="flex justify-end gap-3 pt-2">
               <button type="button" onClick={handleClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600">
                 Cancel
               </button>
               <button type="submit" disabled={isSubmitting}

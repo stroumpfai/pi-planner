@@ -65,7 +65,7 @@ export function BacklogPage({ projectId }: Props) {
       {/* Header */}
       <div className="mb-5">
         <div className="flex items-center justify-between gap-4">
-          <h2 className="text-lg font-semibold text-gray-900">Backlog</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Backlog</h2>
 
           <div className="flex items-center gap-3 shrink-0">
             {/* Hidden file input */}
@@ -81,7 +81,7 @@ export function BacklogPage({ projectId }: Props) {
               onClick={() => setShowClear(true)}
               disabled={!isEditing}
               title={isEditing ? undefined : 'Request Edit Mode to clear features'}
-              className="px-3 py-1.5 text-sm font-medium text-red-600 bg-white border border-red-200 hover:bg-red-50 rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 text-sm font-medium text-red-600 dark:text-red-400 bg-white dark:bg-gray-800 border border-red-200 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Clear
             </button>
@@ -90,7 +90,7 @@ export function BacklogPage({ projectId }: Props) {
               onClick={() => fileInputRef.current?.click()}
               disabled={!isEditing}
               title={isEditing ? undefined : 'Request Edit Mode to import'}
-              className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 hover:bg-gray-50 rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
+              className="px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700 rounded-md disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Import CSV
             </button>
@@ -108,17 +108,17 @@ export function BacklogPage({ projectId }: Props) {
 
         <div className="flex items-center justify-between gap-4 mt-2">
           {/* Sort toggle */}
-          <div className="flex items-center gap-1 text-xs text-gray-500">
+          <div className="flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
             <span>Sort:</span>
             <button
               onClick={() => setSort('created_at')}
-              className={`px-2 py-0.5 rounded ${sort === 'created_at' ? 'bg-gray-200 font-medium text-gray-800' : 'hover:text-gray-700'}`}
+              className={`px-2 py-0.5 rounded ${sort === 'created_at' ? 'bg-gray-200 dark:bg-gray-700 font-medium text-gray-800 dark:text-gray-200' : 'hover:text-gray-700 dark:hover:text-gray-300'}`}
             >
               Newest
             </button>
             <button
               onClick={() => setSort('name')}
-              className={`px-2 py-0.5 rounded ${sort === 'name' ? 'bg-gray-200 font-medium text-gray-800' : 'hover:text-gray-700'}`}
+              className={`px-2 py-0.5 rounded ${sort === 'name' ? 'bg-gray-200 dark:bg-gray-700 font-medium text-gray-800 dark:text-gray-200' : 'hover:text-gray-700 dark:hover:text-gray-300'}`}
             >
               Name
             </button>
@@ -126,17 +126,17 @@ export function BacklogPage({ projectId }: Props) {
 
           {/* Summary chips */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-xs text-gray-400 bg-canvas shadow-soft-sm rounded-full px-2 py-0.5">
+            <span className="text-xs text-gray-400 dark:text-gray-500 bg-canvas shadow-soft-sm rounded-full px-2 py-0.5">
               {backlogFeatures.length} feature{backlogFeatures.length === 1 ? '' : 's'}
             </span>
-            <span className="text-xs text-gray-400 bg-canvas shadow-soft-sm rounded-full px-2 py-0.5">
+            <span className="text-xs text-gray-400 dark:text-gray-500 bg-canvas shadow-soft-sm rounded-full px-2 py-0.5">
               {pbiCount} PBI{pbiCount === 1 ? '' : 's'}
             </span>
-            <span className="text-xs text-gray-400 bg-canvas shadow-soft-sm rounded-full px-2 py-0.5">
+            <span className="text-xs text-gray-400 dark:text-gray-500 bg-canvas shadow-soft-sm rounded-full px-2 py-0.5">
               {bugCount} bug{bugCount === 1 ? '' : 's'}
             </span>
             {totalEffort > 0 && (
-              <span className="text-xs text-gray-400">{totalEffort}{unitSuffix} total</span>
+              <span className="text-xs text-gray-400 dark:text-gray-500">{totalEffort}{unitSuffix} total</span>
             )}
           </div>
         </div>
@@ -145,9 +145,9 @@ export function BacklogPage({ projectId }: Props) {
       {/* Feature list */}
       {isLoading && <div className="text-center py-12 text-gray-400 text-sm">Loading…</div>}
       {!isLoading && backlogFeatures.length === 0 && (
-        <div className="text-center py-16 border border-dashed border-gray-200 rounded-lg">
-          <p className="text-gray-400 font-medium">No features in the backlog</p>
-          <p className="text-gray-400 text-sm mt-1">
+        <div className="text-center py-16 border border-dashed border-gray-200 dark:border-gray-700 rounded-lg">
+          <p className="text-gray-400 dark:text-gray-500 font-medium">No features in the backlog</p>
+          <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">
             {isEditing ? 'Click "+ Feature" to add one.' : 'Request Edit Mode to add features.'}
           </p>
         </div>

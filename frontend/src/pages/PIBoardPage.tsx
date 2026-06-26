@@ -291,9 +291,9 @@ export function PIBoardPage({ projectId, piId }: Props) {
           } as React.CSSProperties}
         >
           {/* Board header: name + PI capacity summary + Add Swimlane */}
-          <div className="flex items-center justify-between px-4 py-[11px] border-b border-white/50 bg-canvas flex-shrink-0 gap-4">
+          <div className="flex items-center justify-between px-4 py-[11px] border-b border-white/50 dark:border-white/5 bg-canvas flex-shrink-0 gap-4">
             <div className="flex items-center gap-2 flex-shrink-0">
-              <h2 className="text-sm font-semibold text-gray-800">{pi?.name ?? 'PI Board'}</h2>
+              <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">{pi?.name ?? 'PI Board'}</h2>
               {pi?.state && <PIStateBadgeInline state={pi.state} />}
             </div>
             {pi && (
@@ -318,7 +318,7 @@ export function PIBoardPage({ projectId, piId }: Props) {
               >
                 Expand All
               </button>
-              <span className="text-gray-200">|</span>
+              <span className="text-gray-200 dark:text-gray-700">|</span>
               <button
                 type="button"
                 onClick={() => setShowCreateSwimline(true)}
@@ -333,16 +333,16 @@ export function PIBoardPage({ projectId, piId }: Props) {
 
           <div className="flex-1 overflow-y-auto">
             {/* Column headers: sticky so they stay visible while swimlanes scroll */}
-            <div className="sticky top-0 z-10 flex border-b border-white/50 bg-canvas flex-shrink-0">
+            <div className="sticky top-0 z-10 flex border-b border-white/50 dark:border-white/5 bg-canvas flex-shrink-0">
               <div
-                className="flex-shrink-0 border-r border-white/50 px-3 py-1.5 relative"
+                className="flex-shrink-0 border-r border-white/50 dark:border-white/5 px-3 py-1.5 relative"
                 style={{ width: 'var(--feature-col-width, 192px)' }}
               >
-                <span className="text-xs font-semibold text-gray-500">Swimlane / Features</span>
+                <span className="text-xs font-semibold text-gray-500 dark:text-gray-400">Swimlane / Features</span>
                 <ResizeHandle onResize={setFeatureColumnWidth} currentWidth={featureColumnWidth} />
               </div>
               {sprints?.map((sprint) => (
-                <div key={sprint.system_id} className="flex-1 border-r border-white/50 last:border-r-0">
+                <div key={sprint.system_id} className="flex-1 border-r border-white/50 dark:border-white/5 last:border-r-0">
                   <SprintColumnHeader
                     sprint={sprint}
                     usedEffort={sprint.effort ?? 0}

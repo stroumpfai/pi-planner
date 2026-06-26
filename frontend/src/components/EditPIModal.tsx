@@ -103,14 +103,14 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-40" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+          className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
         >
-          <Dialog.Title className="text-base font-semibold text-gray-900">Edit PI</Dialog.Title>
+          <Dialog.Title className="text-base font-semibold text-gray-900 dark:text-gray-100">Edit PI</Dialog.Title>
 
           <form onSubmit={handleSubmit(onSubmit)} className="mt-4 space-y-5">
             {/* ── PI fields ── */}
             <div>
-              <label htmlFor="pi-edit-name" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="pi-edit-name" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Name <span className="text-red-500">*</span>
               </label>
               <input
@@ -123,7 +123,7 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
             </div>
 
             <div>
-              <label htmlFor="pi-edit-desc" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="pi-edit-desc" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Description
               </label>
               <textarea
@@ -136,7 +136,7 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label htmlFor="pi-edit-start" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="pi-edit-start" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   PI start date
                 </label>
                 <Controller
@@ -148,7 +148,7 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
                 />
               </div>
               <div>
-                <label htmlFor="pi-edit-end" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="pi-edit-end" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                   PI end date
                 </label>
                 <Controller
@@ -164,10 +164,10 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
             {/* ── Sprint table ── */}
             {sprintRows.length > 0 && (
               <div>
-                <h3 className="text-sm font-medium text-gray-700 mb-2">Sprints</h3>
-                <div className="border border-gray-200 rounded-md overflow-hidden">
+                <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Sprints</h3>
+                <div className="border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
                   <table className="w-full text-sm">
-                    <thead className="bg-gray-50 text-xs text-gray-500 uppercase">
+                    <thead className="bg-gray-50 dark:bg-gray-700 text-xs text-gray-500 dark:text-gray-400 uppercase">
                       <tr>
                         <th className="px-3 py-2 text-left w-20">Sprint</th>
                         <th className="px-3 py-2 text-left w-24">Capacity</th>
@@ -175,10 +175,10 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
                         <th className="px-3 py-2 text-left">End date</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-gray-100">
+                    <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                       {sprintRows.map((row, i) => (
                         <tr key={row.system_id}>
-                          <td className="px-3 py-2 text-gray-600 font-medium">
+                          <td className="px-3 py-2 text-gray-600 dark:text-gray-300 font-medium">
                             Sprint {row.sprint_index + 1}
                           </td>
                           <td className="px-3 py-2">
@@ -187,7 +187,7 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
                               min="0"
                               value={row.capacity}
                               onChange={(e) => updateSprintRow(i, 'capacity', e.target.value)}
-                              className="w-20 border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              className="w-20 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                             />
                           </td>
                           <td className="px-3 py-2">
@@ -195,7 +195,7 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
                               id={`sprint-start-${i}`}
                               value={row.start_date}
                               onChange={(v) => updateSprintRow(i, 'start_date', v)}
-                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                             />
                           </td>
                           <td className="px-3 py-2">
@@ -203,7 +203,7 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
                               id={`sprint-end-${i}`}
                               value={row.end_date}
                               onChange={(v) => updateSprintRow(i, 'end_date', v)}
-                              className="w-full border border-gray-300 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                             />
                           </td>
                         </tr>
@@ -218,7 +218,7 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
               <button
                 type="button"
                 onClick={handleClose}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
               >
                 Cancel
               </button>

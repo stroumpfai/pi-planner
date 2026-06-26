@@ -64,9 +64,9 @@ function InlinePBITitle({ pbi, projectId }: { readonly pbi: PBI; readonly projec
       onClick={start}
       disabled={!isEditing}
       title={isEditing ? 'Click to edit' : undefined}
-      className="text-xs text-gray-600 break-words text-left disabled:cursor-default hover:enabled:text-gray-900 flex-1 min-w-0"
+      className="text-xs text-gray-600 dark:text-gray-300 break-words text-left disabled:cursor-default hover:enabled:text-gray-900 dark:hover:enabled:text-gray-100 flex-1 min-w-0"
     >
-      {showIds && pbi.id != null && <span className="font-mono text-gray-400">[{pbi.id}] </span>}
+      {showIds && pbi.id != null && <span className="font-mono text-gray-400 dark:text-gray-500">[{pbi.id}] </span>}
       {pbi.title}
     </button>
   )
@@ -124,7 +124,7 @@ export function GroupCard({ group, projectId }: Props) {
     setRenaming(false)
   }
 
-  const headerBg = group.is_implicit ? 'bg-blue-50' : ''
+  const headerBg = group.is_implicit ? 'bg-blue-50 dark:bg-blue-900/20' : ''
 
   return (
     <div
@@ -158,7 +158,7 @@ export function GroupCard({ group, projectId }: Props) {
             className="flex-1 text-xs border border-blue-300 rounded px-1 py-0.5 focus:outline-none"
           />
         ) : (
-          <span className={`text-xs font-semibold flex-1 min-w-0 line-clamp-2 break-words ${group.is_implicit ? 'text-blue-700 italic' : 'text-gray-800'}`}>
+          <span className={`text-xs font-semibold flex-1 min-w-0 line-clamp-2 break-words ${group.is_implicit ? 'text-blue-700 dark:text-blue-300 italic' : 'text-gray-800 dark:text-gray-200'}`}>
             {group.name}
           </span>
         )}
@@ -171,7 +171,7 @@ export function GroupCard({ group, projectId }: Props) {
           >✎</button>
         )}
         {totalEffort > 0 && (
-          <span className="flex-shrink-0 text-xs bg-amber-100 text-amber-700 rounded-full shadow-soft-sm px-1.5 py-0.5 font-medium">
+          <span className="flex-shrink-0 text-xs bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 rounded-full shadow-soft-sm px-1.5 py-0.5 font-medium">
             {totalEffort}{showEffortUnit ? effortUnit : ''}
           </span>
         )}
@@ -187,13 +187,13 @@ export function GroupCard({ group, projectId }: Props) {
             return (
               <li key={pbi.system_id} className="flex items-center gap-2 min-w-0">
                 {isBug && (
-                  <span className="flex-shrink-0 text-xs font-medium bg-red-50 text-red-600 border border-red-200 px-1.5 rounded">
+                  <span className="flex-shrink-0 text-xs font-medium bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 px-1.5 rounded">
                     Bug
                   </span>
                 )}
                 <InlinePBITitle pbi={pbi} projectId={projectId} />
                 {effortLabel && (
-                  <span className="ml-auto flex-shrink-0 text-xs font-mono bg-[#e4eaf1] text-gray-500 px-1.5 py-0.5 rounded-full">
+                  <span className="ml-auto flex-shrink-0 text-xs font-mono bg-band text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded-full">
                     {effortLabel}
                   </span>
                 )}
@@ -209,7 +209,7 @@ export function GroupCard({ group, projectId }: Props) {
           <select
             value={group.sprint_index ?? 0}
             onChange={handleMoveSprint}
-            className="text-xs border-0 bg-transparent text-gray-500 focus:outline-none cursor-pointer flex-1"
+            className="text-xs border-0 bg-transparent text-gray-500 dark:text-gray-400 focus:outline-none cursor-pointer flex-1"
             title="Move to sprint"
           >
             {SPRINT_LABELS.map((label, i) => (

@@ -125,7 +125,7 @@ export function ProjectListPage() {
   return (
     <div className="max-w-2xl mx-auto py-10 px-4">
       <div className="flex items-center justify-between mb-6">
-        <h1 className="text-xl font-semibold text-gray-900">Projects</h1>
+        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Projects</h1>
         {canEdit && (
           <div className="flex items-center gap-2">
             <ImportButton />
@@ -140,22 +140,22 @@ export function ProjectListPage() {
       </div>
 
       {projects?.length === 0 ? (
-        <div className="text-center py-16 text-gray-400 bg-canvas shadow-soft rounded-xl">
+        <div className="text-center py-16 text-gray-400 dark:text-gray-500 bg-canvas shadow-soft rounded-xl">
           <p className="text-lg font-medium">No projects yet</p>
           <p className="text-sm mt-1">Create your first project to get started.</p>
         </div>
       ) : (
         <ul className="divide-y divide-white/60 shadow-soft rounded-xl bg-canvas">
           {projects?.map((project) => (
-            <li key={project.system_id} className="px-4 py-4 hover:bg-[#e4eaf1]/40">
+            <li key={project.system_id} className="px-4 py-4 hover:bg-band/40">
               <div className="flex items-start gap-4">
                 <button
                   className="flex-1 min-w-0 text-left"
                   onClick={() => setActiveProject(project.system_id)}
                 >
-                  <p className="text-sm font-medium text-gray-900">{project.name}</p>
+                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.name}</p>
                   {project.description && (
-                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">{project.description}</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">{project.description}</p>
                   )}
                 </button>
                 {canEdit && (

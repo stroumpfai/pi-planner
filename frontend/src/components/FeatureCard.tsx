@@ -76,20 +76,20 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
         {...listeners}
       >
         <span
-          className="text-sm text-gray-900 leading-snug flex-1 min-w-0 line-clamp-2"
+          className="text-sm text-gray-900 dark:text-gray-100 leading-snug flex-1 min-w-0 line-clamp-2"
           title={feature.title}
         >
-          <span className="text-gray-400 font-mono text-xs">{idPrefix}</span>
+          <span className="text-gray-400 dark:text-gray-500 font-mono text-xs">{idPrefix}</span>
           {feature.title}
         </span>
         {feature.effort != null && (
-          <span className="flex-shrink-0 text-xs bg-purple-100 text-purple-700 rounded-full shadow-soft-sm px-1.5 py-0.5 font-medium">
+          <span className="flex-shrink-0 text-xs bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-full shadow-soft-sm px-1.5 py-0.5 font-medium">
             {feature.effort}{showEffortUnit ? effortUnit : ''}
           </span>
         )}
         {isFullyPlanned && (
           <span
-            className="flex-shrink-0 text-xs bg-green-100 text-green-700 rounded-full shadow-soft-sm px-1.5 py-0.5 font-medium"
+            className="flex-shrink-0 text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-full shadow-soft-sm px-1.5 py-0.5 font-medium"
             title="All PBIs assigned to sprints"
           >
             ✓
@@ -102,7 +102,7 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v) }}
-          className="text-xs text-gray-400 hover:text-blue-500"
+          className="text-xs text-gray-400 dark:text-gray-500 hover:text-blue-500"
           title={expanded ? 'Hide PBIs' : 'Select PBIs to group'}
         >
           {expanded ? '▾ PBIs' : '▸ PBIs'}
@@ -113,7 +113,7 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
           onClick={handleReturnToBacklog}
           disabled={!isEditing || updateFeature.isPending}
           title={isEditing ? 'Return to backlog' : 'Request Edit Mode to move features'}
-          className="text-xs text-gray-400 hover:text-red-500 disabled:text-gray-200 disabled:cursor-not-allowed ml-auto"
+          className="text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 disabled:text-gray-200 dark:disabled:text-gray-700 disabled:cursor-not-allowed ml-auto"
         >
           ← Backlog
         </button>
@@ -143,7 +143,7 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
             <button
               type="button"
               onClick={() => onCreateGroup?.(feature.system_id, [])}
-              className="w-full mt-1 text-xs border border-blue-400 text-blue-600 rounded px-2 py-1 hover:bg-blue-50"
+              className="w-full mt-1 text-xs border border-blue-400 text-blue-600 rounded px-2 py-1 hover:bg-blue-50 dark:hover:bg-blue-900/30"
             >
               + New Group (empty)
             </button>
