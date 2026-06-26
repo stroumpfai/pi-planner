@@ -27,6 +27,8 @@ import { useSettingsStore } from '@/stores/settingsStore'
 import { useSwimlaneCollapseStore } from '@/stores/swimlaneCollapseStore'
 import { usePIs } from '@/hooks/usePIs'
 import { useEffortUnit } from '@/hooks/useProjects'
+import { downloadPICSV, downloadPIPNG } from '@/services/pis'
+import { toast } from '@/stores/toastStore'
 import { useMaxTextWidth } from '@/hooks/useMaxTextWidth'
 import { SwimlaneRow } from '@/components/SwimlaneRow'
 import { CreateSwimlaneModal } from '@/components/CreateSwimlaneModal'
@@ -141,6 +143,8 @@ export function PIBoardPage({ projectId, piId }: Props) {
   const [showCreateSwimline, setShowCreateSwimline] = useState(false)
   const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null)
   const [editCapacitySprint, setEditCapacitySprint] = useState<Sprint | null>(null)
+  const [exportingCsv, setExportingCsv] = useState(false)
+  const [exportingPng, setExportingPng] = useState(false)
   const isEditing = useAuthStore((s) => s.isEditing)
   const featureColumnWidth = useSettingsStore((s) => s.featureColumnWidth)
   const setFeatureColumnWidth = useSettingsStore((s) => s.setFeatureColumnWidth)
@@ -163,6 +167,30 @@ export function PIBoardPage({ projectId, piId }: Props) {
   const setAllSwimlanesCollapsed = useSwimlaneCollapseStore((s) => s.setAll)
   const swimlaneNames = useMemo(() => swimlines?.map((s) => s.name) ?? [], [swimlines])
   const swimlaneTitleWidth = useMaxTextWidth(swimlaneNames, 'text-sm font-semibold', SWIMLANE_TITLE_MAX_WIDTH)
+
+  async function handleExportCsv() {
+    if (!pi) return
+    setExportingCsv(true)
+    try {
+      await downloadPICSV(piId, pi.name)
+    } catch {
+      toast.error('CSV export failed')
+    } finally {
+      setExportingCsv(false)
+    }
+  }
+
+  async function handleExportPng() {
+    if (!pi) return
+    setExportingPng(true)
+    try {
+      await downloadPIPNG(piId, pi.name)
+    } catch {
+      toast.error('PNG export failed')
+    } finally {
+      setExportingPng(false)
+    }
+  }
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -317,6 +345,25 @@ export function PIBoardPage({ projectId, piId }: Props) {
                 className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-300 disabled:cursor-not-allowed font-medium"
               >
                 Expand All
+              </button>
+              <span className="text-gray-200 dark:text-gray-700">|</span>
+              <button
+                type="button"
+                onClick={() => void handleExportCsv()}
+                disabled={exportingCsv || !pi}
+                title="Export PI as CSV"
+                className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-300 disabled:cursor-not-allowed font-medium"
+              >
+                {exportingCsv ? 'Exporting…' : 'Export CSV'}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleExportPng()}
+                disabled={exportingPng || !pi}
+                title="Export PI as PNG image"
+                className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-300 disabled:cursor-not-allowed font-medium"
+              >
+                {exportingPng ? 'Exporting…' : 'Export PNG'}
               </button>
               <span className="text-gray-200 dark:text-gray-700">|</span>
               <button

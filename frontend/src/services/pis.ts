@@ -17,3 +17,26 @@ export const pisApi = {
   delete: (piId: string) =>
     api.delete(`/pis/${piId}`),
 }
+
+async function _downloadBlob(url: string, fallbackName: string): Promise<void> {
+  const resp = await fetch(url, { credentials: 'include' })
+  if (!resp.ok) throw new Error(`Export failed: ${resp.status}`)
+  const blob = await resp.blob()
+  const disposition = resp.headers.get('Content-Disposition') ?? ''
+  const match = /filename="?([^"]+)"?/.exec(disposition)
+  const filename = match?.[1] ?? fallbackName
+  const href = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = href
+  a.download = filename
+  a.click()
+  URL.revokeObjectURL(href)
+}
+
+export function downloadPICSV(piId: string, piName: string): Promise<void> {
+  return _downloadBlob(`/api/v1/pis/${piId}/export/csv`, `${piName}.csv`)
+}
+
+export function downloadPIPNG(piId: string, piName: string): Promise<void> {
+  return _downloadBlob(`/api/v1/pis/${piId}/export/png`, `${piName}.png`)
+}

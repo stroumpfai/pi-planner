@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,6 +17,7 @@ from app.models.user import User
 from app.schemas import PICreate, PIResponse, PIUpdate
 from app.services.effort import pi_effort_and_capacity
 from app.services.events import broadcaster
+from app.services.pi_export import export_pi_csv, export_pi_png, safe_filename
 
 router = APIRouter(tags=["pis"])
 
@@ -180,3 +182,35 @@ async def delete_pi(
     await db.delete(pi)
     await db.commit()
     await broadcaster.broadcast(project_id, "pi:deleted", {"system_id": pi_id})
+
+
+@router.get("/api/v1/pis/{pi_id}/export/csv")
+async def export_pi_csv_endpoint(
+    pi_id: str,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
+) -> Response:
+    pi = await _get_or_404(db, pi_id)
+    content = await export_pi_csv(db, pi)
+    fname = safe_filename(pi.name) + ".csv"
+    return Response(
+        content=content,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+@router.get("/api/v1/pis/{pi_id}/export/png")
+async def export_pi_png_endpoint(
+    pi_id: str,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
+) -> Response:
+    pi = await _get_or_404(db, pi_id)
+    content = await export_pi_png(db, pi)
+    fname = safe_filename(pi.name) + ".png"
+    return Response(
+        content=content,
+        media_type="image/png",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
