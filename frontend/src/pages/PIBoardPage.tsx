@@ -291,7 +291,7 @@ export function PIBoardPage({ projectId, piId }: Props) {
           } as React.CSSProperties}
         >
           {/* Board header: name + PI capacity summary + Add Swimlane */}
-          <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 bg-white flex-shrink-0 gap-4">
+          <div className="flex items-center justify-between px-4 py-[11px] border-b border-gray-200 bg-white flex-shrink-0 gap-4">
             <div className="flex items-center gap-2 flex-shrink-0">
               <h2 className="text-sm font-semibold text-gray-800">{pi?.name ?? 'PI Board'}</h2>
               {pi?.state && <PIStateBadgeInline state={pi.state} />}

@@ -70,7 +70,7 @@ export function BacklogPanel({ projectId }: Props) {
 
   return (
     <div className="flex flex-col h-full border-r border-gray-200 bg-white w-48 flex-shrink-0">
-      <div className="px-3 py-2 border-b border-gray-200 bg-gray-50 flex items-center gap-2">
+      <div className="px-3 py-4 border-b border-gray-200 bg-gray-50 flex items-center gap-2">
         <span className="text-xs font-semibold text-gray-600">Backlog</span>
         <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-1.5">
           {backlogFeatures.length}
