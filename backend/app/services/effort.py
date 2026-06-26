@@ -54,7 +54,7 @@ async def pi_effort_and_capacity(db: AsyncSession, pi_id: str) -> tuple[float, i
         select(func.coalesce(func.sum(Sprint.capacity), 0))
         .where(Sprint.pi_id == pi_id)
     )
-    return float(effort_result.scalar_one()), int(capacity_result.scalar_one())
+    return float(effort_result.scalar_one() or 0), int(capacity_result.scalar_one() or 0)
 
 
 async def feature_efforts(db: AsyncSession, feature_ids: list[str]) -> dict[str, float]:

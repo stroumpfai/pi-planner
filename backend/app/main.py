@@ -7,9 +7,10 @@ import os
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "WARNING").upper(), force=True)
 
 import time
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -44,7 +45,7 @@ logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     if settings.secret_key == "change-me":
         raise RuntimeError("SECRET_KEY is not configured. Set a strong random value in .env")
     async with AsyncSessionLocal() as db:
@@ -94,8 +95,8 @@ if settings.allow_test_reset:
 
 
 @app.get("/health")
-async def health(db: Annotated[AsyncSession, Depends(get_session)]) -> dict:
-    components: dict = {}
+async def health(db: Annotated[AsyncSession, Depends(get_session)]) -> dict[str, Any]:
+    components: dict[str, Any] = {}
     overall = "healthy"
 
     # Database check

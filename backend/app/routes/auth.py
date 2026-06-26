@@ -8,6 +8,7 @@ from app.database import get_session
 from app.middleware.deps import get_current_user
 from app.models.user import User
 from app.schemas import ChangePassword, LoginRequest, TokenResponse, UserResponse
+from app.services import users as users_service
 from app.services.auth import (
     SESSION_COOKIE,
     SESSION_MAX_AGE_NORMAL,
@@ -21,7 +22,6 @@ from app.services.auth import (
     unsign_session_token,
     verify_password,
 )
-from app.services import users as users_service
 from app.services.rate_limit import clear_failures, is_rate_limited, record_failure
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])

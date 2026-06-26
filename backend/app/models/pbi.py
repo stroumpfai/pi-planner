@@ -1,12 +1,20 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from sqlalchemy import Float, ForeignKey, Index, Integer, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+if TYPE_CHECKING:
+    from app.models.feature import Feature
+    from app.models.group import Group
+    from app.models.pi import PI
+    from app.models.project import Project
+    from app.models.swimline import Swimline
 
 
 class PBI(Base):
@@ -15,7 +23,9 @@ class PBI(Base):
     system_id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: str(uuid4()))
     project_id: Mapped[str] = mapped_column(Text, ForeignKey("projects.system_id"), nullable=False)
     user_id: Mapped[int | None] = mapped_column(Integer)
-    parent_feature_system_id: Mapped[str] = mapped_column(Text, ForeignKey("features.system_id", ondelete="CASCADE"), nullable=False)
+    parent_feature_system_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("features.system_id", ondelete="CASCADE"), nullable=False
+    )
     title: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     effort: Mapped[float | None] = mapped_column(Float)

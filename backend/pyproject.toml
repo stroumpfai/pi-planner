@@ -6,31 +6,31 @@ build-backend = "setuptools.build_meta"
 name = "pi-planning-backend"
 version = "0.1.0"
 description = "PI Planning Web Application — Backend API"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.104.0",
-    "uvicorn[standard]>=0.23.0",
-    "sqlalchemy>=2.0.0",
-    "alembic>=1.12.0",
-    "aiosqlite>=0.19.0",
-    "pydantic>=2.0.0",
-    "pydantic-settings>=2.0.0",
-    "python-multipart>=0.0.6",
-    "argon2-cffi>=23.1",
-    "itsdangerous>=2.1.0",
-    "pyjwt>=2.8",
-    "python-dotenv>=1.0.0",
+    "fastapi>=0.138.1",
+    "uvicorn[standard]>=0.49.0",
+    "sqlalchemy>=2.0.51",
+    "alembic>=1.18.5",
+    "aiosqlite>=0.22.1",
+    "pydantic>=2.13.4",
+    "pydantic-settings>=2.14.2",
+    "python-multipart>=0.0.32",
+    "argon2-cffi>=25.1.0",
+    "itsdangerous>=2.2.0",
+    "pyjwt>=2.13.0",
+    "python-dotenv>=1.2.2",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.4.0",
-    "pytest-cov>=4.1.0",
-    "pytest-asyncio>=0.21.0",
-    "httpx>=0.24.0",
-    "black>=23.0.0",
-    "ruff>=0.1.0",
-    "mypy>=1.4.0",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "pytest-asyncio>=1.4.0",
+    "httpx>=0.28.1",
+    "black>=26.5.1",
+    "ruff>=0.15.20",
+    "mypy>=2.1.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -53,10 +53,15 @@ exclude_lines = [
 ]
 
 [tool.ruff]
-line-length = 88
+line-length = 120
+
+[tool.ruff.lint]
 select = ["E", "F", "I"]
 
+[tool.ruff.lint.per-file-ignores]
+"app/main.py" = ["E402"]
+
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 strict = true
 ignore_missing_imports = true

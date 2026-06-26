@@ -1,12 +1,12 @@
 """Test-only reset endpoint — only mounted when ALLOW_TEST_RESET=true."""
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.models import EditLock, Group, PBI, Feature, Sprint, Swimline, PI, Project, Session
+from app.models import PBI, PI, EditLock, Feature, Group, Project, Session, Sprint, Swimline
 
 router = APIRouter(prefix="/api/v1/test", tags=["test"])
 

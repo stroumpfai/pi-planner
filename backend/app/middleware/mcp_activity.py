@@ -6,6 +6,8 @@ is appended to the activity_logs table. The JWT is validated here to prevent
 arbitrary callers from forging activity log entries via header spoofing.
 """
 
+from collections.abc import Awaitable, Callable
+
 import jwt as pyjwt
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -39,7 +41,7 @@ def _has_valid_service_jwt(authorization: str | None) -> bool:
 
 
 class MCPActivityMiddleware(BaseHTTPMiddleware):
-    async def dispatch(self, request: Request, call_next) -> Response:
+    async def dispatch(self, request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
         response = await call_next(request)
 
         actor = request.headers.get("X-MCP-Actor")

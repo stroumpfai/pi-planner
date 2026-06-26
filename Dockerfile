@@ -17,18 +17,18 @@ WORKDIR /app
 
 # Install Python dependencies (separate layer for cache efficiency)
 RUN pip install --no-cache-dir \
-    "fastapi>=0.104.0" \
-    "uvicorn[standard]>=0.23.0" \
-    "sqlalchemy>=2.0.0" \
-    "alembic>=1.12.0" \
-    "aiosqlite>=0.19.0" \
-    "pydantic>=2.0.0" \
-    "pydantic-settings>=2.0.0" \
-    "python-multipart>=0.0.6" \
-    "argon2-cffi>=23.1" \
-    "itsdangerous>=2.1.0" \
-    "pyjwt>=2.8" \
-    "python-dotenv>=1.0.0"
+    "fastapi>=0.138.1" \
+    "uvicorn[standard]>=0.49.0" \
+    "sqlalchemy>=2.0.51" \
+    "alembic>=1.18.5" \
+    "aiosqlite>=0.22.1" \
+    "pydantic>=2.13.4" \
+    "pydantic-settings>=2.14.2" \
+    "python-multipart>=0.0.32" \
+    "argon2-cffi>=25.1.0" \
+    "itsdangerous>=2.2.0" \
+    "pyjwt>=2.13.0" \
+    "python-dotenv>=1.2.2"
 
 # Copy backend source and migrations
 COPY backend/app/ ./app/

@@ -171,7 +171,7 @@ async def execute_import(
     errors = _validate_rows(rows)
     if errors:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"errors": [e.model_dump() for e in errors]},
         )
 
@@ -179,7 +179,7 @@ async def execute_import(
     cross_errors = _cross_entity_errors(rows, feature_map, pbi_map)
     if cross_errors:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"errors": [e.model_dump() for e in cross_errors]},
         )
 

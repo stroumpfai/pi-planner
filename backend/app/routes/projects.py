@@ -1,23 +1,23 @@
 import json
 from datetime import date, datetime, timezone
-from typing import Annotated
+from typing import Annotated, Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
 from app.middleware.deps import get_current_user, require_editor_or_above
 from app.models.feature import Feature
+from app.models.group import Group
 from app.models.pbi import PBI
 from app.models.pi import PI
 from app.models.project import Project
 from app.models.sprint import Sprint
 from app.models.swimline import Swimline
-from app.models.group import Group
 from app.models.user import User
 from app.schemas import ProjectCreate, ProjectResponse, ProjectUpdate
 from app.services.events import broadcaster
@@ -124,7 +124,7 @@ async def _unique_project_name(db: AsyncSession, base_name: str) -> str:
         suffix += 1
 
 
-def _validate_import_payload(payload: object) -> dict:
+def _validate_import_payload(payload: object) -> dict[str, Any]:
     if not isinstance(payload, dict) or "version" not in payload or "project" not in payload:
         raise HTTPException(
             status_code=422,
@@ -159,7 +159,7 @@ def _require_remap(id_map: dict[str, str], old_id: str | None, context: str) -> 
     return id_map[old_id]
 
 
-def _build_id_map(proj_data: dict, new_project_id: str) -> dict[str, str]:
+def _build_id_map(proj_data: dict[str, Any], new_project_id: str) -> dict[str, str]:
     id_map: dict[str, str] = {proj_data["system_id"]: new_project_id}
     for f in proj_data["features"]:
         id_map[f["system_id"]] = str(uuid4())
@@ -184,7 +184,9 @@ def _remap(id_map: dict[str, str], old_id: str | None) -> str | None:
     return id_map[old_id] if old_id and old_id in id_map else None
 
 
-def _add_pi_structures(db: AsyncSession, proj_data: dict, new_project_id: str, id_map: dict[str, str]) -> None:
+def _add_pi_structures(
+    db: AsyncSession, proj_data: dict[str, Any], new_project_id: str, id_map: dict[str, str]
+) -> None:
     for pi in proj_data["pis"]:
         new_pi_id = id_map[pi["system_id"]]
         db.add(PI(
@@ -214,7 +216,7 @@ def _add_pi_structures(db: AsyncSession, proj_data: dict, new_project_id: str, i
             ))
 
 
-def _add_features(db: AsyncSession, proj_data: dict, new_project_id: str, id_map: dict[str, str]) -> None:
+def _add_features(db: AsyncSession, proj_data: dict[str, Any], new_project_id: str, id_map: dict[str, str]) -> None:
     for f in proj_data["features"]:
         db.add(Feature(
             system_id=id_map[f["system_id"]],
@@ -228,7 +230,7 @@ def _add_features(db: AsyncSession, proj_data: dict, new_project_id: str, id_map
         ))
 
 
-def _add_groups(db: AsyncSession, proj_data: dict, id_map: dict[str, str]) -> None:
+def _add_groups(db: AsyncSession, proj_data: dict[str, Any], id_map: dict[str, str]) -> None:
     for pi in proj_data["pis"]:
         for sl in pi.get("swimlines", []):
             new_sl_id = id_map[sl["system_id"]]
@@ -244,7 +246,7 @@ def _add_groups(db: AsyncSession, proj_data: dict, id_map: dict[str, str]) -> No
                 ))
 
 
-def _add_pbis(db: AsyncSession, proj_data: dict, new_project_id: str, id_map: dict[str, str]) -> None:
+def _add_pbis(db: AsyncSession, proj_data: dict[str, Any], new_project_id: str, id_map: dict[str, str]) -> None:
     for p in proj_data["pbis"]:
         db.add(PBI(
             system_id=id_map[p["system_id"]],

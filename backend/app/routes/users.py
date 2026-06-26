@@ -85,7 +85,8 @@ async def update_user(
     )
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=_USER_NOT_FOUND)
-    changed = {k: v for k, v in {"display_name": body.display_name, "role": body.role.value if body.role else None}.items() if k in body.model_fields_set}
+    all_fields = {"display_name": body.display_name, "role": body.role.value if body.role else None}
+    changed = {k: v for k, v in all_fields.items() if k in body.model_fields_set}
     await log_activity(
         db,
         actor_type=ActorType.human,

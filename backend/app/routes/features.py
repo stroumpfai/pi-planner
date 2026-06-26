@@ -1,9 +1,10 @@
 from datetime import datetime, timezone
-
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import delete as sql_delete, func, select, update as sql_update
+from sqlalchemy import delete as sql_delete
+from sqlalchemy import func, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
@@ -59,6 +60,7 @@ async def _apply_metadata_fields(
 
 
 async def _apply_move_to_swimlane(db: AsyncSession, feature: Feature, body: FeatureUpdate, fields: set[str]) -> None:
+    assert body.swimlane_id is not None  # guaranteed by caller check
     swimline = await db.get(Swimline, body.swimlane_id)
     if not swimline:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Swimline not found")

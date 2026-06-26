@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from sqlalchemy import Boolean, ForeignKey, Index, Integer, Text, func, text
@@ -8,13 +9,20 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
+if TYPE_CHECKING:
+    from app.models.feature import Feature
+    from app.models.pbi import PBI
+    from app.models.swimline import Swimline
+
 
 class Group(Base):
     __tablename__ = "groups"
 
     system_id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: str(uuid4()))
     swimline_id: Mapped[str] = mapped_column(Text, ForeignKey("swimlines.system_id"), nullable=False)
-    feature_system_id: Mapped[str] = mapped_column(Text, ForeignKey("features.system_id", ondelete="CASCADE"), nullable=False)
+    feature_system_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("features.system_id", ondelete="CASCADE"), nullable=False
+    )
     name: Mapped[str] = mapped_column(Text, nullable=False)
     sprint_index: Mapped[int | None] = mapped_column(Integer)
     order_index: Mapped[int | None] = mapped_column(Integer)

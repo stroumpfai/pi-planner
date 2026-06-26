@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -15,7 +16,7 @@ async def log_activity(
     resource_type: str | None = None,
     resource_id: str | None = None,
     project_id: str | None = None,
-    details: dict | None = None,
+    details: dict[str, Any] | None = None,
     api_key_id: str | None = None,
     status: str = "success",
 ) -> None:

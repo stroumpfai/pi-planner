@@ -1,5 +1,5 @@
 from datetime import date, datetime, timezone
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import delete, select
@@ -44,7 +44,7 @@ def _opt_date(value: str | None) -> date | None:
     return date.fromisoformat(value) if value else None
 
 
-def _add_pi_structures(db: AsyncSession, proj_data: dict, project_id: str) -> None:
+def _add_pi_structures(db: AsyncSession, proj_data: dict[str, Any], project_id: str) -> None:
     for pi in proj_data["pis"]:
         db.add(PI(
             system_id=pi["system_id"],
@@ -73,7 +73,7 @@ def _add_pi_structures(db: AsyncSession, proj_data: dict, project_id: str) -> No
             ))
 
 
-def _add_features(db: AsyncSession, proj_data: dict, project_id: str) -> None:
+def _add_features(db: AsyncSession, proj_data: dict[str, Any], project_id: str) -> None:
     for f in proj_data["features"]:
         db.add(Feature(
             system_id=f["system_id"],
@@ -87,7 +87,7 @@ def _add_features(db: AsyncSession, proj_data: dict, project_id: str) -> None:
         ))
 
 
-def _add_groups(db: AsyncSession, proj_data: dict) -> None:
+def _add_groups(db: AsyncSession, proj_data: dict[str, Any]) -> None:
     for pi in proj_data["pis"]:
         for sl in pi.get("swimlines", []):
             for g in sl.get("groups", []):
@@ -102,7 +102,7 @@ def _add_groups(db: AsyncSession, proj_data: dict) -> None:
                 ))
 
 
-def _add_pbis(db: AsyncSession, proj_data: dict, project_id: str) -> None:
+def _add_pbis(db: AsyncSession, proj_data: dict[str, Any], project_id: str) -> None:
     for p in proj_data["pbis"]:
         db.add(PBI(
             system_id=p["system_id"],
@@ -149,7 +149,9 @@ async def create_snapshot(
         project_id=project_id,
         details={"name": snapshot.name},
     )
-    await broadcaster.broadcast(project_id, "snapshot:created", {"system_id": snapshot.system_id, "name": snapshot.name})
+    await broadcaster.broadcast(
+        project_id, "snapshot:created", {"system_id": snapshot.system_id, "name": snapshot.name}
+    )
     return SnapshotResponse.model_validate(snapshot)
 
 

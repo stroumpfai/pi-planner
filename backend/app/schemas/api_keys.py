@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -54,7 +55,7 @@ class ActivityLogResponse(BaseModel):
     resource_type: str | None
     resource_id: str | None
     project_id: str | None
-    details: dict | None
+    details: dict[str, Any] | None
     timestamp: datetime
     status: str
 

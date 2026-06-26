@@ -1,5 +1,5 @@
 from datetime import timedelta
-from typing import Annotated
+from typing import Annotated, Any
 
 import jwt as pyjwt
 from fastapi import Cookie, Depends, Header, HTTPException, Request, status
@@ -8,12 +8,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.database import get_session
 from app.models.user import Role, User
+from app.services import users as users_service
 from app.services.auth import (
     SESSION_COOKIE,
     get_user_from_session_id,
     unsign_session_token,
 )
-from app.services import users as users_service
 
 _BEARER_PREFIX = "Bearer "
 
@@ -25,7 +25,7 @@ def _extract_bearer(authorization: str | None) -> str | None:
     return None
 
 
-def _decode_service_jwt(token: str) -> dict | None:
+def _decode_service_jwt(token: str) -> dict[str, Any] | None:
     """Decode and validate a service JWT. Returns claims dict or None on failure.
 
     Caller must ensure mcp_signing_secret is configured before calling.

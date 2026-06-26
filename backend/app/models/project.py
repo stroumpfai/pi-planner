@@ -1,12 +1,20 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from sqlalchemy import Index, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+if TYPE_CHECKING:
+    from app.models.edit_lock import EditLock
+    from app.models.feature import Feature
+    from app.models.pbi import PBI
+    from app.models.pi import PI
+    from app.models.project_snapshot import ProjectSnapshot
 
 _CASCADE = "all, delete-orphan"
 
@@ -24,7 +32,11 @@ class Project(Base):
     pis: Mapped[list[PI]] = relationship("PI", back_populates="project", cascade=_CASCADE)
     features: Mapped[list[Feature]] = relationship("Feature", back_populates="project", cascade=_CASCADE)
     pbis: Mapped[list[PBI]] = relationship("PBI", back_populates="project", cascade=_CASCADE)
-    edit_lock: Mapped[EditLock | None] = relationship("EditLock", back_populates="project", uselist=False, cascade=_CASCADE)
-    snapshots: Mapped[list[ProjectSnapshot]] = relationship("ProjectSnapshot", back_populates="project", cascade=_CASCADE)
+    edit_lock: Mapped[EditLock | None] = relationship(
+        "EditLock", back_populates="project", uselist=False, cascade=_CASCADE
+    )
+    snapshots: Mapped[list[ProjectSnapshot]] = relationship(
+        "ProjectSnapshot", back_populates="project", cascade=_CASCADE
+    )
 
     __table_args__ = (Index("idx_projects_name", "name"),)

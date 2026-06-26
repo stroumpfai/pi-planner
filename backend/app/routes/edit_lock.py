@@ -18,7 +18,9 @@ router = APIRouter(tags=["edit-lock"])
 
 def _lock_response(lock: EditLock | None) -> EditLockResponse:
     if lock is None:
-        return EditLockResponse(project_id="", locked_by_username=None, locked_at=None, expires_at=None, is_locked=False)
+        return EditLockResponse(
+            project_id="", locked_by_username=None, locked_at=None, expires_at=None, is_locked=False
+        )
     now = datetime.now(timezone.utc)
     is_locked = bool(lock.expires_at and lock.expires_at.replace(tzinfo=timezone.utc) > now)
     return EditLockResponse(

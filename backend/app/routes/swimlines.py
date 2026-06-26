@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -9,7 +8,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_session
 from app.middleware.deps import get_current_user
 from app.models.feature import Feature
-from app.models.group import Group
 from app.models.pi import PI
 from app.models.swimline import Swimline
 from app.models.user import User

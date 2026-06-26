@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import Enum as SAEnum, ForeignKey, Index, Integer, String, Text
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy import ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.types import JSON
 
@@ -30,7 +32,7 @@ class ActivityLog(Base):
     resource_type: Mapped[str | None] = mapped_column(String, nullable=True)
     resource_id: Mapped[str | None] = mapped_column(String, nullable=True)
     project_id: Mapped[str | None] = mapped_column(String, nullable=True)
-    details: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    details: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
     timestamp: Mapped[datetime] = mapped_column(nullable=False)
     status: Mapped[str] = mapped_column(String, nullable=False, default="success")
 

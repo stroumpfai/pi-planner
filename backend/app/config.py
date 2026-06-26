@@ -20,7 +20,8 @@ class Settings(BaseSettings):
     def get_allowed_origins(self) -> list[str]:
         v = self.allowed_origins.strip()
         if v.startswith("["):
-            return json.loads(v)
+            result: list[str] = json.loads(v)
+            return result
         return [o.strip() for o in v.split(",") if o.strip()]
 
 

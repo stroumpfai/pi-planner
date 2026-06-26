@@ -5,11 +5,10 @@ from uuid import uuid4
 
 from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
+from fastapi import HTTPException
 from itsdangerous import BadSignature, URLSafeTimedSerializer
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
-
-from fastapi import HTTPException
 
 from app.config import settings
 from app.models.api_key import APIKey
@@ -49,7 +48,10 @@ def assert_password_policy(password: str, username: str) -> None:
     if password.lower() in _COMMON_PASSWORDS:
         raise HTTPException(
             status_code=422,
-            detail={"error": "COMMON_PASSWORD", "message": "This password is too commonly used, please choose a more unique one"},
+            detail={
+                "error": "COMMON_PASSWORD",
+                "message": "This password is too commonly used, please choose a more unique one",
+            },
         )
 
 
@@ -74,7 +76,8 @@ def sign_session_id(session_id: str) -> str:
 
 def unsign_session_token(token: str) -> str | None:
     try:
-        return _signer.loads(token, max_age=SESSION_MAX_AGE_REMEMBER)
+        session_id: str = _signer.loads(token, max_age=SESSION_MAX_AGE_REMEMBER)
+        return session_id
     except BadSignature:
         return None
 

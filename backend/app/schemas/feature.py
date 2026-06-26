@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -38,7 +38,7 @@ class FeatureResponse(BaseModel):
 
     @field_validator("effort", mode="before")
     @classmethod
-    def coerce_none_to_zero(cls, v: object) -> float:
+    def coerce_none_to_zero(cls, v: Any) -> float:
         return float(v) if v is not None else 0.0
 
 

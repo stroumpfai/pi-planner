@@ -1,5 +1,4 @@
 from datetime import datetime, timezone
-
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -183,12 +182,12 @@ async def place_story_in_sprint(
     feature = await db.get(Feature, pbi.parent_feature_system_id)
     if not feature or feature.location != "pi":
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"error": "FEATURE_NOT_IN_PI", "message": "Parent feature must be in a PI"},
         )
     if not feature.swimlane_id:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"error": "FEATURE_NOT_IN_SWIMLANE", "message": "Parent feature has no swimlane"},
         )
 
@@ -211,7 +210,9 @@ async def place_story_in_sprint(
     await db.refresh(group)
     await db.refresh(pbi)
 
-    await broadcaster.broadcast(pbi.project_id, _EVT_GROUP_CREATED, {"system_id": group.system_id, "swimlane_id": group.swimline_id})
+    await broadcaster.broadcast(
+        pbi.project_id, _EVT_GROUP_CREATED, {"system_id": group.system_id, "swimlane_id": group.swimline_id}
+    )
     await broadcaster.broadcast(pbi.project_id, _EVT_PBI_UPDATED, {"system_id": pbi_id})
 
     return PlaceStoryResponse(

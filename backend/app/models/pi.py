@@ -1,12 +1,20 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from typing import TYPE_CHECKING
 from uuid import uuid4
 
 from sqlalchemy import Date, ForeignKey, Index, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+
+if TYPE_CHECKING:
+    from app.models.feature import Feature
+    from app.models.pbi import PBI
+    from app.models.project import Project
+    from app.models.sprint import Sprint
+    from app.models.swimline import Swimline
 
 
 class PI(Base):

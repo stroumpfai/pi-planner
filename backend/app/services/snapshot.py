@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -13,7 +14,7 @@ from app.models.swimline import Swimline
 from app.services.effort import feature_efforts
 
 
-async def serialize_project(db: AsyncSession, project: Project) -> dict:
+async def serialize_project(db: AsyncSession, project: Project) -> dict[str, Any]:
     """Build the export-format payload for a project.
 
     Returns the `{"version": "1.0", "exported_at": ..., "project": {...}}` dict
