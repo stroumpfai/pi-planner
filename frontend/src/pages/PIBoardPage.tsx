@@ -301,31 +301,34 @@ export function PIBoardPage({ projectId, piId }: Props) {
                 <CapacityBar used={pi.total_effort ?? 0} capacity={pi.total_capacity ?? 0} unit={effortUnit} />
               </div>
             )}
-            <button
-              type="button"
-              onClick={() => setAllSwimlanesCollapsed(piId, swimlaneSystemIds, true)}
-              disabled={!swimlaneSystemIds.length}
-              className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-300 disabled:cursor-not-allowed font-medium flex-shrink-0"
-            >
-              Collapse All
-            </button>
-            <button
-              type="button"
-              onClick={() => setAllSwimlanesCollapsed(piId, swimlaneSystemIds, false)}
-              disabled={!swimlaneSystemIds.length}
-              className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-300 disabled:cursor-not-allowed font-medium flex-shrink-0"
-            >
-              Expand All
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowCreateSwimline(true)}
-              disabled={!canEdit}
-              title={canEdit ? undefined : 'Request Edit Mode to add swimlanes'}
-              className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-300 disabled:cursor-not-allowed font-medium flex-shrink-0"
-            >
-              + Add Swimlane
-            </button>
+            <div className="flex items-center gap-4 flex-shrink-0">
+              <button
+                type="button"
+                onClick={() => setAllSwimlanesCollapsed(piId, swimlaneSystemIds, true)}
+                disabled={!swimlaneSystemIds.length}
+                className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-300 disabled:cursor-not-allowed font-medium"
+              >
+                Collapse All
+              </button>
+              <button
+                type="button"
+                onClick={() => setAllSwimlanesCollapsed(piId, swimlaneSystemIds, false)}
+                disabled={!swimlaneSystemIds.length}
+                className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-300 disabled:cursor-not-allowed font-medium"
+              >
+                Expand All
+              </button>
+              <span className="text-gray-200">|</span>
+              <button
+                type="button"
+                onClick={() => setShowCreateSwimline(true)}
+                disabled={!canEdit}
+                title={canEdit ? undefined : 'Request Edit Mode to add swimlanes'}
+                className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-300 disabled:cursor-not-allowed font-medium"
+              >
+                + Add Swimlane
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto">
