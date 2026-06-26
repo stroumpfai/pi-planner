@@ -4,6 +4,7 @@ import { useProjects, useDeleteProject } from '@/hooks/useProjects'
 import { useUiStore } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
 import { CreateProjectModal } from '@/components/CreateProjectModal'
+import { EditProjectModal } from '@/components/EditProjectModal'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { SnapshotsModal } from '@/components/SnapshotsModal'
 import { ProjectSettingsModal } from '@/components/ProjectSettingsModal'
@@ -108,6 +109,7 @@ export function ProjectListPage() {
   const setActiveProject = useUiStore((s) => s.setActiveProject)
   const canEdit = useAuthStore((s) => s.canEdit())
   const [showCreate, setShowCreate] = useState(false)
+  const [editTarget, setEditTarget] = useState<Project | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null)
   const [snapshotsTarget, setSnapshotsTarget] = useState<Project | null>(null)
   const [settingsTarget, setSettingsTarget] = useState<Project | null>(null)
@@ -145,45 +147,61 @@ export function ProjectListPage() {
       ) : (
         <ul className="divide-y divide-white/60 shadow-soft rounded-xl bg-canvas">
           {projects?.map((project) => (
-            <li key={project.system_id} className="flex items-center justify-between px-4 py-3 hover:bg-[#e4eaf1]/40">
-              <button
-                className="flex-1 text-left"
-                onClick={() => setActiveProject(project.system_id)}
-              >
-                <p className="text-sm font-medium text-gray-900">{project.name}</p>
-                {project.description && (
-                  <p className="text-xs text-gray-500 mt-0.5 truncate max-w-md">{project.description}</p>
+            <li key={project.system_id} className="px-4 py-4 hover:bg-[#e4eaf1]/40">
+              <div className="flex items-start gap-4">
+                <button
+                  className="flex-1 min-w-0 text-left"
+                  onClick={() => setActiveProject(project.system_id)}
+                >
+                  <p className="text-sm font-medium text-gray-900">{project.name}</p>
+                  {project.description && (
+                    <p className="text-xs text-gray-500 mt-1 leading-relaxed">{project.description}</p>
+                  )}
+                </button>
+                {canEdit && (
+                  <div className="flex items-center gap-3 shrink-0 pt-0.5">
+                    <button
+                      onClick={() => setEditTarget(project)}
+                      className="text-xs text-blue-500 hover:text-blue-700"
+                    >
+                      Edit
+                    </button>
+                    <ExportButton project={project} />
+                    <button
+                      onClick={() => setSettingsTarget(project)}
+                      className="text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      Settings
+                    </button>
+                    <button
+                      onClick={() => setSnapshotsTarget(project)}
+                      className="text-xs text-gray-500 hover:text-gray-700"
+                    >
+                      Snapshots
+                    </button>
+                    <button
+                      onClick={() => setDeleteTarget(project)}
+                      className="text-xs text-red-500 hover:text-red-700"
+                    >
+                      Delete
+                    </button>
+                  </div>
                 )}
-              </button>
-              {canEdit && (
-                <div className="flex items-center gap-3 ml-4 shrink-0">
-                  <ExportButton project={project} />
-                  <button
-                    onClick={() => setSettingsTarget(project)}
-                    className="text-xs text-gray-500 hover:text-gray-700"
-                  >
-                    Settings
-                  </button>
-                  <button
-                    onClick={() => setSnapshotsTarget(project)}
-                    className="text-xs text-gray-500 hover:text-gray-700"
-                  >
-                    Snapshots
-                  </button>
-                  <button
-                    onClick={() => setDeleteTarget(project)}
-                    className="text-xs text-red-500 hover:text-red-700"
-                  >
-                    Delete
-                  </button>
-                </div>
-              )}
+              </div>
             </li>
           ))}
         </ul>
       )}
 
       <CreateProjectModal open={showCreate} onClose={() => setShowCreate(false)} />
+
+      {editTarget && (
+        <EditProjectModal
+          open
+          project={editTarget}
+          onClose={() => setEditTarget(null)}
+        />
+      )}
 
       {snapshotsTarget && (
         <SnapshotsModal
