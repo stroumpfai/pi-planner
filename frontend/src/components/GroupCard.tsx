@@ -5,6 +5,8 @@ import { useDeleteGroup, useUpdateGroup } from '@/hooks/useSwimlinesAndGroups'
 import { useAuthStore } from '@/stores/authStore'
 import { useEffortUnit } from '@/hooks/useProjects'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { useFeatures } from '@/hooks/useFeatures'
+import { getFeatureColorIdx, FEATURE_BORDER_COLORS, FEATURE_CHIP_CLASSES } from '@/utils/featureColors'
 import { pbisApi } from '@/services/pbis'
 import type { Group, PBI } from '@/types'
 
@@ -74,8 +76,14 @@ export function GroupCard({ group, projectId }: Props) {
   const isEditing = useAuthStore((s) => s.isEditing)
   const effortUnit = useEffortUnit(projectId)
   const showEffortUnit = useSettingsStore((s) => s.showEffortUnit)
+  const showFeatureNameInCard = useSettingsStore((s) => s.showFeatureNameInCard)
   const deleteGroup = useDeleteGroup(group.swimline_id)
   const updateGroup = useUpdateGroup(group.swimline_id)
+  const { data: allFeatures } = useFeatures(projectId)
+  const colorIdx = getFeatureColorIdx(group.feature_system_id)
+  const borderColor = FEATURE_BORDER_COLORS[colorIdx]
+  const chipClasses = FEATURE_CHIP_CLASSES[colorIdx]
+  const featureLabel = allFeatures?.find((f) => f.system_id === group.feature_system_id)?.title ?? null
 
   const [renaming, setRenaming] = useState(false)
   const [newName, setNewName] = useState('')
@@ -122,7 +130,7 @@ export function GroupCard({ group, projectId }: Props) {
     <div
       ref={setNodeRef}
       className={`bg-white border rounded-md shadow-sm transition-opacity ${
-        isDragging ? 'opacity-40 border-blue-400' : 'border-gray-200'
+        isDragging ? 'opacity-40 border-blue-400' : `border-gray-200 border-l-4 ${borderColor}`
       }`}
     >
       {/* Drag handle + name row */}
@@ -131,6 +139,14 @@ export function GroupCard({ group, projectId }: Props) {
         {...attributes}
         {...listeners}
       >
+        {featureLabel && !renaming && showFeatureNameInCard && (
+          <span
+            className={`text-[10px] font-medium px-1 py-0.5 rounded truncate max-w-[5rem] flex-shrink-0 ${chipClasses}`}
+            title={featureLabel}
+          >
+            {featureLabel}
+          </span>
+        )}
         {renaming ? (
           <input
             autoFocus

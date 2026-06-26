@@ -91,9 +91,9 @@ describe('SwimlaneRow', () => {
       />,
       { wrapper: makeWrapper() }
     )
-    expect(screen.getByText('Features')).toBeInTheDocument()
+    expect(screen.getByText('Drop features here')).toBeInTheDocument()
     await userEvent.click(screen.getByLabelText('Collapse swimlane'))
-    expect(screen.queryByText('Features')).not.toBeInTheDocument()
+    expect(screen.queryByText('Drop features here')).not.toBeInTheDocument()
   })
 
   it('shows feature count chip', () => {

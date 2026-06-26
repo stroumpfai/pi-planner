@@ -7,13 +7,18 @@ interface Props {
   readonly sprintIndex: number
   readonly groups: Group[]
   readonly projectId: string
+  readonly featureId?: string
 }
 
-export function SprintCell({ swimlaneId, sprintIndex, groups, projectId }: Props) {
+export function SprintCell({ swimlaneId, sprintIndex, groups, projectId, featureId }: Props) {
   const cellGroups = groups.filter((g) => g.sprint_index === sprintIndex)
 
+  const droppableId = featureId
+    ? `sprintcell:${swimlaneId}:${featureId}:${sprintIndex}`
+    : `sprintcell:${swimlaneId}:${sprintIndex}`
+
   const { setNodeRef, isOver } = useDroppable({
-    id: `sprintcell:${swimlaneId}:${sprintIndex}`,
+    id: droppableId,
     data: { type: 'sprintcell', swimlaneId, sprintIndex },
   })
 

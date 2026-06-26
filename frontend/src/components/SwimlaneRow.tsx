@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useSortable } from '@dnd-kit/sortable'
+import { useDroppable } from '@dnd-kit/core'
 import { CSS } from '@dnd-kit/utilities'
 import { useAuthStore } from '@/stores/authStore'
 import { useSwimlaneCollapseStore } from '@/stores/swimlaneCollapseStore'
@@ -7,9 +8,42 @@ import { useDeleteSwimline, useUpdateSwimline, useGroupsForSwimline } from '@/ho
 import { useEffortUnit } from '@/hooks/useProjects'
 import { CapacityBar } from './CapacityBar'
 import { ConfirmDialog } from './ConfirmDialog'
-import { FeatureZone } from './FeatureZone'
-import { SprintCell } from './SprintCell'
+import { FeatureSubRow } from './FeatureSubRow'
 import type { Feature, Sprint, Swimline } from '@/types'
+
+interface FeatureDropZoneProps {
+  readonly swimlaneId: string
+  readonly piId: string
+  readonly isEmpty: boolean
+  readonly sprints: Sprint[]
+}
+
+function FeatureDropZone({ swimlaneId, piId, isEmpty, sprints }: FeatureDropZoneProps) {
+  const { setNodeRef, isOver } = useDroppable({
+    id: `featurezone:${swimlaneId}`,
+    data: { type: 'featurezone', swimlaneId, piId },
+  })
+  return (
+    <div className="flex min-h-16">
+      <div
+        ref={setNodeRef}
+        className={`flex-shrink-0 border-r border-gray-200 p-2 transition-colors ${
+          isOver ? 'bg-blue-50 ring-2 ring-inset ring-blue-300' : ''
+        }`}
+        style={{ width: 'var(--feature-col-width, 192px)' }}
+      >
+        {(isEmpty || isOver) && (
+          <p className={`text-xs text-center py-4 ${isOver ? 'text-blue-400' : 'text-gray-300'}`}>
+            {isOver ? 'Drop here' : 'Drop features here'}
+          </p>
+        )}
+      </div>
+      {sprints.map((sprint) => (
+        <div key={sprint.system_id} className="flex-1 border-r border-gray-100 last:border-r-0" />
+      ))}
+    </div>
+  )
+}
 
 interface Props {
   readonly swimline: Swimline
@@ -68,9 +102,13 @@ export function SwimlaneRow({ swimline, sprints, features, projectId, piId }: Pr
 
   const style = { transform: CSS.Transform.toString(transform), transition }
 
-  const featureCount = features.filter(
-    (f) => f.location === 'pi' && f.swimlane_id === swimline.system_id && f.pi_id === piId
-  ).length
+  const swimlaneFeatures = useMemo(
+    () => features.filter(
+      (f) => f.location === 'pi' && f.swimlane_id === swimline.system_id && f.pi_id === piId
+    ),
+    [features, swimline.system_id, piId]
+  )
+  const featureCount = swimlaneFeatures.length
 
   return (
     <div
@@ -153,29 +191,25 @@ export function SwimlaneRow({ swimline, sprints, features, projectId, piId }: Pr
         )}
       </div>
 
-      {/* Grid: feature zone + sprint columns */}
+      {/* Feature sub-rows + drop zone */}
       {!collapsed && (
-        <div className="flex min-h-24">
-          <div
-            className="flex-shrink-0 border-r border-gray-200"
-            style={{ width: 'var(--feature-col-width, 192px)' }}
-          >
-            <div className="text-xs text-gray-400 px-2 pt-1 pb-0.5 bg-gray-50 border-b border-gray-100">
-              Features
-            </div>
-            <FeatureZone swimlineId={swimline.system_id} projectId={projectId} piId={piId} />
-          </div>
-
-          {sprints.map((sprint) => (
-            <div key={sprint.system_id} className="flex-1 border-r border-gray-100 last:border-r-0">
-              <SprintCell
-                swimlaneId={swimline.system_id}
-                sprintIndex={sprint.sprint_index ?? 0}
-                groups={groups}
-                projectId={projectId}
-              />
-            </div>
+        <div className="flex flex-col">
+          {swimlaneFeatures.map((feature) => (
+            <FeatureSubRow
+              key={feature.system_id}
+              feature={feature}
+              sprints={sprints}
+              groups={groups.filter((g) => g.feature_system_id === feature.system_id)}
+              projectId={projectId}
+              swimlaneId={swimline.system_id}
+            />
           ))}
+          <FeatureDropZone
+            swimlaneId={swimline.system_id}
+            piId={piId}
+            isEmpty={swimlaneFeatures.length === 0}
+            sprints={sprints}
+          />
         </div>
       )}
 

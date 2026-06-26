@@ -44,6 +44,8 @@ export function UserMenu({ displayName }: Props) {
   const setShowIds = useSettingsStore((s) => s.setShowIds)
   const showEffortUnit = useSettingsStore((s) => s.showEffortUnit)
   const setShowEffortUnit = useSettingsStore((s) => s.setShowEffortUnit)
+  const showFeatureNameInCard = useSettingsStore((s) => s.showFeatureNameInCard)
+  const setShowFeatureNameInCard = useSettingsStore((s) => s.setShowFeatureNameInCard)
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -69,6 +71,7 @@ export function UserMenu({ displayName }: Props) {
             <p className="px-4 pt-1.5 pb-1 text-xs font-semibold text-gray-400 uppercase tracking-wide">Display</p>
             <DisplayToggle label="Show IDs" checked={showIds} onChange={setShowIds} />
             <DisplayToggle label="Show effort unit" checked={showEffortUnit} onChange={setShowEffortUnit} />
+            <DisplayToggle label="Show feature name in sprint card" checked={showFeatureNameInCard} onChange={setShowFeatureNameInCard} />
             <div className="my-1 border-t border-gray-100" />
             <button
               type="button"

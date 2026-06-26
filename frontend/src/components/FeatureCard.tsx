@@ -6,6 +6,7 @@ import { usePBIs } from '@/hooks/usePBIs'
 import { useEffortUnit } from '@/hooks/useProjects'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { PBISelectList } from './PBISelectList'
+import { getFeatureColorIdx, FEATURE_BORDER_COLORS } from '@/utils/featureColors'
 import type { Feature } from '@/types'
 import type { FeatureDragData } from './BacklogPanel'
 
@@ -25,6 +26,7 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
   const updateFeature = useUpdateFeature(projectId)
   const { data: featurePbis = [] } = usePBIs(projectId, feature.system_id)
   const isFullyPlanned = featurePbis.length > 0 && featurePbis.every((p) => p.group_id != null)
+  const borderColor = FEATURE_BORDER_COLORS[getFeatureColorIdx(feature.system_id)]
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `feature:${feature.system_id}`,
@@ -64,7 +66,7 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
     <div
       ref={setNodeRef}
       className={`bg-white border rounded-md shadow-sm transition-opacity select-none ${
-        isDragging ? 'opacity-40 border-blue-400' : 'border-gray-200'
+        isDragging ? 'opacity-40 border-blue-400' : `border-gray-200 border-l-4 ${borderColor}`
       }`}
     >
       {/* Card header — drag handle */}
