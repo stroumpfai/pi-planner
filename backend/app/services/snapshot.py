@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Any
 
 from sqlalchemy import select
@@ -12,6 +12,85 @@ from app.models.project import Project
 from app.models.sprint import Sprint
 from app.models.swimline import Swimline
 from app.services.effort import feature_efforts
+
+
+def _opt_date(value: str | None) -> date | None:
+    return date.fromisoformat(value) if value else None
+
+
+def restore_pi_structures(db: AsyncSession, proj_data: dict[str, Any], project_id: str) -> None:
+    for pi in proj_data["pis"]:
+        db.add(PI(
+            system_id=pi["system_id"],
+            project_id=project_id,
+            name=pi["name"],
+            description=pi.get("description"),
+            state=pi.get("state", "draft"),
+            start_date=_opt_date(pi.get("start_date")),
+            end_date=_opt_date(pi.get("end_date")),
+        ))
+        for sl in pi.get("swimlines", []):
+            db.add(Swimline(
+                system_id=sl["system_id"],
+                pi_id=pi["system_id"],
+                name=sl["name"],
+                order_index=sl.get("order_index"),
+            ))
+        for s in pi.get("sprints", []):
+            db.add(Sprint(
+                system_id=s["system_id"],
+                pi_id=pi["system_id"],
+                sprint_index=s.get("sprint_index"),
+                capacity=s.get("capacity") or 0,
+                start_date=_opt_date(s.get("start_date")),
+                end_date=_opt_date(s.get("end_date")),
+            ))
+
+
+def restore_features(db: AsyncSession, proj_data: dict[str, Any], project_id: str) -> None:
+    for f in proj_data["features"]:
+        db.add(Feature(
+            system_id=f["system_id"],
+            project_id=project_id,
+            user_id=f.get("id"),
+            title=f["title"],
+            description=f.get("description"),
+            location=f.get("location", "backlog"),
+            pi_id=f.get("pi_id"),
+            swimlane_id=f.get("swimlane_id"),
+        ))
+
+
+def restore_groups(db: AsyncSession, proj_data: dict[str, Any]) -> None:
+    for pi in proj_data["pis"]:
+        for sl in pi.get("swimlines", []):
+            for g in sl.get("groups", []):
+                db.add(Group(
+                    system_id=g["system_id"],
+                    swimline_id=sl["system_id"],
+                    feature_system_id=g["feature_system_id"],
+                    name=g["name"],
+                    sprint_index=g.get("sprint_index"),
+                    order_index=g.get("order_index"),
+                    is_implicit=False,
+                ))
+
+
+def restore_pbis(db: AsyncSession, proj_data: dict[str, Any], project_id: str) -> None:
+    for p in proj_data["pbis"]:
+        db.add(PBI(
+            system_id=p["system_id"],
+            project_id=project_id,
+            user_id=p.get("id"),
+            parent_feature_system_id=p["parent_feature_system_id"],
+            title=p["title"],
+            description=p.get("description"),
+            effort=p.get("effort"),
+            location=p.get("location", "backlog"),
+            pi_id=p.get("pi_id"),
+            swimlane_id=p.get("swimlane_id"),
+            group_id=p.get("group_id"),
+        ))
 
 
 async def serialize_project(db: AsyncSession, project: Project) -> dict[str, Any]:

@@ -60,7 +60,8 @@ async def _apply_metadata_fields(
 
 
 async def _apply_move_to_swimlane(db: AsyncSession, feature: Feature, body: FeatureUpdate, fields: set[str]) -> None:
-    assert body.swimlane_id is not None  # guaranteed by caller check
+    if body.swimlane_id is None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="swimlane_id required")
     swimline = await db.get(Swimline, body.swimlane_id)
     if not swimline:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Swimline not found")

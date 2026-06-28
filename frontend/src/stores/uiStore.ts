@@ -1,7 +1,5 @@
 import { create } from 'zustand'
 
-export const BACKLOG_VIEW_ID = 'backlog'
-
 interface UiState {
   activeModal: string | null
   activeProjectId: string | null
@@ -18,6 +16,6 @@ export const useUiStore = create<UiState>((set) => ({
   activePIId: null,
   openModal: (id) => set({ activeModal: id }),
   closeModal: () => set({ activeModal: null }),
-  setActiveProject: (id) => set({ activeProjectId: id, activePIId: id ? BACKLOG_VIEW_ID : null }),
+  setActiveProject: (id) => set({ activeProjectId: id, activePIId: null }),
   setActivePI: (id) => set({ activePIId: id }),
 }))

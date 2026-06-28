@@ -37,6 +37,7 @@ export function FeatureSubRow({ feature, sprints, groups, projectId, swimlaneId 
               groups={groups}
               projectId={projectId}
               featureId={feature.system_id}
+              featureTitle={feature.title}
             />
           </div>
         ))}

@@ -8,9 +8,10 @@ interface Props {
   readonly groups: Group[]
   readonly projectId: string
   readonly featureId?: string
+  readonly featureTitle?: string
 }
 
-export function SprintCell({ swimlaneId, sprintIndex, groups, projectId, featureId }: Props) {
+export function SprintCell({ swimlaneId, sprintIndex, groups, projectId, featureId, featureTitle }: Props) {
   const cellGroups = groups.filter((g) => g.sprint_index === sprintIndex)
 
   const droppableId = featureId
@@ -33,7 +34,7 @@ export function SprintCell({ swimlaneId, sprintIndex, groups, projectId, feature
         <p className="text-xs text-blue-400 text-center py-2">Drop group here</p>
       )}
       {cellGroups.map((group) => (
-        <GroupCard key={group.system_id} group={group} projectId={projectId} />
+        <GroupCard key={group.system_id} group={group} projectId={projectId} featureTitle={featureTitle} />
       ))}
     </div>
   )

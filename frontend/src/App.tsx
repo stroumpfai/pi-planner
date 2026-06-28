@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useTheme } from '@/hooks/useTheme'
 import { useCurrentUser, useLogout } from '@/hooks/useAuth'
 import { useProject } from '@/hooks/useProjects'
-import { useUiStore, BACKLOG_VIEW_ID } from '@/stores/uiStore'
+import { useUiStore } from '@/stores/uiStore'
 import { useSSE } from '@/hooks/useSSE'
 import { useAuthStore } from '@/stores/authStore'
 import { EditLockButton } from '@/components/EditLockButton'
@@ -89,7 +89,7 @@ export default function App() {
           <>
             <PIListPanel projectId={activeProjectId} />
             <div className="flex-1 overflow-hidden">
-              {activePIId && activePIId !== BACKLOG_VIEW_ID ? (
+              {activePIId ? (
                 <PIBoardPage projectId={activeProjectId} piId={activePIId} />
               ) : (
                 <div className="h-full">

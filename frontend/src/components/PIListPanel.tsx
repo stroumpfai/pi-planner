@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { fmtDate } from '@/utils/dates'
 import { usePIs, useDeletePI } from '@/hooks/usePIs'
 import { useAuthStore } from '@/stores/authStore'
-import { useUiStore, BACKLOG_VIEW_ID } from '@/stores/uiStore'
+import { useUiStore } from '@/stores/uiStore'
 import { PIStateBadge } from './PIStateBadge'
 import { PIStateButton } from './PIStateButton'
 import { CreatePIModal } from './CreatePIModal'
@@ -25,7 +25,7 @@ export function PIListPanel({ projectId }: Props) {
   const { data: pis, isLoading } = usePIs(projectId)
   const deletePI = useDeletePI(projectId)
 
-  const isBacklogSelected = activePIId === BACKLOG_VIEW_ID
+  const isBacklogSelected = activePIId === null
   const backlogSelectedClass = isBacklogSelected
     ? 'bg-canvas shadow-soft-inset border-l-4 border-blue-400 mx-1 my-0.5 rounded-xl overflow-hidden'
     : ''
@@ -57,7 +57,7 @@ export function PIListPanel({ projectId }: Props) {
             <button
               type="button"
               className="w-full pl-6 pr-4 py-3 text-left space-y-1 hover:bg-band/40 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-blue-300"
-              onClick={() => setActivePI(BACKLOG_VIEW_ID)}
+              onClick={() => setActivePI(null)}
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">Backlog</span>
@@ -81,7 +81,7 @@ export function PIListPanel({ projectId }: Props) {
                   <button
                     type="button"
                     className="w-full pl-6 pr-4 py-3 text-left space-y-1 hover:bg-band/40 focus:outline-none focus:ring-1 focus:ring-inset focus:ring-blue-300"
-                    onClick={() => setActivePI(isSelected ? BACKLOG_VIEW_ID : pi.system_id)}
+                    onClick={() => setActivePI(isSelected ? null : pi.system_id)}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{pi.name}</span>
@@ -149,7 +149,7 @@ export function PIListPanel({ projectId }: Props) {
         destructive
         onConfirm={() => {
           if (deleteTarget) {
-            if (activePIId === deleteTarget.system_id) setActivePI(BACKLOG_VIEW_ID)
+            if (activePIId === deleteTarget.system_id) setActivePI(null)
             deletePI.mutate(deleteTarget.system_id)
           }
           setDeleteTarget(null)

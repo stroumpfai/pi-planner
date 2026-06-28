@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { PIListPanel } from '../PIListPanel'
 import * as pisService from '@/services/pis'
 import { useAuthStore } from '@/stores/authStore'
-import { useUiStore, BACKLOG_VIEW_ID } from '@/stores/uiStore'
+import { useUiStore } from '@/stores/uiStore'
 
 vi.mock('@/services/pis')
 const mockApi = vi.mocked(pisService.pisApi)
@@ -47,7 +47,7 @@ describe('PIListPanel', () => {
     render(<PIListPanel projectId="p-1" />, { wrapper: makeWrapper() })
     await waitFor(() => screen.getByText('Q1-2026'))
     await userEvent.click(screen.getByRole('button', { name: 'Backlog' }))
-    expect(useUiStore.getState().activePIId).toBe(BACKLOG_VIEW_ID)
+    expect(useUiStore.getState().activePIId).toBeNull()
   })
 
   it('shows "No PIs yet" when empty', async () => {
@@ -128,7 +128,7 @@ describe('PIListPanel', () => {
     await userEvent.click(screen.getByRole('button', { name: /Q1-2026/i }))
     expect(useUiStore.getState().activePIId).toBe(fakePI.system_id)
     await userEvent.click(screen.getByRole('button', { name: /Q1-2026/i }))
-    expect(useUiStore.getState().activePIId).toBe(BACKLOG_VIEW_ID)
+    expect(useUiStore.getState().activePIId).toBeNull()
   })
 
   it('clicking Start PI and confirming calls pisApi.update with in_progress state', async () => {

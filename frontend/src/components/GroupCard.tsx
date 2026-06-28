@@ -5,7 +5,6 @@ import { useDeleteGroup, useUpdateGroup } from '@/hooks/useSwimlinesAndGroups'
 import { useAuthStore } from '@/stores/authStore'
 import { useEffortUnit } from '@/hooks/useProjects'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { useFeatures } from '@/hooks/useFeatures'
 import { getFeatureColorIdx, FEATURE_BORDER_COLORS, FEATURE_CHIP_CLASSES } from '@/utils/featureColors'
 import { pbisApi } from '@/services/pbis'
 import type { Group, PBI } from '@/types'
@@ -20,6 +19,7 @@ export interface GroupDragData {
 interface Props {
   readonly group: Group
   readonly projectId: string
+  readonly featureTitle?: string
 }
 
 const SPRINT_LABELS = ['S1', 'S2', 'S3', 'S4', 'S5']
@@ -72,18 +72,17 @@ function InlinePBITitle({ pbi, projectId }: { readonly pbi: PBI; readonly projec
   )
 }
 
-export function GroupCard({ group, projectId }: Props) {
+export function GroupCard({ group, projectId, featureTitle }: Props) {
   const isEditing = useAuthStore((s) => s.isEditing)
   const effortUnit = useEffortUnit(projectId)
   const showEffortUnit = useSettingsStore((s) => s.showEffortUnit)
   const showFeatureNameInCard = useSettingsStore((s) => s.showFeatureNameInCard)
   const deleteGroup = useDeleteGroup(group.swimline_id)
   const updateGroup = useUpdateGroup(group.swimline_id)
-  const { data: allFeatures } = useFeatures(projectId)
   const colorIdx = getFeatureColorIdx(group.feature_system_id)
   const borderColor = FEATURE_BORDER_COLORS[colorIdx]
   const chipClasses = FEATURE_CHIP_CLASSES[colorIdx]
-  const featureLabel = allFeatures?.find((f) => f.system_id === group.feature_system_id)?.title ?? null
+  const featureLabel = featureTitle ?? null
 
   const [renaming, setRenaming] = useState(false)
   const [newName, setNewName] = useState('')

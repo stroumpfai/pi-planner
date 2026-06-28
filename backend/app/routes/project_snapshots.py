@@ -1,5 +1,5 @@
-from datetime import date, datetime, timezone
-from typing import Annotated, Any
+from datetime import datetime, timezone
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import delete, select
@@ -10,18 +10,21 @@ from app.middleware.deps import require_editor_or_above
 from app.models.activity_log import ActorType
 from app.models.edit_lock import EditLock
 from app.models.feature import Feature
-from app.models.group import Group
 from app.models.pbi import PBI
 from app.models.pi import PI
 from app.models.project import Project
 from app.models.project_snapshot import ProjectSnapshot
-from app.models.sprint import Sprint
-from app.models.swimline import Swimline
 from app.models.user import User
 from app.schemas import ProjectResponse, SnapshotCreate, SnapshotResponse
 from app.services.activity import log_activity
 from app.services.events import broadcaster
-from app.services.snapshot import serialize_project
+from app.services.snapshot import (
+    restore_features,
+    restore_groups,
+    restore_pbis,
+    restore_pi_structures,
+    serialize_project,
+)
 
 router = APIRouter(prefix="/api/v1/projects/{project_id}/snapshots", tags=["project-snapshots"])
 
@@ -38,85 +41,6 @@ async def _get_snapshot_or_404(db: AsyncSession, project_id: str, snapshot_id: s
     if not snapshot or snapshot.project_id != project_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Snapshot not found")
     return snapshot
-
-
-def _opt_date(value: str | None) -> date | None:
-    return date.fromisoformat(value) if value else None
-
-
-def _add_pi_structures(db: AsyncSession, proj_data: dict[str, Any], project_id: str) -> None:
-    for pi in proj_data["pis"]:
-        db.add(PI(
-            system_id=pi["system_id"],
-            project_id=project_id,
-            name=pi["name"],
-            description=pi.get("description"),
-            state=pi.get("state", "draft"),
-            start_date=_opt_date(pi.get("start_date")),
-            end_date=_opt_date(pi.get("end_date")),
-        ))
-        for sl in pi.get("swimlines", []):
-            db.add(Swimline(
-                system_id=sl["system_id"],
-                pi_id=pi["system_id"],
-                name=sl["name"],
-                order_index=sl.get("order_index"),
-            ))
-        for s in pi.get("sprints", []):
-            db.add(Sprint(
-                system_id=s["system_id"],
-                pi_id=pi["system_id"],
-                sprint_index=s.get("sprint_index"),
-                capacity=s.get("capacity") or 0,
-                start_date=_opt_date(s.get("start_date")),
-                end_date=_opt_date(s.get("end_date")),
-            ))
-
-
-def _add_features(db: AsyncSession, proj_data: dict[str, Any], project_id: str) -> None:
-    for f in proj_data["features"]:
-        db.add(Feature(
-            system_id=f["system_id"],
-            project_id=project_id,
-            user_id=f.get("id"),
-            title=f["title"],
-            description=f.get("description"),
-            location=f.get("location", "backlog"),
-            pi_id=f.get("pi_id"),
-            swimlane_id=f.get("swimlane_id"),
-        ))
-
-
-def _add_groups(db: AsyncSession, proj_data: dict[str, Any]) -> None:
-    for pi in proj_data["pis"]:
-        for sl in pi.get("swimlines", []):
-            for g in sl.get("groups", []):
-                db.add(Group(
-                    system_id=g["system_id"],
-                    swimline_id=sl["system_id"],
-                    feature_system_id=g["feature_system_id"],
-                    name=g["name"],
-                    sprint_index=g.get("sprint_index"),
-                    order_index=g.get("order_index"),
-                    is_implicit=False,
-                ))
-
-
-def _add_pbis(db: AsyncSession, proj_data: dict[str, Any], project_id: str) -> None:
-    for p in proj_data["pbis"]:
-        db.add(PBI(
-            system_id=p["system_id"],
-            project_id=project_id,
-            user_id=p.get("id"),
-            parent_feature_system_id=p["parent_feature_system_id"],
-            title=p["title"],
-            description=p.get("description"),
-            effort=p.get("effort"),
-            location=p.get("location", "backlog"),
-            pi_id=p.get("pi_id"),
-            swimlane_id=p.get("swimlane_id"),
-            group_id=p.get("group_id"),
-        ))
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -231,16 +155,16 @@ async def restore_snapshot(
     # 3. Rebuild in place from the snapshot payload, preserving original system_ids.
     proj_data = snapshot.snapshot_data["project"]
 
-    _add_pi_structures(db, proj_data, project_id)
+    restore_pi_structures(db, proj_data, project_id)
     await db.flush()
 
-    _add_features(db, proj_data, project_id)
+    restore_features(db, proj_data, project_id)
     await db.flush()
 
-    _add_groups(db, proj_data)
+    restore_groups(db, proj_data)
     await db.flush()
 
-    _add_pbis(db, proj_data, project_id)
+    restore_pbis(db, proj_data, project_id)
     await db.flush()
 
     # 4. Restore project-level fields (keep current name to avoid unique-constraint issues).
