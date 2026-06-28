@@ -87,11 +87,11 @@ describe('GroupCard', () => {
     expect(screen.getByText('Bug')).toBeInTheDocument()
 
     const bugEffort = screen.getByText('2pts')
-    expect(bugEffort.className).toContain('bg-gray-100')
+    expect(bugEffort.className).toContain('bg-band')
     expect(bugEffort.className).toContain('text-gray-500')
 
     const storyEffort = screen.getByText('5pts')
-    expect(storyEffort.className).toContain('bg-gray-100')
+    expect(storyEffort.className).toContain('bg-band')
     expect(storyEffort.className).toContain('text-gray-500')
   })
 
