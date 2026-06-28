@@ -662,6 +662,47 @@ export interface components {
       /** End Date */
       end_date?: string | null;
     };
+    /** PIEventResponse */
+    PIEventResponse: {
+      /** System Id */
+      system_id: string;
+      /** Pi Id */
+      pi_id: string;
+      /** Name */
+      name: string;
+      /** Event Date (YYYY-MM-DD) */
+      event_date: string;
+      /** Event Type */
+      event_type: "release" | "milestone" | "deadline" | "pilot" | "go_no_go" | "other";
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Modified At
+       * Format: date-time
+       */
+      modified_at: string;
+    };
+    /** PIEventCreate */
+    PIEventCreate: {
+      /** Name */
+      name: string;
+      /** Event Date (YYYY-MM-DD) */
+      event_date: string;
+      /** Event Type */
+      event_type: "release" | "milestone" | "deadline" | "pilot" | "go_no_go" | "other";
+    };
+    /** PIEventUpdate */
+    PIEventUpdate: {
+      /** Name */
+      name?: string | null;
+      /** Event Date (YYYY-MM-DD) */
+      event_date?: string | null;
+      /** Event Type */
+      event_type?: ("release" | "milestone" | "deadline" | "pilot" | "go_no_go" | "other") | null;
+    };
     /** PasswordReset */
     PasswordReset: {
       /** New Password */

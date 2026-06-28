@@ -36,10 +36,12 @@ import { SprintCapacityModal } from '@/components/SprintCapacityModal'
 import { SprintColumnHeader } from '@/components/SprintColumnHeader'
 import { CapacityBar } from '@/components/CapacityBar'
 import { BacklogPanel } from '@/components/BacklogPanel'
+import { PIEventsRow } from '@/components/PIEventsRow'
+import { PIEventModal } from '@/components/PIEventModal'
 import type { FeatureDragData } from '@/components/BacklogPanel'
 import type { GroupDragData } from '@/components/GroupCard'
 import type { PBIDragData } from '@/components/PBIRow'
-import type { Feature, Sprint, Swimline } from '@/types'
+import type { Feature, PIEvent, Sprint, Swimline } from '@/types'
 
 interface Props {
   readonly projectId: string
@@ -145,6 +147,7 @@ export function PIBoardPage({ projectId, piId }: Props) {
   const [editCapacitySprint, setEditCapacitySprint] = useState<Sprint | null>(null)
   const [exportingCsv, setExportingCsv] = useState(false)
   const [exportingPng, setExportingPng] = useState(false)
+  const [eventModal, setEventModal] = useState<{ open: boolean; event?: PIEvent }>({ open: false })
   const isEditing = useAuthStore((s) => s.isEditing)
   const featureColumnWidth = useSettingsStore((s) => s.featureColumnWidth)
   const setFeatureColumnWidth = useSettingsStore((s) => s.setFeatureColumnWidth)
@@ -400,6 +403,14 @@ export function PIBoardPage({ projectId, piId }: Props) {
               ))}
             </div>
 
+            <PIEventsRow
+              piId={piId}
+              sprints={sprints ?? []}
+              canEdit={canEdit}
+              onAdd={() => setEventModal({ open: true })}
+              onEdit={(ev) => setEventModal({ open: true, event: ev })}
+            />
+
             {renderBoardContent()}
           </div>
         </div>
@@ -442,6 +453,13 @@ export function PIBoardPage({ projectId, piId }: Props) {
           onClose={() => setEditCapacitySprint(null)}
         />
       )}
+
+      <PIEventModal
+        open={eventModal.open}
+        piId={piId}
+        event={eventModal.event}
+        onClose={() => setEventModal({ open: false })}
+      />
     </DndContext>
   )
 }

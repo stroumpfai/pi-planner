@@ -11,6 +11,11 @@ export type PICreate = components['schemas']['PICreate']
 export type PIUpdate = components['schemas']['PIUpdate']
 export type PIState = 'draft' | 'in_progress' | 'closed'
 
+export type PIEvent = components['schemas']['PIEventResponse']
+export type PIEventCreate = components['schemas']['PIEventCreate']
+export type PIEventUpdate = components['schemas']['PIEventUpdate']
+export type PIEventType = PIEvent['event_type']
+
 export type Swimline = components['schemas']['SwimlineResponse'] & { effort: number; capacity: number }
 export type SwimlineCreate = components['schemas']['SwimlineCreate']
 export type SwimlineUpdate = components['schemas']['SwimlineUpdate']

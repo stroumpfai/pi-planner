@@ -5,6 +5,7 @@ const SHOW_EFFORT_UNIT_KEY = 'pi-planner:show-effort-unit'
 const FEATURE_COL_WIDTH_KEY = 'pi-planner:feature-col-width'
 const SHOW_FEATURE_NAME_IN_CARD_KEY = 'pi-planner:show-feature-name-in-card'
 const COLOR_SCHEME_KEY = 'pi-planner:color-scheme'
+const SHOW_PI_EVENTS_KEY = 'pi-planner:show-pi-events'
 const DEFAULT_COL_WIDTH = 192
 
 export type ColorScheme = 'light' | 'dark' | 'system'
@@ -20,6 +21,8 @@ interface SettingsState {
   setShowFeatureNameInCard: (v: boolean) => void
   colorScheme: ColorScheme
   setColorScheme: (v: ColorScheme) => void
+  showPIEvents: boolean
+  setShowPIEvents: (v: boolean) => void
 }
 
 function readColorScheme(): ColorScheme {
@@ -53,5 +56,10 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setColorScheme: (colorScheme) => {
     localStorage.setItem(COLOR_SCHEME_KEY, colorScheme)
     set({ colorScheme })
+  },
+  showPIEvents: localStorage.getItem(SHOW_PI_EVENTS_KEY) !== 'false',
+  setShowPIEvents: (showPIEvents) => {
+    localStorage.setItem(SHOW_PI_EVENTS_KEY, String(showPIEvents))
+    set({ showPIEvents })
   },
 }))

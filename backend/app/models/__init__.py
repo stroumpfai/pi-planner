@@ -5,6 +5,7 @@ from app.models.feature import Feature
 from app.models.group import Group
 from app.models.pbi import PBI
 from app.models.pi import PI
+from app.models.pi_event import PIEvent
 from app.models.project import Project
 from app.models.project_snapshot import ProjectSnapshot
 from app.models.session import Session
@@ -17,6 +18,7 @@ __all__ = [
     "Session",
     "Project",
     "PI",
+    "PIEvent",
     "Swimline",
     "Sprint",
     "Feature",

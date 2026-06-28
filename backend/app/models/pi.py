@@ -12,6 +12,7 @@ from app.database import Base
 if TYPE_CHECKING:
     from app.models.feature import Feature
     from app.models.pbi import PBI
+    from app.models.pi_event import PIEvent
     from app.models.project import Project
     from app.models.sprint import Sprint
     from app.models.swimline import Swimline
@@ -35,6 +36,7 @@ class PI(Base):
     sprints: Mapped[list[Sprint]] = relationship("Sprint", back_populates="pi", cascade="all, delete-orphan")
     features: Mapped[list[Feature]] = relationship("Feature", back_populates="pi")
     pbis: Mapped[list[PBI]] = relationship("PBI", back_populates="pi")
+    events: Mapped[list[PIEvent]] = relationship("PIEvent", back_populates="pi", cascade="all, delete-orphan")
 
     __table_args__ = (
         Index("idx_pis_project", "project_id"),
