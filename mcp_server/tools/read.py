@@ -183,6 +183,21 @@ async def list_snapshots(
 
 
 @read_mcp.tool()
+async def list_pi_events(
+    pi_id: Annotated[str, Field(description="PI system_id (UUID)")],
+    ctx: Context,
+) -> dict:
+    """
+    List all events (milestone markers) for a PI, ordered by event_date ascending.
+
+    Returns each event's system_id, name, event_date, event_type, and timestamps.
+    Use the system_id with update_pi_event or delete_pi_event to modify events.
+    Event types: 'release', 'milestone', 'deadline', 'pilot', 'go_no_go', 'other'.
+    """
+    return await call_backend("GET", f"/api/v1/pis/{pi_id}/events")
+
+
+@read_mcp.tool()
 async def get_edit_lock_status(
     project_id: Annotated[str, Field(description="Project system_id (UUID)")],
     ctx: Context,

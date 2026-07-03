@@ -1,9 +1,10 @@
+import base64
 from typing import Annotated
 
 from fastmcp import FastMCP, Context
 from pydantic import Field
 
-from mcp_server.backend import call_backend
+from mcp_server.backend import call_backend, call_backend_raw
 from mcp_server.lock import edit_lock
 
 projects_mcp = FastMCP("projects")
@@ -271,3 +272,37 @@ async def update_sprint(
 
     async with edit_lock(project_id):
         return await call_backend("PATCH", f"/api/v1/sprints/{sprint_id}", json=body)
+
+
+@projects_mcp.tool()
+async def export_pi_csv(
+    pi_id: Annotated[str, Field(description="PI system_id (UUID)")],
+    ctx: Context,
+) -> dict:
+    """
+    Export a PI's PBIs as a CSV list.
+
+    Returns the CSV content as a plain text string in {"csv": "..."}.
+    Columns typically include feature, PBI title, effort, sprint assignment, and status.
+    This is a read-only operation — no lock is acquired.
+    Use list_pis first to find the pi_id.
+    """
+    r = await call_backend_raw("GET", f"/api/v1/pis/{pi_id}/export/csv")
+    return {"csv": r.text}
+
+
+@projects_mcp.tool()
+async def export_pi_png(
+    pi_id: Annotated[str, Field(description="PI system_id (UUID)")],
+    ctx: Context,
+) -> dict:
+    """
+    Export a PI's swimlane roadmap as a PNG image (base64-encoded).
+
+    Returns {"png_base64": "<base64 string>"} — decode and save as a .png file to view.
+    The image shows the full PI board: swimlines, sprints, features, and milestone events.
+    This is a read-only operation — no lock is acquired.
+    Use list_pis first to find the pi_id.
+    """
+    r = await call_backend_raw("GET", f"/api/v1/pis/{pi_id}/export/png")
+    return {"png_base64": base64.b64encode(r.content).decode()}

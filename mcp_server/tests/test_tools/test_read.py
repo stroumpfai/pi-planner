@@ -15,6 +15,7 @@ from mcp_server.tools.read import (
     list_groups,
     list_snapshots,
     get_edit_lock_status,
+    list_pi_events,
 )
 
 
@@ -131,6 +132,45 @@ async def test_list_snapshots_calls_correct_path(mock_backend, mock_ctx, patch_g
     result = await list_snapshots(project_id=PROJECT_ID, ctx=mock_ctx)
     assert result["items"][0]["system_id"] == "snap-uuid-1"
     assert result["items"][0]["name"] == "Pre-refactor"
+
+
+async def test_list_pi_events_calls_correct_path(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.get(f"/api/v1/pis/{PI_ID}/events").mock(
+        return_value=httpx.Response(
+            200,
+            json=[
+                {
+                    "system_id": "event-uuid-1",
+                    "pi_id": PI_ID,
+                    "name": "Release v2.0",
+                    "event_date": "2026-06-15",
+                    "event_type": "release",
+                    "created_at": "2026-06-01T00:00:00Z",
+                    "modified_at": "2026-06-01T00:00:00Z",
+                }
+            ],
+        )
+    )
+    result = await list_pi_events(pi_id=PI_ID, ctx=mock_ctx)
+    assert result["items"][0]["system_id"] == "event-uuid-1"
+    assert result["items"][0]["event_type"] == "release"
+
+
+async def test_list_pi_events_empty(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.get(f"/api/v1/pis/{PI_ID}/events").mock(
+        return_value=httpx.Response(200, json=[])
+    )
+    result = await list_pi_events(pi_id=PI_ID, ctx=mock_ctx)
+    assert result == {"items": []}
+
+
+async def test_list_pi_events_does_not_acquire_lock(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.get(f"/api/v1/pis/{PI_ID}/events").mock(
+        return_value=httpx.Response(200, json=[])
+    )
+    await list_pi_events(pi_id=PI_ID, ctx=mock_ctx)
+    lock_calls = [c for c in mock_backend.calls if "edit-lock" in str(c.request.url)]
+    assert lock_calls == []
 
 
 async def test_get_edit_lock_status_no_lock(mock_backend, mock_ctx, patch_get_http_request):

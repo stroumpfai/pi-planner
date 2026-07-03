@@ -34,14 +34,8 @@ class MCPBackendError(Exception):
         super().__init__(message)
 
 
-async def call_backend(method: str, path: str, **kwargs) -> dict:
-    """
-    Call the FastAPI backend using the shared httpx client.
-
-    Mints a short-lived service JWT and attaches MCP actor headers so the backend
-    can attribute the activity to the correct user. Classifies error responses into
-    typed MCPBackendError exceptions with actionable messages for Claude.
-    """
+async def _make_request(method: str, path: str, **kwargs) -> httpx.Response:
+    """Build auth headers, call the backend, raise on errors, and return the raw response."""
     client = get_client()
     access_token = get_access_token()
     headers = kwargs.pop("headers", {})
@@ -67,8 +61,29 @@ async def call_backend(method: str, path: str, **kwargs) -> dict:
         r.status_code,
         elapsed_ms,
     )
-
     _raise_for_error(r)
+    return r
+
+
+async def call_backend_raw(method: str, path: str, **kwargs) -> httpx.Response:
+    """
+    Like call_backend but returns the raw httpx.Response.
+
+    Use this for endpoints that return non-JSON content (CSV text, PNG binary, etc.).
+    Auth headers and error handling are applied identically to call_backend.
+    """
+    return await _make_request(method, path, **kwargs)
+
+
+async def call_backend(method: str, path: str, **kwargs) -> dict:
+    """
+    Call the FastAPI backend using the shared httpx client.
+
+    Mints a short-lived service JWT and attaches MCP actor headers so the backend
+    can attribute the activity to the correct user. Classifies error responses into
+    typed MCPBackendError exceptions with actionable messages for Claude.
+    """
+    r = await _make_request(method, path, **kwargs)
     data = r.json() if r.content else {}
     # FastMCP v3 requires tools to return dicts; wrap list responses so they
     # are consistent with the dict-only contract.

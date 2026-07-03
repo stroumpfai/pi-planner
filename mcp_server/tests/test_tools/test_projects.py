@@ -1,4 +1,5 @@
 """Integration tests for project, PI, and sprint tools against a mock backend."""
+import base64
 import json
 import httpx
 import pytest
@@ -12,6 +13,8 @@ from mcp_server.tools.projects import (
     create_pi,
     update_pi,
     update_sprint,
+    export_pi_csv,
+    export_pi_png,
 )
 
 PROJECT_ID = "proj-uuid-1"
@@ -308,3 +311,50 @@ async def test_update_sprint_all_fields(mock_backend, mock_ctx, patch_get_http_r
     assert result["start_date"] == "2026-01-06"
     body = _last_call_body(mock_backend, f"/sprints/{SPRINT_ID}")
     assert body == {"capacity": 20, "start_date": "2026-01-06", "end_date": "2026-01-19"}
+
+
+# ---------------------------------------------------------------------------
+# export_pi_csv
+# ---------------------------------------------------------------------------
+
+
+async def test_export_pi_csv_returns_text(mock_backend, mock_ctx, patch_get_http_request):
+    csv_text = "id,title,effort\n101,Auth,5\n102,Login,3\n"
+    mock_backend.get(f"/api/v1/pis/{PI_ID}/export/csv").mock(
+        return_value=httpx.Response(200, text=csv_text, headers={"content-type": "text/csv"})
+    )
+    result = await export_pi_csv(pi_id=PI_ID, ctx=mock_ctx)
+    assert result["csv"] == csv_text
+
+
+async def test_export_pi_csv_does_not_acquire_lock(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.get(f"/api/v1/pis/{PI_ID}/export/csv").mock(
+        return_value=httpx.Response(200, text="id,title\n", headers={"content-type": "text/csv"})
+    )
+    await export_pi_csv(pi_id=PI_ID, ctx=mock_ctx)
+    lock_calls = [c for c in mock_backend.calls if "edit-lock" in str(c.request.url)]
+    assert lock_calls == []
+
+
+# ---------------------------------------------------------------------------
+# export_pi_png
+# ---------------------------------------------------------------------------
+
+
+async def test_export_pi_png_returns_base64(mock_backend, mock_ctx, patch_get_http_request):
+    png_bytes = b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR"  # realistic PNG header prefix
+    mock_backend.get(f"/api/v1/pis/{PI_ID}/export/png").mock(
+        return_value=httpx.Response(200, content=png_bytes, headers={"content-type": "image/png"})
+    )
+    result = await export_pi_png(pi_id=PI_ID, ctx=mock_ctx)
+    assert result["png_base64"] == base64.b64encode(png_bytes).decode()
+
+
+async def test_export_pi_png_does_not_acquire_lock(mock_backend, mock_ctx, patch_get_http_request):
+    png_bytes = b"\x89PNG\r\n\x1a\n"
+    mock_backend.get(f"/api/v1/pis/{PI_ID}/export/png").mock(
+        return_value=httpx.Response(200, content=png_bytes, headers={"content-type": "image/png"})
+    )
+    await export_pi_png(pi_id=PI_ID, ctx=mock_ctx)
+    lock_calls = [c for c in mock_backend.calls if "edit-lock" in str(c.request.url)]
+    assert lock_calls == []

@@ -10,6 +10,7 @@ from mcp_server.tools.swimlines import swimlines_mcp
 from mcp_server.tools.features import features_mcp
 from mcp_server.tools.groups import groups_mcp
 from mcp_server.tools.workflows import workflows_mcp
+from mcp_server.tools.pi_events import pi_events_mcp
 from mcp_server.server import mcp
 
 
@@ -28,6 +29,8 @@ EXPECTED_READ_TOOLS = {
     "get_feature",
     "list_pbis",
     "list_groups",
+    "list_snapshots",
+    "list_pi_events",
     "get_edit_lock_status",
 }
 
@@ -35,9 +38,19 @@ EXPECTED_PROJECTS_TOOLS = {
     "create_project",
     "update_project",
     "export_project",
+    "create_snapshot",
+    "restore_snapshot",
+    "export_pi_csv",
+    "export_pi_png",
     "create_pi",
     "update_pi",
     "update_sprint",
+}
+
+EXPECTED_PI_EVENTS_TOOLS = {
+    "create_pi_event",
+    "update_pi_event",
+    "delete_pi_event",
 }
 
 EXPECTED_SWIMLINES_TOOLS = {
@@ -131,11 +144,18 @@ async def test_workflows_tools_all_registered():
 
 
 @pytest.mark.asyncio
+async def test_pi_events_tools_all_registered():
+    names = await _tool_names(pi_events_mcp)
+    missing = EXPECTED_PI_EVENTS_TOOLS - names
+    assert not missing, f"Missing pi_events tools: {missing}"
+
+
+@pytest.mark.asyncio
 async def test_total_tool_count():
     all_names = set()
-    for server in (read_mcp, projects_mcp, swimlines_mcp, features_mcp, groups_mcp, workflows_mcp):
+    for server in (read_mcp, projects_mcp, swimlines_mcp, features_mcp, groups_mcp, workflows_mcp, pi_events_mcp):
         all_names |= await _tool_names(server)
-    assert len(all_names) >= 35, f"Expected at least 35 tools, found {len(all_names)}: {all_names}"
+    assert len(all_names) >= 42, f"Expected at least 42 tools, found {len(all_names)}: {all_names}"
 
 
 @pytest.mark.asyncio
@@ -143,7 +163,7 @@ async def test_main_server_mounts_all_groups():
     """Verify the main server exposes tools from all 6 sub-servers (prefixed)."""
     all_tools = await _tool_names(mcp)
     prefixes = {name.split("_")[0] for name in all_tools if "_" in name}
-    for expected_prefix in ("read", "projects", "swimlines", "features", "groups", "workflows"):
+    for expected_prefix in ("read", "projects", "swimlines", "features", "groups", "workflows", "pi"):
         assert expected_prefix in prefixes, (
             f"Mount prefix '{expected_prefix}' not found in main server tools. "
             f"Found prefixes: {prefixes}"
