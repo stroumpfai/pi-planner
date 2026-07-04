@@ -152,6 +152,8 @@ export function PIBoardPage({ projectId, piId }: Props) {
   const isEditing = useAuthStore((s) => s.isEditing)
   const featureColumnWidth = useSettingsStore((s) => s.featureColumnWidth)
   const setFeatureColumnWidth = useSettingsStore((s) => s.setFeatureColumnWidth)
+  const focusMode = useSettingsStore((s) => s.focusMode)
+  const toggleFocusMode = useSettingsStore((s) => s.toggleFocusMode)
 
   const { data: pis } = usePIs(projectId)
   const { data: swimlines } = useSwimlinesForPI(piId)
@@ -301,7 +303,7 @@ export function PIBoardPage({ projectId, piId }: Props) {
       onDragEnd={handleDragEnd}
     >
       <div className="flex h-full overflow-hidden bg-canvas">
-        <BacklogPanel projectId={projectId} />
+        {!focusMode && <BacklogPanel projectId={projectId} />}
 
         <div
           className="flex flex-col flex-1 overflow-hidden"
@@ -322,6 +324,27 @@ export function PIBoardPage({ projectId, piId }: Props) {
               </div>
             )}
             <div className="flex items-center gap-4 flex-shrink-0">
+              <button
+                type="button"
+                onClick={toggleFocusMode}
+                title={focusMode ? 'Exit focus mode' : 'Enter focus mode'}
+                className="text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+              >
+                {focusMode ? (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <path d="M9 3v18" />
+                    <path d="m14 9 3 3-3 3" />
+                  </svg>
+                ) : (
+                  <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <path d="M9 3v18" />
+                    <path d="m16 15-3-3 3-3" />
+                  </svg>
+                )}
+              </button>
+              <span className="text-gray-200 dark:text-gray-700">|</span>
               <button
                 type="button"
                 onClick={() => setAllSwimlanesCollapsed(piId, swimlaneSystemIds, true)}

@@ -6,6 +6,7 @@ const FEATURE_COL_WIDTH_KEY = 'pi-planner:feature-col-width'
 const SHOW_FEATURE_NAME_IN_CARD_KEY = 'pi-planner:show-feature-name-in-card'
 const COLOR_SCHEME_KEY = 'pi-planner:color-scheme'
 const SHOW_PI_EVENTS_KEY = 'pi-planner:show-pi-events'
+const FOCUS_MODE_KEY = 'pi-planner:focus-mode'
 const DEFAULT_COL_WIDTH = 192
 
 export type ColorScheme = 'light' | 'dark' | 'system'
@@ -23,6 +24,8 @@ interface SettingsState {
   setColorScheme: (v: ColorScheme) => void
   showPIEvents: boolean
   setShowPIEvents: (v: boolean) => void
+  focusMode: boolean
+  toggleFocusMode: () => void
 }
 
 function readColorScheme(): ColorScheme {
@@ -62,4 +65,11 @@ export const useSettingsStore = create<SettingsState>((set) => ({
     localStorage.setItem(SHOW_PI_EVENTS_KEY, String(showPIEvents))
     set({ showPIEvents })
   },
+  focusMode: localStorage.getItem(FOCUS_MODE_KEY) === 'true',
+  toggleFocusMode: () =>
+    set((s) => {
+      const next = !s.focusMode
+      localStorage.setItem(FOCUS_MODE_KEY, String(next))
+      return { focusMode: next }
+    }),
 }))

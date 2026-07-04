@@ -5,6 +5,7 @@ import { useProject } from '@/hooks/useProjects'
 import { useUiStore } from '@/stores/uiStore'
 import { useSSE } from '@/hooks/useSSE'
 import { useAuthStore } from '@/stores/authStore'
+import { useSettingsStore } from '@/stores/settingsStore'
 import { EditLockButton } from '@/components/EditLockButton'
 import { PIListPanel } from '@/components/PIListPanel'
 import { ToastContainer } from '@/components/ToastContainer'
@@ -22,6 +23,7 @@ export default function App() {
   const { activeProjectId, activePIId, setActiveProject } = useUiStore()
   const { data: activeProject } = useProject(activeProjectId ?? '')
   const isAdmin = useAuthStore((s) => s.isAdmin())
+  const focusMode = useSettingsStore((s) => s.focusMode)
   const [userMgmtOpen, setUserMgmtOpen] = useState(false)
 
   useSSE(activeProjectId)
@@ -87,7 +89,7 @@ export default function App() {
       <main className="flex h-[calc(100vh-49px)]">
         {activeProjectId ? (
           <>
-            <PIListPanel projectId={activeProjectId} />
+            {!(activePIId && focusMode) && <PIListPanel projectId={activeProjectId} />}
             <div className="flex-1 overflow-hidden">
               {activePIId ? (
                 <PIBoardPage projectId={activeProjectId} piId={activePIId} />
