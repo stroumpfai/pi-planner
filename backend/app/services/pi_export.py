@@ -6,6 +6,8 @@ from datetime import date
 
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
+from matplotlib.gridspec import GridSpec
+from matplotlib.patches import Rectangle
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -17,7 +19,7 @@ from app.models.project import Project
 from app.models.pbi import PBI
 from app.models.sprint import Sprint
 from app.models.swimline import Swimline
-from app.services.effort import pi_effort_and_capacity, swimline_efforts
+from app.services.effort import pi_effort_and_capacity, sprint_efforts_for_pi, swimline_efforts
 
 EVENT_COLORS: dict[str, str] = {
     "release":   "#10b981",
@@ -95,15 +97,76 @@ async def export_pi_csv(db: AsyncSession, pi: PI) -> str:
     return buf.getvalue()
 
 
-def _build_sprint_labels(
-    sprints: list[Sprint], num_sprints: int, effort_unit: str
-) -> list[str]:
-    labels = []
+def _fmt_date(d: date | None) -> str:
+    return d.strftime("%d.%m.%y") if d else "?"
+
+
+def _swimlane_bar_color(ratio: float) -> tuple[str, str]:
+    """Return (bar_color, text_color) interpolated from gray-200 (low) to gray-600 (high)."""
+    lo = (0xe5, 0xe7, 0xeb)  # gray-200
+    hi = (0x4b, 0x55, 0x63)  # gray-600
+    r = round(lo[0] + (hi[0] - lo[0]) * ratio)
+    g = round(lo[1] + (hi[1] - lo[1]) * ratio)
+    b = round(lo[2] + (hi[2] - lo[2]) * ratio)
+    bar = f"#{r:02x}{g:02x}{b:02x}"
+    text = "white" if ratio >= 0.5 else "#1f2937"
+    return bar, text
+
+
+def _capacity_bar_color(used: float, capacity: int) -> str:
+    if capacity == 0:
+        return "#9ca3af"
+    pct = used / capacity
+    if pct > 1.0:
+        return "#ef4444"
+    if pct >= 0.85:
+        return "#f59e0b"
+    return "#3b82f6"
+
+
+def _draw_sprint_header(
+    ax: object,
+    sprints: list[Sprint],
+    sprint_efforts: dict[int, float],
+    effort_unit: str,
+    num_sprints: int,
+) -> None:
+    ax.set_xlim(0.0, float(num_sprints))  # type: ignore[union-attr]
+    ax.set_ylim(0.0, 1.0)  # type: ignore[union-attr]
+    ax.axis("off")  # type: ignore[union-attr]
+
     for i in range(num_sprints):
         matching = [s for s in sprints if s.sprint_index == i]
-        cap = matching[0].capacity if matching else 0
-        labels.append(f"Sprint {i + 1}\n({cap} {effort_unit})")
-    return labels
+        sprint = matching[0] if matching else None
+        cap = (sprint.capacity or 0) if sprint else 0
+        used = sprint_efforts.get(i, 0.0)
+        pct = used / cap if cap > 0 else 0.0
+
+        ax.add_patch(Rectangle(  # type: ignore[union-attr]
+            (i + 0.02, 0.02), 0.96, 0.96,
+            facecolor="#f8fafc", edgecolor="#e2e8f0", linewidth=0.5,
+        ))
+
+        ax.text(i + 0.5, 0.88, f"Sprint {i + 1}",  # type: ignore[union-attr]
+                ha="center", va="top", fontsize=8, fontweight="bold", color="#374151")
+
+        if sprint and (sprint.start_date or sprint.end_date):
+            date_str = f"{_fmt_date(sprint.start_date)} – {_fmt_date(sprint.end_date)}"
+            ax.text(i + 0.5, 0.67, date_str,  # type: ignore[union-attr]
+                    ha="center", va="top", fontsize=7, color="#6b7280")
+
+        cap_text = f"{used:g}/{cap} {effort_unit} – {round(pct * 100)}%"
+        ax.text(i + 0.5, 0.47, cap_text,  # type: ignore[union-attr]
+                ha="center", va="top", fontsize=7, color="#6b7280")
+
+        bx, by, bw, bh = i + 0.08, 0.14, 0.84, 0.13
+        ax.add_patch(Rectangle((bx, by), bw, bh, facecolor="#e2e8f0", edgecolor="none"))  # type: ignore[union-attr]
+        fill_w = min(pct, 1.0) * bw
+        if fill_w > 0:
+            ax.add_patch(Rectangle(  # type: ignore[union-attr]
+                (bx, by), fill_w, bh,
+                facecolor=_capacity_bar_color(used, cap), edgecolor="none",
+            ))
 
 
 def _draw_events(
@@ -111,7 +174,7 @@ def _draw_events(
     events: list[PIEvent],
     dated_sprints: list[tuple[int, date, date]],
     num_sprints: int,
-    n: int,
+    bottom_y: float,
 ) -> None:
     for event in events:
         x = _event_x(event.event_date, dated_sprints, num_sprints)
@@ -120,8 +183,8 @@ def _draw_events(
         color = EVENT_COLORS.get(event.event_type, "#6b7280")
         ax.axvline(x=x, color=color, linestyle="--", linewidth=0.8, zorder=3, alpha=0.8)  # type: ignore[union-attr]
         ax.text(  # type: ignore[union-attr]
-            x, float(n) - 0.3, event.name,
-            rotation=45, va="bottom", ha="left", fontsize=7, color=color,
+            x, bottom_y, event.name,
+            rotation=-45, va="top", ha="left", fontsize=7, color=color,
             rotation_mode="anchor", clip_on=False,
         )
 
@@ -129,6 +192,7 @@ def _draw_events(
 async def export_pi_png(db: AsyncSession, pi: PI) -> bytes:
     """Return PNG bytes showing a swimlane roadmap for the PI."""
     effort, capacity = await pi_effort_and_capacity(db, pi.system_id)
+    sprint_efforts = await sprint_efforts_for_pi(db, pi.system_id)
 
     project = await db.get(Project, pi.project_id)
     effort_unit = (project.effort_unit if project and project.effort_unit else "pts")
@@ -169,6 +233,8 @@ async def export_pi_png(db: AsyncSession, pi: PI) -> bytes:
         )
         spans = {r.swimline_id: (int(r.min_sprint), int(r.max_sprint)) for r in spans_result.all()}
 
+    swimlines = [s for s in swimlines if s.system_id in spans]
+
     dated_sprints = [
         (s.sprint_index, s.start_date, s.end_date)
         for s in sprints
@@ -176,60 +242,61 @@ async def export_pi_png(db: AsyncSession, pi: PI) -> bytes:
     ]
 
     n = max(len(swimlines), 1)
+    HEADER_H = 1.0  # inches — fixed height for the sprint header row
+    main_h = max(1.5, n * 0.35 + 1.0)
     fig_width = max(10.0, num_sprints * 2.2)
-    fig_height = max(3.0, n * 0.35 + 2.0)
+    fig_height = HEADER_H + main_h
 
-    fig = Figure(figsize=(fig_width, fig_height), dpi=150)
+    fig = Figure(figsize=(fig_width, fig_height), dpi=150, layout="constrained")
     FigureCanvasAgg(fig)
-    ax = fig.add_subplot(111)
+    gs = GridSpec(2, 1, figure=fig, height_ratios=[HEADER_H, main_h], hspace=0.05)
+    ax_header = fig.add_subplot(gs[0])
+    ax = fig.add_subplot(gs[1])
 
-    BASE_COLOR = "#6366f1"
+    _draw_sprint_header(ax_header, sprints, sprint_efforts, effort_unit, num_sprints)
+
     BAR_HEIGHT = 0.5
+    ROW_SPACING = 0.65  # center-to-center distance between bars (data units)
 
-    # y = 0 is bottom; place first swimline at top (y = n-1)
-    y_positions = list(range(n - 1, -1, -1))
+    # y = 0 is bottom; place first swimline at top
+    y_positions = [i * ROW_SPACING for i in range(n - 1, -1, -1)]
 
     for i, swimline in enumerate(swimlines):
         y = y_positions[i]
         sl_effort = sl_efforts.get(swimline.system_id, 0.0)
-        alpha = 0.25 + 0.75 * min(sl_effort / capacity, 1.0) if capacity > 0 else 0.35
+        ratio = min(sl_effort / capacity, 1.0) if capacity > 0 else 0.3
+        bar_color, text_color = _swimlane_bar_color(ratio)
 
-        span = spans.get(swimline.system_id)
-        if span is not None:
-            left = float(span[0])
-            width = float(span[1] - span[0] + 1)
-            ax.barh(y, width, left=left, color=BASE_COLOR, alpha=alpha,
-                    height=BAR_HEIGHT, edgecolor="white", linewidth=0.5)
-            label = f"{swimline.name} – {sl_effort:g} {effort_unit}"
-            ax.text(left + width / 2.0, y, label,
-                    va="center", ha="center", fontsize=8, color="white", fontweight="bold")
-        else:
-            ax.text(num_sprints / 2.0, y, "(no planned items)",
-                    va="center", ha="center", fontsize=8, color="#9ca3af", style="italic")
+        span = spans[swimline.system_id]
+        left = float(span[0])
+        width = float(span[1] - span[0] + 1)
+        ax.barh(y, width, left=left, color=bar_color,
+                height=BAR_HEIGHT, edgecolor="white", linewidth=0.5)
+        label = f"{swimline.name} – {sl_effort:g} {effort_unit}"
+        ax.text(left + width / 2.0, y, label,
+                va="center", ha="center", fontsize=8, color=text_color, fontweight="bold")
 
-    _draw_events(ax, events, dated_sprints, num_sprints, n)
+    bottom_y = -BAR_HEIGHT / 2 - 0.1
+    _draw_events(ax, events, dated_sprints, num_sprints, bottom_y)
 
     ax.set_yticks([])
-
     ax.set_xlim(0.0, float(num_sprints))
-    ax.set_xticks([i + 0.5 for i in range(num_sprints)])
-    ax.set_xticklabels(_build_sprint_labels(sprints, num_sprints, effort_unit), fontsize=8)
+    ax.set_xticks([])  # sprint info is in the header row above
 
     for i in range(1, num_sprints):
         ax.axvline(x=float(i), color="#e2e8f0", linewidth=0.8, zorder=0)
 
     pct = round(effort / capacity * 100) if capacity > 0 else 0
-    ax.set_title(
-        f"{pi.name}\nTotal: {effort:g} / {capacity} {effort_unit}  ({pct}%)",
-        fontsize=11, fontweight="bold", pad=12,
+    fig.suptitle(
+        f"{pi.name}  ·  Total: {effort:g} / {capacity} {effort_unit}  ({pct}%)",
+        fontsize=10, fontweight="bold",
     )
 
-    ax.set_ylim(-0.7, float(n) - 0.3)
-    for spine in ("top", "right", "left"):
+    top_y = (n - 1) * ROW_SPACING + BAR_HEIGHT / 2 + 0.05
+    ax.set_ylim(bottom_y, top_y)
+    for spine in ("top", "right", "left", "bottom"):
         ax.spines[spine].set_visible(False)
     ax.tick_params(left=False)
-
-    fig.tight_layout()
 
     buf = io.BytesIO()
     fig.savefig(buf, format="png", bbox_inches="tight")
