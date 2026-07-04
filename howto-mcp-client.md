@@ -79,6 +79,7 @@ If you get a 404 or an empty response, OAuth is not enabled. Check:
 | Symptom | Likely cause |
 |---|---|
 | No authorization popup appears | OAuth not enabled — check `OAUTH_BASE_URL` in `mcp_server/.env` and restart |
+| No popup when reconnecting a client that worked before | The client cached a registration the server no longer has (e.g. after the OAuth token store was reset). In the client, **remove and re-add** the server so it re-registers. Operators: ensure `OAUTH_TOKEN_STORAGE` points at a persistent volume (the compose file uses `/data/oauth_tokens.json`). |
 | Consent page shows "Invalid API key" | Wrong key, or key was deleted/expired |
 | Consent page shows "Too many failed attempts" | Rate-limited after repeated invalid key submissions from your IP — wait about a minute and try again |
 | "Reader accounts cannot authorize" | Your account has the reader role — ask an admin to upgrade it |

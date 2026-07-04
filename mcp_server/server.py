@@ -132,6 +132,12 @@ if __name__ == "__main__":
     # using the bare server URL (e.g. https://mcp.example.com) without a /mcp suffix.
     # ScopeHintMiddleware adds scope="admin editor" to WWW-Authenticate headers on
     # 401/403 responses so spec-compliant clients know what scopes to request (Finding 6).
+    #
+    # NOTE: run this as a SINGLE process. The OAuth token store, pending-consent
+    # sessions, the API-key verification cache, and the auth rate limiter are all
+    # per-process in-memory state. Running multiple uvicorn workers would split
+    # that state across processes and cause intermittent auth/consent failures.
+    # Scale horizontally only after moving this state to a shared backing store.
     mcp.run(
         transport="streamable-http",
         port=settings.port,

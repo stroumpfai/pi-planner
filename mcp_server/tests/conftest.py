@@ -18,6 +18,17 @@ def mock_settings(monkeypatch):
     monkeypatch.setattr(settings, "backend_url", _TEST_BACKEND_URL)
 
 
+@pytest.fixture(autouse=True)
+def clear_api_key_verify_cache():
+    """Reset the module-level API-key verification cache between tests so a cached
+    success from one test can't satisfy another test's differently-mocked backend."""
+    from mcp_server.auth import clear_verify_cache
+
+    clear_verify_cache()
+    yield
+    clear_verify_cache()
+
+
 @pytest.fixture
 def mock_backend():
     """

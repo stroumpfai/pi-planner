@@ -1,6 +1,9 @@
-import httpx
-from collections import defaultdict
+import hashlib
+import logging
 import time
+from collections import defaultdict
+
+import httpx
 
 from fastmcp.server.auth import TokenVerifier
 from fastmcp.server.dependencies import AccessToken, get_http_request
@@ -8,17 +11,42 @@ from fastmcp.server.dependencies import AccessToken, get_http_request
 from mcp_server.config import settings
 from mcp_server.jwt_utils import mint_service_jwt
 
+log = logging.getLogger(__name__)
 
-# Sliding-window rate limiter state (shared with server.py's ASGI middleware).
+
+# Sliding-window rate limiter state (shared with the OAuth consent path).
 _failed_auth: dict[str, list[float]] = defaultdict(list)
 _RATE_WINDOW = 60
 _RATE_LIMIT = 20
 
+# Short-lived positive cache for API-key verification. The direct-Bearer path
+# verifies the key on *every* MCP call; without this each tool call would incur
+# an extra backend round-trip (plus a fresh TCP/TLS handshake and a JWT mint).
+# Only successful verifications are cached, keyed by a hash of the token so the
+# raw secret never sits in the map. TTL is deliberately short so revoked or
+# role-changed keys stop working within a minute.
+_verify_cache: dict[str, tuple[float, tuple[str, str, str]]] = {}
+_VERIFY_CACHE_TTL = 60.0
+
+
+class BackendAuthUnavailable(Exception):
+    """The backend could not be reached (network error or 5xx) while verifying a key.
+
+    Distinct from an *invalid* key (which yields None): callers must NOT treat this
+    as an authentication failure — doing so would let a transient backend outage
+    poison the rate limiter and lock out legitimate clients.
+    """
+
 
 def is_rate_limited(ip: str) -> bool:
     now = time.monotonic()
-    _failed_auth[ip] = [t for t in _failed_auth[ip] if now - t < _RATE_WINDOW]
-    return len(_failed_auth[ip]) >= _RATE_LIMIT
+    recent = [t for t in _failed_auth.get(ip, []) if now - t < _RATE_WINDOW]
+    # Prune the bucket so IPs that stop failing don't linger forever (memory leak).
+    if recent:
+        _failed_auth[ip] = recent
+    else:
+        _failed_auth.pop(ip, None)
+    return len(recent) >= _RATE_LIMIT
 
 
 def record_auth_failure(ip: str) -> None:
@@ -27,6 +55,47 @@ def record_auth_failure(ip: str) -> None:
 
 def clear_auth_failures(ip: str) -> None:
     _failed_auth.pop(ip, None)
+
+
+def client_ip(request) -> str:
+    """Best-effort client IP for rate limiting.
+
+    Behind a reverse proxy the socket peer is the proxy itself, so every client
+    would share one bucket. When ``trust_proxy_headers`` is enabled we key on the
+    leftmost X-Forwarded-For entry instead. It stays off by default because the
+    header is client-spoofable when the server is directly exposed.
+    """
+    if settings.trust_proxy_headers:
+        forwarded = request.headers.get("x-forwarded-for")
+        if forwarded:
+            first = forwarded.split(",")[0].strip()
+            if first:
+                return first
+    return request.client.host if request.client else "unknown"
+
+
+def _cache_key(token: str) -> str:
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+def _cache_get(token: str) -> tuple[str, str, str] | None:
+    key = _cache_key(token)
+    entry = _verify_cache.get(key)
+    if not entry:
+        return None
+    expires_at, value = entry
+    if expires_at <= time.monotonic():
+        _verify_cache.pop(key, None)
+        return None
+    return value
+
+
+def _cache_put(token: str, value: tuple[str, str, str]) -> None:
+    _verify_cache[_cache_key(token)] = (time.monotonic() + _VERIFY_CACHE_TTL, value)
+
+
+def clear_verify_cache() -> None:
+    _verify_cache.clear()
 
 
 def actor_username(token: AccessToken) -> str:
@@ -42,10 +111,18 @@ def actor_username(token: AccessToken) -> str:
 async def verify_api_key(raw_token: str) -> tuple[str, str, str] | None:
     """
     Verify token by calling backend POST /api/v1/api-keys/admin/verify.
-    Returns (key_id, username, role) or None if invalid.
 
-    Creates a short-lived httpx client per call — this is auth-only, not a hot path.
+    Returns (key_id, username, role) on success, None if the key is genuinely
+    invalid (backend responded 4xx). Raises BackendAuthUnavailable if the backend
+    could not be reached or returned 5xx — the caller must distinguish this from
+    an invalid key so a backend blip does not get charged as an auth failure.
+
+    Successful results are cached for _VERIFY_CACHE_TTL seconds.
     """
+    cached = _cache_get(raw_token)
+    if cached is not None:
+        return cached
+
     try:
         async with httpx.AsyncClient(base_url=settings.backend_url, timeout=5.0) as client:
             r = await client.post(
@@ -53,12 +130,24 @@ async def verify_api_key(raw_token: str) -> tuple[str, str, str] | None:
                 json={"token": raw_token},
                 headers={"Authorization": f"Bearer {mint_service_jwt()}"},
             )
-            if r.status_code == 200:
-                data = r.json()
-                return data["key_id"], data["username"], data["role"]
-        return None
-    except Exception:
-        return None
+    except Exception as exc:
+        raise BackendAuthUnavailable(f"backend unreachable: {exc}") from exc
+
+    if r.status_code == 200:
+        try:
+            data = r.json()
+            result = (data["key_id"], data["username"], data["role"])
+        except (KeyError, ValueError):
+            log.warning("api_key_verify malformed 200 response")
+            return None
+        _cache_put(raw_token, result)
+        return result
+
+    if r.status_code >= 500:
+        raise BackendAuthUnavailable(f"backend returned {r.status_code}")
+
+    # 401/403/etc. — the key is genuinely invalid.
+    return None
 
 
 class APIKeyAuthProvider(TokenVerifier):
@@ -84,14 +173,21 @@ class APIKeyAuthProvider(TokenVerifier):
     async def verify_token(self, token: str) -> AccessToken | None:
         try:
             request = get_http_request()
-            ip = request.client.host if request.client else "unknown"
+            ip = client_ip(request)
         except RuntimeError:
             ip = "unknown"
 
         if is_rate_limited(ip):
             return None
 
-        result = await verify_api_key(token)
+        try:
+            result = await verify_api_key(token)
+        except BackendAuthUnavailable as exc:
+            # Transient backend problem — reject this request but do NOT record a
+            # failure, or a backend outage would rate-limit legitimate clients.
+            log.warning("api_key_verify backend unavailable: %s", exc)
+            return None
+
         if result is None:
             record_auth_failure(ip)
             return None

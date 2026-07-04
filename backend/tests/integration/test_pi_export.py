@@ -195,6 +195,21 @@ async def test_png_export_404(client: AsyncClient) -> None:
     assert resp.status_code == 404
 
 
+@pytest.mark.asyncio
+async def test_png_export_with_events(client: AsyncClient, planned_pi: dict) -> None:
+    """PI with events still produces a valid PNG (event lines rendered or skipped gracefully)."""
+    pi_id = planned_pi["pi_id"]
+    event_resp = await client.post(
+        f"/api/v1/pis/{pi_id}/events",
+        json={"name": "Release v1", "event_date": "2025-03-15", "event_type": "release"},
+    )
+    assert event_resp.status_code == 201
+
+    resp = await client.get(f"/api/v1/pis/{pi_id}/export/png")
+    assert resp.status_code == 200
+    assert resp.content[:8] == b"\x89PNG\r\n\x1a\n"
+
+
 # ---------------------------------------------------------------------------
 # Access control: readers can export
 # ---------------------------------------------------------------------------

@@ -12,6 +12,13 @@ class Settings(BaseSettings):
     backend_url: str = "http://localhost:8000"
     port: int = 8080
 
+    # Set True only when the MCP server runs behind a trusted reverse proxy that
+    # sets X-Forwarded-For. When True, the rate limiter keys on the leftmost
+    # forwarded IP instead of the (proxy) socket peer — otherwise every client
+    # shares the proxy's IP and one bad actor can rate-limit everyone. Leave
+    # False when directly exposed, since X-Forwarded-For is then client-spoofable.
+    trust_proxy_headers: bool = False
+
     # OAuth 2.1 — leave empty to run with direct API-key Bearer auth only
     oauth_base_url: str = ""
     oauth_token_storage: str = str(Path.home() / ".pi-planning" / "oauth_tokens.json")

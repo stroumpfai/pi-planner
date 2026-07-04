@@ -31,14 +31,15 @@ from mcp.server.auth.provider import (
 from mcp.server.auth.routes import cors_middleware
 from mcp.server.auth.settings import RevocationOptions
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken, ProtectedResourceMetadata
-from starlette.middleware import Middleware
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse, Response
 from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 from mcp_server.auth import (
+    BackendAuthUnavailable,
     clear_auth_failures,
+    client_ip,
     is_rate_limited,
     record_auth_failure,
     verify_api_key,
@@ -47,6 +48,10 @@ from mcp_server.auth import (
 log = logging.getLogger(__name__)
 
 _AUTH_CODE_TTL = 300  # 5 minutes — auth codes and pending consent sessions
+
+# The scopes this server supports (mirrors ClientRegistrationOptions.valid_scopes).
+_VALID_SCOPES = ["admin", "editor"]
+_DEFAULT_CLIENT_SCOPE = " ".join(_VALID_SCOPES)
 
 
 # ---------------------------------------------------------------------------
@@ -176,19 +181,31 @@ class TokenStore:
 
     def _write(self) -> None:
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._path.write_text(
-            json.dumps(
-                {
-                    "access_tokens": self._tokens,
-                    "refresh_tokens": self._refresh_tokens,
-                    "auth_codes": self._auth_codes,
-                    "clients": self._clients,
-                },
-                indent=2,
-            )
+        payload = json.dumps(
+            {
+                "access_tokens": self._tokens,
+                "refresh_tokens": self._refresh_tokens,
+                "auth_codes": self._auth_codes,
+                "clients": self._clients,
+            },
+            indent=2,
         )
-        # Restrict to owner read/write only — tokens are sensitive credentials.
-        os.chmod(self._path, 0o600)
+        # Write atomically: a crash mid-write must not corrupt the token file, or
+        # the next _load() would discard every token and log out all OAuth clients.
+        # Write to a temp file in the same directory (so os.replace is atomic),
+        # fsync, chmod 0o600, then rename over the target.
+        tmp = self._path.with_name(f"{self._path.name}.{os.getpid()}.tmp")
+        try:
+            fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+            try:
+                os.write(fd, payload.encode("utf-8"))
+                os.fsync(fd)
+            finally:
+                os.close(fd)
+            os.replace(tmp, self._path)
+        finally:
+            if tmp.exists():
+                tmp.unlink()
 
     # -- Access token methods --
 
@@ -375,7 +392,7 @@ class PiPlannerOAuthProvider(OAuthProvider):
             base_url=base_url,
             client_registration_options=ClientRegistrationOptions(
                 enabled=True,
-                valid_scopes=["admin", "editor"],
+                valid_scopes=_VALID_SCOPES,
             ),
             revocation_options=RevocationOptions(enabled=True),
             # required_scopes drives RequireAuthMiddleware — callers need at least "editor".
@@ -390,11 +407,31 @@ class PiPlannerOAuthProvider(OAuthProvider):
 
     # ── OAuthAuthorizationServerProvider protocol ───────────────────────────
 
+    @staticmethod
+    def _ensure_scope(
+        client: OAuthClientInformationFull,
+    ) -> OAuthClientInformationFull:
+        """Guarantee the client is registered with the full supported scope set.
+
+        Clients that DCR-register without a `scope`, or arrive via CIMD (whose
+        document carries no scope), end up with scope=None. Because this server
+        advertises `scopes_supported` and a `WWW-Authenticate: scope="admin editor"`
+        hint, spec-compliant clients (Claude.ai, ChatGPT) then request `scope=editor`
+        at /authorize — which the SDK's validate_scope() rejects with invalid_scope
+        unless the registered scope covers it, silently killing the consent flow
+        (the user never sees the API-key page). Granting the supported scopes here
+        is safe: real authorization is enforced by the API key pasted on the consent
+        page — readers are rejected and the user's role drives the issued token.
+        """
+        if not client.scope:
+            client.scope = _DEFAULT_CLIENT_SCOPE
+        return client
+
     async def get_client(self, client_id: str) -> OAuthClientInformationFull | None:
         # Check persistent store first (covers DCR-registered clients).
         stored = self._store.get_client(client_id)
         if stored is not None:
-            return stored
+            return self._ensure_scope(stored)
 
         # For URL-formatted client IDs, auto-fetch the CIMD document (Finding 4).
         # redirect_uris is intentionally left as None — we validate per-request
@@ -407,15 +444,17 @@ class PiPlannerOAuthProvider(OAuthProvider):
                     client_id,
                     cimd_doc.client_name or "(unnamed)",
                 )
-                return OAuthClientInformationFull(
-                    client_id=client_id,
-                    client_name=cimd_doc.client_name,
-                    redirect_uris=None,
-                    grant_types=cimd_doc.grant_types,
-                    response_types=cimd_doc.response_types,
-                    token_endpoint_auth_method=cimd_doc.token_endpoint_auth_method,
-                    client_uri=cimd_doc.client_uri,
-                    logo_uri=cimd_doc.logo_uri,
+                return self._ensure_scope(
+                    OAuthClientInformationFull(
+                        client_id=client_id,
+                        client_name=cimd_doc.client_name,
+                        redirect_uris=None,
+                        grant_types=cimd_doc.grant_types,
+                        response_types=cimd_doc.response_types,
+                        token_endpoint_auth_method=cimd_doc.token_endpoint_auth_method,
+                        client_uri=cimd_doc.client_uri,
+                        logo_uri=cimd_doc.logo_uri,
+                    )
                 )
             except (CIMDFetchError, CIMDValidationError) as exc:
                 log.warning("oauth_cimd_fetch_failed client_id=%.40s error=%s", client_id, exc)
@@ -443,11 +482,13 @@ class PiPlannerOAuthProvider(OAuthProvider):
                         f"Redirect URI {redirect_uri!r} is not permitted by the CIMD document"
                     )
 
+        self._ensure_scope(client_info)
         await self._store.save_client(client_info)
         log.info(
-            "oauth_dcr_registered client_id=%.8s name=%s",
+            "oauth_dcr_registered client_id=%.8s name=%s scope=%s",
             client_info.client_id,
             client_info.client_name or "(unnamed)",
+            client_info.scope,
         )
 
     async def _validate_redirect_uri(
@@ -485,6 +526,13 @@ class PiPlannerOAuthProvider(OAuthProvider):
         """Validate redirect_uri, store auth params, and redirect to consent page."""
         if params.redirect_uri:
             await self._validate_redirect_uri(client, str(params.redirect_uri))
+
+        # Drop any consent sessions that expired without being completed so the
+        # in-memory dict doesn't grow unbounded on a long-running server.
+        now = time.time()
+        expired = [n for n, p in self._pending.items() if p.expires_at < now]
+        for n in expired:
+            del self._pending[n]
 
         nonce = secrets.token_urlsafe(20)
         self._pending[nonce] = _PendingAuth(
@@ -743,7 +791,7 @@ class PiPlannerOAuthProvider(OAuthProvider):
             )
 
         client_id_short = (pending.client.client_id or "?")[:8]
-        ip = request.client.host if request.client else "unknown"
+        ip = client_ip(request)
 
         if not api_key:
             log.warning("oauth_consent_post nonce=%.8s... client=%.8s result=missing_key", nonce, client_id_short)
@@ -761,7 +809,15 @@ class PiPlannerOAuthProvider(OAuthProvider):
                 status_code=303,
             )
 
-        result = await verify_api_key(api_key)
+        try:
+            result = await verify_api_key(api_key)
+        except BackendAuthUnavailable:
+            # Transient backend problem — don't record a failure or blame the user.
+            log.warning("oauth_consent_post nonce=%.8s... client=%.8s result=backend_unavailable", nonce, client_id_short)
+            return RedirectResponse(
+                url=f"/authorize/consent?nonce={nonce}&error=backend_unavailable",
+                status_code=303,
+            )
         if result is None:
             record_auth_failure(ip)
             log.warning("oauth_consent_post nonce=%.8s... client=%.8s result=invalid_api_key", nonce, client_id_short)
@@ -838,6 +894,7 @@ _ERROR_MESSAGES: dict[str, str] = {
     "missing_key": "Please enter your API key.",
     "reader_not_allowed": "Reader accounts cannot authorize MCP access. Use an admin or editor API key.",
     "rate_limited": "Too many failed attempts. Please wait a minute and try again.",
+    "backend_unavailable": "PI Planner is temporarily unreachable. Please try again shortly.",
 }
 
 

@@ -194,6 +194,82 @@ async def test_get_unknown_client_returns_none(tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# Scope defaulting — clients that register/arrive without a scope must still
+# be able to request scope=editor at /authorize, or the SDK's validate_scope()
+# rejects the request with invalid_scope and the consent popup never appears.
+# ---------------------------------------------------------------------------
+
+
+async def test_dcr_client_without_scope_gets_default_scope(tmp_path):
+    provider = _make_provider(tmp_path)
+    client = _make_client()
+    assert client.scope is None  # client registered without a scope
+
+    await provider.register_client(client)
+    result = await provider.get_client("test-client")
+
+    assert result is not None
+    assert result.scope == "admin editor"
+    # The whole point: a scope=editor authorize request must now validate.
+    assert result.validate_scope("editor") == ["editor"]
+    assert result.validate_scope("admin editor") == ["admin", "editor"]
+
+
+async def test_dcr_client_keeps_explicit_scope(tmp_path):
+    provider = _make_provider(tmp_path)
+    client = _make_client()
+    client.scope = "editor"
+
+    await provider.register_client(client)
+    result = await provider.get_client("test-client")
+
+    assert result is not None
+    assert result.scope == "editor"
+
+
+async def test_previously_stored_scopeless_client_normalized_on_read(tmp_path):
+    """A client persisted before this fix (scope=None) must still work on reconnect."""
+    provider = _make_provider(tmp_path)
+    # Persist directly, bypassing register_client, to simulate an old registration.
+    await provider._store.save_client(_make_client("legacy-client"))
+
+    result = await provider.get_client("legacy-client")
+
+    assert result is not None
+    assert result.scope == "admin editor"
+
+
+async def test_cimd_client_gets_default_scope(tmp_path):
+    """CIMD-resolved clients (Claude.ai's URL client-ids) carry no scope of their own."""
+    provider = _make_provider(tmp_path)
+    client_id = "https://claude.ai/.well-known/oauth-client"
+
+    fake_doc = type(
+        "Doc",
+        (),
+        {
+            "client_name": "Claude",
+            "grant_types": ["authorization_code", "refresh_token"],
+            "response_types": ["code"],
+            "token_endpoint_auth_method": "none",
+            "client_uri": None,
+            "logo_uri": None,
+        },
+    )()
+
+    with patch.object(
+        provider._cimd_fetcher, "is_cimd_client_id", return_value=True
+    ), patch.object(
+        provider._cimd_fetcher, "fetch", AsyncMock(return_value=fake_doc)
+    ):
+        result = await provider.get_client(client_id)
+
+    assert result is not None
+    assert result.scope == "admin editor"
+    assert result.validate_scope("editor") == ["editor"]
+
+
+# ---------------------------------------------------------------------------
 # PiPlannerOAuthProvider — authorize() creates pending session
 # ---------------------------------------------------------------------------
 

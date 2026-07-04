@@ -2,6 +2,7 @@
 
 import csv
 import io
+from datetime import date
 
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
@@ -11,11 +12,41 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.feature import Feature
 from app.models.group import Group
 from app.models.pi import PI
+from app.models.pi_event import PIEvent
 from app.models.project import Project
 from app.models.pbi import PBI
 from app.models.sprint import Sprint
 from app.models.swimline import Swimline
 from app.services.effort import pi_effort_and_capacity, swimline_efforts
+
+EVENT_COLORS: dict[str, str] = {
+    "release":   "#10b981",
+    "milestone": "#6366f1",
+    "deadline":  "#ef4444",
+    "pilot":     "#8b5cf6",
+    "go_no_go":  "#f59e0b",
+    "other":     "#6b7280",
+}
+
+
+def _event_x(
+    event_date: date,
+    dated_sprints: list[tuple[int, date, date]],
+    num_sprints: int,
+) -> float | None:
+    """Map an event date to an x-axis coordinate. Returns None if no sprint dates."""
+    if not dated_sprints:
+        return None
+    sorted_sprints = sorted(dated_sprints)
+    for sprint_index, start, end in sorted_sprints:
+        if start <= event_date <= end:
+            span = (end - start).days or 1
+            frac = (event_date - start).days / span
+            return sprint_index + frac
+    first_start = min(s for _, s, _ in sorted_sprints)
+    if event_date < first_start:
+        return 0.0
+    return float(num_sprints)
 
 
 def safe_filename(name: str) -> str:
@@ -64,6 +95,37 @@ async def export_pi_csv(db: AsyncSession, pi: PI) -> str:
     return buf.getvalue()
 
 
+def _build_sprint_labels(
+    sprints: list[Sprint], num_sprints: int, effort_unit: str
+) -> list[str]:
+    labels = []
+    for i in range(num_sprints):
+        matching = [s for s in sprints if s.sprint_index == i]
+        cap = matching[0].capacity if matching else 0
+        labels.append(f"Sprint {i + 1}\n({cap} {effort_unit})")
+    return labels
+
+
+def _draw_events(
+    ax: object,
+    events: list[PIEvent],
+    dated_sprints: list[tuple[int, date, date]],
+    num_sprints: int,
+    n: int,
+) -> None:
+    for event in events:
+        x = _event_x(event.event_date, dated_sprints, num_sprints)
+        if x is None:
+            continue
+        color = EVENT_COLORS.get(event.event_type, "#6b7280")
+        ax.axvline(x=x, color=color, linestyle="--", linewidth=0.8, zorder=3, alpha=0.8)  # type: ignore[union-attr]
+        ax.text(  # type: ignore[union-attr]
+            x, float(n) - 0.3, event.name,
+            rotation=45, va="bottom", ha="left", fontsize=7, color=color,
+            rotation_mode="anchor", clip_on=False,
+        )
+
+
 async def export_pi_png(db: AsyncSession, pi: PI) -> bytes:
     """Return PNG bytes showing a swimlane roadmap for the PI."""
     effort, capacity = await pi_effort_and_capacity(db, pi.system_id)
@@ -84,6 +146,13 @@ async def export_pi_png(db: AsyncSession, pi: PI) -> bytes:
     )
     swimlines = swimlines_result.scalars().all()
 
+    events_result = await db.execute(
+        select(PIEvent)
+        .where(PIEvent.pi_id == pi.system_id)
+        .order_by(PIEvent.event_date.asc())
+    )
+    events = events_result.scalars().all()
+
     swimline_ids = [s.system_id for s in swimlines]
     sl_efforts: dict[str, float] = await swimline_efforts(db, swimline_ids) if swimline_ids else {}
 
@@ -100,16 +169,22 @@ async def export_pi_png(db: AsyncSession, pi: PI) -> bytes:
         )
         spans = {r.swimline_id: (int(r.min_sprint), int(r.max_sprint)) for r in spans_result.all()}
 
+    dated_sprints = [
+        (s.sprint_index, s.start_date, s.end_date)
+        for s in sprints
+        if s.start_date and s.end_date
+    ]
+
     n = max(len(swimlines), 1)
     fig_width = max(10.0, num_sprints * 2.2)
-    fig_height = max(4.0, n * 1.0 + 2.5)
+    fig_height = max(3.0, n * 0.35 + 2.0)
 
     fig = Figure(figsize=(fig_width, fig_height), dpi=150)
     FigureCanvasAgg(fig)
     ax = fig.add_subplot(111)
 
     BASE_COLOR = "#6366f1"
-    BAR_HEIGHT = 0.6
+    BAR_HEIGHT = 0.5
 
     # y = 0 is bottom; place first swimline at top (y = n-1)
     y_positions = list(range(n - 1, -1, -1))
@@ -125,24 +200,20 @@ async def export_pi_png(db: AsyncSession, pi: PI) -> bytes:
             width = float(span[1] - span[0] + 1)
             ax.barh(y, width, left=left, color=BASE_COLOR, alpha=alpha,
                     height=BAR_HEIGHT, edgecolor="white", linewidth=0.5)
-            label = f"{sl_effort:g} {effort_unit}"
+            label = f"{swimline.name} – {sl_effort:g} {effort_unit}"
             ax.text(left + width / 2.0, y, label,
                     va="center", ha="center", fontsize=8, color="white", fontweight="bold")
         else:
             ax.text(num_sprints / 2.0, y, "(no planned items)",
                     va="center", ha="center", fontsize=8, color="#9ca3af", style="italic")
 
-    ax.set_yticks(y_positions)
-    ax.set_yticklabels([s.name for s in swimlines], fontsize=9)
+    _draw_events(ax, events, dated_sprints, num_sprints, n)
+
+    ax.set_yticks([])
 
     ax.set_xlim(0.0, float(num_sprints))
     ax.set_xticks([i + 0.5 for i in range(num_sprints)])
-    sprint_labels = []
-    for i in range(num_sprints):
-        matching = [s for s in sprints if s.sprint_index == i]
-        cap = matching[0].capacity if matching else 0
-        sprint_labels.append(f"Sprint {i + 1}\n({cap} {effort_unit})")
-    ax.set_xticklabels(sprint_labels, fontsize=8)
+    ax.set_xticklabels(_build_sprint_labels(sprints, num_sprints, effort_unit), fontsize=8)
 
     for i in range(1, num_sprints):
         ax.axvline(x=float(i), color="#e2e8f0", linewidth=0.8, zorder=0)
