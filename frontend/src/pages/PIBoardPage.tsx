@@ -27,7 +27,7 @@ import { useSettingsStore } from '@/stores/settingsStore'
 import { useSwimlaneCollapseStore } from '@/stores/swimlaneCollapseStore'
 import { usePIs } from '@/hooks/usePIs'
 import { useEffortUnit } from '@/hooks/useProjects'
-import { downloadPICSV, downloadPIPNG } from '@/services/pis'
+import { downloadPICSV } from '@/services/pis'
 import { toast } from '@/stores/toastStore'
 import { useMaxTextWidth } from '@/hooks/useMaxTextWidth'
 import { SwimlaneRow } from '@/components/SwimlaneRow'
@@ -38,6 +38,7 @@ import { CapacityBar } from '@/components/CapacityBar'
 import { BacklogPanel } from '@/components/BacklogPanel'
 import { PIEventsRow } from '@/components/PIEventsRow'
 import { PIEventModal } from '@/components/PIEventModal'
+import { ExportPNGModal } from '@/components/ExportPNGModal'
 import type { FeatureDragData } from '@/components/BacklogPanel'
 import type { GroupDragData } from '@/components/GroupCard'
 import type { PBIDragData } from '@/components/PBIRow'
@@ -146,7 +147,7 @@ export function PIBoardPage({ projectId, piId }: Props) {
   const [activeDrag, setActiveDrag] = useState<ActiveDrag | null>(null)
   const [editCapacitySprint, setEditCapacitySprint] = useState<Sprint | null>(null)
   const [exportingCsv, setExportingCsv] = useState(false)
-  const [exportingPng, setExportingPng] = useState(false)
+  const [exportPngOpen, setExportPngOpen] = useState(false)
   const [eventModal, setEventModal] = useState<{ open: boolean; event?: PIEvent }>({ open: false })
   const isEditing = useAuthStore((s) => s.isEditing)
   const featureColumnWidth = useSettingsStore((s) => s.featureColumnWidth)
@@ -180,18 +181,6 @@ export function PIBoardPage({ projectId, piId }: Props) {
       toast.error('CSV export failed')
     } finally {
       setExportingCsv(false)
-    }
-  }
-
-  async function handleExportPng() {
-    if (!pi) return
-    setExportingPng(true)
-    try {
-      await downloadPIPNG(piId, pi.name)
-    } catch {
-      toast.error('PNG export failed')
-    } finally {
-      setExportingPng(false)
     }
   }
 
@@ -361,12 +350,12 @@ export function PIBoardPage({ projectId, piId }: Props) {
               </button>
               <button
                 type="button"
-                onClick={() => void handleExportPng()}
-                disabled={exportingPng || !pi}
+                onClick={() => setExportPngOpen(true)}
+                disabled={!pi}
                 title="Export PI as PNG image"
                 className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-300 disabled:cursor-not-allowed font-medium"
               >
-                {exportingPng ? 'Exporting…' : 'Export PNG'}
+                Export PNG
               </button>
               <span className="text-gray-200 dark:text-gray-700">|</span>
               <button
@@ -460,6 +449,15 @@ export function PIBoardPage({ projectId, piId }: Props) {
         event={eventModal.event}
         onClose={() => setEventModal({ open: false })}
       />
+
+      {pi && (
+        <ExportPNGModal
+          open={exportPngOpen}
+          piId={piId}
+          piName={pi.name}
+          onClose={() => setExportPngOpen(false)}
+        />
+      )}
     </DndContext>
   )
 }

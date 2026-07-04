@@ -211,6 +211,75 @@ async def test_png_export_with_events(client: AsyncClient, planned_pi: dict) -> 
 
 
 # ---------------------------------------------------------------------------
+# PNG export options
+# ---------------------------------------------------------------------------
+
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("param", [
+    "show_pi_effort=true",
+    "show_sprint_effort=true",
+    "show_swimlane_effort=true",
+    "show_events=true",
+    "swimlane_text_center=true",
+    "show_export_date=true",
+])
+async def test_png_export_option_produces_valid_png(
+    client: AsyncClient, planned_pi: dict, param: str
+) -> None:
+    """Each individual export option must still produce a valid PNG."""
+    pi_id = planned_pi["pi_id"]
+    resp = await client.get(f"/api/v1/pis/{pi_id}/export/png?{param}")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/png"
+    assert resp.content[:8] == PNG_SIGNATURE
+    assert len(resp.content) > 1000
+
+
+@pytest.mark.asyncio
+async def test_png_export_all_options_on(client: AsyncClient, planned_pi: dict) -> None:
+    """All options enabled together must produce a valid PNG."""
+    pi_id = planned_pi["pi_id"]
+
+    # Add an event so show_events has something to render
+    await client.post(
+        f"/api/v1/pis/{pi_id}/events",
+        json={"name": "Go-live", "event_date": "2025-06-01", "event_type": "release"},
+    )
+
+    params = (
+        "show_pi_effort=true"
+        "&show_sprint_effort=true"
+        "&show_swimlane_effort=true"
+        "&show_events=true"
+        "&swimlane_text_center=true"
+        "&show_export_date=true"
+    )
+    resp = await client.get(f"/api/v1/pis/{pi_id}/export/png?{params}")
+    assert resp.status_code == 200
+    assert resp.content[:8] == PNG_SIGNATURE
+    assert len(resp.content) > 1000
+
+
+@pytest.mark.asyncio
+async def test_png_export_all_options_off(client: AsyncClient, planned_pi: dict) -> None:
+    """All options explicitly off (the default) must produce a valid PNG."""
+    pi_id = planned_pi["pi_id"]
+    params = (
+        "show_pi_effort=false"
+        "&show_sprint_effort=false"
+        "&show_swimlane_effort=false"
+        "&show_events=false"
+        "&swimlane_text_center=false"
+        "&show_export_date=false"
+    )
+    resp = await client.get(f"/api/v1/pis/{pi_id}/export/png?{params}")
+    assert resp.status_code == 200
+    assert resp.content[:8] == PNG_SIGNATURE
+
+
+# ---------------------------------------------------------------------------
 # Access control: readers can export
 # ---------------------------------------------------------------------------
 

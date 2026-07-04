@@ -37,6 +37,32 @@ export function downloadPICSV(piId: string, piName: string): Promise<void> {
   return _downloadBlob(`/api/v1/pis/${piId}/export/csv`, `${piName}.csv`)
 }
 
-export function downloadPIPNG(piId: string, piName: string): Promise<void> {
-  return _downloadBlob(`/api/v1/pis/${piId}/export/png`, `${piName}.png`)
+export interface ExportPNGOptions {
+  showPiEffort: boolean
+  showSprintEffort: boolean
+  showSwimlaneEffort: boolean
+  showEvents: boolean
+  swimlaneTextCenter: boolean
+  showExportDate: boolean
+}
+
+export const DEFAULT_EXPORT_PNG_OPTIONS: ExportPNGOptions = {
+  showPiEffort: false,
+  showSprintEffort: false,
+  showSwimlaneEffort: false,
+  showEvents: false,
+  swimlaneTextCenter: false,
+  showExportDate: false,
+}
+
+export function downloadPIPNG(piId: string, piName: string, options: ExportPNGOptions): Promise<void> {
+  const params = new URLSearchParams({
+    show_pi_effort: String(options.showPiEffort),
+    show_sprint_effort: String(options.showSprintEffort),
+    show_swimlane_effort: String(options.showSwimlaneEffort),
+    show_events: String(options.showEvents),
+    swimlane_text_center: String(options.swimlaneTextCenter),
+    show_export_date: String(options.showExportDate),
+  })
+  return _downloadBlob(`/api/v1/pis/${piId}/export/png?${params}`, `${piName}.png`)
 }

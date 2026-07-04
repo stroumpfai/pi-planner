@@ -2,6 +2,7 @@
 
 import csv
 import io
+from dataclasses import dataclass, field
 from datetime import date
 
 from matplotlib.backends.backend_agg import FigureCanvasAgg
@@ -20,6 +21,16 @@ from app.models.pbi import PBI
 from app.models.sprint import Sprint
 from app.models.swimline import Swimline
 from app.services.effort import pi_effort_and_capacity, sprint_efforts_for_pi, swimline_efforts
+
+
+@dataclass
+class PNGExportOptions:
+    show_pi_effort: bool = False
+    show_sprint_effort: bool = False
+    show_swimlane_effort: bool = False
+    show_events: bool = False
+    swimlane_text_center: bool = False
+    show_export_date: bool = False
 
 EVENT_COLORS: dict[str, str] = {
     "release":   "#10b981",
@@ -130,6 +141,7 @@ def _draw_sprint_header(
     sprint_efforts: dict[int, float],
     effort_unit: str,
     num_sprints: int,
+    show_effort: bool = False,
 ) -> None:
     ax.set_xlim(0.0, float(num_sprints))  # type: ignore[union-attr]
     ax.set_ylim(0.0, 1.0)  # type: ignore[union-attr]
@@ -147,26 +159,29 @@ def _draw_sprint_header(
             facecolor="#f8fafc", edgecolor="#e2e8f0", linewidth=0.5,
         ))
 
-        ax.text(i + 0.5, 0.88, f"Sprint {i + 1}",  # type: ignore[union-attr]
+        name_y = 0.88 if show_effort else 0.78
+        ax.text(i + 0.5, name_y, f"Sprint {i + 1}",  # type: ignore[union-attr]
                 ha="center", va="top", fontsize=8, fontweight="bold", color="#374151")
 
         if sprint and (sprint.start_date or sprint.end_date):
+            date_y = 0.67 if show_effort else 0.52
             date_str = f"{_fmt_date(sprint.start_date)} – {_fmt_date(sprint.end_date)}"
-            ax.text(i + 0.5, 0.67, date_str,  # type: ignore[union-attr]
+            ax.text(i + 0.5, date_y, date_str,  # type: ignore[union-attr]
                     ha="center", va="top", fontsize=7, color="#6b7280")
 
-        cap_text = f"{used:g}/{cap} {effort_unit} – {round(pct * 100)}%"
-        ax.text(i + 0.5, 0.47, cap_text,  # type: ignore[union-attr]
-                ha="center", va="top", fontsize=7, color="#6b7280")
+        if show_effort:
+            cap_text = f"{used:g}/{cap} {effort_unit} – {round(pct * 100)}%"
+            ax.text(i + 0.5, 0.47, cap_text,  # type: ignore[union-attr]
+                    ha="center", va="top", fontsize=7, color="#6b7280")
 
-        bx, by, bw, bh = i + 0.08, 0.14, 0.84, 0.13
-        ax.add_patch(Rectangle((bx, by), bw, bh, facecolor="#e2e8f0", edgecolor="none"))  # type: ignore[union-attr]
-        fill_w = min(pct, 1.0) * bw
-        if fill_w > 0:
-            ax.add_patch(Rectangle(  # type: ignore[union-attr]
-                (bx, by), fill_w, bh,
-                facecolor=_capacity_bar_color(used, cap), edgecolor="none",
-            ))
+            bx, by, bw, bh = i + 0.08, 0.14, 0.84, 0.13
+            ax.add_patch(Rectangle((bx, by), bw, bh, facecolor="#e2e8f0", edgecolor="none"))  # type: ignore[union-attr]
+            fill_w = min(pct, 1.0) * bw
+            if fill_w > 0:
+                ax.add_patch(Rectangle(  # type: ignore[union-attr]
+                    (bx, by), fill_w, bh,
+                    facecolor=_capacity_bar_color(used, cap), edgecolor="none",
+                ))
 
 
 def _draw_events(
@@ -189,8 +204,10 @@ def _draw_events(
         )
 
 
-async def export_pi_png(db: AsyncSession, pi: PI) -> bytes:
+async def export_pi_png(db: AsyncSession, pi: PI, opts: PNGExportOptions | None = None) -> bytes:
     """Return PNG bytes showing a swimlane roadmap for the PI."""
+    if opts is None:
+        opts = PNGExportOptions()
     effort, capacity = await pi_effort_and_capacity(db, pi.system_id)
     sprint_efforts = await sprint_efforts_for_pi(db, pi.system_id)
 
@@ -253,7 +270,8 @@ async def export_pi_png(db: AsyncSession, pi: PI) -> bytes:
     ax_header = fig.add_subplot(gs[0])
     ax = fig.add_subplot(gs[1])
 
-    _draw_sprint_header(ax_header, sprints, sprint_efforts, effort_unit, num_sprints)
+    _draw_sprint_header(ax_header, sprints, sprint_efforts, effort_unit, num_sprints,
+                        show_effort=opts.show_sprint_effort)
 
     BAR_HEIGHT = 0.5
     ROW_SPACING = 0.65  # center-to-center distance between bars (data units)
@@ -272,12 +290,26 @@ async def export_pi_png(db: AsyncSession, pi: PI) -> bytes:
         width = float(span[1] - span[0] + 1)
         ax.barh(y, width, left=left, color=bar_color,
                 height=BAR_HEIGHT, edgecolor="white", linewidth=0.5)
-        label = f"{swimline.name} – {sl_effort:g} {effort_unit}"
-        ax.text(left + width / 2.0, y, label,
-                va="center", ha="center", fontsize=8, color=text_color, fontweight="bold")
+
+        if opts.show_swimlane_effort:
+            label = f"{swimline.name} – {sl_effort:g} {effort_unit}"
+        else:
+            label = swimline.name
+
+        if opts.swimlane_text_center:
+            text_x = left + width / 2.0
+            ha = "center"
+        else:
+            text_x = left + 0.1
+            ha = "left"
+
+        ax.text(text_x, y, label,
+                va="center", ha=ha, fontsize=8, color=text_color, fontweight="bold")
 
     bottom_y = -BAR_HEIGHT / 2 - 0.1
-    _draw_events(ax, events, dated_sprints, num_sprints, bottom_y)
+
+    if opts.show_events:
+        _draw_events(ax, events, dated_sprints, num_sprints, bottom_y)
 
     ax.set_yticks([])
     ax.set_xlim(0.0, float(num_sprints))
@@ -286,11 +318,17 @@ async def export_pi_png(db: AsyncSession, pi: PI) -> bytes:
     for i in range(1, num_sprints):
         ax.axvline(x=float(i), color="#e2e8f0", linewidth=0.8, zorder=0)
 
-    pct = round(effort / capacity * 100) if capacity > 0 else 0
-    fig.suptitle(
-        f"{pi.name}  ·  Total: {effort:g} / {capacity} {effort_unit}  ({pct}%)",
-        fontsize=10, fontweight="bold",
-    )
+    if opts.show_pi_effort:
+        pct = round(effort / capacity * 100) if capacity > 0 else 0
+        title = f"{pi.name}  ·  Total: {effort:g} / {capacity} {effort_unit}  ({pct}%)"
+    else:
+        title = pi.name
+    fig.suptitle(title, fontsize=10, fontweight="bold")
+
+    if opts.show_export_date:
+        date_str = date.today().strftime("%Y-%m-%d")
+        fig.text(0.99, 0.01, f"Exported {date_str}",
+                 ha="right", va="bottom", fontsize=7, color="#9ca3af")
 
     top_y = (n - 1) * ROW_SPACING + BAR_HEIGHT / 2 + 0.05
     ax.set_ylim(bottom_y, top_y)

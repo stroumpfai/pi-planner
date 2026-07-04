@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +17,7 @@ from app.models.user import User
 from app.schemas import PICreate, PIResponse, PIUpdate
 from app.services.effort import pi_effort_and_capacity
 from app.services.events import broadcaster
-from app.services.pi_export import export_pi_csv, export_pi_png, safe_filename
+from app.services.pi_export import PNGExportOptions, export_pi_csv, export_pi_png, safe_filename
 
 router = APIRouter(tags=["pis"])
 
@@ -205,9 +205,23 @@ async def export_pi_png_endpoint(
     pi_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
     _: Annotated[User, Depends(get_current_user)],
+    show_pi_effort: Annotated[bool, Query()] = False,
+    show_sprint_effort: Annotated[bool, Query()] = False,
+    show_swimlane_effort: Annotated[bool, Query()] = False,
+    show_events: Annotated[bool, Query()] = False,
+    swimlane_text_center: Annotated[bool, Query()] = False,
+    show_export_date: Annotated[bool, Query()] = False,
 ) -> Response:
     pi = await _get_or_404(db, pi_id)
-    content = await export_pi_png(db, pi)
+    opts = PNGExportOptions(
+        show_pi_effort=show_pi_effort,
+        show_sprint_effort=show_sprint_effort,
+        show_swimlane_effort=show_swimlane_effort,
+        show_events=show_events,
+        swimlane_text_center=swimlane_text_center,
+        show_export_date=show_export_date,
+    )
+    content = await export_pi_png(db, pi, opts)
     fname = safe_filename(pi.name) + ".png"
     return Response(
         content=content,

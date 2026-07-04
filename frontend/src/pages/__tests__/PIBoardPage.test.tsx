@@ -99,17 +99,17 @@ describe('PIBoardPage export buttons', () => {
     })
   })
 
-  it('calls downloadPIPNG when Export PNG is clicked', async () => {
-    const mockDownloadPng = vi.mocked(pisService.downloadPIPNG)
-
+  it('opens the export PNG modal when Export PNG is clicked', async () => {
     render(<PIBoardPage projectId="proj-1" piId="pi-1" />, { wrapper: makeWrapper() })
 
     const pngBtn = await screen.findByRole('button', { name: /export png/i })
     await userEvent.click(pngBtn)
 
     await waitFor(() => {
-      expect(mockDownloadPng).toHaveBeenCalledOnce()
-      expect(mockDownloadPng).toHaveBeenCalledWith('pi-1', 'PI 2024.1')
+      // The modal dialog should be present
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+      // All 6 toggle checkboxes inside the modal
+      expect(screen.getAllByRole('checkbox')).toHaveLength(6)
     })
   })
 

@@ -1,5 +1,6 @@
 import base64
 from typing import Annotated
+from urllib.parse import urlencode
 
 from fastmcp import FastMCP, Context
 from pydantic import Field
@@ -295,14 +296,29 @@ async def export_pi_csv(
 async def export_pi_png(
     pi_id: Annotated[str, Field(description="PI system_id (UUID)")],
     ctx: Context,
+    show_pi_effort: Annotated[bool, Field(default=False, description="Show total effort/capacity in the PI title")] = False,
+    show_sprint_effort: Annotated[bool, Field(default=False, description="Show effort, capacity and ratio bar in each sprint header")] = False,
+    show_swimlane_effort: Annotated[bool, Field(default=False, description="Show effort value inside each swimlane bar")] = False,
+    show_events: Annotated[bool, Field(default=False, description="Show PI events as vertical lines on the chart")] = False,
+    swimlane_text_center: Annotated[bool, Field(default=False, description="Center swimlane labels inside bars (default: left-aligned)")] = False,
+    show_export_date: Annotated[bool, Field(default=False, description="Show export date in the bottom-right corner")] = False,
 ) -> dict:
     """
     Export a PI's swimlane roadmap as a PNG image (base64-encoded).
 
     Returns {"png_base64": "<base64 string>"} — decode and save as a .png file to view.
     The image shows the full PI board: swimlines, sprints, features, and milestone events.
+    All display options default to off — enable what you need.
     This is a read-only operation — no lock is acquired.
     Use list_pis first to find the pi_id.
     """
-    r = await call_backend_raw("GET", f"/api/v1/pis/{pi_id}/export/png")
+    params = urlencode({
+        "show_pi_effort": str(show_pi_effort).lower(),
+        "show_sprint_effort": str(show_sprint_effort).lower(),
+        "show_swimlane_effort": str(show_swimlane_effort).lower(),
+        "show_events": str(show_events).lower(),
+        "swimlane_text_center": str(swimlane_text_center).lower(),
+        "show_export_date": str(show_export_date).lower(),
+    })
+    r = await call_backend_raw("GET", f"/api/v1/pis/{pi_id}/export/png?{params}")
     return {"png_base64": base64.b64encode(r.content).decode()}
