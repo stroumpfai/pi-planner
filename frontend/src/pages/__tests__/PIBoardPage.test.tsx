@@ -4,14 +4,24 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { PIBoardPage } from '../PIBoardPage'
 import { useAuthStore } from '@/stores/authStore'
+import { useSwimlaneCollapseStore } from '@/stores/swimlaneCollapseStore'
 import * as pisService from '@/services/pis'
 
 // ── Heavy hooks ──────────────────────────────────────────────────────────────
 vi.mock('@/hooks/usePIs', () => ({
   usePIs: () => ({ data: [fakePi] }),
 }))
+const fakeSwimline = {
+  system_id: 'sw-1',
+  pi_id: 'pi-1',
+  name: 'Team A',
+  position: 0,
+  created_at: '2026-01-01T00:00:00Z',
+  modified_at: '2026-01-01T00:00:00Z',
+}
+
 vi.mock('@/hooks/useSwimlinesAndGroups', () => ({
-  useSwimlinesForPI: () => ({ data: [] }),
+  useSwimlinesForPI: () => ({ data: [fakeSwimline] }),
   useCreateSwimline: () => ({ mutate: vi.fn() }),
   useUpdateSwimline: () => ({ mutate: vi.fn() }),
   useDeleteSwimline: () => ({ mutate: vi.fn() }),
@@ -111,6 +121,28 @@ describe('PIBoardPage export buttons', () => {
       // All 6 toggle checkboxes inside the modal
       expect(screen.getAllByRole('checkbox')).toHaveLength(6)
     })
+  })
+
+  it('collapses all swimlanes when Collapse All is clicked', async () => {
+    useSwimlaneCollapseStore.setState({ collapsed: {} })
+
+    render(<PIBoardPage projectId="proj-1" piId="pi-1" />, { wrapper: makeWrapper() })
+
+    const collapseBtn = await screen.findByRole('button', { name: /collapse all/i })
+    await userEvent.click(collapseBtn)
+
+    expect(useSwimlaneCollapseStore.getState().isCollapsed('pi-1', 'sw-1')).toBe(true)
+  })
+
+  it('expands all swimlanes when Expand All is clicked', async () => {
+    useSwimlaneCollapseStore.setState({ collapsed: { 'pi-1:sw-1': true } })
+
+    render(<PIBoardPage projectId="proj-1" piId="pi-1" />, { wrapper: makeWrapper() })
+
+    const expandBtn = await screen.findByRole('button', { name: /expand all/i })
+    await userEvent.click(expandBtn)
+
+    expect(useSwimlaneCollapseStore.getState().isCollapsed('pi-1', 'sw-1')).toBe(false)
   })
 
   it('shows loading text while CSV is exporting', async () => {

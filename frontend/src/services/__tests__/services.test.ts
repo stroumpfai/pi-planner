@@ -10,12 +10,16 @@ import { projectsApi } from '../projects'
 import { snapshotsApi } from '../snapshots'
 import { sprintsApi } from '../sprints'
 import { swimlinesApi } from '../swimlines'
+import { apiKeysApi } from '../apiKeys'
+import { usersApi } from '../users'
+import { piEventsApi } from '../piEvents'
 import { api } from '../api'
 
 vi.mock('../api', () => ({
   api: {
     get: vi.fn(),
     post: vi.fn(),
+    put: vi.fn(),
     patch: vi.fn(),
     delete: vi.fn(),
   },
@@ -23,6 +27,7 @@ vi.mock('../api', () => ({
 
 const mockGet = vi.mocked(api.get)
 const mockPost = vi.mocked(api.post)
+const mockPut = vi.mocked(api.put)
 const mockPatch = vi.mocked(api.patch)
 const mockDelete = vi.mocked(api.delete)
 
@@ -285,10 +290,115 @@ describe('sprintsApi', () => {
     expect(mockGet).toHaveBeenCalledWith('/pis/pi-1/sprints')
   })
 
+  it('create calls POST /pis/:id/sprints', async () => {
+    mockPost.mockResolvedValue({ data: {} } as never)
+    await sprintsApi.create('pi-1', { index: 0 })
+    expect(mockPost).toHaveBeenCalledWith('/pis/pi-1/sprints', { index: 0 })
+  })
+
   it('update calls PATCH /sprints/:id', async () => {
     mockPatch.mockResolvedValue({ data: {} } as never)
     await sprintsApi.update('s-1', { capacity: 10 })
     expect(mockPatch).toHaveBeenCalledWith('/sprints/s-1', { capacity: 10 })
+  })
+})
+
+// ── apiKeysApi ───────────────────────────────────────────────────────────────
+
+describe('apiKeysApi', () => {
+  it('listAll calls GET /api-keys/admin/all-keys', async () => {
+    mockGet.mockResolvedValue({ data: [] } as never)
+    await apiKeysApi.listAll()
+    expect(mockGet).toHaveBeenCalledWith('/api-keys/admin/all-keys')
+  })
+
+  it('create calls POST /api-keys/admin/keys', async () => {
+    mockPost.mockResolvedValue({ data: {} } as never)
+    await apiKeysApi.create({ username: 'u', name: 'CI' })
+    expect(mockPost).toHaveBeenCalledWith('/api-keys/admin/keys', { username: 'u', name: 'CI' })
+  })
+
+  it('cycle calls POST /api-keys/admin/cycle/:id', async () => {
+    mockPost.mockResolvedValue({ data: {} } as never)
+    await apiKeysApi.cycle('k-1')
+    expect(mockPost).toHaveBeenCalledWith('/api-keys/admin/cycle/k-1')
+  })
+
+  it('revoke calls DELETE /api-keys/admin/keys/:id', async () => {
+    mockDelete.mockResolvedValue({} as never)
+    await apiKeysApi.revoke('k-1')
+    expect(mockDelete).toHaveBeenCalledWith('/api-keys/admin/keys/k-1')
+  })
+})
+
+// ── usersApi ─────────────────────────────────────────────────────────────────
+
+describe('usersApi', () => {
+  it('list calls GET /users/', async () => {
+    mockGet.mockResolvedValue({ data: [] } as never)
+    await usersApi.list()
+    expect(mockGet).toHaveBeenCalledWith('/users/')
+  })
+
+  it('create calls POST /users/', async () => {
+    mockPost.mockResolvedValue({ data: {} } as never)
+    await usersApi.create({ username: 'u', password: 'p', role: 'reader' })
+    expect(mockPost).toHaveBeenCalledWith('/users/', { username: 'u', password: 'p', role: 'reader' })
+  })
+
+  it('update calls PUT /users/:username', async () => {
+    mockPut.mockResolvedValue({ data: {} } as never)
+    await usersApi.update('u', { role: 'editor' })
+    expect(mockPut).toHaveBeenCalledWith('/users/u', { role: 'editor' })
+  })
+
+  it('delete calls DELETE /users/:username', async () => {
+    mockDelete.mockResolvedValue({} as never)
+    await usersApi.delete('u')
+    expect(mockDelete).toHaveBeenCalledWith('/users/u')
+  })
+
+  it('resetPassword calls POST /users/:username/reset-password', async () => {
+    mockPost.mockResolvedValue({ data: {} } as never)
+    await usersApi.resetPassword('u', { new_password: 'newpassword12' })
+    expect(mockPost).toHaveBeenCalledWith('/users/u/reset-password', { new_password: 'newpassword12' })
+  })
+
+  it('changePassword calls POST /auth/change-password', async () => {
+    mockPost.mockResolvedValue({ data: {} } as never)
+    await usersApi.changePassword({ current_password: 'old', new_password: 'newpassword12' })
+    expect(mockPost).toHaveBeenCalledWith('/auth/change-password', {
+      current_password: 'old',
+      new_password: 'newpassword12',
+    })
+  })
+})
+
+// ── piEventsApi ──────────────────────────────────────────────────────────────
+
+describe('piEventsApi', () => {
+  it('list calls GET /pis/:id/events', async () => {
+    mockGet.mockResolvedValue({ data: [] } as never)
+    await piEventsApi.list('pi-1')
+    expect(mockGet).toHaveBeenCalledWith('/pis/pi-1/events')
+  })
+
+  it('create calls POST /pis/:id/events', async () => {
+    mockPost.mockResolvedValue({ data: {} } as never)
+    await piEventsApi.create('pi-1', { label: 'Demo', sprint_index: 0 })
+    expect(mockPost).toHaveBeenCalledWith('/pis/pi-1/events', { label: 'Demo', sprint_index: 0 })
+  })
+
+  it('update calls PATCH /pis/:id/events/:eventId', async () => {
+    mockPatch.mockResolvedValue({ data: {} } as never)
+    await piEventsApi.update('pi-1', 'ev-1', { label: 'Renamed' })
+    expect(mockPatch).toHaveBeenCalledWith('/pis/pi-1/events/ev-1', { label: 'Renamed' })
+  })
+
+  it('delete calls DELETE /pis/:id/events/:eventId', async () => {
+    mockDelete.mockResolvedValue({} as never)
+    await piEventsApi.delete('pi-1', 'ev-1')
+    expect(mockDelete).toHaveBeenCalledWith('/pis/pi-1/events/ev-1')
   })
 })
 

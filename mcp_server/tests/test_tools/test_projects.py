@@ -358,3 +358,43 @@ async def test_export_pi_png_does_not_acquire_lock(mock_backend, mock_ctx, patch
     await export_pi_png(pi_id=PI_ID, ctx=mock_ctx)
     lock_calls = [c for c in mock_backend.calls if "edit-lock" in str(c.request.url)]
     assert lock_calls == []
+
+
+async def test_export_pi_png_defaults_all_options_false(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.get(f"/api/v1/pis/{PI_ID}/export/png").mock(
+        return_value=httpx.Response(200, content=b"\x89PNG", headers={"content-type": "image/png"})
+    )
+    await export_pi_png(pi_id=PI_ID, ctx=mock_ctx)
+    params = mock_backend.calls.last.request.url.params
+    for name in (
+        "show_pi_effort",
+        "show_sprint_effort",
+        "show_swimlane_effort",
+        "show_events",
+        "swimlane_text_center",
+        "show_export_date",
+    ):
+        assert params[name] == "false"
+
+
+async def test_export_pi_png_encodes_selected_options(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.get(f"/api/v1/pis/{PI_ID}/export/png").mock(
+        return_value=httpx.Response(200, content=b"\x89PNG", headers={"content-type": "image/png"})
+    )
+    await export_pi_png(
+        pi_id=PI_ID,
+        ctx=mock_ctx,
+        show_pi_effort=True,
+        show_sprint_effort=True,
+        show_swimlane_effort=True,
+        show_events=True,
+        swimlane_text_center=True,
+        show_export_date=True,
+    )
+    params = mock_backend.calls.last.request.url.params
+    assert params["show_pi_effort"] == "true"
+    assert params["show_sprint_effort"] == "true"
+    assert params["show_swimlane_effort"] == "true"
+    assert params["show_events"] == "true"
+    assert params["swimlane_text_center"] == "true"
+    assert params["show_export_date"] == "true"
