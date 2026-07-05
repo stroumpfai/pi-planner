@@ -14,12 +14,17 @@ _KEYS_URL = "/api/v1/api-keys"
 _TEST_SECRET = "test-mcp-signing-secret-at-least-32-bytes-long"
 
 
-def _service_jwt(secret: str = _TEST_SECRET, *, iss: str = "mcp-server", sub: str = "service") -> str:
-    return pyjwt.encode(
-        {"iss": iss, "sub": sub, "exp": datetime.now(timezone.utc) + timedelta(minutes=5)},
-        secret,
-        algorithm="HS256",
-    )
+def _service_jwt(
+    secret: str = _TEST_SECRET,
+    *,
+    iss: str = "mcp-server",
+    sub: str = "service",
+    actor: str | None = None,
+) -> str:
+    claims: dict = {"iss": iss, "sub": sub, "exp": datetime.now(timezone.utc) + timedelta(minutes=5)}
+    if actor is not None:
+        claims["actor"] = actor
+    return pyjwt.encode(claims, secret, algorithm="HS256")
 
 
 @pytest.fixture
@@ -201,7 +206,7 @@ async def test_mcp_actor_can_authenticate_on_read(db, mcp_secret):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="https://test") as ac:
             headers = {
-                "Authorization": f"Bearer {_service_jwt(mcp_secret)}",
+                "Authorization": f"Bearer {_service_jwt(mcp_secret, actor='mcpuser')}",
                 "X-MCP-Actor": "mcpuser",
             }
             # my-keys requires editor-or-above and returns 200 for a resolved actor.
@@ -211,7 +216,7 @@ async def test_mcp_actor_can_authenticate_on_read(db, mcp_secret):
             # Missing actor header → 400
             resp = await ac.get(
                 f"{_KEYS_URL}/my-keys",
-                headers={"Authorization": f"Bearer {_service_jwt(mcp_secret)}"},
+                headers={"Authorization": f"Bearer {_service_jwt(mcp_secret, actor='mcpuser')}"},
             )
             assert resp.status_code == 400
 
@@ -219,8 +224,28 @@ async def test_mcp_actor_can_authenticate_on_read(db, mcp_secret):
             resp = await ac.get(
                 f"{_KEYS_URL}/my-keys",
                 headers={
-                    "Authorization": f"Bearer {_service_jwt(mcp_secret)}",
+                    "Authorization": f"Bearer {_service_jwt(mcp_secret, actor='ghost')}",
                     "X-MCP-Actor": "ghost",
+                },
+            )
+            assert resp.status_code == 401
+
+            # Actor header not matching the signed claim → 401 (replay protection)
+            resp = await ac.get(
+                f"{_KEYS_URL}/my-keys",
+                headers={
+                    "Authorization": f"Bearer {_service_jwt(mcp_secret, actor='mcpuser')}",
+                    "X-MCP-Actor": "testuser",
+                },
+            )
+            assert resp.status_code == 401
+
+            # JWT without any actor claim → 401 (legacy tokens are rejected)
+            resp = await ac.get(
+                f"{_KEYS_URL}/my-keys",
+                headers={
+                    "Authorization": f"Bearer {_service_jwt(mcp_secret)}",
+                    "X-MCP-Actor": "mcpuser",
                 },
             )
             assert resp.status_code == 401

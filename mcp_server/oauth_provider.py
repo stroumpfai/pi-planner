@@ -8,6 +8,7 @@ direct-Bearer tokens so call_backend() works transparently for both paths.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import html
 import json
 import logging
@@ -116,19 +117,29 @@ class ScopeHintMiddleware:
 # ---------------------------------------------------------------------------
 
 
+def _token_key(token: str) -> str:
+    """Storage key for a token/code: SHA-256 so raw secrets never rest on disk."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
 class TokenStore:
     """Async-safe JSON file store for OAuth tokens, auth codes, and client registrations.
 
-    File layout (versioned):
+    Tokens and auth codes are keyed by their SHA-256 hash and the raw secret is
+    never persisted — a leaked store file cannot be replayed. Lookups hash the
+    presented token; the returned objects carry the caller-supplied raw value.
+
+    File layout (version 2):
       {
-        "access_tokens":  { "<tok>": { token, client_id, scopes, claims, expires_at } },
-        "refresh_tokens": { "<tok>": { token, client_id, scopes, claims, expires_at } },
-        "auth_codes":     { "<code>": { ...AuthorizationCode fields..., "claims": [...] } },
+        "v": 2,
+        "access_tokens":  { "<sha256>": { client_id, scopes, claims, expires_at } },
+        "refresh_tokens": { "<sha256>": { client_id, scopes, claims, expires_at } },
+        "auth_codes":     { "<sha256>": { ...AuthorizationCode fields sans code..., "_claims": [...] } },
         "clients":        { "<client_id>": { ...OAuthClientInformationFull fields... } }
       }
 
-    Old flat format (access tokens only at the top level) is detected on load
-    and migrated transparently — no data loss on upgrade.
+    Older formats (flat access-token map, or v1 sections keyed by raw token) are
+    detected on load and migrated transparently — no data loss on upgrade.
 
     Expired tokens and auth codes are pruned on load and on every get_*() call.
     The asyncio.Lock guards concurrent writes.
@@ -144,6 +155,14 @@ class TokenStore:
         self._lock = asyncio.Lock()
         self._load()
 
+    @staticmethod
+    def _migrate_v1_section(section: dict[str, dict], secret_field: str) -> dict[str, dict]:
+        """Re-key a raw-token-keyed (v1) section by hash and strip the raw secret."""
+        migrated: dict[str, dict] = {}
+        for raw_key, entry in section.items():
+            migrated[_token_key(raw_key)] = {k: v for k, v in entry.items() if k != secret_field}
+        return migrated
+
     def _load(self) -> None:
         if not self._path.exists():
             return
@@ -152,27 +171,33 @@ class TokenStore:
             now = time.time()
             # Old flat format: top-level keys are token strings, not section names.
             if "access_tokens" not in data:
-                self._tokens = {k: v for k, v in data.items() if v.get("expires_at", 0) > now}
-                self._refresh_tokens = {}
-                self._auth_codes = {}
+                tokens = data
+                refresh_tokens: dict[str, dict] = {}
+                auth_codes: dict[str, dict] = {}
                 self._clients = {}
+                needs_migration = True
             else:
-                self._tokens = {
-                    k: v
-                    for k, v in data.get("access_tokens", {}).items()
-                    if v.get("expires_at", 0) > now
-                }
-                self._refresh_tokens = {
-                    k: v
-                    for k, v in data.get("refresh_tokens", {}).items()
-                    if v.get("expires_at") is None or v["expires_at"] > now
-                }
-                self._auth_codes = {
-                    k: v
-                    for k, v in data.get("auth_codes", {}).items()
-                    if v.get("expires_at", 0) > now
-                }
+                tokens = data.get("access_tokens", {})
+                refresh_tokens = data.get("refresh_tokens", {})
+                auth_codes = data.get("auth_codes", {})
                 self._clients = data.get("clients", {})
+                needs_migration = data.get("v") != 2
+            if needs_migration:
+                tokens = self._migrate_v1_section(tokens, "token")
+                refresh_tokens = self._migrate_v1_section(refresh_tokens, "token")
+                auth_codes = self._migrate_v1_section(auth_codes, "code")
+            self._tokens = {k: v for k, v in tokens.items() if v.get("expires_at", 0) > now}
+            self._refresh_tokens = {
+                k: v
+                for k, v in refresh_tokens.items()
+                if v.get("expires_at") is None or v["expires_at"] > now
+            }
+            self._auth_codes = {
+                k: v for k, v in auth_codes.items() if v.get("expires_at", 0) > now
+            }
+            if needs_migration:
+                # Persist the hashed form immediately so raw secrets don't linger.
+                self._write()
         except Exception:
             self._tokens = {}
             self._refresh_tokens = {}
@@ -183,6 +208,7 @@ class TokenStore:
         self._path.parent.mkdir(parents=True, exist_ok=True)
         payload = json.dumps(
             {
+                "v": 2,
                 "access_tokens": self._tokens,
                 "refresh_tokens": self._refresh_tokens,
                 "auth_codes": self._auth_codes,
@@ -211,8 +237,7 @@ class TokenStore:
 
     async def save_token(self, token: AccessToken) -> None:
         async with self._lock:
-            self._tokens[token.token] = {
-                "token": token.token,
+            self._tokens[_token_key(token.token)] = {
                 "client_id": token.client_id,
                 "scopes": token.scopes,
                 "claims": token.claims,
@@ -221,14 +246,15 @@ class TokenStore:
             self._write()
 
     def get_token(self, token: str) -> AccessToken | None:
-        entry = self._tokens.get(token)
+        key = _token_key(token)
+        entry = self._tokens.get(key)
         if not entry:
             return None
         if (entry.get("expires_at") or 0) <= time.time():
-            del self._tokens[token]
+            del self._tokens[key]
             return None
         return AccessToken(
-            token=entry["token"],
+            token=token,
             client_id=entry["client_id"],
             scopes=entry["scopes"],
             claims=entry.get("claims", {}),
@@ -237,16 +263,16 @@ class TokenStore:
 
     async def delete_token(self, token: str) -> None:
         async with self._lock:
-            if token in self._tokens:
-                del self._tokens[token]
+            key = _token_key(token)
+            if key in self._tokens:
+                del self._tokens[key]
                 self._write()
 
     # -- Refresh token methods --
 
     async def save_refresh_token(self, token: RefreshToken, claims: dict) -> None:
         async with self._lock:
-            self._refresh_tokens[token.token] = {
-                "token": token.token,
+            self._refresh_tokens[_token_key(token.token)] = {
                 "client_id": token.client_id,
                 "scopes": token.scopes,
                 "expires_at": token.expires_at,
@@ -255,28 +281,30 @@ class TokenStore:
             self._write()
 
     def get_refresh_token(self, token: str) -> RefreshToken | None:
-        entry = self._refresh_tokens.get(token)
+        key = _token_key(token)
+        entry = self._refresh_tokens.get(key)
         if not entry:
             return None
         expires_at = entry.get("expires_at")
         if expires_at is not None and expires_at <= time.time():
-            del self._refresh_tokens[token]
+            del self._refresh_tokens[key]
             return None
         return RefreshToken(
-            token=entry["token"],
+            token=token,
             client_id=entry["client_id"],
             scopes=entry["scopes"],
             expires_at=entry.get("expires_at"),
         )
 
     def get_refresh_token_claims(self, token: str) -> dict:
-        entry = self._refresh_tokens.get(token)
+        entry = self._refresh_tokens.get(_token_key(token))
         return entry.get("claims", {}) if entry else {}
 
     async def delete_refresh_token(self, token: str) -> None:
         async with self._lock:
-            if token in self._refresh_tokens:
-                del self._refresh_tokens[token]
+            key = _token_key(token)
+            if key in self._refresh_tokens:
+                del self._refresh_tokens[key]
                 self._write()
 
     # -- Authorization code methods --
@@ -284,21 +312,21 @@ class TokenStore:
     async def save_auth_code(
         self, code: str, auth_code: AuthorizationCode, claims: tuple[str, str, str]
     ) -> None:
+        entry = auth_code.model_dump(mode="json")
+        entry.pop("code", None)  # never persist the raw code
         async with self._lock:
-            self._auth_codes[code] = {
-                **auth_code.model_dump(mode="json"),
-                "_claims": list(claims),
-            }
+            self._auth_codes[_token_key(code)] = {**entry, "_claims": list(claims)}
             self._write()
 
     def get_auth_code(
         self, code: str
     ) -> tuple[AuthorizationCode, tuple[str, str, str]] | None:
-        entry = self._auth_codes.get(code)
+        key = _token_key(code)
+        entry = self._auth_codes.get(key)
         if not entry:
             return None
         if entry.get("expires_at", 0) <= time.time():
-            del self._auth_codes[code]
+            del self._auth_codes[key]
             return None
         raw_claims = entry.get("_claims", ["", "", ""])
         claims: tuple[str, str, str] = (
@@ -307,17 +335,19 @@ class TokenStore:
             str(raw_claims[2]) if len(raw_claims) > 2 else "",
         )
         code_data = {k: v for k, v in entry.items() if k != "_claims"}
+        code_data["code"] = code
         try:
             auth_code = AuthorizationCode.model_validate(code_data)
         except Exception:
-            del self._auth_codes[code]
+            del self._auth_codes[key]
             return None
         return auth_code, claims
 
     async def delete_auth_code(self, code: str) -> None:
         async with self._lock:
-            if code in self._auth_codes:
-                del self._auth_codes[code]
+            key = _token_key(code)
+            if key in self._auth_codes:
+                del self._auth_codes[key]
                 self._write()
 
     # -- Client registration methods --

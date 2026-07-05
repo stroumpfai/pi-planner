@@ -75,6 +75,13 @@ async def _resolve_mcp_user(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="X-MCP-Actor header required with service JWT",
         )
+    # The MCP server bakes the actor into the signed JWT; the header must match
+    # so a captured token cannot be replayed as a different user.
+    if claims.get("actor") != actor:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Service JWT was not issued for this actor",
+        )
     user = await users_service.get(db, actor)
     if not user:
         raise HTTPException(

@@ -36,9 +36,8 @@ async def login(
     db: Annotated[AsyncSession, Depends(get_session)],
 ) -> TokenResponse:
     ip = request.client.host if request.client else "unknown"
-    rate_key = f"{ip}:{body.username.lower()}"
 
-    if is_rate_limited(rate_key):
+    if is_rate_limited(ip, body.username):
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail={"error": "TOO_MANY_REQUESTS", "message": "Too many failed login attempts. Try again later."},
@@ -46,10 +45,10 @@ async def login(
 
     user = await authenticate(db, body.username, body.password)
     if not user:
-        record_failure(rate_key)
+        record_failure(ip, body.username)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
-    clear_failures(rate_key)
+    clear_failures(ip, body.username)
 
     session_id = await create_session(db, user.username, body.remember_me)
     token = sign_session_id(session_id)

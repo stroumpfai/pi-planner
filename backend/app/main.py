@@ -105,14 +105,16 @@ async def health(db: Annotated[AsyncSession, Depends(get_session)]) -> dict[str,
     components: dict[str, Any] = {}
     overall = "healthy"
 
-    # Database check
+    # Database check. The endpoint is unauthenticated, so log exception details
+    # server-side only — never echo them to the caller.
     try:
         start = time.monotonic()
         await db.execute(text("SELECT 1"))
         ms = int((time.monotonic() - start) * 1000)
         components["database"] = {"status": "healthy", "response_ms": ms}
-    except Exception as exc:
-        components["database"] = {"status": "unhealthy", "error": str(exc)}
+    except Exception:
+        logger.exception("health check: database unavailable")
+        components["database"] = {"status": "unhealthy"}
         overall = "unhealthy"
 
     # Disk check
@@ -124,8 +126,9 @@ async def health(db: Annotated[AsyncSession, Depends(get_session)]) -> dict[str,
         components["disk"] = {"status": disk_status, "free_gb": free_gb}
         if disk_status == "degraded" and overall == "healthy":
             overall = "degraded"
-    except Exception as exc:
-        components["disk"] = {"status": "unknown", "error": str(exc)}
+    except Exception:
+        logger.exception("health check: disk usage unavailable")
+        components["disk"] = {"status": "unknown"}
 
     return {"status": overall, "components": components}
 

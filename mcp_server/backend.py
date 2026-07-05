@@ -39,9 +39,12 @@ async def _make_request(method: str, path: str, **kwargs) -> httpx.Response:
     client = get_client()
     access_token = get_access_token()
     headers = kwargs.pop("headers", {})
-    headers["Authorization"] = f"Bearer {mint_service_jwt()}"
+    actor = actor_username(access_token) if access_token else None
+    # The JWT is minted per-request with the actor baked in, so the backend can
+    # verify the X-MCP-Actor header against a signed claim instead of trusting it.
+    headers["Authorization"] = f"Bearer {mint_service_jwt(actor)}"
     if access_token:
-        headers["X-MCP-Actor"] = actor_username(access_token)
+        headers["X-MCP-Actor"] = actor or ""
         headers["X-MCP-Key-Id"] = access_token.claims.get("key_id", "")
 
     start = time.monotonic()

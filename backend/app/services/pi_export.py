@@ -66,6 +66,14 @@ def safe_filename(name: str) -> str:
     return "".join(c if c.isalnum() or c in "._-" else "_" for c in name)
 
 
+def _csv_safe(value: str) -> str:
+    """Guard against spreadsheet formula injection (OWASP): a leading =, +, -, @,
+    tab, or CR would be executed as a formula when the CSV is opened in Excel."""
+    if value and value[0] in ("=", "+", "-", "@", "\t", "\r"):
+        return f"'{value}"
+    return value
+
+
 async def export_pi_csv(db: AsyncSession, pi: PI) -> str:
     """Return a CSV string of all PBIs whose parent feature is in this PI."""
     result = await db.execute(
@@ -97,12 +105,12 @@ async def export_pi_csv(db: AsyncSession, pi: PI) -> str:
         sprint_num = "" if row.sprint_index is None else str(row.sprint_index + 1)
         writer.writerow([
             row.pbi_user_id if row.pbi_user_id is not None else "",
-            row.pbi_title,
+            _csv_safe(row.pbi_title),
             row.feature_user_id if row.feature_user_id is not None else "",
-            row.feature_title,
-            pi.name,
+            _csv_safe(row.feature_title),
+            _csv_safe(pi.name),
             sprint_num,
-            row.swimlane_name or "",
+            _csv_safe(row.swimlane_name or ""),
         ])
 
     return buf.getvalue()

@@ -103,6 +103,15 @@ def test_minted_jwt_has_correct_claims(mock_settings):
     assert claims["iss"] == "mcp-server"
     assert claims["sub"] == "service"
     assert claims["exp"] - claims["iat"] == 300
+    assert "actor" not in claims
+
+
+def test_minted_jwt_binds_actor(mock_settings):
+    from mcp_server.jwt_utils import mint_service_jwt
+
+    token = mint_service_jwt("alice")
+    claims = jwt.decode(token, settings.mcp_signing_secret, algorithms=["HS256"])
+    assert claims["actor"] == "alice"
 
 
 async def test_list_response_wrapped_in_items(mock_backend, mock_ctx, patch_get_http_request):
@@ -121,3 +130,7 @@ async def test_actor_headers_sent_to_backend(mock_backend, mock_ctx, patch_get_h
     req = mock_backend.calls.last.request
     assert req.headers["X-MCP-Actor"] == "testuser"
     assert req.headers["X-MCP-Key-Id"] == "kid_testkey"
+    # The service JWT must be bound to the same actor as the header.
+    token = req.headers["Authorization"].removeprefix("Bearer ")
+    claims = jwt.decode(token, settings.mcp_signing_secret, algorithms=["HS256"])
+    assert claims["actor"] == "testuser"

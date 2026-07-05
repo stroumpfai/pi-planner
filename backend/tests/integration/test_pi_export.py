@@ -107,6 +107,26 @@ async def test_csv_export_rows(client: AsyncClient, planned_pi: dict) -> None:
 
 
 @pytest.mark.asyncio
+async def test_csv_export_escapes_formula_prefixes(client: AsyncClient, planned_pi: dict) -> None:
+    """Titles starting with =, +, -, @ must be quoted so Excel won't run them."""
+    proj_id = planned_pi["project_id"]
+    feat_id = planned_pi["feature_id"]
+    pi_id = planned_pi["pi_id"]
+
+    await client.post(
+        f"/api/v1/projects/{proj_id}/pbis",
+        json={"title": '=HYPERLINK("http://evil")', "effort": 1, "parent_feature_system_id": feat_id},
+    )
+
+    resp = await client.get(f"/api/v1/pis/{pi_id}/export/csv")
+    assert resp.status_code == 200
+
+    rows = list(csv.DictReader(io.StringIO(resp.text)))
+    injected = next(r for r in rows if "HYPERLINK" in r["pbi_name"])
+    assert injected["pbi_name"].startswith("'=")
+
+
+@pytest.mark.asyncio
 async def test_csv_export_unplaced_pbi(client: AsyncClient, planned_pi: dict) -> None:
     """A PBI in the PI but not placed in any sprint appears with blank sprint/swimlane."""
     proj_id = planned_pi["project_id"]

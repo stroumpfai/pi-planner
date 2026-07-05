@@ -89,16 +89,54 @@ def test_token_store_get_returns_none_for_unknown(tmp_path):
 
 
 def test_token_store_expired_token_returns_none(tmp_path):
+    from mcp_server.oauth_provider import _token_key
+
     store = TokenStore(str(tmp_path / "tokens.json"))
-    # Write an already-expired entry directly to internal dict
-    store._tokens["tok_expired"] = {
-        "token": "tok_expired",
+    # Write an already-expired entry directly to internal dict (keyed by hash)
+    store._tokens[_token_key("tok_expired")] = {
         "client_id": "alice",
         "scopes": ["admin"],
         "claims": {},
         "expires_at": time.time() - 1,
     }
     assert store.get_token("tok_expired") is None
+
+
+async def test_token_store_never_persists_raw_tokens(tmp_path):
+    path = tmp_path / "tokens.json"
+    store = TokenStore(str(path))
+    token = _make_token()
+    await store.save_token(token)
+    on_disk = path.read_text()
+    assert token.token not in on_disk
+    assert store.get_token(token.token) is not None
+
+
+def test_token_store_migrates_v1_plaintext_file(tmp_path):
+    """A pre-hashing store file (raw-token keys) is migrated and rewritten hashed."""
+    path = tmp_path / "tokens.json"
+    v1_data = {
+        "access_tokens": {
+            "tok_raw_secret": {
+                "token": "tok_raw_secret",
+                "client_id": "alice",
+                "scopes": ["editor"],
+                "claims": {"username": "alice"},
+                "expires_at": int(time.time()) + 3600,
+            }
+        },
+        "refresh_tokens": {},
+        "auth_codes": {},
+        "clients": {},
+    }
+    path.write_text(json.dumps(v1_data))
+
+    store = TokenStore(str(path))
+    result = store.get_token("tok_raw_secret")
+    assert result is not None
+    assert result.client_id == "alice"
+    # The rewritten file must no longer contain the raw token.
+    assert "tok_raw_secret" not in path.read_text()
 
 
 def test_token_store_expired_tokens_excluded_on_load(tmp_path):
