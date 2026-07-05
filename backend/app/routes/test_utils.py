@@ -6,13 +6,18 @@ from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
+from app.middleware.deps import require_editor_or_above
 from app.models import PBI, PI, EditLock, Feature, Group, Project, Session, Sprint, Swimline
+from app.models.user import User
 
 router = APIRouter(prefix="/api/v1/test", tags=["test"])
 
 
 @router.post("/reset")
-async def reset_database(session: Annotated[AsyncSession, Depends(get_session)]) -> dict[str, str]:
+async def reset_database(
+    session: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(require_editor_or_above)],
+) -> dict[str, str]:
     """Delete all rows from every table in dependency order. Test use only."""
     for model in (PBI, Group, Feature, EditLock, Session, Sprint, Swimline, PI, Project):
         await session.execute(delete(model))

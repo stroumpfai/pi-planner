@@ -1,6 +1,6 @@
 describe('Auth flow', () => {
   beforeEach(() => {
-    cy.request('POST', '/api/v1/test/reset')
+    cy.resetDb()
   })
 
   it('valid credentials → lands on project list', () => {

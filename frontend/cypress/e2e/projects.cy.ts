@@ -1,6 +1,6 @@
 describe('Project CRUD', () => {
   beforeEach(() => {
-    cy.request('POST', '/api/v1/test/reset')
+    cy.resetDb()
     cy.login()
     // Acquire edit mode (admin user)
     cy.request('POST', '/api/v1/auth/login', { username: 'testuser', password: 'testpass' })

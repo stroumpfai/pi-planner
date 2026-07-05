@@ -166,6 +166,43 @@ async def test_change_password_success(auth_client):
 
 
 @pytest.mark.asyncio
+async def test_change_password_invalidates_other_sessions(auth_client, db):
+    other_session_id = await create_session(db, "alice", remember_me=True)
+
+    resp = await auth_client.post(
+        "/api/v1/auth/change-password",
+        json={"old_password": _ALICE_SECRET, "new_password": _NEW_SECRET},
+    )
+    assert resp.status_code == 204
+
+    # The other session is gone…
+    auth_client.cookies.set("pi_session", sign_session_id(other_session_id))
+    resp = await auth_client.get("/api/v1/auth/me")
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_change_password_keeps_current_session(auth_client):
+    resp = await auth_client.post(
+        "/api/v1/auth/change-password",
+        json={"old_password": _ALICE_SECRET, "new_password": _NEW_SECRET},
+    )
+    assert resp.status_code == 204
+
+    # …while the session that made the change stays valid.
+    resp = await auth_client.get("/api/v1/auth/me")
+    assert resp.status_code == 200
+    assert resp.json()["username"] == "alice"
+
+
+@pytest.mark.asyncio
+async def test_login_response_does_not_leak_session_id(anon_client, alice):
+    resp = await anon_client.post(_LOGIN_URL, json={"username": "alice", "password": _ALICE_SECRET})
+    assert resp.status_code == 200
+    assert "session_id" not in resp.json()
+
+
+@pytest.mark.asyncio
 async def test_change_password_wrong_old_returns_400(auth_client):
     resp = await auth_client.post(
         "/api/v1/auth/change-password",

@@ -42,9 +42,9 @@ COPY --from=frontend /build/dist/ ./static/
 # Persistent data volume for the SQLite database
 VOLUME /data
 
-# Runtime configuration — override these when running the container
+# Runtime configuration — override these when running the container.
+# SECRET_KEY has no default on purpose: the app refuses to start without one.
 ENV DATABASE_URL=sqlite+aiosqlite:////data/db.sqlite \
-    SECRET_KEY=change-me-in-production \
     ALLOWED_ORIGINS=http://localhost:8000 \
     USERS_FILE=/config/users.json \
     PYTHONUNBUFFERED=1

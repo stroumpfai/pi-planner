@@ -2,7 +2,7 @@ describe('PI planning journey', () => {
   let projectId: string
 
   beforeEach(() => {
-    cy.request('POST', '/api/v1/test/reset')
+    cy.resetDb()
     cy.login()
     cy.request('POST', '/api/v1/projects/', { name: 'PI Test' }).then((res) => {
       projectId = res.body.system_id

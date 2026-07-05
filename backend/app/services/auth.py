@@ -119,8 +119,13 @@ async def delete_session(db: AsyncSession, session_id: str) -> None:
         await db.commit()
 
 
-async def invalidate_all_sessions(db: AsyncSession, username: str) -> None:
-    await db.execute(delete(Session).where(Session.username == username))
+async def invalidate_all_sessions(
+    db: AsyncSession, username: str, except_session_id: str | None = None
+) -> None:
+    stmt = delete(Session).where(Session.username == username)
+    if except_session_id:
+        stmt = stmt.where(Session.session_id != except_session_id)
+    await db.execute(stmt)
     await db.commit()
 
 

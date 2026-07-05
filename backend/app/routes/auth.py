@@ -18,6 +18,7 @@ from app.services.auth import (
     create_session,
     delete_session,
     hash_password,
+    invalidate_all_sessions,
     sign_session_id,
     unsign_session_token,
     verify_password,
@@ -62,10 +63,7 @@ async def login(
         samesite="lax",
         secure=not settings.debug,
     )
-    return TokenResponse(
-        user=UserResponse.model_validate(user),
-        session_id=session_id,
-    )
+    return TokenResponse(user=UserResponse.model_validate(user))
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -92,6 +90,7 @@ async def change_password(
     body: ChangePassword,
     current_user: Annotated[User, Depends(get_current_user)],
     db: Annotated[AsyncSession, Depends(get_session)],
+    session_token: Annotated[str | None, Cookie(alias=SESSION_COOKIE)] = None,
 ) -> None:
     if not verify_password(body.old_password, current_user.password_hash):
         raise HTTPException(
@@ -100,3 +99,7 @@ async def change_password(
         )
     assert_password_policy(body.new_password, current_user.username)
     await users_service.set_password(db, current_user.username, hash_password(body.new_password))
+    # Kill every other session for this user — a password change must lock out
+    # anyone holding a stolen cookie, while keeping the current session alive.
+    current_session_id = unsign_session_token(session_token) if session_token else None
+    await invalidate_all_sessions(db, current_user.username, except_session_id=current_session_id)

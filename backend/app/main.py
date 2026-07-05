@@ -45,9 +45,13 @@ from app.services import users as users_service
 logger = logging.getLogger(__name__)
 
 
+# Known placeholder values that must never be used as a real signing key.
+_INSECURE_SECRET_KEYS = frozenset({"", "change-me", "change-me-in-production", "change-me-to-a-random-secret-key"})
+
+
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    if settings.secret_key == "change-me":
+    if settings.secret_key in _INSECURE_SECRET_KEYS:
         raise RuntimeError("SECRET_KEY is not configured. Set a strong random value in .env")
     async with AsyncSessionLocal() as db:
         await users_service.seed_from_config(db, settings.users_file)

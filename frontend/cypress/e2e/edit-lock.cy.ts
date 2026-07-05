@@ -2,7 +2,7 @@ describe('Edit lock lifecycle', () => {
   let projectId: string
 
   beforeEach(() => {
-    cy.request('POST', '/api/v1/test/reset')
+    cy.resetDb()
     cy.login()
     cy.request('POST', '/api/v1/projects/', { name: 'Lock Test' }).then((res) => {
       projectId = res.body.system_id

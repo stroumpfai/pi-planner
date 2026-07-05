@@ -23,7 +23,7 @@ class PIEventResponse(BaseModel):
     pi_id: str
     name: str
     event_date: date
-    event_type: str
+    event_type: PIEventType
     created_at: datetime
     modified_at: datetime
 

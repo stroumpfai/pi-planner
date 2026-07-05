@@ -3,9 +3,12 @@ set -e
 
 echo "PI Planner v${APP_VERSION} starting..."
 
-if [ "$SECRET_KEY" = "change-me-in-production" ]; then
-  echo "WARNING: SECRET_KEY is not set. Set a strong random value via -e SECRET_KEY=..." >&2
-fi
+case "${SECRET_KEY:-}" in
+  ""|"change-me"|"change-me-in-production"|"change-me-to-a-random-secret-key")
+    echo "ERROR: SECRET_KEY is not set. Set a strong random value via -e SECRET_KEY=... (e.g. openssl rand -hex 32)" >&2
+    exit 1
+    ;;
+esac
 
 echo "Running database migrations..."
 alembic upgrade head

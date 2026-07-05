@@ -21,7 +21,6 @@ class UserResponse(BaseModel):
 
 class TokenResponse(BaseModel):
     user: UserResponse
-    session_id: str
 
 
 class UserCreate(BaseModel):

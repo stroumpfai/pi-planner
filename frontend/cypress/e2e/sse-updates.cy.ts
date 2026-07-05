@@ -5,7 +5,7 @@ describe('Real-time SSE updates', () => {
   let projectId: string
 
   beforeEach(() => {
-    cy.request('POST', '/api/v1/test/reset')
+    cy.resetDb()
     cy.request('POST', '/api/v1/auth/login', { username: 'testuser', password: 'testpass' })
     cy.request('POST', '/api/v1/projects/', { name: 'SSE Test' }).then((res) => {
       projectId = res.body.system_id

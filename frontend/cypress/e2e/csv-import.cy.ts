@@ -2,7 +2,7 @@ describe('CSV import', () => {
   let projectId: string
 
   beforeEach(() => {
-    cy.request('POST', '/api/v1/test/reset')
+    cy.resetDb()
     cy.login()
     cy.request('POST', '/api/v1/projects/', { name: 'CSV Test' }).then((res) => {
       projectId = res.body.system_id

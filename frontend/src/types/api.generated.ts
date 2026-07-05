@@ -64,6 +64,8 @@ export interface paths {
     get: operations["list_features_api_v1_projects__project_id__features_get"];
     /** Create Feature */
     post: operations["create_feature_api_v1_projects__project_id__features_post"];
+    /** Clear All Features */
+    delete: operations["clear_all_features_api_v1_projects__project_id__features_delete"];
   };
   "/api/v1/features/{feature_id}": {
     /** Get Feature */
@@ -72,6 +74,10 @@ export interface paths {
     delete: operations["delete_feature_api_v1_features__feature_id__delete"];
     /** Update Feature */
     patch: operations["update_feature_api_v1_features__feature_id__patch"];
+  };
+  "/api/v1/projects/{project_id}/backlog": {
+    /** Clear Backlog */
+    delete: operations["clear_backlog_api_v1_projects__project_id__backlog_delete"];
   };
   "/api/v1/projects/{project_id}/pbis": {
     /** List Pbis */
@@ -93,6 +99,18 @@ export interface paths {
     /** Unplace Story */
     delete: operations["unplace_story_api_v1_pbis__pbi_id__place_delete"];
   };
+  "/api/v1/pis/{pi_id}/events": {
+    /** List Events */
+    get: operations["list_events_api_v1_pis__pi_id__events_get"];
+    /** Create Event */
+    post: operations["create_event_api_v1_pis__pi_id__events_post"];
+  };
+  "/api/v1/pis/{pi_id}/events/{event_id}": {
+    /** Delete Event */
+    delete: operations["delete_event_api_v1_pis__pi_id__events__event_id__delete"];
+    /** Update Event */
+    patch: operations["update_event_api_v1_pis__pi_id__events__event_id__patch"];
+  };
   "/api/v1/projects/{project_id}/pis": {
     /** List Pis */
     get: operations["list_pis_api_v1_projects__project_id__pis_get"];
@@ -106,6 +124,14 @@ export interface paths {
     delete: operations["delete_pi_api_v1_pis__pi_id__delete"];
     /** Update Pi */
     patch: operations["update_pi_api_v1_pis__pi_id__patch"];
+  };
+  "/api/v1/pis/{pi_id}/export/csv": {
+    /** Export Pi Csv Endpoint */
+    get: operations["export_pi_csv_endpoint_api_v1_pis__pi_id__export_csv_get"];
+  };
+  "/api/v1/pis/{pi_id}/export/png": {
+    /** Export Pi Png Endpoint */
+    get: operations["export_pi_png_endpoint_api_v1_pis__pi_id__export_png_get"];
   };
   "/api/v1/pis/{pi_id}/swimlines": {
     /** List Swimlines */
@@ -162,6 +188,20 @@ export interface paths {
   "/api/v1/projects/{project_id}/edit-lock/keepalive": {
     /** Keepalive Edit Lock */
     post: operations["keepalive_edit_lock_api_v1_projects__project_id__edit_lock_keepalive_post"];
+  };
+  "/api/v1/projects/{project_id}/snapshots/": {
+    /** List Snapshots */
+    get: operations["list_snapshots_api_v1_projects__project_id__snapshots__get"];
+    /** Create Snapshot */
+    post: operations["create_snapshot_api_v1_projects__project_id__snapshots__post"];
+  };
+  "/api/v1/projects/{project_id}/snapshots/{snapshot_id}": {
+    /** Delete Snapshot */
+    delete: operations["delete_snapshot_api_v1_projects__project_id__snapshots__snapshot_id__delete"];
+  };
+  "/api/v1/projects/{project_id}/snapshots/{snapshot_id}/restore": {
+    /** Restore Snapshot */
+    post: operations["restore_snapshot_api_v1_projects__project_id__snapshots__snapshot_id__restore_post"];
   };
   "/api/v1/projects/{project_id}/events": {
     /** Project Events */
@@ -328,6 +368,11 @@ export interface components {
     Body_import_project_api_v1_projects_import_post: {
       /** File */
       file: string;
+    };
+    /** BulkDeleteResponse */
+    BulkDeleteResponse: {
+      /** Deleted Features */
+      deleted_features: number;
     };
     /** ChangePassword */
     ChangePassword: {
@@ -612,6 +657,59 @@ export interface components {
       /** End Date */
       end_date?: string | null;
     };
+    /** PIEventCreate */
+    PIEventCreate: {
+      /** Name */
+      name: string;
+      /**
+       * Event Date
+       * Format: date
+       */
+      event_date: string;
+      /**
+       * Event Type
+       * @enum {string}
+       */
+      event_type: "release" | "milestone" | "deadline" | "pilot" | "go_no_go" | "other";
+    };
+    /** PIEventResponse */
+    PIEventResponse: {
+      /** System Id */
+      system_id: string;
+      /** Pi Id */
+      pi_id: string;
+      /** Name */
+      name: string;
+      /**
+       * Event Date
+       * Format: date
+       */
+      event_date: string;
+      /**
+       * Event Type
+       * @enum {string}
+       */
+      event_type: "release" | "milestone" | "deadline" | "pilot" | "go_no_go" | "other";
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Modified At
+       * Format: date-time
+       */
+      modified_at: string;
+    };
+    /** PIEventUpdate */
+    PIEventUpdate: {
+      /** Name */
+      name?: string | null;
+      /** Event Date */
+      event_date?: string | null;
+      /** Event Type */
+      event_type?: ("release" | "milestone" | "deadline" | "pilot" | "go_no_go" | "other") | null;
+    };
     /** PIResponse */
     PIResponse: {
       /** System Id */
@@ -661,47 +759,6 @@ export interface components {
       start_date?: string | null;
       /** End Date */
       end_date?: string | null;
-    };
-    /** PIEventResponse */
-    PIEventResponse: {
-      /** System Id */
-      system_id: string;
-      /** Pi Id */
-      pi_id: string;
-      /** Name */
-      name: string;
-      /** Event Date (YYYY-MM-DD) */
-      event_date: string;
-      /** Event Type */
-      event_type: "release" | "milestone" | "deadline" | "pilot" | "go_no_go" | "other";
-      /**
-       * Created At
-       * Format: date-time
-       */
-      created_at: string;
-      /**
-       * Modified At
-       * Format: date-time
-       */
-      modified_at: string;
-    };
-    /** PIEventCreate */
-    PIEventCreate: {
-      /** Name */
-      name: string;
-      /** Event Date (YYYY-MM-DD) */
-      event_date: string;
-      /** Event Type */
-      event_type: "release" | "milestone" | "deadline" | "pilot" | "go_no_go" | "other";
-    };
-    /** PIEventUpdate */
-    PIEventUpdate: {
-      /** Name */
-      name?: string | null;
-      /** Event Date (YYYY-MM-DD) */
-      event_date?: string | null;
-      /** Event Type */
-      event_type?: ("release" | "milestone" | "deadline" | "pilot" | "go_no_go" | "other") | null;
     };
     /** PasswordReset */
     PasswordReset: {
@@ -760,6 +817,25 @@ export interface components {
      * @enum {string}
      */
     Role: "admin" | "editor" | "reader";
+    /** SnapshotCreate */
+    SnapshotCreate: {
+      /** Name */
+      name: string;
+    };
+    /** SnapshotResponse */
+    SnapshotResponse: {
+      /** System Id */
+      system_id: string;
+      /** Name */
+      name: string;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Created By */
+      created_by: string | null;
+    };
     /** SprintResponse */
     SprintResponse: {
       /** System Id */
@@ -855,8 +931,6 @@ export interface components {
     /** TokenResponse */
     TokenResponse: {
       user: components["schemas"]["UserResponse"];
-      /** Session Id */
-      session_id: string;
     };
     /** UserCreate */
     UserCreate: {
@@ -1367,6 +1441,31 @@ export interface operations {
       };
     };
   };
+  /** Clear All Features */
+  clear_all_features_api_v1_projects__project_id__features_delete: {
+    parameters: {
+      path: {
+        project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["BulkDeleteResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   /** Get Feature */
   get_feature_api_v1_features__feature_id__get: {
     parameters: {
@@ -1435,6 +1534,31 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["FeatureResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Clear Backlog */
+  clear_backlog_api_v1_projects__project_id__backlog_delete: {
+    parameters: {
+      path: {
+        project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["BulkDeleteResponse"];
         };
       };
       /** @description Validation Error */
@@ -1634,6 +1758,116 @@ export interface operations {
       };
     };
   };
+  /** List Events */
+  list_events_api_v1_pis__pi_id__events_get: {
+    parameters: {
+      path: {
+        pi_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PIEventResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Create Event */
+  create_event_api_v1_pis__pi_id__events_post: {
+    parameters: {
+      path: {
+        pi_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PIEventCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["PIEventResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Delete Event */
+  delete_event_api_v1_pis__pi_id__events__event_id__delete: {
+    parameters: {
+      path: {
+        pi_id: string;
+        event_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Update Event */
+  update_event_api_v1_pis__pi_id__events__event_id__patch: {
+    parameters: {
+      path: {
+        pi_id: string;
+        event_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PIEventUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PIEventResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   /** List Pis */
   list_pis_api_v1_projects__project_id__pis_get: {
     parameters: {
@@ -1757,6 +1991,64 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["PIResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Export Pi Csv Endpoint */
+  export_pi_csv_endpoint_api_v1_pis__pi_id__export_csv_get: {
+    parameters: {
+      path: {
+        pi_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Export Pi Png Endpoint */
+  export_pi_png_endpoint_api_v1_pis__pi_id__export_png_get: {
+    parameters: {
+      query?: {
+        show_pi_effort?: boolean;
+        show_sprint_effort?: boolean;
+        show_swimlane_effort?: boolean;
+        show_events?: boolean;
+        swimlane_text_center?: boolean;
+        show_export_date?: boolean;
+      };
+      path: {
+        pi_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
         };
       };
       /** @description Validation Error */
@@ -2216,6 +2508,111 @@ export interface operations {
       };
     };
   };
+  /** List Snapshots */
+  list_snapshots_api_v1_projects__project_id__snapshots__get: {
+    parameters: {
+      path: {
+        project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["SnapshotResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Create Snapshot */
+  create_snapshot_api_v1_projects__project_id__snapshots__post: {
+    parameters: {
+      path: {
+        project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["SnapshotCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["SnapshotResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Delete Snapshot */
+  delete_snapshot_api_v1_projects__project_id__snapshots__snapshot_id__delete: {
+    parameters: {
+      path: {
+        project_id: string;
+        snapshot_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Restore Snapshot */
+  restore_snapshot_api_v1_projects__project_id__snapshots__snapshot_id__restore_post: {
+    parameters: {
+      path: {
+        project_id: string;
+        snapshot_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProjectResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   /** Project Events */
   project_events_api_v1_projects__project_id__events_get: {
     parameters: {
@@ -2472,6 +2869,11 @@ export interface operations {
    * @description Delete all rows from every table in dependency order. Test use only.
    */
   reset_database_api_v1_test_reset_post: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
     responses: {
       /** @description Successful Response */
       200: {
@@ -2479,6 +2881,12 @@ export interface operations {
           "application/json": {
             [key: string]: string;
           };
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
         };
       };
     };

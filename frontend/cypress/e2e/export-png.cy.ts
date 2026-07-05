@@ -3,7 +3,7 @@ describe('PNG export modal', () => {
   let piId: string
 
   beforeEach(() => {
-    cy.request('POST', '/api/v1/test/reset')
+    cy.resetDb()
     cy.login()
     cy.request('POST', '/api/v1/projects/', { name: 'PNG Export Test' }).then((res) => {
       projectId = res.body.system_id
