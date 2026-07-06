@@ -269,14 +269,22 @@ async def export_pi_png(db: AsyncSession, pi: PI, opts: PNGExportOptions | None 
     n = max(len(swimlines), 1)
     HEADER_H = 1.0  # inches — fixed height for the sprint header row
     main_h = max(1.5, n * 0.35 + 1.0)
+    FOOTER_H = 0.25 if opts.show_export_date else 0.0  # reserve space so the date never overlaps the last swimline
     fig_width = max(10.0, num_sprints * 2.2)
-    fig_height = HEADER_H + main_h
+    fig_height = HEADER_H + main_h + FOOTER_H
 
     fig = Figure(figsize=(fig_width, fig_height), dpi=150, layout="constrained")
     FigureCanvasAgg(fig)
-    gs = GridSpec(2, 1, figure=fig, height_ratios=[HEADER_H, main_h], hspace=0.05)
-    ax_header = fig.add_subplot(gs[0])
-    ax = fig.add_subplot(gs[1])
+    if opts.show_export_date:
+        gs = GridSpec(3, 1, figure=fig, height_ratios=[HEADER_H, main_h, FOOTER_H], hspace=0.05)
+        ax_header = fig.add_subplot(gs[0])
+        ax = fig.add_subplot(gs[1])
+        ax_footer = fig.add_subplot(gs[2])
+        ax_footer.axis("off")
+    else:
+        gs = GridSpec(2, 1, figure=fig, height_ratios=[HEADER_H, main_h], hspace=0.05)
+        ax_header = fig.add_subplot(gs[0])
+        ax = fig.add_subplot(gs[1])
 
     _draw_sprint_header(ax_header, sprints, sprint_efforts, effort_unit, num_sprints,
                         show_effort=opts.show_sprint_effort)
@@ -335,8 +343,8 @@ async def export_pi_png(db: AsyncSession, pi: PI, opts: PNGExportOptions | None 
 
     if opts.show_export_date:
         date_str = date.today().strftime("%Y-%m-%d")
-        fig.text(0.99, 0.01, f"Exported {date_str}",
-                 ha="right", va="bottom", fontsize=7, color="#9ca3af")
+        ax_footer.text(1.0, 0.5, f"Exported {date_str}", transform=ax_footer.transAxes,
+                        ha="right", va="center", fontsize=7, color="#9ca3af")
 
     top_y = (n - 1) * ROW_SPACING + BAR_HEIGHT / 2 + 0.05
     ax.set_ylim(bottom_y, top_y)
