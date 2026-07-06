@@ -21,6 +21,12 @@ class FeatureUpdate(BaseModel):
     swimlane_id: str | None = None
 
 
+class FeatureSplitRequest(BaseModel):
+    target_pi_id: str
+    target_swimline_id: str
+    pbi_ids: list[str] = Field(..., min_length=1)
+
+
 class FeatureResponse(BaseModel):
     system_id: str
     id: int | None = Field(None, validation_alias="user_id")
@@ -30,6 +36,7 @@ class FeatureResponse(BaseModel):
     location: str
     pi_id: str | None
     swimlane_id: str | None
+    continued_from_feature_id: str | None
     project_id: str
     created_at: datetime
     modified_at: datetime

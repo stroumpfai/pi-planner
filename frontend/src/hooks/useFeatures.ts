@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { featuresApi } from '@/services/features'
-import type { FeatureCreate, FeatureUpdate } from '@/types'
+import type { FeatureCreate, FeatureSplitRequest, FeatureUpdate } from '@/types'
 
 const prefix = (projectId: string) => ['features', projectId] as const
 const key = (projectId: string, sort: string) => [...prefix(projectId), sort] as const
@@ -42,6 +42,22 @@ export const useUpdateFeature = (projectId: string) => {
         qc.invalidateQueries({ queryKey: ['swimlines'] })
         qc.invalidateQueries({ queryKey: ['pis'] })
       }
+    },
+  })
+}
+
+export const useSplitFeature = (projectId: string) => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ featureId, body }: { featureId: string; body: FeatureSplitRequest }) =>
+      featuresApi.split(featureId, body),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: prefix(projectId) })
+      qc.invalidateQueries({ queryKey: ['pbis', projectId] })
+      qc.invalidateQueries({ queryKey: ['groups'] })
+      qc.invalidateQueries({ queryKey: ['sprints'] })
+      qc.invalidateQueries({ queryKey: ['swimlines'] })
+      qc.invalidateQueries({ queryKey: ['pis'] })
     },
   })
 }

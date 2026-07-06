@@ -14,6 +14,7 @@ from mcp_server.tools.features import (
     create_feature,
     update_feature,
     move_feature,
+    split_feature,
     delete_feature,
     create_pbi,
     update_pbi,
@@ -25,6 +26,8 @@ PROJECT_ID = "proj-uuid-1"
 FEATURE_ID = "feat-uuid-1"
 PBI_ID = "pbi-uuid-1"
 SWIMLINE_ID = "sl-uuid-1"
+PI2_ID = "pi-uuid-2"
+SWIMLINE2_ID = "sl-uuid-2"
 
 FEATURE_RESP = {
     "system_id": FEATURE_ID,
@@ -137,6 +140,36 @@ async def test_move_feature_to_backlog(mock_backend, mock_ctx, patch_get_http_re
     await move_feature(feature_id=FEATURE_ID, project_id=PROJECT_ID, location="backlog", ctx=mock_ctx)
     body = _last_call_body(mock_backend, f"/features/{FEATURE_ID}")
     assert body == {"location": "backlog"}
+
+
+async def test_split_feature(mock_backend, mock_ctx, patch_get_http_request):
+    _lock_mocks(mock_backend)
+    continuation = {
+        **FEATURE_RESP,
+        "system_id": "feat-uuid-2",
+        "continued_from_feature_id": FEATURE_ID,
+        "location": "pi",
+        "pi_id": PI2_ID,
+        "swimlane_id": SWIMLINE2_ID,
+    }
+    mock_backend.post(f"/api/v1/features/{FEATURE_ID}/split").mock(
+        return_value=httpx.Response(200, json=continuation)
+    )
+    result = await split_feature(
+        feature_id=FEATURE_ID,
+        project_id=PROJECT_ID,
+        target_pi_id=PI2_ID,
+        target_swimline_id=SWIMLINE2_ID,
+        pbi_ids=[PBI_ID],
+        ctx=mock_ctx,
+    )
+    assert result["continued_from_feature_id"] == FEATURE_ID
+    body = _last_call_body(mock_backend, f"/features/{FEATURE_ID}/split")
+    assert body == {
+        "target_pi_id": PI2_ID,
+        "target_swimline_id": SWIMLINE2_ID,
+        "pbi_ids": [PBI_ID],
+    }
 
 
 async def test_delete_feature_returns_empty(mock_backend, mock_ctx, patch_get_http_request):

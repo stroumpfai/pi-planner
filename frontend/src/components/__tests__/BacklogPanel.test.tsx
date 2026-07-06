@@ -27,6 +27,7 @@ const makeFeature = (overrides: Partial<Feature> = {}): Feature => ({
   location: 'backlog',
   pi_id: null,
   swimlane_id: null,
+  continued_from_feature_id: null,
   created_at: '2026-01-01T00:00:00Z',
   modified_at: '2026-01-01T00:00:00Z',
   ...overrides,

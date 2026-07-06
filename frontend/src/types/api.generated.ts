@@ -75,6 +75,10 @@ export interface paths {
     /** Update Feature */
     patch: operations["update_feature_api_v1_features__feature_id__patch"];
   };
+  "/api/v1/features/{feature_id}/split": {
+    /** Split Feature */
+    post: operations["split_feature_api_v1_features__feature_id__split_post"];
+  };
   "/api/v1/projects/{project_id}/backlog": {
     /** Clear Backlog */
     delete: operations["clear_backlog_api_v1_projects__project_id__backlog_delete"];
@@ -457,6 +461,8 @@ export interface components {
       pi_id: string | null;
       /** Swimlane Id */
       swimlane_id: string | null;
+      /** Continued From Feature Id */
+      continued_from_feature_id: string | null;
       /** Project Id */
       project_id: string;
       /**
@@ -469,6 +475,15 @@ export interface components {
        * Format: date-time
        */
       modified_at: string;
+    };
+    /** FeatureSplitRequest */
+    FeatureSplitRequest: {
+      /** Target Pi Id */
+      target_pi_id: string;
+      /** Target Swimline Id */
+      target_swimline_id: string;
+      /** Pbi Ids */
+      pbi_ids: string[];
     };
     /** FeatureUpdate */
     FeatureUpdate: {
@@ -1527,6 +1542,36 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["FeatureUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["FeatureResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Split Feature */
+  split_feature_api_v1_features__feature_id__split_post: {
+    parameters: {
+      path: {
+        feature_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["FeatureSplitRequest"];
       };
     };
     responses: {

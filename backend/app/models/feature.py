@@ -29,6 +29,9 @@ class Feature(Base):
     location: Mapped[str] = mapped_column(Text, nullable=False, default="backlog")
     pi_id: Mapped[str | None] = mapped_column(Text, ForeignKey("pis.system_id"))
     swimlane_id: Mapped[str | None] = mapped_column(Text, ForeignKey("swimlines.system_id"))
+    continued_from_feature_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("features.system_id", ondelete="SET NULL")
+    )
     created_at: Mapped[datetime] = mapped_column(default=func.now())
     modified_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
 
@@ -43,5 +46,6 @@ class Feature(Base):
         Index("idx_features_user_id", "project_id", "user_id"),
         Index("idx_features_pi", "pi_id"),
         Index("idx_features_swimlane", "swimlane_id"),
+        Index("idx_features_continued_from", "continued_from_feature_id"),
         UniqueConstraint("project_id", "user_id"),
     )

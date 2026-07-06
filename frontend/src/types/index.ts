@@ -32,6 +32,7 @@ export type SprintUpdate = components['schemas']['SprintUpdate']
 export type Feature = components['schemas']['FeatureResponse']
 export type FeatureCreate = components['schemas']['FeatureCreate']
 export type FeatureUpdate = components['schemas']['FeatureUpdate']
+export type FeatureSplitRequest = components['schemas']['FeatureSplitRequest']
 
 export type PBI = components['schemas']['PBIResponse']
 export type PBICreate = components['schemas']['PBICreate']

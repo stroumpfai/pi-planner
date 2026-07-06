@@ -10,7 +10,13 @@ from app.schemas.auth import (
 from app.schemas.common import ApiError, ApiResponse
 from app.schemas.csv_import import CsvImportError, CsvImportRequest, CsvImportResult, CsvRow
 from app.schemas.edit_lock import EditLockResponse
-from app.schemas.feature import BulkDeleteResponse, FeatureCreate, FeatureResponse, FeatureUpdate
+from app.schemas.feature import (
+    BulkDeleteResponse,
+    FeatureCreate,
+    FeatureResponse,
+    FeatureSplitRequest,
+    FeatureUpdate,
+)
 from app.schemas.group import GroupCreate, GroupResponse, GroupUpdate, PlaceStoryRequest, PlaceStoryResponse
 from app.schemas.pbi import PBICreate, PBIResponse, PBIUpdate
 from app.schemas.pi import PICreate, PIResponse, PIUpdate
@@ -26,7 +32,7 @@ __all__ = [
     "PIEventCreate", "PIEventUpdate", "PIEventResponse",
     "SwimlineCreate", "SwimlineUpdate", "SwimlineResponse", "SwimlineReorder",
     "SprintCreate", "SprintUpdate", "SprintResponse",
-    "FeatureCreate", "FeatureUpdate", "FeatureResponse", "BulkDeleteResponse",
+    "FeatureCreate", "FeatureUpdate", "FeatureResponse", "FeatureSplitRequest", "BulkDeleteResponse",
     "GroupCreate", "GroupUpdate", "GroupResponse", "PlaceStoryRequest", "PlaceStoryResponse",
     "PBICreate", "PBIUpdate", "PBIResponse",
     "LoginRequest", "TokenResponse", "UserResponse",

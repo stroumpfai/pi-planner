@@ -15,7 +15,13 @@ from app.models.pbi import PBI
 from app.models.project import Project
 from app.models.swimline import Swimline
 from app.models.user import User
-from app.schemas import BulkDeleteResponse, FeatureCreate, FeatureResponse, FeatureUpdate
+from app.schemas import (
+    BulkDeleteResponse,
+    FeatureCreate,
+    FeatureResponse,
+    FeatureSplitRequest,
+    FeatureUpdate,
+)
 from app.services.effort import feature_efforts
 from app.services.events import broadcaster
 from app.services.validation import is_user_id_available
@@ -90,6 +96,21 @@ async def _apply_move_to_backlog(db: AsyncSession, feature: Feature) -> None:
     feature.location = "backlog"
     feature.pi_id = None
     feature.swimlane_id = None
+
+
+async def _detach_pbi_from_group(db: AsyncSession, pbi: PBI) -> None:
+    old_group_id = pbi.group_id
+    if not old_group_id:
+        return
+    pbi.group_id = None
+    await db.flush()
+    remaining = (await db.execute(
+        select(func.count()).where(PBI.group_id == old_group_id)
+    )).scalar_one()
+    if remaining == 0:
+        old_group = await db.get(Group, old_group_id)
+        if old_group and old_group.is_implicit:
+            await db.delete(old_group)
 
 
 def _apply_generic_location_fields(feature: Feature, body: FeatureUpdate, fields: set[str]) -> None:
@@ -184,6 +205,80 @@ async def update_feature(
     event = "feature:moved" if (moving_to_swimlane or moving_to_backlog) else "feature:updated"
     await broadcaster.broadcast(feature.project_id, event, {"system_id": feature_id})
     return await _enrich(db, feature)
+
+
+@router.post("/api/v1/features/{feature_id}/split")
+async def split_feature(
+    feature_id: str,
+    body: FeatureSplitRequest,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(require_edit_lock)],
+) -> FeatureResponse:
+    feature = await _get_feature_or_404(db, feature_id)
+    if feature.location != "pi":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": "FEATURE_NOT_IN_PI", "message": "Feature must be in a PI to split"},
+        )
+
+    swimline = await db.get(Swimline, body.target_swimline_id)
+    if not swimline:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Swimline not found")
+    if swimline.pi_id != body.target_pi_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": "SWIMLANE_PI_MISMATCH", "message": "Swimline does not belong to target PI"},
+        )
+
+    all_pbi_ids = set((await db.execute(
+        select(PBI.system_id).where(PBI.parent_feature_system_id == feature.system_id)
+    )).scalars().all())
+    selected_ids = set(body.pbi_ids)
+    if not selected_ids.issubset(all_pbi_ids):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": "PBI_NOT_IN_FEATURE", "message": "One or more PBIs do not belong to this feature"},
+        )
+
+    if selected_ids == all_pbi_ids:
+        # Every PBI is moving — no split needed, just relocate the whole feature.
+        update_body = FeatureUpdate(swimlane_id=body.target_swimline_id, pi_id=body.target_pi_id)
+        await _apply_move_to_swimlane(db, feature, update_body, update_body.model_fields_set)
+        feature.modified_at = datetime.now(timezone.utc)
+        await db.commit()
+        await db.refresh(feature)
+        await broadcaster.broadcast(feature.project_id, "feature:moved", {"system_id": feature.system_id})
+        return await _enrich(db, feature)
+
+    new_feature = Feature(
+        project_id=feature.project_id,
+        title=feature.title,
+        description=feature.description,
+        location="pi",
+        pi_id=body.target_pi_id,
+        swimlane_id=body.target_swimline_id,
+        continued_from_feature_id=feature.system_id,
+    )
+    db.add(new_feature)
+    await db.flush()
+
+    pbis = (await db.execute(select(PBI).where(PBI.system_id.in_(selected_ids)))).scalars().all()
+    for pbi in pbis:
+        await _detach_pbi_from_group(db, pbi)
+        pbi.parent_feature_system_id = new_feature.system_id
+        pbi.pi_id = body.target_pi_id
+        pbi.swimlane_id = body.target_swimline_id
+        pbi.modified_at = datetime.now(timezone.utc)
+
+    await db.commit()
+    await db.refresh(new_feature)
+
+    await broadcaster.broadcast(feature.project_id, "feature:created", {"system_id": new_feature.system_id})
+    await broadcaster.broadcast(feature.project_id, "feature:updated", {"system_id": feature.system_id})
+    for pbi_id in selected_ids:
+        await broadcaster.broadcast(feature.project_id, "pbi:updated", {"system_id": pbi_id})
+
+    return await _enrich(db, new_feature)
 
 
 @router.delete("/api/v1/projects/{project_id}/backlog")

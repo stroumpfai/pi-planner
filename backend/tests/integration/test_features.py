@@ -437,3 +437,233 @@ async def test_clear_all_features_with_sprint_placed_pbis(client, project, pi, s
     assert resp.status_code == 200
     assert resp.json()["deleted_features"] == 1
     assert (await client.get(f"/api/v1/projects/{pid}/features")).json() == []
+
+
+# ── Split feature (carry-over to a later PI) ─────────────────────────────────
+
+@pytest.fixture
+async def pi2(client, project):
+    return (await client.post(
+        f"/api/v1/projects/{project['system_id']}/pis",
+        json={"name": "Q2-2026"},
+    )).json()
+
+
+@pytest.fixture
+async def swimline2(client, pi2):
+    return (await client.post(
+        f"/api/v1/pis/{pi2['system_id']}/swimlines",
+        json={"name": "Team Alpha"},
+    )).json()
+
+
+async def _create_pbi(client, pid, fid, title):
+    return (await client.post(
+        f"/api/v1/projects/{pid}/pbis",
+        json={"title": title, "parent_feature_system_id": fid},
+    )).json()
+
+
+@pytest.mark.asyncio
+async def test_split_feature_partial_creates_continuation(client, project, pi, swimline, pi2, swimline2, feature):
+    pid, fid = project["system_id"], feature["system_id"]
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": swimline["system_id"]})
+
+    done_pbi = await _create_pbi(client, pid, fid, "Done PBI")
+    remaining_pbi1 = await _create_pbi(client, pid, fid, "Remaining PBI 1")
+    remaining_pbi2 = await _create_pbi(client, pid, fid, "Remaining PBI 2")
+    place_resp = await client.post(f"/api/v1/pbis/{done_pbi['system_id']}/place", json={"sprint_index": 0})
+    assert place_resp.status_code == 200
+
+    resp = await client.post(
+        f"/api/v1/features/{fid}/split",
+        json={
+            "target_pi_id": pi2["system_id"],
+            "target_swimline_id": swimline2["system_id"],
+            "pbi_ids": [remaining_pbi1["system_id"], remaining_pbi2["system_id"]],
+        },
+    )
+    assert resp.status_code == 200
+    new_feature = resp.json()
+    assert new_feature["system_id"] != fid
+    assert new_feature["continued_from_feature_id"] == fid
+    assert new_feature["title"] == feature["title"]
+    assert new_feature["pi_id"] == pi2["system_id"]
+    assert new_feature["swimlane_id"] == swimline2["system_id"]
+    assert new_feature["location"] == "pi"
+
+    # Moved PBIs are reparented, unsprinted, and pointed at the target PI/swimline.
+    for moved in (remaining_pbi1, remaining_pbi2):
+        pbi_resp = (await client.get(f"/api/v1/pbis/{moved['system_id']}")).json()
+        assert pbi_resp["parent_feature_system_id"] == new_feature["system_id"]
+        assert pbi_resp["pi_id"] == pi2["system_id"]
+        assert pbi_resp["swimlane_id"] == swimline2["system_id"]
+        assert pbi_resp["group_id"] is None
+
+    # Original feature keeps the finished PBI, its group, and its own PI.
+    original = (await client.get(f"/api/v1/features/{fid}")).json()
+    assert original["pi_id"] == pi["system_id"]
+    assert original["swimlane_id"] == swimline["system_id"]
+    done_resp = (await client.get(f"/api/v1/pbis/{done_pbi['system_id']}")).json()
+    assert done_resp["parent_feature_system_id"] == fid
+    assert done_resp["group_id"] is not None
+
+
+@pytest.mark.asyncio
+async def test_split_feature_all_pbis_reuses_whole_move(client, project, pi, swimline, pi2, swimline2, feature):
+    pid, fid = project["system_id"], feature["system_id"]
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": swimline["system_id"]})
+    pbi1 = await _create_pbi(client, pid, fid, "Only PBI")
+
+    resp = await client.post(
+        f"/api/v1/features/{fid}/split",
+        json={
+            "target_pi_id": pi2["system_id"],
+            "target_swimline_id": swimline2["system_id"],
+            "pbi_ids": [pbi1["system_id"]],
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    # Whole-feature move: same system_id, no continuation link, no new feature created.
+    assert data["system_id"] == fid
+    assert data["continued_from_feature_id"] is None
+    assert data["pi_id"] == pi2["system_id"]
+    assert data["swimlane_id"] == swimline2["system_id"]
+
+    remaining = (await client.get(f"/api/v1/projects/{pid}/features")).json()
+    assert len(remaining) == 1
+
+
+@pytest.mark.asyncio
+async def test_split_feature_requires_feature_in_pi(client, project, pi2, swimline2, feature):
+    resp = await client.post(
+        f"/api/v1/features/{feature['system_id']}/split",
+        json={
+            "target_pi_id": pi2["system_id"],
+            "target_swimline_id": swimline2["system_id"],
+            "pbi_ids": ["whatever"],
+        },
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"] == "FEATURE_NOT_IN_PI"
+
+
+@pytest.mark.asyncio
+async def test_split_feature_swimline_pi_mismatch(client, project, pi, swimline, pi2, feature):
+    pid, fid = project["system_id"], feature["system_id"]
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": swimline["system_id"]})
+    pbi1 = await _create_pbi(client, pid, fid, "PBI")
+
+    resp = await client.post(
+        f"/api/v1/features/{fid}/split",
+        json={
+            # swimline belongs to `pi`, not `pi2` — mismatch.
+            "target_pi_id": pi2["system_id"],
+            "target_swimline_id": swimline["system_id"],
+            "pbi_ids": [pbi1["system_id"]],
+        },
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"] == "SWIMLANE_PI_MISMATCH"
+
+
+@pytest.mark.asyncio
+async def test_split_feature_foreign_pbi_rejected(client, project, pi, swimline, pi2, swimline2, feature):
+    pid, fid = project["system_id"], feature["system_id"]
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": swimline["system_id"]})
+
+    other_feature = (await client.post(
+        f"/api/v1/projects/{pid}/features", json={"title": "Other"}
+    )).json()
+    foreign_pbi = await _create_pbi(client, pid, other_feature["system_id"], "Foreign PBI")
+
+    resp = await client.post(
+        f"/api/v1/features/{fid}/split",
+        json={
+            "target_pi_id": pi2["system_id"],
+            "target_swimline_id": swimline2["system_id"],
+            "pbi_ids": [foreign_pbi["system_id"]],
+        },
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"] == "PBI_NOT_IN_FEATURE"
+
+
+@pytest.mark.asyncio
+async def test_split_feature_chain_across_three_pis(client, project, pi, swimline, pi2, swimline2, feature):
+    """A continuation feature can itself be split again, forming a chain of arbitrary length."""
+    pid, fid = project["system_id"], feature["system_id"]
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": swimline["system_id"]})
+
+    pbi_a = await _create_pbi(client, pid, fid, "A")
+    pbi_b = await _create_pbi(client, pid, fid, "B")
+    await client.post(f"/api/v1/pbis/{pbi_a['system_id']}/place", json={"sprint_index": 0})  # A finishes in PI 1
+
+    # Split B into PI 2 (F1 -> F2).
+    split1 = await client.post(
+        f"/api/v1/features/{fid}/split",
+        json={
+            "target_pi_id": pi2["system_id"],
+            "target_swimline_id": swimline2["system_id"],
+            "pbi_ids": [pbi_b["system_id"]],
+        },
+    )
+    assert split1.status_code == 200
+    f2 = split1.json()
+    assert f2["continued_from_feature_id"] == fid
+
+    pbi_c = await _create_pbi(client, pid, f2["system_id"], "C")
+
+    pi3 = (await client.post(f"/api/v1/projects/{pid}/pis", json={"name": "Q3-2026"})).json()
+    swimline3 = (await client.post(
+        f"/api/v1/pis/{pi3['system_id']}/swimlines", json={"name": "Team Alpha"}
+    )).json()
+
+    # Split C into PI 3 (F2 -> F3): the continuation feature is split again.
+    split2 = await client.post(
+        f"/api/v1/features/{f2['system_id']}/split",
+        json={
+            "target_pi_id": pi3["system_id"],
+            "target_swimline_id": swimline3["system_id"],
+            "pbi_ids": [pbi_c["system_id"]],
+        },
+    )
+    assert split2.status_code == 200
+    f3 = split2.json()
+    assert f3["continued_from_feature_id"] == f2["system_id"]
+    assert f2["continued_from_feature_id"] == fid
+
+    c_resp = (await client.get(f"/api/v1/pbis/{pbi_c['system_id']}")).json()
+    assert c_resp["parent_feature_system_id"] == f3["system_id"]
+    assert c_resp["pi_id"] == pi3["system_id"]
+
+
+@pytest.mark.asyncio
+async def test_split_feature_not_found(client, pi2, swimline2):
+    resp = await client.post(
+        "/api/v1/features/nonexistent/split",
+        json={
+            "target_pi_id": pi2["system_id"],
+            "target_swimline_id": swimline2["system_id"],
+            "pbi_ids": ["x"],
+        },
+    )
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_split_feature_reader_forbidden(client, reader_client, project, pi, swimline, pi2, swimline2, feature):
+    pid, fid = project["system_id"], feature["system_id"]
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": swimline["system_id"]})
+    pbi1 = await _create_pbi(client, pid, fid, "PBI")
+
+    resp = await reader_client.post(
+        f"/api/v1/features/{fid}/split",
+        json={
+            "target_pi_id": pi2["system_id"],
+            "target_swimline_id": swimline2["system_id"],
+            "pbi_ids": [pbi1["system_id"]],
+        },
+    )
+    assert resp.status_code == 403

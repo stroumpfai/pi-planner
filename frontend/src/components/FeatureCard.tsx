@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { useAuthStore } from '@/stores/authStore'
-import { useUpdateFeature } from '@/hooks/useFeatures'
+import { useFeatures, useUpdateFeature } from '@/hooks/useFeatures'
+import { usePIs } from '@/hooks/usePIs'
 import { usePBIs } from '@/hooks/usePBIs'
 import { useEffortUnit } from '@/hooks/useProjects'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { useUiStore } from '@/stores/uiStore'
 import { PBISelectList } from './PBISelectList'
+import { SplitFeatureModal } from './SplitFeatureModal'
 import { getFeatureColorIdx, FEATURE_BORDER_COLORS } from '@/utils/featureColors'
 import type { Feature } from '@/types'
 import type { FeatureDragData } from './BacklogPanel'
@@ -19,14 +22,22 @@ interface Props {
 export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [selectedPbiIds, setSelectedPbiIds] = useState<Set<string>>(new Set())
+  const [splitModalOpen, setSplitModalOpen] = useState(false)
   const isEditing = useAuthStore((s) => s.isEditing)
   const effortUnit = useEffortUnit(projectId)
   const showIds = useSettingsStore((s) => s.showIds)
   const showEffortUnit = useSettingsStore((s) => s.showEffortUnit)
+  const setActivePI = useUiStore((s) => s.setActivePI)
   const updateFeature = useUpdateFeature(projectId)
   const { data: featurePbis = [] } = usePBIs(projectId, feature.system_id)
+  const { data: allFeatures = [] } = useFeatures(projectId)
+  const { data: pis = [] } = usePIs(projectId)
   const isFullyPlanned = featurePbis.length > 0 && featurePbis.every((p) => p.group_id != null)
   const borderColor = FEATURE_BORDER_COLORS[getFeatureColorIdx(feature.system_id)]
+
+  const continuedFrom = allFeatures.find((f) => f.system_id === feature.continued_from_feature_id)
+  const continuations = allFeatures.filter((f) => f.continued_from_feature_id === feature.system_id)
+  const piName = (piId: string | null) => pis.find((p) => p.system_id === piId)?.name ?? 'another PI'
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `feature:${feature.system_id}`,
@@ -97,6 +108,37 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
         )}
       </div>
 
+      {/* Continuation lineage badges */}
+      {(continuedFrom || continuations.length > 0) && (
+        <div className="px-3 pb-1 space-y-0.5">
+          {continuedFrom && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); if (continuedFrom.pi_id) setActivePI(continuedFrom.pi_id) }}
+              title={`Jump to ${piName(continuedFrom.pi_id)}`}
+              className="block text-xs text-gray-400 dark:text-gray-500 hover:text-blue-500 hover:underline"
+            >
+              ↩ continued from {piName(continuedFrom.pi_id)}
+            </button>
+          )}
+          {continuations.length === 1 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); if (continuations[0].pi_id) setActivePI(continuations[0].pi_id) }}
+              title={`Jump to ${piName(continuations[0].pi_id)}`}
+              className="block text-xs text-gray-400 dark:text-gray-500 hover:text-blue-500 hover:underline"
+            >
+              → continued in {piName(continuations[0].pi_id)}
+            </button>
+          )}
+          {continuations.length > 1 && (
+            <span className="block text-xs text-gray-400 dark:text-gray-500">
+              → continued in {continuations.length} PIs
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Action row */}
       <div className="flex items-center gap-2 px-3 pb-2">
         <button
@@ -139,6 +181,15 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
               + Group {selectedPbiIds.size} PBI{selectedPbiIds.size === 1 ? '' : 's'}
             </button>
           )}
+          {isEditing && selectedPbiIds.size > 0 && feature.location === 'pi' && (
+            <button
+              type="button"
+              onClick={() => setSplitModalOpen(true)}
+              className="w-full mt-1 text-xs border border-blue-400 text-blue-600 rounded px-2 py-1 hover:bg-blue-50 dark:hover:bg-blue-900/30"
+            >
+              → Move {selectedPbiIds.size} PBI{selectedPbiIds.size === 1 ? '' : 's'} to PI
+            </button>
+          )}
           {isEditing && selectedPbiIds.size === 0 && (
             <button
               type="button"
@@ -150,6 +201,19 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
           )}
         </div>
       )}
+
+      <SplitFeatureModal
+        open={splitModalOpen}
+        projectId={projectId}
+        featureId={feature.system_id}
+        currentPiId={feature.pi_id}
+        pbiIds={Array.from(selectedPbiIds)}
+        onClose={() => {
+          setSplitModalOpen(false)
+          setSelectedPbiIds(new Set())
+          setExpanded(false)
+        }}
+      />
     </div>
   )
 }

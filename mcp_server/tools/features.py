@@ -130,6 +130,45 @@ async def move_feature(
 
 
 @features_mcp.tool()
+async def split_feature(
+    feature_id: Annotated[str, Field(pattern=_UUID_RE, description="Feature system_id (UUID)")],
+    project_id: Annotated[str, Field(pattern=_UUID_RE, description="Project system_id (UUID) — needed to acquire the edit lock")],
+    target_pi_id: Annotated[str, Field(pattern=_UUID_RE, description="PI system_id to carry the selected PBIs into")],
+    target_swimline_id: Annotated[str, Field(pattern=_UUID_RE, description="Swimline system_id within the target PI")],
+    pbi_ids: Annotated[
+        list[str],
+        Field(min_length=1, description="system_ids of this feature's PBIs to carry over to the target PI"),
+    ],
+    ctx: Context,
+) -> dict:
+    """
+    Carry unfinished PBIs of a feature over into a later PI.
+
+    Use this when a feature can't be finished within its current PI and the remaining
+    (unfinished) PBIs need to be planned into a following PI's sprints, while finished
+    PBIs stay recorded in the current PI.
+
+    If pbi_ids covers every PBI currently under the feature, the whole feature is simply
+    relocated to the target PI/swimline (same as move_feature) — no split occurs.
+    Otherwise, a new linked "continuation" feature is created in the target PI/swimline
+    (same title, continued_from_feature_id pointing back to this feature) holding only
+    the selected PBIs; the original feature keeps the rest. The moved PBIs land unsprinted
+    in the target swimline — use place_pbi_in_sprint afterwards to assign them to sprints.
+    A continuation feature can itself be split again later, forming a chain across more
+    than two PIs.
+    Acquires the edit lock for the duration of the operation.
+    Returns the FeatureResponse of the continuation feature (or the original, whole-move case).
+    """
+    body = {
+        "target_pi_id": target_pi_id,
+        "target_swimline_id": target_swimline_id,
+        "pbi_ids": pbi_ids,
+    }
+    async with edit_lock(project_id):
+        return await call_backend("POST", f"/api/v1/features/{feature_id}/split", json=body)
+
+
+@features_mcp.tool()
 async def delete_feature(
     feature_id: Annotated[str, Field(pattern=_UUID_RE, description="Feature system_id (UUID)")],
     project_id: Annotated[str, Field(pattern=_UUID_RE, description="Project system_id (UUID) — needed to acquire the edit lock")],

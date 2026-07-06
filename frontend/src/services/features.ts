@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { Feature, FeatureCreate, FeatureUpdate } from '@/types'
+import type { Feature, FeatureCreate, FeatureSplitRequest, FeatureUpdate } from '@/types'
 
 export interface BulkDeleteResult {
   deleted_features: number
@@ -17,6 +17,9 @@ export const featuresApi = {
 
   update: (featureId: string, body: FeatureUpdate) =>
     api.patch<Feature>(`/features/${featureId}`, body).then((r) => r.data),
+
+  split: (featureId: string, body: FeatureSplitRequest) =>
+    api.post<Feature>(`/features/${featureId}/split`, body).then((r) => r.data),
 
   delete: (featureId: string) =>
     api.delete(`/features/${featureId}`),
