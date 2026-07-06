@@ -18,9 +18,9 @@ import type { User, ApiKey, ApiKeyCreate, ApiKeyCreateResponse } from '@/types'
 type Role = 'admin' | 'editor' | 'reader'
 
 const ROLE_BADGE: Record<Role, string> = {
-  admin: 'bg-red-100 text-red-800',
-  editor: 'bg-blue-100 text-blue-800',
-  reader: 'bg-gray-100 text-gray-700',
+  admin: 'bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-300',
+  editor: 'bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300',
+  reader: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300',
 }
 
 const createSchema = z
@@ -99,17 +99,17 @@ function SecretRevealPanel({ token, onDismiss }: SecretRevealPanelProps) {
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-[60]" />
         <Dialog.Content
-          className="fixed z-[70] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl p-6 w-full max-w-lg"
+          className="fixed z-[70] left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-lg"
           onInteractOutside={(e) => e.preventDefault()}
           onEscapeKeyDown={(e) => e.preventDefault()}
         >
-          <Dialog.Title className="text-base font-semibold text-gray-900 mb-2">API Key Created</Dialog.Title>
-          <Dialog.Description className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mb-4">
+          <Dialog.Title className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-2">API Key Created</Dialog.Title>
+          <Dialog.Description className="text-sm text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-md px-3 py-2 mb-4">
             Copy this secret now — it won&apos;t be shown again.
           </Dialog.Description>
 
           <div className="flex items-center gap-2">
-            <code className="flex-1 block bg-gray-100 border border-gray-200 rounded-md px-3 py-2 text-sm font-mono break-all text-gray-800">
+            <code className="flex-1 block bg-gray-100 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-md px-3 py-2 text-sm font-mono break-all text-gray-800 dark:text-gray-200">
               {token}
             </code>
             <button
@@ -172,11 +172,11 @@ function IssueKeyForm({ username, onCancel, onIssued }: IssueKeyFormProps) {
   })
 
   return (
-    <div className="border border-blue-200 rounded-md bg-blue-50 px-4 py-4 mt-2">
-      <p className="text-xs font-medium text-gray-700 mb-3">Issue key for {username}</p>
+    <div className="border border-blue-200 dark:border-blue-800 rounded-md bg-blue-50 dark:bg-blue-950/30 px-4 py-4 mt-2">
+      <p className="text-xs font-medium text-gray-700 dark:text-gray-300 mb-3">Issue key for {username}</p>
       <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-3">
         <div>
-          <label htmlFor={`key-name-${username}`} className="block text-xs font-medium text-gray-600 mb-1">
+          <label htmlFor={`key-name-${username}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
             Name <span className="text-red-500">*</span>
           </label>
           <input
@@ -185,29 +185,29 @@ function IssueKeyForm({ username, onCancel, onIssued }: IssueKeyFormProps) {
             autoFocus
             placeholder="e.g. Claude MCP"
             maxLength={64}
-            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+            className="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
           />
-          {errors.name && <p className="mt-0.5 text-xs text-red-600">{errors.name.message}</p>}
+          {errors.name && <p className="mt-0.5 text-xs text-red-600 dark:text-red-400">{errors.name.message}</p>}
         </div>
 
         <div>
-          <label htmlFor={`key-purpose-${username}`} className="block text-xs font-medium text-gray-600 mb-1">Purpose</label>
+          <label htmlFor={`key-purpose-${username}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Purpose</label>
           <input
             id={`key-purpose-${username}`}
             {...register('purpose')}
             placeholder="Optional notes"
             maxLength={255}
-            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+            className="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
           />
-          {errors.purpose && <p className="mt-0.5 text-xs text-red-600">{errors.purpose.message}</p>}
+          {errors.purpose && <p className="mt-0.5 text-xs text-red-600 dark:text-red-400">{errors.purpose.message}</p>}
         </div>
 
         <div>
-          <label htmlFor={`key-expires-${username}`} className="block text-xs font-medium text-gray-600 mb-1">Expires in</label>
+          <label htmlFor={`key-expires-${username}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Expires in</label>
           <select
             id={`key-expires-${username}`}
             {...register('expires_in_days')}
-            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+            className="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
           >
             <option value="30">30 days</option>
             <option value="90">90 days</option>
@@ -221,7 +221,7 @@ function IssueKeyForm({ username, onCancel, onIssued }: IssueKeyFormProps) {
           <button
             type="button"
             onClick={onCancel}
-            className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
           >
             Cancel
           </button>
@@ -270,19 +270,19 @@ function ApiKeyCard({ apiKey, onNewToken }: ApiKeyCardProps) {
 
   return (
     <>
-      <div className="border border-gray-200 rounded-md px-4 py-3 bg-white space-y-1">
+      <div className="border border-gray-200 dark:border-gray-700 rounded-md px-4 py-3 bg-white dark:bg-gray-800 space-y-1">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-gray-900">{apiKey.name}</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{apiKey.name}</p>
             {apiKey.purpose && (
-              <p className="text-xs text-gray-500 mt-0.5">{apiKey.purpose}</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{apiKey.purpose}</p>
             )}
-            <p className="text-xs text-gray-400 mt-1">
+            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
               Created: {formatDate(apiKey.created_at)}
               {apiKey.expires_at ? ` · Expires: ${formatDate(apiKey.expires_at)}` : ' · Never expires'}
             </p>
             {apiKey.last_used_at && (
-              <p className="text-xs text-gray-400">
+              <p className="text-xs text-gray-400 dark:text-gray-500">
                 Last used: {formatRelative(apiKey.last_used_at)}
               </p>
             )}
@@ -293,7 +293,7 @@ function ApiKeyCard({ apiKey, onNewToken }: ApiKeyCardProps) {
             type="button"
             onClick={() => setConfirmCycle(true)}
             disabled={cycleMutation.isPending || revokeMutation.isPending}
-            className="px-3 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-40"
+            className="px-3 py-1 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600 disabled:opacity-40"
           >
             Cycle
           </button>
@@ -301,7 +301,7 @@ function ApiKeyCard({ apiKey, onNewToken }: ApiKeyCardProps) {
             type="button"
             onClick={() => setConfirmRevoke(true)}
             disabled={cycleMutation.isPending || revokeMutation.isPending}
-            className="px-3 py-1 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 disabled:opacity-40"
+            className="px-3 py-1 text-xs font-medium text-red-600 dark:text-red-400 bg-white dark:bg-gray-700 border border-red-200 dark:border-red-900 rounded-md hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-40"
           >
             Revoke
           </button>
@@ -345,14 +345,14 @@ function UserKeySection({ username, displayName, keys, onNewToken }: UserKeySect
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-gray-800">
+        <p className="text-sm font-medium text-gray-800 dark:text-gray-200">
           {displayName ? `${displayName} (${username})` : username}
         </p>
         {!issuingKey && (
           <button
             type="button"
             onClick={() => setIssuingKey(true)}
-            className="px-2 py-1 text-xs font-medium text-blue-600 hover:bg-blue-50 border border-dashed border-blue-300 rounded-md transition-colors"
+            className="px-2 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 border border-dashed border-blue-300 dark:border-blue-700 rounded-md transition-colors"
           >
             + Issue Key
           </button>
@@ -360,7 +360,7 @@ function UserKeySection({ username, displayName, keys, onNewToken }: UserKeySect
       </div>
 
       {keys.length === 0 && !issuingKey && (
-        <p className="text-xs text-gray-400 italic pl-1">No keys</p>
+        <p className="text-xs text-gray-400 dark:text-gray-500 italic pl-1">No keys</p>
       )}
 
       {keys.map((key) => (
@@ -400,17 +400,17 @@ function ApiKeysTab({ isAdmin, users }: ApiKeysTabProps) {
 
   if (!isAdmin) {
     return (
-      <p className="text-sm text-gray-500 py-4 text-center">Admin only</p>
+      <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">Admin only</p>
     )
   }
 
   if (isLoading) {
-    return <p className="text-sm text-gray-500 py-4 text-center">Loading…</p>
+    return <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">Loading…</p>
   }
 
   if (isError) {
     return (
-      <div className="text-sm text-red-600 py-4 text-center space-y-2">
+      <div className="text-sm text-red-600 dark:text-red-400 py-4 text-center space-y-2">
         <p>Failed to load API keys.</p>
         <button
           type="button"
@@ -430,7 +430,7 @@ function ApiKeysTab({ isAdmin, users }: ApiKeysTabProps) {
     <>
       <div className="space-y-6">
         {eligibleUsers.length === 0 && (
-          <p className="text-sm text-gray-500 py-4 text-center">No admin or editor users found.</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">No admin or editor users found.</p>
         )}
         {eligibleUsers.map((user) => {
           const userKeys = allKeys.filter((k) => k.username === user.username && k.is_active)
@@ -524,49 +524,49 @@ function UserCard({ user, currentUsername, onDeleted }: UserCardProps) {
 
   return (
     <>
-      <div className="border border-gray-200 rounded-md overflow-hidden">
+      <div className="border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
         <button
           type="button"
           onClick={() => setExpanded((e) => !e)}
-          className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 transition-colors"
+          className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
         >
           <span className="flex-1 min-w-0">
-            <span className="font-medium text-gray-900 text-sm">{user.username}</span>
+            <span className="font-medium text-gray-900 dark:text-gray-100 text-sm">{user.username}</span>
             {user.display_name && (
-              <span className="ml-2 text-gray-500 text-sm">{user.display_name}</span>
+              <span className="ml-2 text-gray-500 dark:text-gray-400 text-sm">{user.display_name}</span>
             )}
           </span>
           <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium uppercase tracking-wide ${ROLE_BADGE[user.role]}`}>
             {user.role}
           </span>
-          <span className="text-gray-400 text-xs">{expanded ? '▾' : '▸'}</span>
+          <span className="text-gray-400 dark:text-gray-500 text-xs">{expanded ? '▾' : '▸'}</span>
         </button>
 
         {expanded && (
-          <div className="border-t border-gray-100 bg-gray-50 px-4 py-4 space-y-4">
+          <div className="border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-4 py-4 space-y-4">
             <div>
-              <label htmlFor={`card-display-name-${user.username}`} className="block text-xs font-medium text-gray-600 mb-1">Display name</label>
+              <label htmlFor={`card-display-name-${user.username}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Display name</label>
               <input
                 id={`card-display-name-${user.username}`}
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
                 maxLength={128}
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                className="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               />
             </div>
 
             <div>
               {isSelf ? (
-                <p className="text-xs text-gray-400 italic">You cannot change your own role</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500 italic">You cannot change your own role</p>
               ) : (
                 <>
-                  <label htmlFor={`card-role-${user.username}`} className="block text-xs font-medium text-gray-600 mb-1">Role</label>
+                  <label htmlFor={`card-role-${user.username}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Role</label>
                   <select
                     id={`card-role-${user.username}`}
                     value={role}
                     onChange={(e) => setRole(e.target.value as Role)}
-                    className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    className="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                   >
                     <option value="admin">Admin</option>
                     <option value="editor">Editor</option>
@@ -577,10 +577,10 @@ function UserCard({ user, currentUsername, onDeleted }: UserCardProps) {
             </div>
 
             {isSelf ? (
-              <p className="text-xs text-gray-400 italic">Use "Change Password" from the user menu to update your own password.</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 italic">Use "Change Password" from the user menu to update your own password.</p>
             ) : (
               <div>
-                <label htmlFor={`card-reset-pwd-${user.username}`} className="block text-xs font-medium text-gray-600 mb-1">Reset password</label>
+                <label htmlFor={`card-reset-pwd-${user.username}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Reset password</label>
                 <div className="flex gap-2">
                   <input
                     id={`card-reset-pwd-${user.username}`}
@@ -588,7 +588,7 @@ function UserCard({ user, currentUsername, onDeleted }: UserCardProps) {
                     value={resetPassword}
                     onChange={(e) => setResetPassword(e.target.value)}
                     placeholder="New password (min 12 chars)"
-                    className="flex-1 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                    className="flex-1 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                   />
                   <button
                     type="button"
@@ -601,7 +601,7 @@ function UserCard({ user, currentUsername, onDeleted }: UserCardProps) {
                 </div>
                 <PasswordStrengthBar password={resetPassword} />
                 {resetPwdError && (
-                  <p className="mt-1 text-xs text-red-600">{resetPwdError}</p>
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">{resetPwdError}</p>
                 )}
               </div>
             )}
@@ -681,7 +681,7 @@ function AddUserForm({ onCreated }: { readonly onCreated: () => void }) {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-blue-600 hover:bg-blue-50 border border-dashed border-blue-300 rounded-md transition-colors"
+        className="w-full flex items-center gap-2 px-4 py-3 text-sm font-medium text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30 border border-dashed border-blue-300 dark:border-blue-700 rounded-md transition-colors"
       >
         <span>▾ Add User</span>
       </button>
@@ -689,38 +689,38 @@ function AddUserForm({ onCreated }: { readonly onCreated: () => void }) {
   }
 
   return (
-    <div className="border border-blue-200 rounded-md bg-blue-50 px-4 py-4">
-      <p className="text-sm font-medium text-gray-800 mb-3">New User</p>
+    <div className="border border-blue-200 dark:border-blue-800 rounded-md bg-blue-50 dark:bg-blue-950/30 px-4 py-4">
+      <p className="text-sm font-medium text-gray-800 dark:text-gray-200 mb-3">New User</p>
       <form onSubmit={handleSubmit((v) => mutation.mutate(v))} className="space-y-3">
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="new-user-username" className="block text-xs font-medium text-gray-600 mb-1">
+            <label htmlFor="new-user-username" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
               Username <span className="text-red-500">*</span>
             </label>
             <input
               id="new-user-username"
               {...register('username')}
               autoFocus
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              className="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
             />
-            {errors.username && <p className="mt-0.5 text-xs text-red-600">{errors.username.message}</p>}
+            {errors.username && <p className="mt-0.5 text-xs text-red-600 dark:text-red-400">{errors.username.message}</p>}
           </div>
           <div>
-            <label htmlFor="new-user-display-name" className="block text-xs font-medium text-gray-600 mb-1">Display name</label>
+            <label htmlFor="new-user-display-name" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Display name</label>
             <input
               id="new-user-display-name"
               {...register('display_name')}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              className="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
             />
           </div>
         </div>
 
         <div>
-          <label htmlFor="new-user-role" className="block text-xs font-medium text-gray-600 mb-1">Role</label>
+          <label htmlFor="new-user-role" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Role</label>
           <select
             id="new-user-role"
             {...register('role')}
-            className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+            className="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
           >
             <option value="admin">Admin</option>
             <option value="editor">Editor</option>
@@ -730,27 +730,27 @@ function AddUserForm({ onCreated }: { readonly onCreated: () => void }) {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label htmlFor="new-user-password" className="block text-xs font-medium text-gray-600 mb-1">
+            <label htmlFor="new-user-password" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">
               Password <span className="text-red-500">*</span>
             </label>
             <input
               id="new-user-password"
               type="password"
               {...register('password')}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              className="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
             />
             <PasswordStrengthBar password={pwdValue ?? ''} />
-            {errors.password && <p className="mt-0.5 text-xs text-red-600">{errors.password.message}</p>}
+            {errors.password && <p className="mt-0.5 text-xs text-red-600 dark:text-red-400">{errors.password.message}</p>}
           </div>
           <div>
-            <label htmlFor="new-user-confirm-password" className="block text-xs font-medium text-gray-600 mb-1">Confirm password</label>
+            <label htmlFor="new-user-confirm-password" className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Confirm password</label>
             <input
               id="new-user-confirm-password"
               type="password"
               {...register('confirm_password')}
-              className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              className="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
             />
-            {errors.confirm_password && <p className="mt-0.5 text-xs text-red-600">{errors.confirm_password.message}</p>}
+            {errors.confirm_password && <p className="mt-0.5 text-xs text-red-600 dark:text-red-400">{errors.confirm_password.message}</p>}
           </div>
         </div>
 
@@ -758,7 +758,7 @@ function AddUserForm({ onCreated }: { readonly onCreated: () => void }) {
           <button
             type="button"
             onClick={() => { reset(); setOpen(false) }}
-            className="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+            className="px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
           >
             Cancel
           </button>
@@ -797,23 +797,23 @@ export function UserManagementModal({ open, onClose }: Props) {
     <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onClose() }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-40" />
-        <Dialog.Content className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[85vh] flex flex-col">
+        <Dialog.Content className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[85vh] flex flex-col">
           <div className="flex items-center justify-between mb-4">
-            <Dialog.Title className="text-base font-semibold text-gray-900">Manage Team &amp; Access</Dialog.Title>
-            <Dialog.Close className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</Dialog.Close>
+            <Dialog.Title className="text-base font-semibold text-gray-900 dark:text-gray-100">Manage Team &amp; Access</Dialog.Title>
+            <Dialog.Close className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 text-lg leading-none">✕</Dialog.Close>
           </div>
 
           <Tabs.Root defaultValue="users" className="flex flex-col flex-1 min-h-0">
-            <Tabs.List className="flex border-b border-gray-200 mb-4 shrink-0">
+            <Tabs.List className="flex border-b border-gray-200 dark:border-gray-700 mb-4 shrink-0">
               <Tabs.Trigger
                 value="users"
-                className="px-4 py-2 text-sm font-medium text-gray-600 border-b-2 border-transparent hover:text-gray-900 data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 border-b-2 border-transparent hover:text-gray-900 dark:hover:text-gray-100 data-[state=active]:border-blue-600 dark:data-[state=active]:border-blue-400 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 transition-colors"
               >
                 Users
               </Tabs.Trigger>
               <Tabs.Trigger
                 value="api-keys"
-                className="px-4 py-2 text-sm font-medium text-gray-600 border-b-2 border-transparent hover:text-gray-900 data-[state=active]:border-blue-600 data-[state=active]:text-blue-600 transition-colors"
+                className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 border-b-2 border-transparent hover:text-gray-900 dark:hover:text-gray-100 data-[state=active]:border-blue-600 dark:data-[state=active]:border-blue-400 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 transition-colors"
               >
                 API Keys
               </Tabs.Trigger>
@@ -821,7 +821,7 @@ export function UserManagementModal({ open, onClose }: Props) {
 
             <Tabs.Content value="users" className="flex-1 overflow-y-auto space-y-2 pr-1">
               {isLoading ? (
-                <p className="text-sm text-gray-500 py-4 text-center">Loading…</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">Loading…</p>
               ) : (
                 users.map((u) => (
                   <UserCard

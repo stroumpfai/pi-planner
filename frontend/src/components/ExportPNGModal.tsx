@@ -34,12 +34,12 @@ interface ToggleRowProps {
 
 function ToggleRow({ id, label, description, checked, onChange }: ToggleRowProps) {
   return (
-    <div className="flex items-start justify-between gap-4 py-3 border-b border-gray-100 last:border-b-0">
+    <div className="flex items-start justify-between gap-4 py-3 border-b border-gray-100 dark:border-gray-700 last:border-b-0">
       <div className="flex-1 min-w-0">
-        <label htmlFor={id} className="block text-sm font-medium text-gray-800 cursor-pointer">
+        <label htmlFor={id} className="block text-sm font-medium text-gray-800 dark:text-gray-100 cursor-pointer">
           {label}
         </label>
-        <p className="text-xs text-gray-500 mt-0.5">{description}</p>
+        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{description}</p>
       </div>
       <label className="relative inline-flex items-center cursor-pointer flex-shrink-0 mt-0.5">
         <input
@@ -49,7 +49,7 @@ function ToggleRow({ id, label, description, checked, onChange }: ToggleRowProps
           onChange={(e) => onChange(e.target.checked)}
           className="sr-only peer"
         />
-        <div className="w-10 h-5 bg-gray-200 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-500 peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5" />
+        <div className="w-10 h-5 bg-gray-200 dark:bg-gray-600 rounded-full peer peer-focus:ring-2 peer-focus:ring-blue-500 peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:after:translate-x-5" />
       </label>
     </div>
   )
