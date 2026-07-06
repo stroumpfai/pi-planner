@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.middleware.deps import get_current_user
+from app.middleware.deps import require_edit_lock
 from app.models.project import Project
 from app.models.user import User
 from app.schemas.csv_import import CsvImportRequest, CsvImportResult
@@ -18,7 +18,7 @@ async def import_csv(
     project_id: str,
     body: CsvImportRequest,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> CsvImportResult:
     if not await db.get(Project, project_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")

@@ -1,8 +1,10 @@
-from datetime import timedelta
+from collections.abc import Mapping
+from datetime import datetime, timedelta, timezone
 from typing import Annotated, Any
 
 import jwt as pyjwt
 from fastapi import Cookie, Depends, Header, HTTPException, Request, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -147,6 +149,91 @@ def require_editor_or_above(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Readers cannot perform this action",
         )
+    return current_user
+
+
+async def _project_of_pi(db: AsyncSession, pi_id: str | None) -> str | None:
+    from app.models.pi import PI
+
+    pi = await db.get(PI, pi_id) if pi_id else None
+    return pi.project_id if pi else None
+
+
+async def _project_of_swimline(db: AsyncSession, swimline_id: str | None) -> str | None:
+    from app.models.swimline import Swimline
+
+    swimline = await db.get(Swimline, swimline_id) if swimline_id else None
+    return await _project_of_pi(db, swimline.pi_id) if swimline else None
+
+
+async def _resolve_locked_project_id(
+    db: AsyncSession, params: Mapping[str, str]
+) -> str | None:
+    """Map a write request's path params to the project whose lock guards it.
+
+    Returns None when the target resource doesn't exist (yet), so the route can
+    emit its own 404 instead of the lock check masking it.
+    """
+    from app.models.feature import Feature
+    from app.models.group import Group
+    from app.models.pbi import PBI
+    from app.models.sprint import Sprint
+
+    if project_id := params.get("project_id"):
+        return project_id
+    if feature_id := params.get("feature_id"):
+        feature = await db.get(Feature, feature_id)
+        return feature.project_id if feature else None
+    if pbi_id := params.get("pbi_id"):
+        pbi = await db.get(PBI, pbi_id)
+        return pbi.project_id if pbi else None
+    if group_id := params.get("group_id"):
+        group = await db.get(Group, group_id)
+        return await _project_of_swimline(db, group.swimline_id) if group else None
+    if swimline_id := params.get("swimline_id"):
+        return await _project_of_swimline(db, swimline_id)
+    if pi_id := params.get("pi_id"):
+        return await _project_of_pi(db, pi_id)
+    if sprint_id := params.get("sprint_id"):
+        sprint = await db.get(Sprint, sprint_id)
+        return await _project_of_pi(db, sprint.pi_id) if sprint else None
+    return None
+
+
+async def require_edit_lock(
+    request: Request,
+    current_user: Annotated[User, Depends(require_editor_or_above)],
+    db: Annotated[AsyncSession, Depends(get_session)],
+) -> User:
+    """Enforce the single-writer edit lock on content-mutating endpoints.
+
+    The request is rejected with 409 only when a *different* user currently
+    holds an unexpired lock on the target project — the concurrent-write case
+    the lock exists to prevent. When no lock is held, or the caller holds it,
+    the write proceeds (so a lone editor and existing non-UI clients keep
+    working without an explicit acquire). Being a superset of
+    require_editor_or_above, it also blocks readers.
+    """
+    from app.models.edit_lock import EditLock
+
+    project_id = await _resolve_locked_project_id(db, request.path_params)
+    if project_id is None:
+        return current_user
+
+    lock = (
+        await db.execute(select(EditLock).where(EditLock.project_id == project_id))
+    ).scalar_one_or_none()
+    if lock and lock.expires_at:
+        expires = lock.expires_at.replace(tzinfo=timezone.utc)
+        if expires > datetime.now(timezone.utc) and lock.locked_by_username != current_user.username:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "message": f"Project is being edited by {lock.locked_by_username}",
+                    "locked_by": lock.locked_by_username,
+                    "expires_at": lock.expires_at.isoformat(),
+                },
+            )
     return current_user
 
 

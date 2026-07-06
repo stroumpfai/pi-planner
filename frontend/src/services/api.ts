@@ -24,6 +24,15 @@ api.interceptors.response.use(
       toast.error('Server error — please try again')
     }
 
+    // Edit-lock conflict — a different user holds the lock (server-side single-writer
+    // enforcement). Business 409s carry `detail.error` instead and are handled inline.
+    if (status === 409) {
+      const detail = (error.response?.data as { detail?: { locked_by?: string } })?.detail
+      if (detail?.locked_by) {
+        toast.error(`${detail.locked_by} is editing this project — your change was not saved`)
+      }
+    }
+
     return Promise.reject(error)
   },
 )

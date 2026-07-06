@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.middleware.deps import get_current_user
+from app.middleware.deps import get_current_user, require_edit_lock
 from app.models.feature import Feature
 from app.models.group import Group
 from app.models.pbi import PBI
@@ -67,7 +67,7 @@ async def create_group(
     swimline_id: str,
     body: GroupCreate,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> GroupResponse:
     swimline = await db.get(Swimline, swimline_id)
     if not swimline:
@@ -131,7 +131,7 @@ async def update_group(
     group_id: str,
     body: GroupUpdate,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> GroupResponse:
     group = await _get_group_or_404(db, group_id)
     fields = body.model_fields_set
@@ -168,7 +168,7 @@ async def update_group(
 async def delete_group(
     group_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> None:
     group = await _get_group_or_404(db, group_id)
 

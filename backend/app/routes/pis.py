@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.middleware.deps import get_current_user
+from app.middleware.deps import get_current_user, require_edit_lock
 from app.models.feature import Feature
 from app.models.pi import PI
 from app.models.project import Project
@@ -86,7 +86,7 @@ async def create_pi(
     project_id: str,
     body: PICreate,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> PIResponse:
     if not await db.get(Project, project_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
@@ -125,7 +125,7 @@ async def update_pi(
     pi_id: str,
     body: PIUpdate,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> PIResponse:
     pi = await _get_or_404(db, pi_id)
     _assert_not_closed(pi)
@@ -159,7 +159,7 @@ async def update_pi(
 async def delete_pi(
     pi_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> None:
     pi = await _get_or_404(db, pi_id)
     project_id = pi.project_id

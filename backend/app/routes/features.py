@@ -8,7 +8,7 @@ from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.middleware.deps import get_current_user, require_editor_or_above
+from app.middleware.deps import get_current_user, require_edit_lock
 from app.models.feature import Feature
 from app.models.group import Group
 from app.models.pbi import PBI
@@ -125,7 +125,7 @@ async def create_feature(
     project_id: str,
     body: FeatureCreate,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> FeatureResponse:
     if not await db.get(Project, project_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
@@ -161,7 +161,7 @@ async def update_feature(
     feature_id: str,
     body: FeatureUpdate,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> FeatureResponse:
     feature = await _get_feature_or_404(db, feature_id)
     fields = body.model_fields_set
@@ -190,7 +190,7 @@ async def update_feature(
 async def clear_backlog(
     project_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(require_editor_or_above)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> BulkDeleteResponse:
     if not await db.get(Project, project_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
@@ -213,7 +213,7 @@ async def clear_backlog(
 async def clear_all_features(
     project_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(require_editor_or_above)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> BulkDeleteResponse:
     if not await db.get(Project, project_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
@@ -237,7 +237,7 @@ async def clear_all_features(
 async def delete_feature(
     feature_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> None:
     feature = await _get_feature_or_404(db, feature_id)
     project_id = feature.project_id

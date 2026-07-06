@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.middleware.deps import get_current_user
+from app.middleware.deps import get_current_user, require_edit_lock
 from app.models.pi import PI
 from app.models.sprint import Sprint
 from app.models.user import User
@@ -51,7 +51,7 @@ async def update_sprint(
     sprint_id: str,
     body: SprintUpdate,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> SprintResponse:
     sprint = await _get_or_404(db, sprint_id)
 

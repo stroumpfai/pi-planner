@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.middleware.deps import get_current_user
+from app.middleware.deps import get_current_user, require_edit_lock
 from app.models.feature import Feature
 from app.models.pi import PI
 from app.models.swimline import Swimline
@@ -76,7 +76,7 @@ async def create_swimline(
     pi_id: str,
     body: SwimlineCreate,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> SwimlineResponse:
     pi = await db.get(PI, pi_id)
     if not pi:
@@ -113,7 +113,7 @@ async def update_swimline(
     swimline_id: str,
     body: SwimlineUpdate,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> SwimlineResponse:
     swimline = await _get_swimline_or_404(db, swimline_id)
     fields = body.model_fields_set
@@ -144,7 +144,7 @@ async def update_swimline(
 async def delete_swimline(
     swimline_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> None:
     swimline = await _get_swimline_or_404(db, swimline_id)
     pi = await db.get(PI, swimline.pi_id)
@@ -169,7 +169,7 @@ async def reorder_swimlines(
     swimline_id: str,
     body: SwimlineReorder,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> list[SwimlineResponse]:
     swimline = await _get_swimline_or_404(db, swimline_id)
     pi_id = swimline.pi_id

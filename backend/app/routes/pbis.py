@@ -6,7 +6,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.middleware.deps import get_current_user
+from app.middleware.deps import get_current_user, require_edit_lock
 from app.models.feature import Feature
 from app.models.group import Group
 from app.models.pbi import PBI
@@ -61,7 +61,7 @@ async def create_pbi(
     project_id: str,
     body: PBICreate,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> PBIResponse:
     if not await db.get(Project, project_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
@@ -149,7 +149,7 @@ async def update_pbi(
     pbi_id: str,
     body: PBIUpdate,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> PBIResponse:
     pbi = await _get_or_404(db, pbi_id)
     fields = body.model_fields_set
@@ -169,7 +169,7 @@ async def place_story_in_sprint(
     pbi_id: str,
     body: PlaceStoryRequest,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> PlaceStoryResponse:
     pbi = await _get_or_404(db, pbi_id)
 
@@ -225,7 +225,7 @@ async def place_story_in_sprint(
 async def unplace_story(
     pbi_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> None:
     pbi = await _get_or_404(db, pbi_id)
     old_group_id = pbi.group_id
@@ -251,7 +251,7 @@ async def unplace_story(
 async def delete_pbi(
     pbi_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(get_current_user)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> None:
     pbi = await _get_or_404(db, pbi_id)
     project_id = pbi.project_id

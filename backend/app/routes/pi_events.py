@@ -6,7 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_session
-from app.middleware.deps import get_current_user, require_editor_or_above
+from app.middleware.deps import get_current_user, require_edit_lock
 from app.models.pi import PI
 from app.models.pi_event import PIEvent
 from app.models.user import User
@@ -50,7 +50,7 @@ async def create_event(
     pi_id: str,
     body: PIEventCreate,
     db: Annotated[AsyncSession, Depends(get_session)],
-    current_user: Annotated[User, Depends(require_editor_or_above)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> PIEventResponse:
     pi = await _get_pi_or_404(db, pi_id)
     event = PIEvent(
@@ -72,7 +72,7 @@ async def update_event(
     event_id: str,
     body: PIEventUpdate,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(require_editor_or_above)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> PIEventResponse:
     await _get_pi_or_404(db, pi_id)
     event = await _get_event_or_404(db, event_id)
@@ -102,7 +102,7 @@ async def delete_event(
     pi_id: str,
     event_id: str,
     db: Annotated[AsyncSession, Depends(get_session)],
-    _: Annotated[User, Depends(require_editor_or_above)],
+    _: Annotated[User, Depends(require_edit_lock)],
 ) -> None:
     await _get_pi_or_404(db, pi_id)
     event = await _get_event_or_404(db, event_id)
