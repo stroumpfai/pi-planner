@@ -15,6 +15,7 @@ from mcp_server.tools.features import (
     update_feature,
     move_feature,
     split_feature,
+    cancel_continuation,
     delete_feature,
     create_pbi,
     update_pbi,
@@ -170,6 +171,21 @@ async def test_split_feature(mock_backend, mock_ctx, patch_get_http_request):
         "target_swimline_id": SWIMLINE2_ID,
         "pbi_ids": [PBI_ID],
     }
+
+
+async def test_cancel_continuation(mock_backend, mock_ctx, patch_get_http_request):
+    _lock_mocks(mock_backend)
+    origin = {**FEATURE_RESP, "system_id": FEATURE_ID}
+    route = mock_backend.post(f"/api/v1/features/feat-uuid-2/cancel-continuation").mock(
+        return_value=httpx.Response(200, json=origin)
+    )
+    result = await cancel_continuation(
+        feature_id="feat-uuid-2", project_id=PROJECT_ID, ctx=mock_ctx
+    )
+    assert result["system_id"] == FEATURE_ID
+    assert route.called
+    # Edit lock is acquired and released around the operation.
+    assert any("/edit-lock/acquire" in str(c.request.url) for c in mock_backend.calls)
 
 
 async def test_delete_feature_returns_empty(mock_backend, mock_ctx, patch_get_http_request):

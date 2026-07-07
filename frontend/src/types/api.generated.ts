@@ -79,6 +79,10 @@ export interface paths {
     /** Split Feature */
     post: operations["split_feature_api_v1_features__feature_id__split_post"];
   };
+  "/api/v1/features/{feature_id}/cancel-continuation": {
+    /** Cancel Continuation */
+    post: operations["cancel_continuation_api_v1_features__feature_id__cancel_continuation_post"];
+  };
   "/api/v1/projects/{project_id}/backlog": {
     /** Clear Backlog */
     delete: operations["clear_backlog_api_v1_projects__project_id__backlog_delete"];
@@ -252,13 +256,6 @@ export interface paths {
      * Returns the username and role associated with the key.
      */
     post: operations["verify_key_api_v1_api_keys_admin_verify_post"];
-  };
-  "/api/v1/test/reset": {
-    /**
-     * Reset Database
-     * @description Delete all rows from every table in dependency order. Test use only.
-     */
-    post: operations["reset_database_api_v1_test_reset_post"];
   };
   "/health": {
     /** Health */
@@ -1589,6 +1586,31 @@ export interface operations {
       };
     };
   };
+  /** Cancel Continuation */
+  cancel_continuation_api_v1_features__feature_id__cancel_continuation_post: {
+    parameters: {
+      path: {
+        feature_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["FeatureResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   /** Clear Backlog */
   clear_backlog_api_v1_projects__project_id__backlog_delete: {
     parameters: {
@@ -2899,33 +2921,6 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["APIKeyVerifyResponse"];
-        };
-      };
-      /** @description Validation Error */
-      422: {
-        content: {
-          "application/json": components["schemas"]["HTTPValidationError"];
-        };
-      };
-    };
-  };
-  /**
-   * Reset Database
-   * @description Delete all rows from every table in dependency order. Test use only.
-   */
-  reset_database_api_v1_test_reset_post: {
-    parameters: {
-      cookie?: {
-        pi_session?: string | null;
-      };
-    };
-    responses: {
-      /** @description Successful Response */
-      200: {
-        content: {
-          "application/json": {
-            [key: string]: string;
-          };
         };
       };
       /** @description Validation Error */

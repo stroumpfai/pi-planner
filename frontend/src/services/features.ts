@@ -21,6 +21,9 @@ export const featuresApi = {
   split: (featureId: string, body: FeatureSplitRequest) =>
     api.post<Feature>(`/features/${featureId}/split`, body).then((r) => r.data),
 
+  cancelContinuation: (featureId: string) =>
+    api.post<Feature>(`/features/${featureId}/cancel-continuation`).then((r) => r.data),
+
   delete: (featureId: string) =>
     api.delete(`/features/${featureId}`),
 

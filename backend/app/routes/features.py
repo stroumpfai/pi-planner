@@ -281,6 +281,60 @@ async def split_feature(
     return await _enrich(db, new_feature)
 
 
+@router.post("/api/v1/features/{feature_id}/cancel-continuation")
+async def cancel_continuation(
+    feature_id: str,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(require_edit_lock)],
+) -> FeatureResponse:
+    feature = await _get_feature_or_404(db, feature_id)
+    if feature.continued_from_feature_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": "NOT_A_CONTINUATION", "message": "Feature is not a continuation"},
+        )
+
+    downstream = (await db.execute(
+        select(func.count()).where(Feature.continued_from_feature_id == feature.system_id)
+    )).scalar_one()
+    if downstream > 0:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={"error": "HAS_CONTINUATIONS", "message": "Cancel its downstream continuations first"},
+        )
+
+    origin = await db.get(Feature, feature.continued_from_feature_id)
+    if not origin:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Origin feature not found")
+
+    pbis = (await db.execute(
+        select(PBI).where(PBI.parent_feature_system_id == feature.system_id)
+    )).scalars().all()
+    moved_ids = [pbi.system_id for pbi in pbis]
+    for pbi in pbis:
+        await _detach_pbi_from_group(db, pbi)
+        pbi.parent_feature_system_id = origin.system_id
+        pbi.pi_id = origin.pi_id
+        pbi.swimlane_id = origin.swimlane_id
+        pbi.location = origin.location
+        pbi.modified_at = datetime.now(timezone.utc)
+
+    # Re-parent the PBIs before deleting, then drop the stale ORM collection so the
+    # delete-orphan cascade doesn't destroy the PBIs we just moved to the origin.
+    await db.flush()
+    db.expire(feature, ["pbis"])
+    await db.delete(feature)
+    await db.commit()
+    await db.refresh(origin)
+
+    await broadcaster.broadcast(origin.project_id, "feature:deleted", {"system_id": feature_id})
+    await broadcaster.broadcast(origin.project_id, "feature:updated", {"system_id": origin.system_id})
+    for pbi_id in moved_ids:
+        await broadcaster.broadcast(origin.project_id, "pbi:updated", {"system_id": pbi_id})
+
+    return await _enrich(db, origin)
+
+
 @router.delete("/api/v1/projects/{project_id}/backlog")
 async def clear_backlog(
     project_id: str,

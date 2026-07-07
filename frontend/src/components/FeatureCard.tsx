@@ -1,14 +1,16 @@
 import { useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
 import { useAuthStore } from '@/stores/authStore'
-import { useFeatures, useUpdateFeature } from '@/hooks/useFeatures'
+import { useCancelContinuation, useFeatures, useUpdateFeature } from '@/hooks/useFeatures'
 import { usePIs } from '@/hooks/usePIs'
 import { usePBIs } from '@/hooks/usePBIs'
 import { useEffortUnit } from '@/hooks/useProjects'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useUiStore } from '@/stores/uiStore'
+import { toast } from '@/stores/toastStore'
 import { PBISelectList } from './PBISelectList'
 import { SplitFeatureModal } from './SplitFeatureModal'
+import { ConfirmDialog } from './ConfirmDialog'
 import { getFeatureColorIdx, FEATURE_BORDER_COLORS } from '@/utils/featureColors'
 import type { Feature } from '@/types'
 import type { FeatureDragData } from './BacklogPanel'
@@ -23,12 +25,14 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [selectedPbiIds, setSelectedPbiIds] = useState<Set<string>>(new Set())
   const [splitModalOpen, setSplitModalOpen] = useState(false)
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
   const isEditing = useAuthStore((s) => s.isEditing)
   const effortUnit = useEffortUnit(projectId)
   const showIds = useSettingsStore((s) => s.showIds)
   const showEffortUnit = useSettingsStore((s) => s.showEffortUnit)
   const setActivePI = useUiStore((s) => s.setActivePI)
   const updateFeature = useUpdateFeature(projectId)
+  const cancelContinuation = useCancelContinuation(projectId)
   const { data: featurePbis = [] } = usePBIs(projectId, feature.system_id)
   const { data: allFeatures = [] } = useFeatures(projectId)
   const { data: pis = [] } = usePIs(projectId)
@@ -38,6 +42,16 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
   const continuedFrom = allFeatures.find((f) => f.system_id === feature.continued_from_feature_id)
   const continuations = allFeatures.filter((f) => f.continued_from_feature_id === feature.system_id)
   const piName = (piId: string | null) => pis.find((p) => p.system_id === piId)?.name ?? 'another PI'
+  // A continuation can be cancelled only when it is a leaf (not split further downstream).
+  const canCancelContinuation = isEditing && !!continuedFrom && continuations.length === 0
+
+  function handleCancelContinuation() {
+    setCancelConfirmOpen(false)
+    cancelContinuation.mutate(feature.system_id, {
+      onSuccess: () => toast.success('Continuation cancelled'),
+      onError: () => toast.error('Failed to cancel continuation'),
+    })
+  }
 
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
     id: `feature:${feature.system_id}`,
@@ -119,6 +133,17 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
               className="block text-xs text-gray-400 dark:text-gray-500 hover:text-blue-500 hover:underline"
             >
               ↩ continued from {piName(continuedFrom.pi_id)}
+            </button>
+          )}
+          {canCancelContinuation && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); setCancelConfirmOpen(true) }}
+              disabled={cancelContinuation.isPending}
+              title="Move these PBIs back to the origin feature and remove this continuation"
+              className="block text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 hover:underline disabled:cursor-not-allowed"
+            >
+              ✕ cancel continuation
             </button>
           )}
           {continuations.length === 1 && (
@@ -213,6 +238,16 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
           setSelectedPbiIds(new Set())
           setExpanded(false)
         }}
+      />
+
+      <ConfirmDialog
+        open={cancelConfirmOpen}
+        title="Cancel continuation?"
+        description={`The PBIs carried into ${piName(feature.pi_id)} will move back to the origin feature in ${piName(continuedFrom?.pi_id ?? null)} (unsprinted), and this continuation will be removed.`}
+        confirmLabel="Cancel continuation"
+        destructive
+        onConfirm={handleCancelContinuation}
+        onCancel={() => setCancelConfirmOpen(false)}
       />
     </div>
   )
