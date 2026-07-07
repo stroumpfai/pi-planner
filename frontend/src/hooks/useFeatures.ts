@@ -62,6 +62,21 @@ export const useSplitFeature = (projectId: string) => {
   })
 }
 
+export const useCancelContinuation = (projectId: string) => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: (featureId: string) => featuresApi.cancelContinuation(featureId),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: prefix(projectId) })
+      qc.invalidateQueries({ queryKey: ['pbis', projectId] })
+      qc.invalidateQueries({ queryKey: ['groups'] })
+      qc.invalidateQueries({ queryKey: ['sprints'] })
+      qc.invalidateQueries({ queryKey: ['swimlines'] })
+      qc.invalidateQueries({ queryKey: ['pis'] })
+    },
+  })
+}
+
 export const useDeleteFeature = (projectId: string) => {
   const qc = useQueryClient()
   return useMutation({

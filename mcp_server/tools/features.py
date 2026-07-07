@@ -169,6 +169,31 @@ async def split_feature(
 
 
 @features_mcp.tool()
+async def cancel_continuation(
+    feature_id: Annotated[str, Field(pattern=_UUID_RE, description="Continuation feature system_id (UUID)")],
+    project_id: Annotated[str, Field(pattern=_UUID_RE, description="Project system_id (UUID) — needed to acquire the edit lock")],
+    ctx: Context,
+) -> dict:
+    """
+    Undo a feature split by reabsorbing a continuation back into its origin.
+
+    Use this to reverse a previous split_feature. The continuation's PBIs are moved
+    back under the origin feature (landing wherever the origin currently is — its
+    PI/swimline unsprinted, or the backlog if the origin was moved there), and the
+    now-empty continuation feature is deleted.
+
+    Only a "leaf" continuation can be cancelled — one that has not itself been split
+    further. If this continuation has its own downstream continuations, cancel those
+    first (HAS_CONTINUATIONS). The feature must be a continuation (NOT_A_CONTINUATION
+    otherwise).
+    Acquires the edit lock for the duration of the operation.
+    Returns the FeatureResponse of the origin feature.
+    """
+    async with edit_lock(project_id):
+        return await call_backend("POST", f"/api/v1/features/{feature_id}/cancel-continuation")
+
+
+@features_mcp.tool()
 async def delete_feature(
     feature_id: Annotated[str, Field(pattern=_UUID_RE, description="Feature system_id (UUID)")],
     project_id: Annotated[str, Field(pattern=_UUID_RE, description="Project system_id (UUID) — needed to acquire the edit lock")],

@@ -667,3 +667,152 @@ async def test_split_feature_reader_forbidden(client, reader_client, project, pi
         },
     )
     assert resp.status_code == 403
+
+
+async def _split(client, feature_id, target_pi, target_swimline, pbi_ids):
+    resp = await client.post(
+        f"/api/v1/features/{feature_id}/split",
+        json={
+            "target_pi_id": target_pi["system_id"],
+            "target_swimline_id": target_swimline["system_id"],
+            "pbi_ids": pbi_ids,
+        },
+    )
+    assert resp.status_code == 200
+    return resp.json()
+
+
+@pytest.mark.asyncio
+async def test_cancel_continuation_reabsorbs_pbis_into_origin(client, project, pi, swimline, pi2, swimline2, feature):
+    pid, fid = project["system_id"], feature["system_id"]
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": swimline["system_id"]})
+
+    done_pbi = await _create_pbi(client, pid, fid, "Done PBI")
+    carried1 = await _create_pbi(client, pid, fid, "Carried 1")
+    carried2 = await _create_pbi(client, pid, fid, "Carried 2")
+    await client.post(f"/api/v1/pbis/{done_pbi['system_id']}/place", json={"sprint_index": 0})
+
+    continuation = await _split(
+        client, fid, pi2, swimline2, [carried1["system_id"], carried2["system_id"]]
+    )
+    # Sprint one of the carried PBIs in the target PI so cancel must also unsprint it.
+    await client.post(f"/api/v1/pbis/{carried1['system_id']}/place", json={"sprint_index": 0})
+
+    resp = await client.post(f"/api/v1/features/{continuation['system_id']}/cancel-continuation")
+    assert resp.status_code == 200
+    origin = resp.json()
+    assert origin["system_id"] == fid
+
+    # The continuation feature is gone.
+    assert (await client.get(f"/api/v1/features/{continuation['system_id']}")).status_code == 404
+
+    # Only the origin feature remains.
+    features = (await client.get(f"/api/v1/projects/{pid}/features")).json()
+    assert [f["system_id"] for f in features] == [fid]
+
+    # Carried PBIs still exist, are back under the origin in its PI/swimline, unsprinted.
+    for carried in (carried1, carried2):
+        pbi = (await client.get(f"/api/v1/pbis/{carried['system_id']}")).json()
+        assert pbi["parent_feature_system_id"] == fid
+        assert pbi["pi_id"] == pi["system_id"]
+        assert pbi["swimlane_id"] == swimline["system_id"]
+        assert pbi["group_id"] is None
+
+    # The finished PBI is untouched.
+    done = (await client.get(f"/api/v1/pbis/{done_pbi['system_id']}")).json()
+    assert done["group_id"] is not None
+
+
+@pytest.mark.asyncio
+async def test_cancel_continuation_rejects_non_continuation(client, project, pi, swimline, feature):
+    fid = feature["system_id"]
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": swimline["system_id"]})
+    resp = await client.post(f"/api/v1/features/{fid}/cancel-continuation")
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"] == "NOT_A_CONTINUATION"
+
+
+@pytest.mark.asyncio
+async def test_cancel_continuation_leaf_only(client, project, pi, swimline, pi2, swimline2, feature):
+    """A mid-chain continuation cannot be cancelled until its downstream is cancelled first."""
+    pid, fid = project["system_id"], feature["system_id"]
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": swimline["system_id"]})
+
+    await _create_pbi(client, pid, fid, "A")  # stays in PI 1 so the split is partial
+    pbi_b = await _create_pbi(client, pid, fid, "B")
+    f2 = await _split(client, fid, pi2, swimline2, [pbi_b["system_id"]])
+    assert f2["continued_from_feature_id"] == fid
+
+    pbi_c = await _create_pbi(client, pid, f2["system_id"], "C")
+    pi3 = (await client.post(f"/api/v1/projects/{pid}/pis", json={"name": "Q3-2026"})).json()
+    swimline3 = (await client.post(
+        f"/api/v1/pis/{pi3['system_id']}/swimlines", json={"name": "Team Alpha"}
+    )).json()
+    f3 = await _split(client, f2["system_id"], pi3, swimline3, [pbi_c["system_id"]])
+
+    # F2 has a downstream continuation (F3) → cannot cancel yet.
+    blocked = await client.post(f"/api/v1/features/{f2['system_id']}/cancel-continuation")
+    assert blocked.status_code == 422
+    assert blocked.json()["detail"]["error"] == "HAS_CONTINUATIONS"
+
+    # Cancel the leaf F3 first: C walks back to F2 in PI 2.
+    resp3 = await client.post(f"/api/v1/features/{f3['system_id']}/cancel-continuation")
+    assert resp3.status_code == 200
+    assert resp3.json()["system_id"] == f2["system_id"]
+    c = (await client.get(f"/api/v1/pbis/{pbi_c['system_id']}")).json()
+    assert c["parent_feature_system_id"] == f2["system_id"]
+    assert c["pi_id"] == pi2["system_id"]
+
+    # Now F2 is a leaf and can be cancelled: B and C walk back to the origin in PI 1.
+    resp2 = await client.post(f"/api/v1/features/{f2['system_id']}/cancel-continuation")
+    assert resp2.status_code == 200
+    assert resp2.json()["system_id"] == fid
+    for pbi in (pbi_b, pbi_c):
+        moved = (await client.get(f"/api/v1/pbis/{pbi['system_id']}")).json()
+        assert moved["parent_feature_system_id"] == fid
+        assert moved["pi_id"] == pi["system_id"]
+
+    features = (await client.get(f"/api/v1/projects/{pid}/features")).json()
+    assert [f["system_id"] for f in features] == [fid]
+
+
+@pytest.mark.asyncio
+async def test_cancel_continuation_origin_in_backlog(client, project, pi, swimline, pi2, swimline2, feature):
+    """If the origin was moved to the backlog, reabsorbed PBIs land in the backlog too."""
+    pid, fid = project["system_id"], feature["system_id"]
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": swimline["system_id"]})
+
+    keep = await _create_pbi(client, pid, fid, "Keep")
+    carried = await _create_pbi(client, pid, fid, "Carried")
+    continuation = await _split(client, fid, pi2, swimline2, [carried["system_id"]])
+
+    # Move the origin (with its remaining PBI) back to the backlog.
+    await client.patch(f"/api/v1/features/{fid}", json={"location": "backlog"})
+
+    resp = await client.post(f"/api/v1/features/{continuation['system_id']}/cancel-continuation")
+    assert resp.status_code == 200
+
+    pbi = (await client.get(f"/api/v1/pbis/{carried['system_id']}")).json()
+    assert pbi["parent_feature_system_id"] == fid
+    assert pbi["location"] == "backlog"
+    assert pbi["pi_id"] is None
+    assert pbi["swimlane_id"] is None
+    assert keep  # keep referenced to document intent
+
+
+@pytest.mark.asyncio
+async def test_cancel_continuation_not_found(client):
+    resp = await client.post("/api/v1/features/nonexistent/cancel-continuation")
+    assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_cancel_continuation_reader_forbidden(client, reader_client, project, pi, swimline, pi2, swimline2, feature):
+    pid, fid = project["system_id"], feature["system_id"]
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": swimline["system_id"]})
+    pbi = await _create_pbi(client, pid, fid, "PBI")
+    await _create_pbi(client, pid, fid, "Keep")
+    continuation = await _split(client, fid, pi2, swimline2, [pbi["system_id"]])
+
+    resp = await reader_client.post(f"/api/v1/features/{continuation['system_id']}/cancel-continuation")
+    assert resp.status_code == 403

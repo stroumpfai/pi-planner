@@ -1,10 +1,10 @@
 import { vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, fireEvent } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { FeatureCard } from '../FeatureCard'
 import { useAuthStore } from '@/stores/authStore'
 import { useUiStore } from '@/stores/uiStore'
-import { useFeatures, useUpdateFeature, useSplitFeature } from '@/hooks/useFeatures'
+import { useFeatures, useUpdateFeature, useSplitFeature, useCancelContinuation } from '@/hooks/useFeatures'
 import { usePIs } from '@/hooks/usePIs'
 import { usePBIs } from '@/hooks/usePBIs'
 import { useSwimlinesForPI } from '@/hooks/useSwimlinesAndGroups'
@@ -62,10 +62,17 @@ function mockCommonHooks(allFeatures: Feature[]) {
     mutateAsync: vi.fn(),
     isPending: false,
   } as unknown as ReturnType<typeof useSplitFeature>)
+  vi.mocked(useCancelContinuation).mockReturnValue({
+    mutate: cancelMutate,
+    isPending: false,
+  } as unknown as ReturnType<typeof useCancelContinuation>)
 }
+
+let cancelMutate = vi.fn()
 
 beforeEach(() => {
   vi.clearAllMocks()
+  cancelMutate = vi.fn()
   useAuthStore.setState({ user: null, isEditing: false })
   useUiStore.setState({ activePIId: null })
 })
@@ -101,6 +108,39 @@ describe('FeatureCard continuation badges', () => {
     mockCommonHooks([baseFeature, continuationFeature, secondContinuation])
     renderWithDnd(<FeatureCard feature={baseFeature} projectId="p-1" />)
     expect(screen.getByText(/continued in 2 PIs/i)).toBeInTheDocument()
+  })
+})
+
+describe('FeatureCard cancel-continuation action', () => {
+  const grandchild: Feature = { ...continuationFeature, system_id: 'f-3', pi_id: 'pi-2', continued_from_feature_id: 'f-2' }
+
+  it('offers cancel on a leaf continuation while editing', () => {
+    mockCommonHooks([baseFeature, continuationFeature])
+    useAuthStore.setState({ user: null, isEditing: true })
+    renderWithDnd(<FeatureCard feature={continuationFeature} projectId="p-1" />)
+    expect(screen.getByText('✕ cancel continuation')).toBeInTheDocument()
+  })
+
+  it('hides cancel when not editing', () => {
+    mockCommonHooks([baseFeature, continuationFeature])
+    renderWithDnd(<FeatureCard feature={continuationFeature} projectId="p-1" />)
+    expect(screen.queryByText('✕ cancel continuation')).not.toBeInTheDocument()
+  })
+
+  it('hides cancel on a non-leaf continuation (split further downstream)', () => {
+    mockCommonHooks([baseFeature, continuationFeature, grandchild])
+    useAuthStore.setState({ user: null, isEditing: true })
+    renderWithDnd(<FeatureCard feature={continuationFeature} projectId="p-1" />)
+    expect(screen.queryByText('✕ cancel continuation')).not.toBeInTheDocument()
+  })
+
+  it('confirming calls the cancel mutation with the feature id', () => {
+    mockCommonHooks([baseFeature, continuationFeature])
+    useAuthStore.setState({ user: null, isEditing: true })
+    renderWithDnd(<FeatureCard feature={continuationFeature} projectId="p-1" />)
+    fireEvent.click(screen.getByText('✕ cancel continuation'))
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel continuation' }))
+    expect(cancelMutate).toHaveBeenCalledWith('f-2', expect.anything())
   })
 })
 

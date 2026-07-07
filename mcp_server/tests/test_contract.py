@@ -65,6 +65,7 @@ EXPECTED_FEATURES_TOOLS = {
     "update_feature",
     "move_feature",
     "split_feature",
+    "cancel_continuation",
     "delete_feature",
     "create_pbi",
     "update_pbi",
