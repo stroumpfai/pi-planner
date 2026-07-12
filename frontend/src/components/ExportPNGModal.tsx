@@ -173,6 +173,20 @@ export function ExportPNGModal({ piId, piName, open, onClose }: Props) {
               checked={opts.showSprintEffort}
               onChange={() => toggle('showSprintEffort')}
             />
+            <ToggleRow
+              id="export-events"
+              label="Events"
+              description="Show PI events as vertical markers on the chart"
+              checked={opts.showEvents}
+              onChange={() => toggle('showEvents')}
+            />
+            <ToggleRow
+              id="export-date"
+              label="Export date"
+              description="Show the date of generation in the bottom-right corner"
+              checked={opts.showExportDate}
+              onChange={() => toggle('showExportDate')}
+            />
             {opts.layout === 'roadmap' && (
               <ToggleRow
                 id="export-swimlane-effort"
@@ -182,13 +196,6 @@ export function ExportPNGModal({ piId, piName, open, onClose }: Props) {
                 onChange={() => toggle('showSwimlaneEffort')}
               />
             )}
-            <ToggleRow
-              id="export-events"
-              label="Events"
-              description="Show PI events as vertical markers on the chart"
-              checked={opts.showEvents}
-              onChange={() => toggle('showEvents')}
-            />
             {opts.layout === 'roadmap' && (
               <ToggleRow
                 id="export-swimlane-center"
@@ -216,13 +223,6 @@ export function ExportPNGModal({ piId, piName, open, onClose }: Props) {
                 onChange={() => toggle('showId')}
               />
             )}
-            <ToggleRow
-              id="export-date"
-              label="Export date"
-              description="Show the date of generation in the bottom-right corner"
-              checked={opts.showExportDate}
-              onChange={() => toggle('showExportDate')}
-            />
           </div>
 
           <div className="flex justify-end gap-2 pt-4">
