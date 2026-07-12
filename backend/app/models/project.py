@@ -25,6 +25,7 @@ class Project(Base):
     system_id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: str(uuid4()))
     name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
     description: Mapped[str | None] = mapped_column(Text)
+    azure_devops_url: Mapped[str | None] = mapped_column(Text)
     effort_unit: Mapped[str] = mapped_column(Text, nullable=False, server_default="pts", default="pts")
     created_at: Mapped[datetime] = mapped_column(default=func.now())
     modified_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())

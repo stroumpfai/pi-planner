@@ -8,6 +8,12 @@ import type { AxiosError } from 'axios'
 const schema = z.object({
   name: z.string().min(1, 'Name is required').max(255),
   description: z.string().max(2000).optional(),
+  azure_devops_url: z
+    .string()
+    .trim()
+    .max(2000)
+    .optional()
+    .refine((v) => !v || /^https?:\/\/.+/i.test(v), 'Must be an http(s):// URL'),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -25,7 +31,11 @@ export function CreateProjectModal({ open, onClose }: Props) {
 
   const onSubmit = async (values: FormValues) => {
     try {
-      await create.mutateAsync({ name: values.name, description: values.description || null })
+      await create.mutateAsync({
+        name: values.name,
+        description: values.description || null,
+        azure_devops_url: values.azure_devops_url || null,
+      })
       reset()
       onClose()
     } catch (err) {
@@ -67,6 +77,19 @@ export function CreateProjectModal({ open, onClose }: Props) {
                 className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               />
               {errors.description && <p className="mt-1 text-xs text-red-600">{errors.description.message}</p>}
+            </div>
+
+            <div>
+              <label htmlFor="proj-azure-url" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Azure DevOps URL</label>
+              <input
+                id="proj-azure-url"
+                type="url"
+                {...register('azure_devops_url')}
+                placeholder="https://dev.azure.com/org/project"
+                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              />
+              {errors.azure_devops_url && <p className="mt-1 text-xs text-red-600">{errors.azure_devops_url.message}</p>}
+              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Link to the project in Azure DevOps, shown on the project card</p>
             </div>
 
             <div className="flex justify-end gap-3 pt-2">

@@ -55,6 +55,24 @@ describe('ProjectListPage', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument()
   })
 
+  it('renders Azure DevOps link when project has a URL', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([
+      { ...fakeProject, azure_devops_url: 'https://dev.azure.com/org/proj' },
+    ])
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    const link = await screen.findByRole('link', { name: /azure devops/i })
+    expect(link).toHaveAttribute('href', 'https://dev.azure.com/org/proj')
+    expect(link).toHaveAttribute('target', '_blank')
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer')
+  })
+
+  it('does not render Azure DevOps link when project has no URL', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([{ ...fakeProject, azure_devops_url: null }])
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('My Project')).toBeInTheDocument())
+    expect(screen.queryByRole('link', { name: /azure devops/i })).not.toBeInTheDocument()
+  })
+
   it('shows delete button per project', async () => {
     mockApi.list = vi.fn().mockResolvedValue([fakeProject])
     render(<ProjectListPage />, { wrapper: makeWrapper() })

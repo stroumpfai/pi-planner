@@ -209,6 +209,80 @@ async def test_update_project_description(client):
 
 
 @pytest.mark.asyncio
+async def test_create_project_defaults_azure_url_null(client):
+    resp = await client.post("/api/v1/projects/", json={"name": "No Azure"})
+    assert resp.status_code == 201
+    assert resp.json()["azure_devops_url"] is None
+
+
+@pytest.mark.asyncio
+async def test_create_project_with_azure_url(client):
+    resp = await client.post(
+        "/api/v1/projects/",
+        json={"name": "Azure Proj", "azure_devops_url": "https://dev.azure.com/org/proj"},
+    )
+    assert resp.status_code == 201
+    assert resp.json()["azure_devops_url"] == "https://dev.azure.com/org/proj"
+
+
+@pytest.mark.asyncio
+async def test_update_project_azure_url(client):
+    pid = (await client.post("/api/v1/projects/", json={"name": "Set Azure"})).json()["system_id"]
+    resp = await client.patch(
+        f"/api/v1/projects/{pid}",
+        json={"azure_devops_url": "https://myorg.visualstudio.com/proj"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["azure_devops_url"] == "https://myorg.visualstudio.com/proj"
+
+
+@pytest.mark.asyncio
+async def test_update_project_azure_url_can_be_cleared(client):
+    pid = (await client.post(
+        "/api/v1/projects/",
+        json={"name": "Clear Azure", "azure_devops_url": "https://dev.azure.com/org/proj"},
+    )).json()["system_id"]
+    resp = await client.patch(f"/api/v1/projects/{pid}", json={"azure_devops_url": ""})
+    assert resp.status_code == 200
+    assert resp.json()["azure_devops_url"] is None
+
+
+@pytest.mark.asyncio
+async def test_update_project_azure_url_untouched_when_omitted(client):
+    pid = (await client.post(
+        "/api/v1/projects/",
+        json={"name": "Keep Azure", "azure_devops_url": "https://dev.azure.com/org/proj"},
+    )).json()["system_id"]
+    resp = await client.patch(f"/api/v1/projects/{pid}", json={"description": "changed"})
+    assert resp.status_code == 200
+    assert resp.json()["azure_devops_url"] == "https://dev.azure.com/org/proj"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("bad_url", ["javascript:alert(1)", "data:text/html,x", "ftp://host/x", "notaurl"])
+async def test_create_project_rejects_dangerous_url(client, bad_url):
+    resp = await client.post(
+        "/api/v1/projects/",
+        json={"name": f"Bad {bad_url[:6]}", "azure_devops_url": bad_url},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_export_import_round_trips_azure_url(client):
+    pid = (await client.post(
+        "/api/v1/projects/",
+        json={"name": "Round Trip Azure", "azure_devops_url": "https://dev.azure.com/org/proj"},
+    )).json()["system_id"]
+    export = (await client.get(f"/api/v1/projects/{pid}/export")).json()
+    assert export["project"]["azure_devops_url"] == "https://dev.azure.com/org/proj"
+
+    resp = await client.post("/api/v1/projects/import", files=[_upload(export)])
+    assert resp.status_code == 201
+    assert resp.json()["azure_devops_url"] == "https://dev.azure.com/org/proj"
+
+
+@pytest.mark.asyncio
 async def test_delete_project_not_found(client):
     resp = await client.delete("/api/v1/projects/nonexistent")
     assert resp.status_code == 404

@@ -38,7 +38,32 @@ describe('CreateProjectModal', () => {
     await userEvent.type(screen.getByLabelText(/name/i), 'Test')
     await userEvent.click(screen.getByRole('button', { name: /create project/i }))
     await waitFor(() => expect(onClose).toHaveBeenCalled())
-    expect(mockApi.create).toHaveBeenCalledWith({ name: 'Test', description: null })
+    expect(mockApi.create).toHaveBeenCalledWith({ name: 'Test', description: null, azure_devops_url: null })
+  })
+
+  it('sends a valid Azure DevOps URL on create', async () => {
+    mockApi.create = vi.fn().mockResolvedValue({ system_id: 'new', name: 'Test', description: null, azure_devops_url: null, created_at: '', modified_at: '' })
+    mockApi.list = vi.fn().mockResolvedValue([])
+    render(<CreateProjectModal open onClose={onClose} />, { wrapper: makeWrapper() })
+    await userEvent.type(screen.getByLabelText(/name/i), 'Test')
+    await userEvent.type(screen.getByLabelText(/azure devops url/i), 'https://dev.azure.com/org/proj')
+    await userEvent.click(screen.getByRole('button', { name: /create project/i }))
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(mockApi.create).toHaveBeenCalledWith({
+      name: 'Test',
+      description: null,
+      azure_devops_url: 'https://dev.azure.com/org/proj',
+    })
+  })
+
+  it('rejects a javascript: URL and does not call the API', async () => {
+    mockApi.create = vi.fn()
+    render(<CreateProjectModal open onClose={onClose} />, { wrapper: makeWrapper() })
+    await userEvent.type(screen.getByLabelText(/name/i), 'Test')
+    await userEvent.type(screen.getByLabelText(/azure devops url/i), 'javascript:alert(1)')
+    await userEvent.click(screen.getByRole('button', { name: /create project/i }))
+    await waitFor(() => expect(screen.getByText(/must be an http\(s\):\/\/ url/i)).toBeInTheDocument())
+    expect(mockApi.create).not.toHaveBeenCalled()
   })
 
   it('shows duplicate name error on 409', async () => {

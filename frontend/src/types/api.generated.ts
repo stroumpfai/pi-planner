@@ -793,6 +793,8 @@ export interface components {
       name: string;
       /** Description */
       description?: string | null;
+      /** Azure Devops Url */
+      azure_devops_url?: string | null;
     };
     /** ProjectResponse */
     ProjectResponse: {
@@ -802,6 +804,8 @@ export interface components {
       name: string;
       /** Description */
       description: string | null;
+      /** Azure Devops Url */
+      azure_devops_url: string | null;
       /** Effort Unit */
       effort_unit: string;
       /**
@@ -821,6 +825,8 @@ export interface components {
       name?: string | null;
       /** Description */
       description?: string | null;
+      /** Azure Devops Url */
+      azure_devops_url?: string | null;
       /** Effort Unit */
       effort_unit?: string | null;
     };
@@ -2097,12 +2103,15 @@ export interface operations {
   export_pi_png_endpoint_api_v1_pis__pi_id__export_png_get: {
     parameters: {
       query?: {
+        layout?: string;
         show_pi_effort?: boolean;
         show_sprint_effort?: boolean;
         show_swimlane_effort?: boolean;
         show_events?: boolean;
         swimlane_text_center?: boolean;
         show_export_date?: boolean;
+        split_by_swimline?: boolean;
+        show_id?: boolean;
       };
       path: {
         pi_id: string;

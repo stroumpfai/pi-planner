@@ -149,15 +149,28 @@ export function ProjectListPage() {
           {projects?.map((project) => (
             <li key={project.system_id} className="px-4 py-4 hover:bg-band/40">
               <div className="flex items-start gap-4">
-                <button
-                  className="flex-1 min-w-0 text-left"
-                  onClick={() => setActiveProject(project.system_id)}
-                >
-                  <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.name}</p>
-                  {project.description && (
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">{project.description}</p>
+                <div className="flex-1 min-w-0">
+                  <button
+                    className="block w-full text-left"
+                    onClick={() => setActiveProject(project.system_id)}
+                  >
+                    <p className="text-sm font-medium text-gray-900 dark:text-gray-100">{project.name}</p>
+                    {project.description && (
+                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 leading-relaxed">{project.description}</p>
+                    )}
+                  </button>
+                  {project.azure_devops_url && (
+                    <a
+                      href={project.azure_devops_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={(e) => e.stopPropagation()}
+                      className="inline-block mt-1 max-w-full truncate text-xs text-blue-500 hover:text-blue-700"
+                    >
+                      Azure DevOps ↗
+                    </a>
                   )}
-                </button>
+                </div>
                 {canEdit && (
                   <div className="flex items-center gap-3 shrink-0 pt-0.5">
                     <button
