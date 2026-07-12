@@ -25,12 +25,15 @@ from app.services.effort import pi_effort_and_capacity, sprint_efforts_for_pi, s
 
 @dataclass
 class PNGExportOptions:
+    layout: str = "roadmap"  # "roadmap" | "list"
     show_pi_effort: bool = False
     show_sprint_effort: bool = False
-    show_swimlane_effort: bool = False
+    show_swimlane_effort: bool = False  # roadmap only
     show_events: bool = False
-    swimlane_text_center: bool = False
+    swimlane_text_center: bool = False  # roadmap only
     show_export_date: bool = False
+    split_by_swimline: bool = False  # list only
+    show_id: bool = False  # list only
 
 EVENT_COLORS: dict[str, str] = {
     "release":   "#10b981",
@@ -212,10 +215,83 @@ def _draw_events(
         )
 
 
+def _apply_title(fig: Figure, pi: PI, opts: PNGExportOptions,
+                 effort: float, capacity: int, effort_unit: str) -> None:
+    if opts.show_pi_effort:
+        pct = round(effort / capacity * 100) if capacity > 0 else 0
+        title = f"{pi.name}  ·  Total: {effort:g} / {capacity} {effort_unit}  ({pct}%)"
+    else:
+        title = pi.name
+    fig.suptitle(title, fontsize=10, fontweight="bold")
+
+
+def _apply_footer(ax_footer: object) -> None:
+    date_str = date.today().strftime("%Y-%m-%d")
+    ax_footer.text(  # type: ignore[union-attr]
+        1.0, 0.5, f"Exported {date_str}", transform=ax_footer.transAxes,  # type: ignore[union-attr]
+        ha="right", va="center", fontsize=7, color="#9ca3af",
+    )
+
+
+def _make_figure(fig_width: float, header_h: float, main_h: float,
+                 show_export_date: bool) -> tuple[Figure, object, object, object | None]:
+    """Build the standard header / main (/ optional footer) figure scaffold."""
+    footer_h = 0.25 if show_export_date else 0.0
+    fig = Figure(figsize=(fig_width, header_h + main_h + footer_h), dpi=150, layout="constrained")
+    FigureCanvasAgg(fig)
+    if show_export_date:
+        gs = GridSpec(3, 1, figure=fig, height_ratios=[header_h, main_h, footer_h], hspace=0.05)
+        ax_header = fig.add_subplot(gs[0])
+        ax = fig.add_subplot(gs[1])
+        ax_footer = fig.add_subplot(gs[2])
+        ax_footer.axis("off")
+        return fig, ax_header, ax, ax_footer
+    gs = GridSpec(2, 1, figure=fig, height_ratios=[header_h, main_h], hspace=0.05)
+    ax_header = fig.add_subplot(gs[0])
+    ax = fig.add_subplot(gs[1])
+    return fig, ax_header, ax, None
+
+
+def _fig_to_png(fig: Figure) -> bytes:
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", bbox_inches="tight")
+    buf.seek(0)
+    return buf.read()
+
+
+def _truncate(text: str, max_chars: int) -> str:
+    if max_chars <= 1 or len(text) <= max_chars:
+        return text
+    return text[: max_chars - 1].rstrip() + "…"
+
+
+async def _placed_pbis_for_pi(
+    db: AsyncSession, swimline_ids: list[str]
+) -> list[tuple[int | None, str, int, str]]:
+    """Return (user_id, title, sprint_index, swimline_id) for every PBI placed in a sprint."""
+    if not swimline_ids:
+        return []
+    result = await db.execute(
+        select(PBI.user_id, PBI.title, Group.sprint_index, Group.swimline_id)
+        .join(Group, PBI.group_id == Group.system_id)
+        .join(Feature, PBI.parent_feature_system_id == Feature.system_id)
+        .where(Group.swimline_id.in_(swimline_ids), Group.sprint_index.is_not(None))
+        .order_by(Group.sprint_index.asc(), Feature.title.asc(), PBI.title.asc())
+    )
+    return [(r.user_id, r.title, int(r.sprint_index), r.swimline_id) for r in result.all()]
+
+
+def _pbi_label(user_id: int | None, title: str, show_id: bool) -> str:
+    if show_id and user_id is not None:
+        return f"[{user_id}] {title}"
+    return title
+
+
 async def export_pi_png(db: AsyncSession, pi: PI, opts: PNGExportOptions | None = None) -> bytes:
-    """Return PNG bytes showing a swimlane roadmap for the PI."""
+    """Return PNG bytes for the PI, in either the roadmap-bar or PBI-list layout."""
     if opts is None:
         opts = PNGExportOptions()
+
     effort, capacity = await pi_effort_and_capacity(db, pi.system_id)
     sprint_efforts = await sprint_efforts_for_pi(db, pi.system_id)
 
@@ -242,10 +318,51 @@ async def export_pi_png(db: AsyncSession, pi: PI, opts: PNGExportOptions | None 
     )
     events = events_result.scalars().all()
 
-    swimline_ids = [s.system_id for s in swimlines]
-    sl_efforts: dict[str, float] = await swimline_efforts(db, swimline_ids) if swimline_ids else {}
+    dated_sprints = [
+        (s.sprint_index, s.start_date, s.end_date)
+        for s in sprints
+        if s.start_date and s.end_date
+    ]
+
+    ctx = _RenderContext(
+        pi=pi, opts=opts, effort=effort, capacity=capacity, effort_unit=effort_unit,
+        sprints=sprints, num_sprints=num_sprints, swimlines=swimlines,
+        events=events, dated_sprints=dated_sprints, sprint_efforts=sprint_efforts,
+    )
+
+    if opts.layout == "list":
+        placed = await _placed_pbis_for_pi(db, [s.system_id for s in swimlines])
+        return _build_list_figure(ctx, placed)
+
+    sl_efforts = await swimline_efforts(db, [s.system_id for s in swimlines]) if swimlines else {}
+    return await _build_roadmap_figure(db, ctx, sl_efforts)
+
+
+@dataclass
+class _RenderContext:
+    pi: PI
+    opts: PNGExportOptions
+    effort: float
+    capacity: int
+    effort_unit: str
+    sprints: list[Sprint]
+    num_sprints: int
+    swimlines: list[Swimline]
+    events: list[PIEvent]
+    dated_sprints: list[tuple[int, date, date]]
+    sprint_efforts: dict[int, float]
+
+
+async def _build_roadmap_figure(
+    db: AsyncSession, ctx: _RenderContext, sl_efforts: dict[str, float]
+) -> bytes:
+    """Roadmap layout: swimlanes as horizontal bars across a sprint x-axis."""
+    opts, num_sprints, capacity, effort_unit = (
+        ctx.opts, ctx.num_sprints, ctx.capacity, ctx.effort_unit,
+    )
 
     spans: dict[str, tuple[int, int]] = {}
+    swimline_ids = [s.system_id for s in ctx.swimlines]
     if swimline_ids:
         spans_result = await db.execute(
             select(
@@ -258,35 +375,16 @@ async def export_pi_png(db: AsyncSession, pi: PI, opts: PNGExportOptions | None 
         )
         spans = {r.swimline_id: (int(r.min_sprint), int(r.max_sprint)) for r in spans_result.all()}
 
-    swimlines = [s for s in swimlines if s.system_id in spans]
-
-    dated_sprints = [
-        (s.sprint_index, s.start_date, s.end_date)
-        for s in sprints
-        if s.start_date and s.end_date
-    ]
+    swimlines = [s for s in ctx.swimlines if s.system_id in spans]
 
     n = max(len(swimlines), 1)
     HEADER_H = 1.0  # inches — fixed height for the sprint header row
     main_h = max(1.5, n * 0.35 + 1.0)
-    FOOTER_H = 0.25 if opts.show_export_date else 0.0  # reserve space so the date never overlaps the last swimline
     fig_width = max(10.0, num_sprints * 2.2)
-    fig_height = HEADER_H + main_h + FOOTER_H
 
-    fig = Figure(figsize=(fig_width, fig_height), dpi=150, layout="constrained")
-    FigureCanvasAgg(fig)
-    if opts.show_export_date:
-        gs = GridSpec(3, 1, figure=fig, height_ratios=[HEADER_H, main_h, FOOTER_H], hspace=0.05)
-        ax_header = fig.add_subplot(gs[0])
-        ax = fig.add_subplot(gs[1])
-        ax_footer = fig.add_subplot(gs[2])
-        ax_footer.axis("off")
-    else:
-        gs = GridSpec(2, 1, figure=fig, height_ratios=[HEADER_H, main_h], hspace=0.05)
-        ax_header = fig.add_subplot(gs[0])
-        ax = fig.add_subplot(gs[1])
+    fig, ax_header, ax, ax_footer = _make_figure(fig_width, HEADER_H, main_h, opts.show_export_date)
 
-    _draw_sprint_header(ax_header, sprints, sprint_efforts, effort_unit, num_sprints,
+    _draw_sprint_header(ax_header, ctx.sprints, ctx.sprint_efforts, effort_unit, num_sprints,
                         show_effort=opts.show_sprint_effort)
 
     BAR_HEIGHT = 0.5
@@ -325,7 +423,7 @@ async def export_pi_png(db: AsyncSession, pi: PI, opts: PNGExportOptions | None 
     bottom_y = -BAR_HEIGHT / 2 - 0.1
 
     if opts.show_events:
-        _draw_events(ax, events, dated_sprints, num_sprints, bottom_y)
+        _draw_events(ax, ctx.events, ctx.dated_sprints, num_sprints, bottom_y)
 
     ax.set_yticks([])
     ax.set_xlim(0.0, float(num_sprints))
@@ -334,17 +432,10 @@ async def export_pi_png(db: AsyncSession, pi: PI, opts: PNGExportOptions | None 
     for i in range(1, num_sprints):
         ax.axvline(x=float(i), color="#e2e8f0", linewidth=0.8, zorder=0)
 
-    if opts.show_pi_effort:
-        pct = round(effort / capacity * 100) if capacity > 0 else 0
-        title = f"{pi.name}  ·  Total: {effort:g} / {capacity} {effort_unit}  ({pct}%)"
-    else:
-        title = pi.name
-    fig.suptitle(title, fontsize=10, fontweight="bold")
+    _apply_title(fig, ctx.pi, opts, ctx.effort, capacity, effort_unit)
 
-    if opts.show_export_date:
-        date_str = date.today().strftime("%Y-%m-%d")
-        ax_footer.text(1.0, 0.5, f"Exported {date_str}", transform=ax_footer.transAxes,
-                        ha="right", va="center", fontsize=7, color="#9ca3af")
+    if ax_footer is not None:
+        _apply_footer(ax_footer)
 
     top_y = (n - 1) * ROW_SPACING + BAR_HEIGHT / 2 + 0.05
     ax.set_ylim(bottom_y, top_y)
@@ -352,7 +443,140 @@ async def export_pi_png(db: AsyncSession, pi: PI, opts: PNGExportOptions | None 
         ax.spines[spine].set_visible(False)
     ax.tick_params(left=False)
 
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight")
-    buf.seek(0)
-    return buf.read()
+    return _fig_to_png(fig)
+
+
+def _build_list_figure(
+    ctx: _RenderContext, placed: list[tuple[int | None, str, int, str]]
+) -> bytes:
+    """List layout: each sprint column lists the PBIs placed in it.
+
+    With ``split_by_swimline`` the body is banded by swimline (rows) × sprint (columns),
+    reconstructing the on-screen grid; otherwise each column is a single flat PBI list.
+    """
+    opts, num_sprints = ctx.opts, ctx.num_sprints
+    fig_width = max(10.0, num_sprints * 2.2)
+    col_width_in = fig_width / num_sprints
+    # approx chars that fit a column at fontsize 7.5 (~0.06in/char incl. padding)
+    max_chars = max(12, int(col_width_in * 14))
+
+    LINE_H = 0.22  # inches per PBI text line
+    HEADER_H = 1.0
+
+    if opts.split_by_swimline:
+        bands = _list_bands_by_swimline(ctx, placed, max_chars)
+        main_h = max(1.5, HEADER_H + sum(b["height"] for b in bands) * LINE_H)
+    else:
+        columns = _list_flat_columns(ctx, placed, max_chars)
+        max_lines = max((len(c) for c in columns), default=0)
+        main_h = max(1.5, (max_lines + 1) * LINE_H + 0.5)
+
+    fig, ax_header, ax, ax_footer = _make_figure(fig_width, HEADER_H, main_h, opts.show_export_date)
+
+    _draw_sprint_header(ax_header, ctx.sprints, ctx.sprint_efforts, ctx.effort_unit, num_sprints,
+                        show_effort=opts.show_sprint_effort)
+
+    ax.set_xlim(0.0, float(num_sprints))
+    ax.set_ylim(0.0, 1.0)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    for spine in ("top", "right", "left", "bottom"):
+        ax.spines[spine].set_visible(False)
+
+    if opts.split_by_swimline:
+        _draw_list_bands(ax, bands)
+    else:
+        _draw_list_flat(ax, columns)
+
+    # vertical sprint separators (drawn on top of the body, matching the roadmap look)
+    for i in range(1, num_sprints):
+        ax.axvline(x=float(i), color="#e2e8f0", linewidth=0.8, zorder=1)
+
+    if opts.show_events:
+        _draw_events(ax, ctx.events, ctx.dated_sprints, num_sprints, 0.0)
+
+    _apply_title(fig, ctx.pi, opts, ctx.effort, ctx.capacity, ctx.effort_unit)
+
+    if ax_footer is not None:
+        _apply_footer(ax_footer)
+
+    return _fig_to_png(fig)
+
+
+def _list_flat_columns(
+    ctx: _RenderContext, placed: list[tuple[int | None, str, int, str]], max_chars: int
+) -> list[list[str]]:
+    """Return, per sprint index, the ordered list of PBI labels (flat, no swimline split)."""
+    order = {s.system_id: (s.order_index if s.order_index is not None else 1_000_000)
+             for s in ctx.swimlines}
+    columns: list[list[tuple[int, str]]] = [[] for _ in range(ctx.num_sprints)]
+    for user_id, title, sprint_index, swimline_id in placed:
+        if 0 <= sprint_index < ctx.num_sprints:
+            label = _truncate(_pbi_label(user_id, title, ctx.opts.show_id), max_chars)
+            columns[sprint_index].append((order.get(swimline_id, 1_000_000), label))
+    return [[label for _, label in sorted(col, key=lambda t: t[0])] for col in columns]
+
+
+def _list_bands_by_swimline(
+    ctx: _RenderContext, placed: list[tuple[int | None, str, int, str]], max_chars: int
+) -> list[dict]:
+    """Return one band per swimline that has placed PBIs, each with per-sprint label lists."""
+    by_swimline: dict[str, list[list[str]]] = {}
+    for user_id, title, sprint_index, swimline_id in placed:
+        if not (0 <= sprint_index < ctx.num_sprints):
+            continue
+        cols = by_swimline.setdefault(swimline_id, [[] for _ in range(ctx.num_sprints)])
+        cols[sprint_index].append(
+            _truncate(_pbi_label(user_id, title, ctx.opts.show_id), max_chars)
+        )
+
+    bands: list[dict] = []
+    for swimline in ctx.swimlines:  # already ordered by order_index
+        cols = by_swimline.get(swimline.system_id)
+        if cols is None:
+            continue
+        max_lines = max((len(c) for c in cols), default=0)
+        bands.append({
+            "name": swimline.name,
+            "columns": cols,
+            "height": 1 + max_lines,  # header line + tallest column
+        })
+    return bands
+
+
+def _draw_list_flat(ax: object, columns: list[list[str]]) -> None:
+    max_lines = max((len(c) for c in columns), default=1)
+    step = 0.9 / max(1, max_lines)
+    for i, col in enumerate(columns):
+        y = 0.95
+        for label in col:
+            ax.text(  # type: ignore[union-attr]
+                i + 0.08, y, label, va="top", ha="left", fontsize=7.5,
+                color="#374151", clip_on=True,
+            )
+            y -= step
+
+
+def _draw_list_bands(ax: object, bands: list[dict]) -> None:
+    total_lines = sum(b["height"] for b in bands) or 1
+    step = 1.0 / total_lines
+    y = 1.0
+    for b in bands:
+        # swimline band header spanning the full width
+        ax.text(  # type: ignore[union-attr]
+            0.06, y - step * 0.5, b["name"], va="center", ha="left",
+            fontsize=8, fontweight="bold", color="#1f2937", clip_on=True,
+        )
+        first_line_y = y - step  # first PBI line, below the header
+        for sprint_index, col in enumerate(b["columns"]):
+            cy = first_line_y
+            for label in col:
+                ax.text(  # type: ignore[union-attr]
+                    sprint_index + 0.08, cy, label, va="top", ha="left",
+                    fontsize=7.5, color="#374151", clip_on=True,
+                )
+                cy -= step
+        y -= step * b["height"]
+        # horizontal separator between bands
+        if b is not bands[-1]:
+            ax.axhline(y=y, color="#e2e8f0", linewidth=0.8, zorder=0)  # type: ignore[union-attr]

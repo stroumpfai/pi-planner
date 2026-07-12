@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { downloadPIPNG, DEFAULT_EXPORT_PNG_OPTIONS } from '@/services/pis'
-import type { ExportPNGOptions } from '@/services/pis'
+import type { ExportPNGOptions, ExportPNGLayout } from '@/services/pis'
 import { toast } from '@/stores/toastStore'
 
 const STORAGE_KEY = 'pi-export-png-options'
@@ -55,6 +55,40 @@ function ToggleRow({ id, label, description, checked, onChange }: ToggleRowProps
   )
 }
 
+interface LayoutOptionProps {
+  readonly id: string
+  readonly label: string
+  readonly description: string
+  readonly checked: boolean
+  readonly onSelect: () => void
+}
+
+function LayoutOption({ id, label, description, checked, onSelect }: LayoutOptionProps) {
+  return (
+    <label
+      htmlFor={id}
+      className={`flex-1 cursor-pointer rounded-md border p-2.5 transition-colors ${
+        checked
+          ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/30'
+          : 'border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+      }`}
+    >
+      <div className="flex items-center gap-2">
+        <input
+          id={id}
+          type="radio"
+          name="export-layout"
+          checked={checked}
+          onChange={onSelect}
+          className="accent-blue-600"
+        />
+        <span className="text-sm font-medium text-gray-800 dark:text-gray-100">{label}</span>
+      </div>
+      <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 ml-6">{description}</p>
+    </label>
+  )
+}
+
 interface Props {
   readonly piId: string
   readonly piName: string
@@ -66,8 +100,12 @@ export function ExportPNGModal({ piId, piName, open, onClose }: Props) {
   const [opts, setOpts] = useState<ExportPNGOptions>(loadOptions)
   const [exporting, setExporting] = useState(false)
 
-  function toggle(key: keyof ExportPNGOptions) {
+  function toggle(key: 'showPiEffort' | 'showSprintEffort' | 'showSwimlaneEffort' | 'showEvents' | 'swimlaneTextCenter' | 'showExportDate' | 'splitBySwimline' | 'showId') {
     setOpts((prev) => ({ ...prev, [key]: !prev[key] }))
+  }
+
+  function setLayout(layout: ExportPNGLayout) {
+    setOpts((prev) => ({ ...prev, layout }))
   }
 
   function handleClose() {
@@ -100,6 +138,26 @@ export function ExportPNGModal({ piId, piName, open, onClose }: Props) {
             Choose what to include in the exported image. Settings are saved for next time.
           </p>
 
+          <fieldset className="mb-2">
+            <legend className="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">Layout</legend>
+            <div className="flex gap-2">
+              <LayoutOption
+                id="export-layout-roadmap"
+                label="Roadmap bars"
+                description="Swimlanes as horizontal bars"
+                checked={opts.layout === 'roadmap'}
+                onSelect={() => setLayout('roadmap')}
+              />
+              <LayoutOption
+                id="export-layout-list"
+                label="PBI list"
+                description="Sprint columns list their PBIs"
+                checked={opts.layout === 'list'}
+                onSelect={() => setLayout('list')}
+              />
+            </div>
+          </fieldset>
+
           <div>
             <ToggleRow
               id="export-pi-effort"
@@ -116,25 +174,11 @@ export function ExportPNGModal({ piId, piName, open, onClose }: Props) {
               onChange={() => toggle('showSprintEffort')}
             />
             <ToggleRow
-              id="export-swimlane-effort"
-              label="Swimlane effort"
-              description="Show effort value inside each swimlane bar"
-              checked={opts.showSwimlaneEffort}
-              onChange={() => toggle('showSwimlaneEffort')}
-            />
-            <ToggleRow
               id="export-events"
               label="Events"
               description="Show PI events as vertical markers on the chart"
               checked={opts.showEvents}
               onChange={() => toggle('showEvents')}
-            />
-            <ToggleRow
-              id="export-swimlane-center"
-              label="Center swimlane text"
-              description="Center swimlane labels inside bars (default: left-aligned)"
-              checked={opts.swimlaneTextCenter}
-              onChange={() => toggle('swimlaneTextCenter')}
             />
             <ToggleRow
               id="export-date"
@@ -143,6 +187,42 @@ export function ExportPNGModal({ piId, piName, open, onClose }: Props) {
               checked={opts.showExportDate}
               onChange={() => toggle('showExportDate')}
             />
+            {opts.layout === 'roadmap' && (
+              <ToggleRow
+                id="export-swimlane-effort"
+                label="Swimlane effort"
+                description="Show effort value inside each swimlane bar"
+                checked={opts.showSwimlaneEffort}
+                onChange={() => toggle('showSwimlaneEffort')}
+              />
+            )}
+            {opts.layout === 'roadmap' && (
+              <ToggleRow
+                id="export-swimlane-center"
+                label="Center swimlane text"
+                description="Center swimlane labels inside bars (default: left-aligned)"
+                checked={opts.swimlaneTextCenter}
+                onChange={() => toggle('swimlaneTextCenter')}
+              />
+            )}
+            {opts.layout === 'list' && (
+              <ToggleRow
+                id="export-split-swimline"
+                label="Split by swimline"
+                description="Group each sprint's PBIs under their swimline"
+                checked={opts.splitBySwimline}
+                onChange={() => toggle('splitBySwimline')}
+              />
+            )}
+            {opts.layout === 'list' && (
+              <ToggleRow
+                id="export-show-id"
+                label="Display the ID"
+                description="Prefix each PBI with its [ID]"
+                checked={opts.showId}
+                onChange={() => toggle('showId')}
+              />
+            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-4">

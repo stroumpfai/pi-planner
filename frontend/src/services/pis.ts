@@ -37,32 +37,43 @@ export function downloadPICSV(piId: string, piName: string): Promise<void> {
   return _downloadBlob(`/api/v1/pis/${piId}/export/csv`, `${piName}.csv`)
 }
 
+export type ExportPNGLayout = 'roadmap' | 'list'
+
 export interface ExportPNGOptions {
+  layout: ExportPNGLayout
   showPiEffort: boolean
   showSprintEffort: boolean
   showSwimlaneEffort: boolean
   showEvents: boolean
   swimlaneTextCenter: boolean
   showExportDate: boolean
+  splitBySwimline: boolean
+  showId: boolean
 }
 
 export const DEFAULT_EXPORT_PNG_OPTIONS: ExportPNGOptions = {
+  layout: 'roadmap',
   showPiEffort: false,
   showSprintEffort: false,
   showSwimlaneEffort: false,
   showEvents: false,
   swimlaneTextCenter: false,
   showExportDate: false,
+  splitBySwimline: false,
+  showId: false,
 }
 
 export function downloadPIPNG(piId: string, piName: string, options: ExportPNGOptions): Promise<void> {
   const params = new URLSearchParams({
+    layout: options.layout,
     show_pi_effort: String(options.showPiEffort),
     show_sprint_effort: String(options.showSprintEffort),
     show_swimlane_effort: String(options.showSwimlaneEffort),
     show_events: String(options.showEvents),
     swimlane_text_center: String(options.swimlaneTextCenter),
     show_export_date: String(options.showExportDate),
+    split_by_swimline: String(options.splitBySwimline),
+    show_id: String(options.showId),
   })
   return _downloadBlob(`/api/v1/pis/${piId}/export/png?${params}`, `${piName}.png`)
 }

@@ -300,6 +300,66 @@ async def test_png_export_all_options_off(client: AsyncClient, planned_pi: dict)
 
 
 # ---------------------------------------------------------------------------
+# PNG export — PBI list layout
+# ---------------------------------------------------------------------------
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("param", [
+    "",
+    "split_by_swimline=true",
+    "show_id=true",
+    "split_by_swimline=true&show_id=true",
+    "show_events=true",
+    "show_pi_effort=true&show_sprint_effort=true",
+])
+async def test_png_export_list_layout(
+    client: AsyncClient, planned_pi: dict, param: str
+) -> None:
+    """The PBI-list layout must produce a valid PNG for each relevant option combo."""
+    pi_id = planned_pi["pi_id"]
+    query = "layout=list" + (f"&{param}" if param else "")
+    resp = await client.get(f"/api/v1/pis/{pi_id}/export/png?{query}")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/png"
+    assert resp.content[:8] == PNG_SIGNATURE
+    assert len(resp.content) > 1000
+
+
+@pytest.mark.asyncio
+async def test_png_export_list_layout_ignores_unplaced_pbi(
+    client: AsyncClient, planned_pi: dict
+) -> None:
+    """A PBI in the PI but not placed in any sprint must not break the list export."""
+    proj_id = planned_pi["project_id"]
+    feat_id = planned_pi["feature_id"]
+    pi_id = planned_pi["pi_id"]
+
+    await client.post(
+        f"/api/v1/projects/{proj_id}/pbis",
+        json={"title": "Unplaced story", "effort": 2, "parent_feature_system_id": feat_id},
+    )
+    # Not placed in any sprint — the list export omits it but must still render.
+
+    resp = await client.get(f"/api/v1/pis/{pi_id}/export/png?layout=list&split_by_swimline=true")
+    assert resp.status_code == 200
+    assert resp.content[:8] == PNG_SIGNATURE
+
+
+@pytest.mark.asyncio
+async def test_png_export_list_layout_empty_pi(client: AsyncClient) -> None:
+    """The list layout on a PI with no placed PBIs still produces a valid PNG."""
+    proj = (await client.post("/api/v1/projects/", json={"name": "PNG List Empty"})).json()
+    pi = (await client.post(
+        f"/api/v1/projects/{proj['system_id']}/pis",
+        json={"name": "Empty List PI", "state": "draft"},
+    )).json()
+
+    resp = await client.get(f"/api/v1/pis/{pi['system_id']}/export/png?layout=list")
+    assert resp.status_code == 200
+    assert resp.content[:8] == PNG_SIGNATURE
+
+
+# ---------------------------------------------------------------------------
 # Access control: readers can export
 # ---------------------------------------------------------------------------
 
