@@ -82,6 +82,29 @@ describe('PNG export modal', () => {
     })
   })
 
+  it('exports the PBI list layout with split-by-swimline and show-id', () => {
+    setupPI()
+    goToBoard()
+
+    cy.intercept('GET', '/api/v1/pis/*/export/png*').as('pngExport')
+
+    cy.contains('button', 'Export PNG').click()
+    // Switch to the PBI list layout and enable its options
+    cy.get('#export-layout-list').click()
+    cy.get('#export-split-swimline').click()
+    cy.get('#export-show-id').click()
+    // roadmap-only options are hidden in list layout
+    cy.get('#export-swimlane-effort').should('not.exist')
+    cy.get('#export-swimlane-center').should('not.exist')
+    cy.contains('button', 'Export').last().click()
+
+    cy.wait('@pngExport').its('request.url').should((url) => {
+      expect(url).to.include('layout=list')
+      expect(url).to.include('split_by_swimline=true')
+      expect(url).to.include('show_id=true')
+    })
+  })
+
   it('persists toggle settings across modal re-opens', () => {
     setupPI()
     goToBoard()

@@ -29,13 +29,35 @@ beforeEach(() => {
 })
 
 describe('ExportPNGModal', () => {
-  it('renders all 6 option toggles', () => {
+  it('defaults to the roadmap layout', () => {
+    render(<ExportPNGModal {...defaultProps} />)
+    expect(screen.getByLabelText(/roadmap bars/i)).toBeChecked()
+    expect(screen.getByLabelText(/pbi list/i)).not.toBeChecked()
+  })
+
+  it('renders the 6 roadmap option toggles', () => {
     render(<ExportPNGModal {...defaultProps} />)
     expect(screen.getByLabelText(/pi effort/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/sprint effort/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/swimlane effort/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/events/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/center swimlane text/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/export date/i)).toBeInTheDocument()
+    // list-only options are hidden in roadmap layout
+    expect(screen.queryByLabelText(/split by swimline/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/display the id/i)).not.toBeInTheDocument()
+  })
+
+  it('switching to PBI list swaps roadmap-only and list-only options', async () => {
+    render(<ExportPNGModal {...defaultProps} />)
+    await userEvent.click(screen.getByLabelText(/pbi list/i))
+
+    expect(screen.getByLabelText(/split by swimline/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/display the id/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/swimlane effort/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/center swimlane text/i)).not.toBeInTheDocument()
+    // shared options remain
+    expect(screen.getByLabelText(/pi effort/i)).toBeInTheDocument()
     expect(screen.getByLabelText(/export date/i)).toBeInTheDocument()
   })
 
@@ -83,6 +105,27 @@ describe('ExportPNGModal', () => {
     expect(saved.showSprintEffort).toBe(true)
     expect(saved.showEvents).toBe(true)
     expect(saved.showPiEffort).toBe(false)
+  })
+
+  it('exports the PBI list layout with split-by-swimline and show-id', async () => {
+    render(<ExportPNGModal {...defaultProps} />)
+    await userEvent.click(screen.getByLabelText(/pbi list/i))
+    await userEvent.click(screen.getByLabelText(/split by swimline/i))
+    await userEvent.click(screen.getByLabelText(/display the id/i))
+    await userEvent.click(screen.getByRole('button', { name: /export/i }))
+
+    await waitFor(() =>
+      expect(pisService.downloadPIPNG).toHaveBeenCalledWith(
+        'pi-123',
+        'Q1 2026',
+        expect.objectContaining({ layout: 'list', splitBySwimline: true, showId: true }),
+      ),
+    )
+
+    const saved = JSON.parse(localStorage.getItem('pi-export-png-options') ?? '{}')
+    expect(saved.layout).toBe('list')
+    expect(saved.splitBySwimline).toBe(true)
+    expect(saved.showId).toBe(true)
   })
 
   it('Cancel button calls onClose without triggering export', async () => {
