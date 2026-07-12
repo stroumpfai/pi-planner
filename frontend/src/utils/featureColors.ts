@@ -27,3 +27,25 @@ export function getFeatureColorIdx(featureSystemId: string): number {
   }
   return Math.abs(h) % FEATURE_BORDER_COLORS.length
 }
+
+// Resolve the earliest ancestor (lineage root) of a feature by walking the
+// `continued_from_feature_id` chain. Keying the color off the root makes every
+// slice of a split feature share the origin's color across the PIs it spans.
+// Falls back to the input id when the root can't be resolved (e.g. list still
+// loading); the `seen` guard terminates on any accidental cycle.
+export function lineageRootId(
+  featureSystemId: string,
+  byId: Map<string, { system_id: string; continued_from_feature_id: string | null }>,
+): string {
+  const seen = new Set<string>()
+  let cur = byId.get(featureSystemId)
+  while (
+    cur?.continued_from_feature_id &&
+    byId.has(cur.continued_from_feature_id) &&
+    !seen.has(cur.system_id)
+  ) {
+    seen.add(cur.system_id)
+    cur = byId.get(cur.continued_from_feature_id)
+  }
+  return cur?.system_id ?? featureSystemId
+}

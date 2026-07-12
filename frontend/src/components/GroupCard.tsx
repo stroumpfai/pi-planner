@@ -5,7 +5,8 @@ import { useDeleteGroup, useUpdateGroup } from '@/hooks/useSwimlinesAndGroups'
 import { useAuthStore } from '@/stores/authStore'
 import { useEffortUnit } from '@/hooks/useProjects'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { getFeatureColorIdx, FEATURE_BORDER_COLORS, FEATURE_CHIP_CLASSES } from '@/utils/featureColors'
+import { useFeatures } from '@/hooks/useFeatures'
+import { getFeatureColorIdx, lineageRootId, FEATURE_BORDER_COLORS, FEATURE_CHIP_CLASSES } from '@/utils/featureColors'
 import { pbisApi } from '@/services/pbis'
 import type { Group, PBI } from '@/types'
 
@@ -79,7 +80,9 @@ export function GroupCard({ group, projectId, featureTitle }: Props) {
   const showFeatureNameInCard = useSettingsStore((s) => s.showFeatureNameInCard)
   const deleteGroup = useDeleteGroup(group.swimline_id)
   const updateGroup = useUpdateGroup(group.swimline_id)
-  const colorIdx = getFeatureColorIdx(group.feature_system_id)
+  const { data: allFeatures = [] } = useFeatures(projectId)
+  const featureById = new Map(allFeatures.map((f) => [f.system_id, f]))
+  const colorIdx = getFeatureColorIdx(lineageRootId(group.feature_system_id, featureById))
   const borderColor = FEATURE_BORDER_COLORS[colorIdx]
   const chipClasses = FEATURE_CHIP_CLASSES[colorIdx]
   const featureLabel = featureTitle ?? null

@@ -11,7 +11,7 @@ import { toast } from '@/stores/toastStore'
 import { PBISelectList } from './PBISelectList'
 import { SplitFeatureModal } from './SplitFeatureModal'
 import { ConfirmDialog } from './ConfirmDialog'
-import { getFeatureColorIdx, FEATURE_BORDER_COLORS } from '@/utils/featureColors'
+import { getFeatureColorIdx, lineageRootId, FEATURE_BORDER_COLORS } from '@/utils/featureColors'
 import type { Feature } from '@/types'
 import type { FeatureDragData } from './BacklogPanel'
 
@@ -72,7 +72,8 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
   const { data: allFeatures = [] } = useFeatures(projectId)
   const { data: pis = [] } = usePIs(projectId)
   const isFullyPlanned = featurePbis.length > 0 && featurePbis.every((p) => p.group_id != null)
-  const borderColor = FEATURE_BORDER_COLORS[getFeatureColorIdx(feature.system_id)]
+  const featureById = new Map(allFeatures.map((f) => [f.system_id, f]))
+  const borderColor = FEATURE_BORDER_COLORS[getFeatureColorIdx(lineageRootId(feature.system_id, featureById))]
 
   const continuedFrom = allFeatures.find((f) => f.system_id === feature.continued_from_feature_id)
   const continuations = allFeatures.filter((f) => f.continued_from_feature_id === feature.system_id)

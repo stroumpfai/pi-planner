@@ -7,10 +7,12 @@ import { GroupCard } from '../GroupCard'
 import { useAuthStore } from '@/stores/authStore'
 import * as pbisService from '@/services/pbis'
 import * as groupsService from '@/services/groups'
+import * as featuresService from '@/services/features'
 import type { Group, PBI } from '@/types'
 
 vi.mock('@/services/pbis')
 vi.mock('@/services/groups')
+vi.mock('@/services/features')
 
 const makeWrapper = () => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -56,6 +58,7 @@ beforeEach(() => {
   useAuthStore.setState({ user: null, isEditing: false })
   vi.mocked(groupsService.groupsApi).update = vi.fn().mockResolvedValue({})
   vi.mocked(groupsService.groupsApi).delete = vi.fn().mockResolvedValue({})
+  vi.mocked(featuresService.featuresApi).list = vi.fn().mockResolvedValue([])
 })
 
 describe('GroupCard', () => {
