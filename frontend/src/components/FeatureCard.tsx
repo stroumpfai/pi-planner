@@ -21,6 +21,41 @@ interface Props {
   readonly onCreateGroup?: (featureId: string, pbiIds: string[]) => void
 }
 
+// Every PI the whole continuation lineage spans (all transitive predecessors and
+// successors, not just the direct neighbours), minus the PI currently being viewed,
+// in chronological order (oldest predecessor first, successors last).
+function lineagePIs(feature: Feature, allFeatures: readonly Feature[]): string[] {
+  const byId = new Map(allFeatures.map((f) => [f.system_id, f]))
+  const ancestors: Feature[] = []
+  for (
+    let cur = feature.continued_from_feature_id ? byId.get(feature.continued_from_feature_id) : undefined;
+    cur && !ancestors.includes(cur);
+    cur = cur.continued_from_feature_id ? byId.get(cur.continued_from_feature_id) : undefined
+  ) {
+    ancestors.push(cur)
+  }
+  ancestors.reverse()
+
+  const descendants: Feature[] = []
+  const queue = allFeatures.filter((f) => f.continued_from_feature_id === feature.system_id)
+  while (queue.length > 0) {
+    const node = queue.shift()!
+    if (descendants.some((d) => d.system_id === node.system_id)) continue
+    descendants.push(node)
+    queue.push(...allFeatures.filter((f) => f.continued_from_feature_id === node.system_id))
+  }
+
+  const relatedPIs: string[] = []
+  const seen = new Set<string>(feature.pi_id ? [feature.pi_id] : [])
+  for (const f of [...ancestors, ...descendants]) {
+    if (f.pi_id && !seen.has(f.pi_id)) {
+      seen.add(f.pi_id)
+      relatedPIs.push(f.pi_id)
+    }
+  }
+  return relatedPIs
+}
+
 export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
   const [expanded, setExpanded] = useState(false)
   const [selectedPbiIds, setSelectedPbiIds] = useState<Set<string>>(new Set())
@@ -42,6 +77,7 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
   const continuedFrom = allFeatures.find((f) => f.system_id === feature.continued_from_feature_id)
   const continuations = allFeatures.filter((f) => f.continued_from_feature_id === feature.system_id)
   const piName = (piId: string | null) => pis.find((p) => p.system_id === piId)?.name ?? 'another PI'
+  const relatedPIs = lineagePIs(feature, allFeatures)
   // A continuation can be cancelled only when it is a leaf (not split further downstream).
   const canCancelContinuation = isEditing && !!continuedFrom && continuations.length === 0
 
@@ -122,44 +158,33 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
         )}
       </div>
 
-      {/* Continuation lineage badges */}
-      {(continuedFrom || continuations.length > 0) && (
-        <div className="px-3 pb-1 space-y-0.5">
-          {continuedFrom && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); if (continuedFrom.pi_id) setActivePI(continuedFrom.pi_id) }}
-              title={`Jump to ${piName(continuedFrom.pi_id)}`}
-              className="block text-xs text-gray-400 dark:text-gray-500 hover:text-blue-500 hover:underline"
-            >
-              ↩ continued from {piName(continuedFrom.pi_id)}
-            </button>
-          )}
+      {/* Continuation lineage — this feature's work also lives in these PIs */}
+      {relatedPIs.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-1 px-3 pb-1 text-xs text-gray-400 dark:text-gray-500">
+          <span>⟲ also in</span>
+          {relatedPIs.map((piId, idx) => (
+            <span key={piId} className="flex items-center gap-x-1">
+              {idx > 0 && <span aria-hidden>/</span>}
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); setActivePI(piId) }}
+                title={`Jump to ${piName(piId)}`}
+                className="hover:text-blue-500 hover:underline"
+              >
+                {piName(piId)}
+              </button>
+            </span>
+          ))}
           {canCancelContinuation && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); setCancelConfirmOpen(true) }}
               disabled={cancelContinuation.isPending}
               title="Move these PBIs back to the origin feature and remove this continuation"
-              className="block text-xs text-gray-400 dark:text-gray-500 hover:text-red-500 hover:underline disabled:cursor-not-allowed"
+              className="ml-1 hover:text-red-500 hover:underline disabled:cursor-not-allowed"
             >
-              ✕ cancel continuation
+              ✕ cancel
             </button>
-          )}
-          {continuations.length === 1 && (
-            <button
-              type="button"
-              onClick={(e) => { e.stopPropagation(); if (continuations[0].pi_id) setActivePI(continuations[0].pi_id) }}
-              title={`Jump to ${piName(continuations[0].pi_id)}`}
-              className="block text-xs text-gray-400 dark:text-gray-500 hover:text-blue-500 hover:underline"
-            >
-              → continued in {piName(continuations[0].pi_id)}
-            </button>
-          )}
-          {continuations.length > 1 && (
-            <span className="block text-xs text-gray-400 dark:text-gray-500">
-              → continued in {continuations.length} PIs
-            </span>
           )}
         </div>
       )}

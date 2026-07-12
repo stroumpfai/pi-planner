@@ -46,6 +46,7 @@ const continuationFeature: Feature = {
 const PIS = [
   { system_id: 'pi-1', project_id: 'p-1', name: 'PI 1', description: null, state: 'in_progress', start_date: null, end_date: null, created_at: '', modified_at: '', total_effort: 0, total_capacity: 0 },
   { system_id: 'pi-2', project_id: 'p-1', name: 'PI 2', description: null, state: 'draft', start_date: null, end_date: null, created_at: '', modified_at: '', total_effort: 0, total_capacity: 0 },
+  { system_id: 'pi-3', project_id: 'p-1', name: 'PI 3', description: null, state: 'draft', start_date: null, end_date: null, created_at: '', modified_at: '', total_effort: 0, total_capacity: 0 },
 ]
 
 function mockCommonHooks(allFeatures: Feature[]) {
@@ -81,33 +82,46 @@ describe('FeatureCard continuation badges', () => {
   it('shows no badge when the feature has no continuation link', () => {
     mockCommonHooks([baseFeature])
     renderWithDnd(<FeatureCard feature={baseFeature} projectId="p-1" />)
-    expect(screen.queryByText(/continued/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/also in/i)).not.toBeInTheDocument()
   })
 
-  it('shows a "continued from" badge on the continuation feature', () => {
+  it('lists the predecessor PI on the continuation feature', () => {
     mockCommonHooks([baseFeature, continuationFeature])
     renderWithDnd(<FeatureCard feature={continuationFeature} projectId="p-1" />)
-    expect(screen.getByText(/continued from PI 1/i)).toBeInTheDocument()
+    expect(screen.getByText(/also in/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PI 1' })).toBeInTheDocument()
   })
 
-  it('shows a "continued in" badge on the original feature', () => {
+  it('lists the successor PI on the original feature', () => {
     mockCommonHooks([baseFeature, continuationFeature])
     renderWithDnd(<FeatureCard feature={baseFeature} projectId="p-1" />)
-    expect(screen.getByText(/continued in PI 2/i)).toBeInTheDocument()
+    expect(screen.getByText(/also in/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PI 2' })).toBeInTheDocument()
   })
 
-  it('jumps to the linked PI when a badge is clicked', async () => {
+  it('jumps to the linked PI when a PI is clicked', async () => {
     mockCommonHooks([baseFeature, continuationFeature])
     renderWithDnd(<FeatureCard feature={baseFeature} projectId="p-1" />)
-    screen.getByText(/continued in PI 2/i).click()
+    screen.getByRole('button', { name: 'PI 2' }).click()
     expect(useUiStore.getState().activePIId).toBe('pi-2')
   })
 
-  it('summarizes multiple continuations instead of picking one', () => {
-    const secondContinuation: Feature = { ...continuationFeature, system_id: 'f-3', pi_id: 'pi-2' }
+  it('lists each continuation PI as its own link', () => {
+    const secondContinuation: Feature = { ...continuationFeature, system_id: 'f-3', pi_id: 'pi-3' }
     mockCommonHooks([baseFeature, continuationFeature, secondContinuation])
     renderWithDnd(<FeatureCard feature={baseFeature} projectId="p-1" />)
-    expect(screen.getByText(/continued in 2 PIs/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PI 2' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PI 3' })).toBeInTheDocument()
+  })
+
+  it('lists the whole chain (both directions) except the PI being viewed', () => {
+    // A(pi-1) → B(pi-2) → C(pi-3); rendering the middle feature B.
+    const chainEnd: Feature = { ...baseFeature, system_id: 'f-3', pi_id: 'pi-3', continued_from_feature_id: 'f-2' }
+    mockCommonHooks([baseFeature, continuationFeature, chainEnd])
+    renderWithDnd(<FeatureCard feature={continuationFeature} projectId="p-1" />)
+    expect(screen.getByRole('button', { name: 'PI 1' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'PI 3' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'PI 2' })).not.toBeInTheDocument()
   })
 })
 
@@ -118,27 +132,27 @@ describe('FeatureCard cancel-continuation action', () => {
     mockCommonHooks([baseFeature, continuationFeature])
     useAuthStore.setState({ user: null, isEditing: true })
     renderWithDnd(<FeatureCard feature={continuationFeature} projectId="p-1" />)
-    expect(screen.getByText('✕ cancel continuation')).toBeInTheDocument()
+    expect(screen.getByText('✕ cancel')).toBeInTheDocument()
   })
 
   it('hides cancel when not editing', () => {
     mockCommonHooks([baseFeature, continuationFeature])
     renderWithDnd(<FeatureCard feature={continuationFeature} projectId="p-1" />)
-    expect(screen.queryByText('✕ cancel continuation')).not.toBeInTheDocument()
+    expect(screen.queryByText('✕ cancel')).not.toBeInTheDocument()
   })
 
   it('hides cancel on a non-leaf continuation (split further downstream)', () => {
     mockCommonHooks([baseFeature, continuationFeature, grandchild])
     useAuthStore.setState({ user: null, isEditing: true })
     renderWithDnd(<FeatureCard feature={continuationFeature} projectId="p-1" />)
-    expect(screen.queryByText('✕ cancel continuation')).not.toBeInTheDocument()
+    expect(screen.queryByText('✕ cancel')).not.toBeInTheDocument()
   })
 
   it('confirming calls the cancel mutation with the feature id', () => {
     mockCommonHooks([baseFeature, continuationFeature])
     useAuthStore.setState({ user: null, isEditing: true })
     renderWithDnd(<FeatureCard feature={continuationFeature} projectId="p-1" />)
-    fireEvent.click(screen.getByText('✕ cancel continuation'))
+    fireEvent.click(screen.getByText('✕ cancel'))
     fireEvent.click(screen.getByRole('button', { name: 'Cancel continuation' }))
     expect(cancelMutate).toHaveBeenCalledWith('f-2', expect.anything())
   })
