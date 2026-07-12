@@ -8,6 +8,7 @@ import { useSettingsStore } from '@/stores/settingsStore'
 import { useFeatures } from '@/hooks/useFeatures'
 import { getFeatureColorIdx, lineageRootId, FEATURE_BORDER_COLORS, FEATURE_CHIP_CLASSES } from '@/utils/featureColors'
 import { pbisApi } from '@/services/pbis'
+import { PBIFormModal } from './PBIFormModal'
 import type { Group, PBI } from '@/types'
 
 export interface GroupDragData {
@@ -25,56 +26,11 @@ interface Props {
 
 const SPRINT_LABELS = ['S1', 'S2', 'S3', 'S4', 'S5']
 
-function InlinePBITitle({ pbi, projectId }: { readonly pbi: PBI; readonly projectId: string }) {
+export function GroupCard({ group, projectId, featureTitle }: Props) {
   const isEditing = useAuthStore((s) => s.isEditing)
   const showIds = useSettingsStore((s) => s.showIds)
   const updatePBI = useUpdatePBI(projectId)
-  const [editing, setEditing] = useState(false)
-  const [title, setTitle] = useState('')
-
-  function start() {
-    if (!isEditing) return
-    setTitle(pbi.title)
-    setEditing(true)
-  }
-
-  function submit() {
-    const trimmed = title.trim()
-    if (trimmed && trimmed !== pbi.title) {
-      updatePBI.mutate({ pbiId: pbi.system_id, body: { title: trimmed } })
-    }
-    setEditing(false)
-  }
-
-  if (editing) {
-    return (
-      <input
-        autoFocus
-        value={title}
-        onChange={(e) => setTitle(e.target.value)}
-        onKeyDown={(e) => { if (e.key === 'Enter') { submit() } else if (e.key === 'Escape') { setEditing(false) } }}
-        onBlur={submit}
-        className="flex-1 text-xs border border-blue-300 rounded px-1 py-0.5 focus:outline-none w-full"
-      />
-    )
-  }
-
-  return (
-    <button
-      type="button"
-      onClick={start}
-      disabled={!isEditing}
-      title={isEditing ? 'Click to edit' : undefined}
-      className="text-xs text-gray-600 dark:text-gray-300 break-words text-left disabled:cursor-default hover:enabled:text-gray-900 dark:hover:enabled:text-gray-100 flex-1 min-w-0"
-    >
-      {showIds && pbi.id != null && <span className="font-mono text-gray-400 dark:text-gray-500">[{pbi.id}] </span>}
-      {pbi.title}
-    </button>
-  )
-}
-
-export function GroupCard({ group, projectId, featureTitle }: Props) {
-  const isEditing = useAuthStore((s) => s.isEditing)
+  const [editingPbi, setEditingPbi] = useState<PBI | null>(null)
   const effortUnit = useEffortUnit(projectId)
   const showEffortUnit = useSettingsStore((s) => s.showEffortUnit)
   const showFeatureNameInCard = useSettingsStore((s) => s.showFeatureNameInCard)
@@ -193,9 +149,21 @@ export function GroupCard({ group, projectId, featureTitle }: Props) {
                     Bug
                   </span>
                 )}
-                <InlinePBITitle pbi={pbi} projectId={projectId} />
+                <span className="text-xs text-gray-600 dark:text-gray-300 break-words flex-1 min-w-0">
+                  {showIds && pbi.id != null && <span className="font-mono text-gray-400 dark:text-gray-500">[{pbi.id}] </span>}
+                  {pbi.title}
+                </span>
+                {isEditing && (
+                  <button
+                    type="button"
+                    onClick={() => setEditingPbi(pbi)}
+                    aria-label="Edit"
+                    title="Edit"
+                    className="flex-shrink-0 text-xs text-gray-400 hover:text-blue-600"
+                  >✎</button>
+                )}
                 {effortLabel && (
-                  <span className="ml-auto flex-shrink-0 text-xs font-mono bg-band text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded-full">
+                  <span className="flex-shrink-0 text-xs font-mono bg-band text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded-full">
                     {effortLabel}
                   </span>
                 )}
@@ -229,6 +197,13 @@ export function GroupCard({ group, projectId, featureTitle }: Props) {
           </button>
         </div>
       )}
+
+      <PBIFormModal
+        open={!!editingPbi}
+        pbi={editingPbi ?? undefined}
+        onClose={() => setEditingPbi(null)}
+        onSubmit={(values) => updatePBI.mutateAsync({ pbiId: editingPbi!.system_id, body: values })}
+      />
     </div>
   )
 }

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DndContext } from '@dnd-kit/core'
 import { PBISelectList } from '../PBISelectList'
+import { useAuthStore } from '@/stores/authStore'
 import * as pbisService from '@/services/pbis'
 import type { PBI } from '@/types'
 
@@ -43,6 +44,7 @@ const defaultProps = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  useAuthStore.setState({ user: null, isEditing: false })
 })
 
 describe('PBISelectList', () => {
@@ -101,5 +103,21 @@ describe('PBISelectList', () => {
     render(<PBISelectList {...defaultProps} />, { wrapper: makeWrapper() })
     await waitFor(() => screen.getByText('Login form'))
     expect(screen.queryByText(/^\d+pts?$/)).not.toBeInTheDocument()
+  })
+
+  it('Edit button opens the PBI edit modal in edit mode', async () => {
+    useAuthStore.setState({ isEditing: true })
+    mockApi.list = vi.fn().mockResolvedValue([makePBI()])
+    render(<PBISelectList {...defaultProps} />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByText('Login form'))
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
+    expect(await screen.findByRole('dialog')).toBeInTheDocument()
+  })
+
+  it('Edit pen is not shown when not in edit mode', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([makePBI()])
+    render(<PBISelectList {...defaultProps} />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByText('Login form'))
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
   })
 })

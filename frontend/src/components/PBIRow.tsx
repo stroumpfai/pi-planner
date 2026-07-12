@@ -25,27 +25,11 @@ interface Props {
 
 export function PBIRow({ pbi, projectId, swimlaneId = '', isDraggable = false }: Props) {
   const [editing, setEditing] = useState(false)
-  const [editingTitle, setEditingTitle] = useState(false)
-  const [titleDraft, setTitleDraft] = useState('')
   const [confirming, setConfirming] = useState(false)
   const isEditing = useAuthStore((s) => s.isEditing)
   const effortUnit = useEffortUnit(projectId)
   const showIds = useSettingsStore((s) => s.showIds)
   const showEffortUnit = useSettingsStore((s) => s.showEffortUnit)
-
-  function startTitleEdit() {
-    if (!isEditing) return
-    setTitleDraft(pbi.title)
-    setEditingTitle(true)
-  }
-
-  function submitTitle() {
-    const trimmed = titleDraft.trim()
-    if (trimmed && trimmed !== pbi.title) {
-      updatePBI.mutate({ pbiId: pbi.system_id, body: { title: trimmed } })
-    }
-    setEditingTitle(false)
-  }
 
   const updatePBI = useUpdatePBI(projectId)
   const deletePBI = useDeletePBI(projectId)
@@ -87,27 +71,10 @@ export function PBIRow({ pbi, projectId, swimlaneId = '', isDraggable = false }:
         : <span className="text-gray-300 dark:text-gray-600 text-xs w-3 shrink-0">○</span>
       }
 
-      {editingTitle ? (
-        <input
-          autoFocus
-          value={titleDraft}
-          onChange={(e) => setTitleDraft(e.target.value)}
-          onKeyDown={(e) => { if (e.key === 'Enter') { submitTitle() } else if (e.key === 'Escape') { setEditingTitle(false) } }}
-          onBlur={submitTitle}
-          className="flex-1 text-sm border border-blue-300 dark:border-blue-600 rounded px-1 py-0.5 focus:outline-none dark:bg-gray-700 dark:text-gray-100"
-        />
-      ) : (
-        <button
-          type="button"
-          onClick={startTitleEdit}
-          disabled={!isEditing}
-          title={isEditing ? 'Click to edit title' : undefined}
-          className="flex-1 text-sm text-gray-700 dark:text-gray-200 truncate text-left disabled:cursor-default hover:enabled:text-gray-900 dark:hover:enabled:text-gray-100"
-        >
-          {displayId && <span className="font-mono text-gray-400 dark:text-gray-500 text-xs">{displayId}</span>}
-          {pbi.title}
-        </button>
-      )}
+      <span className="flex-1 text-sm text-gray-700 dark:text-gray-200 truncate">
+        {displayId && <span className="font-mono text-gray-400 dark:text-gray-500 text-xs">{displayId}</span>}
+        {pbi.title}
+      </span>
 
       {isBug && (
         <span className="text-xs font-medium bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 px-1.5 py-0.5 rounded shrink-0">

@@ -1,7 +1,10 @@
+import { useState } from 'react'
 import { useDraggable } from '@dnd-kit/core'
-import { usePBIs } from '@/hooks/usePBIs'
+import { usePBIs, useUpdatePBI } from '@/hooks/usePBIs'
 import { useEffortUnit } from '@/hooks/useProjects'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { useAuthStore } from '@/stores/authStore'
+import { PBIFormModal } from './PBIFormModal'
 import type { PBI } from '@/types'
 import type { PBIDragData } from './PBIRow'
 
@@ -25,6 +28,9 @@ function PBISelectRow({ pbi, projectId, selected, onToggle, swimlaneId, canDragT
   const showIds = useSettingsStore((s) => s.showIds)
   const showEffortUnit = useSettingsStore((s) => s.showEffortUnit)
   const effortUnit = useEffortUnit(projectId)
+  const isEditing = useAuthStore((s) => s.isEditing)
+  const updatePBI = useUpdatePBI(projectId)
+  const [editing, setEditing] = useState(false)
   const displayId = showIds && pbi.id != null ? `[${pbi.id}] ` : ''
   const isGrouped = pbi.group_id != null
   const isBug = pbi.item_type === 'bug'
@@ -75,15 +81,30 @@ function PBISelectRow({ pbi, projectId, selected, onToggle, swimlaneId, canDragT
           {displayId && <span className="font-mono text-gray-400">{displayId}</span>}
           {pbi.title}
         </span>
-        {effortLabel && (
-          <span className="ml-auto flex-shrink-0 text-xs font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
-            {effortLabel}
-          </span>
-        )}
-        {isGrouped && (
-          <span className="flex-shrink-0 text-xs text-gray-400 italic">grouped</span>
-        )}
       </label>
+      {isEditing && (
+        <button
+          type="button"
+          onClick={() => setEditing(true)}
+          aria-label="Edit"
+          title="Edit"
+          className="flex-shrink-0 text-xs text-gray-400 hover:text-blue-600"
+        >✎</button>
+      )}
+      {effortLabel && (
+        <span className="flex-shrink-0 text-xs font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
+          {effortLabel}
+        </span>
+      )}
+      {isGrouped && (
+        <span className="flex-shrink-0 text-xs text-gray-400 italic">grouped</span>
+      )}
+      <PBIFormModal
+        open={editing}
+        pbi={pbi}
+        onClose={() => setEditing(false)}
+        onSubmit={(values) => updatePBI.mutateAsync({ pbiId: pbi.system_id, body: values })}
+      />
     </div>
   )
 }

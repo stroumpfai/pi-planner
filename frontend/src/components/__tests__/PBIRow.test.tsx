@@ -71,31 +71,12 @@ describe('PBIRow', () => {
     expect(screen.getByRole('button', { name: /delete/i })).not.toBeDisabled()
   })
 
-  it('clicking title in edit mode starts inline editing and shows input', async () => {
+  it('title is plain text, not a click-to-edit control', async () => {
     useAuthStore.setState({ isEditing: true })
     render(<PBIRow pbi={basePBI} projectId="proj-1" />, { wrapper: makeWrapper() })
-    await userEvent.click(screen.getByRole('button', { name: 'Login UI' }))
-    expect(screen.getByRole('textbox')).toBeInTheDocument()
-  })
-
-  it('typing in inline title and pressing Enter calls update mutation', async () => {
-    useAuthStore.setState({ isEditing: true })
-    render(<PBIRow pbi={basePBI} projectId="proj-1" />, { wrapper: makeWrapper() })
-    await userEvent.click(screen.getByRole('button', { name: 'Login UI' }))
-    const input = screen.getByRole('textbox')
-    await userEvent.clear(input)
-    await userEvent.type(input, 'New Title{Enter}')
-    expect(vi.mocked(pbisService.pbisApi.update)).toHaveBeenCalledWith(
-      'p-1',
-      { title: 'New Title' },
-    )
-  })
-
-  it('pressing Escape on inline title input cancels editing', async () => {
-    useAuthStore.setState({ isEditing: true })
-    render(<PBIRow pbi={basePBI} projectId="proj-1" />, { wrapper: makeWrapper() })
-    await userEvent.click(screen.getByRole('button', { name: 'Login UI' }))
-    await userEvent.keyboard('{Escape}')
+    // The title is no longer a button/input — clicking it does nothing.
+    expect(screen.queryByRole('button', { name: 'Login UI' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByText('Login UI'))
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
 

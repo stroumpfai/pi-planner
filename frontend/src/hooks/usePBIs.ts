@@ -13,16 +13,23 @@ export const usePBIs = (projectId: string, featureId?: string) =>
     enabled: !!projectId,
   })
 
-function invalidatePBIAndFeatures(qc: ReturnType<typeof useQueryClient>, projectId: string): void {
+// A PBI change (effort, grouping, placement) affects server-computed effort
+// rollups shown in the sprint columns, swimlane totals and PI totals, so
+// invalidate those queries too — mirroring the feature-move invalidation set.
+function invalidatePBIRelated(qc: ReturnType<typeof useQueryClient>, projectId: string): void {
   qc.invalidateQueries({ queryKey: prefix(projectId) })
   qc.invalidateQueries({ queryKey: ['features', projectId] })
+  qc.invalidateQueries({ queryKey: ['groups'] })
+  qc.invalidateQueries({ queryKey: ['sprints'] })
+  qc.invalidateQueries({ queryKey: ['swimlines'] })
+  qc.invalidateQueries({ queryKey: ['pis'] })
 }
 
 export const useCreatePBI = (projectId: string) => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (body: PBICreate) => pbisApi.create(projectId, body),
-    onSuccess: () => invalidatePBIAndFeatures(qc, projectId),
+    onSuccess: () => invalidatePBIRelated(qc, projectId),
   })
 }
 
@@ -31,7 +38,7 @@ export const useUpdatePBI = (projectId: string) => {
   return useMutation({
     mutationFn: ({ pbiId, body }: { pbiId: string; body: PBIUpdate }) =>
       pbisApi.update(pbiId, body),
-    onSuccess: () => invalidatePBIAndFeatures(qc, projectId),
+    onSuccess: () => invalidatePBIRelated(qc, projectId),
   })
 }
 
@@ -39,6 +46,6 @@ export const useDeletePBI = (projectId: string) => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (pbiId: string) => pbisApi.delete(pbiId),
-    onSuccess: () => invalidatePBIAndFeatures(qc, projectId),
+    onSuccess: () => invalidatePBIRelated(qc, projectId),
   })
 }

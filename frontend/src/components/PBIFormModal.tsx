@@ -30,9 +30,19 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', onClose, onSubm
         : { item_type: defaultType },
     })
 
+  // Reseed the form each time the modal opens so it reflects the current PBI
+  // (the shared modal in GroupCard swaps which PBI it edits without remounting).
   useEffect(() => {
-    if (open && !isEdit) reset({ item_type: defaultType })
-  }, [open, defaultType, isEdit, reset])
+    if (!open) return
+    reset(
+      pbi
+        ? { title: pbi.title, description: pbi.description ?? undefined, effort: pbi.effort, id: pbi.id, item_type: pbi.item_type ?? 'story' }
+        : { item_type: defaultType },
+    )
+    // Keyed to pbi identity (not the object) so a background refetch while the
+    // modal is open doesn't wipe in-progress edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, pbi?.system_id, defaultType, reset])
 
   const itemType = watch('item_type')
   const effortValue = watch('effort')

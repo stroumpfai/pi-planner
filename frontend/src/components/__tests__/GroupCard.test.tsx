@@ -1,5 +1,5 @@
 import { vi } from 'vitest'
-import { render, screen, waitFor, fireEvent } from '@testing-library/react'
+import { render, screen, waitFor, fireEvent, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DndContext } from '@dnd-kit/core'
@@ -155,24 +155,37 @@ describe('GroupCard', () => {
     expect(groupsService.groupsApi.update).toHaveBeenCalledWith('g-1', { name: 'Renamed' })
   })
 
-  it('clicking PBI title in edit mode starts inline editing', async () => {
+  it('PBI title is plain text, not a click-to-edit control', async () => {
     vi.mocked(pbisService.pbisApi).list = vi.fn().mockResolvedValue([makePBI()])
     useAuthStore.setState({ isEditing: true })
     render(<GroupCard group={makeGroup()} projectId="p-1" />, { wrapper: makeWrapper() })
     await waitFor(() => screen.getByText('Login flow'))
-    // fireEvent avoids dnd-kit pointer listener interference inside the drag handle
+    // Title is no longer a button; clicking it must not open an inline input.
+    expect(screen.queryByRole('button', { name: 'Login flow' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByText('Login flow'))
-    expect(await screen.findByRole('textbox')).toBeInTheDocument()
+    expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
 
-  it('pressing Enter on inline PBI title calls submit and closes the input', async () => {
-    vi.mocked(pbisService.pbisApi).list = vi.fn().mockResolvedValue([makePBI()])
+  it('per-PBI Edit button opens the edit modal prefilled with the PBI values', async () => {
+    vi.mocked(pbisService.pbisApi).list = vi.fn().mockResolvedValue([
+      makePBI({ system_id: 'pbi-1', title: 'First', effort: 1 }),
+      makePBI({ system_id: 'pbi-2', title: 'Second', effort: 8 }),
+    ])
     useAuthStore.setState({ isEditing: true })
     render(<GroupCard group={makeGroup()} projectId="p-1" />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByText('Second'))
+
+    // The shared modal must reseed from whichever PBI's Edit button was clicked.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[1])
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByLabelText(/title/i)).toHaveValue('Second')
+  })
+
+  it('per-PBI Edit pen is not shown when not in edit mode', async () => {
+    vi.mocked(pbisService.pbisApi).list = vi.fn().mockResolvedValue([makePBI()])
+    useAuthStore.setState({ isEditing: false })
+    render(<GroupCard group={makeGroup()} projectId="p-1" />, { wrapper: makeWrapper() })
     await waitFor(() => screen.getByText('Login flow'))
-    fireEvent.click(screen.getByText('Login flow'))
-    const input = await screen.findByRole('textbox')
-    await userEvent.type(input, '{Enter}')
-    await waitFor(() => expect(screen.queryByRole('textbox')).not.toBeInTheDocument())
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
   })
 })
