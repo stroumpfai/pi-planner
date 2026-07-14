@@ -143,30 +143,41 @@ export function GroupCard({ group, projectId, featureTitle }: Props) {
             const unitSuffix = showEffortUnit ? effortUnit : ''
             const effortLabel = pbi.effort == null ? null : `${pbi.effort}${unitSuffix}`
             return (
-              <li key={pbi.system_id} className="flex items-center gap-2 min-w-0">
-                {isBug && (
-                  <span className="flex-shrink-0 text-xs font-medium bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 px-1.5 rounded">
-                    Bug
+              <li key={pbi.system_id} className="grid grid-cols-[minmax(0,1fr)_16px_40px] items-center gap-1">
+                {/* 1. Text (Bug badge + title) */}
+                <span className="flex items-center gap-1 min-w-0">
+                  {isBug && (
+                    <span className="shrink-0 text-xs font-medium bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 px-1.5 rounded">
+                      Bug
+                    </span>
+                  )}
+                  <span className="line-clamp-2 text-xs text-gray-600 dark:text-gray-300" title={pbi.title}>
+                    {showIds && pbi.id != null && <span className="font-mono text-gray-400 dark:text-gray-500">[{pbi.id}] </span>}
+                    {pbi.title}
                   </span>
-                )}
-                <span className="text-xs text-gray-600 dark:text-gray-300 break-words flex-1 min-w-0">
-                  {showIds && pbi.id != null && <span className="font-mono text-gray-400 dark:text-gray-500">[{pbi.id}] </span>}
-                  {pbi.title}
                 </span>
-                {isEditing && (
-                  <button
-                    type="button"
-                    onClick={() => setEditingPbi(pbi)}
-                    aria-label="Edit"
-                    title="Edit"
-                    className="flex-shrink-0 text-xs text-gray-400 hover:text-blue-600"
-                  >✎</button>
-                )}
-                {effortLabel && (
-                  <span className="flex-shrink-0 text-xs font-mono bg-band text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded-full">
-                    {effortLabel}
-                  </span>
-                )}
+
+                {/* 2. Edit button */}
+                <div className="flex items-center justify-center">
+                  {isEditing && (
+                    <button
+                      type="button"
+                      onClick={() => setEditingPbi(pbi)}
+                      aria-label="Edit"
+                      title="Edit"
+                      className="text-xs text-gray-400 hover:text-blue-600"
+                    >✎</button>
+                  )}
+                </div>
+
+                {/* 3. Effort badge */}
+                <div className="flex items-center justify-center">
+                  {effortLabel && (
+                    <span className="text-xs font-mono bg-band text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded-full whitespace-nowrap">
+                      {effortLabel}
+                    </span>
+                  )}
+                </div>
               </li>
             )
           })}

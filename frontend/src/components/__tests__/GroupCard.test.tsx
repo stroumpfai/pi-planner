@@ -104,6 +104,15 @@ describe('GroupCard', () => {
     await waitFor(() => expect(screen.getByText('Login flow')).toBeInTheDocument())
   })
 
+  it('clamps long PBI titles to two lines with a full-text tooltip', async () => {
+    const longTitle = 'A very long product backlog item title that should wrap onto two lines and then be truncated'
+    vi.mocked(pbisService.pbisApi).list = vi.fn().mockResolvedValue([makePBI({ title: longTitle })])
+    render(<GroupCard group={makeGroup()} projectId="p-1" />, { wrapper: makeWrapper() })
+    const title = await screen.findByText(longTitle)
+    expect(title.className).toContain('line-clamp-2')
+    expect(title).toHaveAttribute('title', longTitle)
+  })
+
   it('sprint selector shows correct sprint in edit mode', async () => {
     vi.mocked(pbisService.pbisApi).list = vi.fn().mockResolvedValue([])
     useAuthStore.setState({ isEditing: true })
