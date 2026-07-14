@@ -94,7 +94,7 @@ describe('PBISelectList', () => {
     mockApi.list = vi.fn().mockResolvedValue([makePBI({ effort: 5 })])
     render(<PBISelectList {...defaultProps} />, { wrapper: makeWrapper() })
     const badge = await screen.findByText('5pts')
-    expect(badge.className).toContain('bg-gray-100')
+    expect(badge.className).toContain('bg-band')
     expect(badge.className).toContain('text-gray-500')
   })
 

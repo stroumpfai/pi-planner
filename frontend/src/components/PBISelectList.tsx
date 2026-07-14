@@ -51,7 +51,7 @@ function PBISelectRow({ pbi, projectId, selected, onToggle, swimlaneId, canDragT
   })
 
   return (
-    <div ref={setNodeRef} className={`grid grid-cols-[16px_18px_minmax(0,1fr)_16px_16px_40px] items-center px-2 py-1 rounded hover:bg-gray-50${isDragging ? ' opacity-40' : ''}`}>
+    <div ref={setNodeRef} className={`grid grid-cols-[16px_18px_minmax(0,1fr)_16px_40px] items-center pl-2 pr-1 py-1 rounded hover:bg-gray-50${isDragging ? ' opacity-40' : ''}`}>
       {/* 1. Drag handle */}
       <div className="flex items-center justify-center mr-2">
         {draggable && (
@@ -92,14 +92,7 @@ function PBISelectRow({ pbi, projectId, selected, onToggle, swimlaneId, canDragT
         </span>
       </label>
 
-      {/* 4. Group icon */}
-      <div className="flex items-center justify-center">
-        {isGrouped && (
-          <span className="text-xs text-gray-400 flex-shrink-0" title="grouped" aria-label="grouped">⧉</span>
-        )}
-      </div>
-
-      {/* 5. Edit button */}
+      {/* 4. Edit button */}
       <div className="flex items-center justify-center">
         {isEditing && (
           <button
@@ -112,10 +105,10 @@ function PBISelectRow({ pbi, projectId, selected, onToggle, swimlaneId, canDragT
         )}
       </div>
 
-      {/* 6. Effort badge */}
+      {/* 5. Effort badge */}
       <div className="flex items-center justify-center">
         {effortLabel && (
-          <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded whitespace-nowrap flex-shrink-0">
+          <span className="text-xs font-mono bg-band text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded-full whitespace-nowrap flex-shrink-0">
             {effortLabel}
           </span>
         )}
