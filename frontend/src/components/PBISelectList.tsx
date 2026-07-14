@@ -51,54 +51,76 @@ function PBISelectRow({ pbi, projectId, selected, onToggle, swimlaneId, canDragT
   })
 
   return (
-    <div ref={setNodeRef} className={`flex items-center gap-2 px-2 py-1 rounded hover:bg-gray-50${isDragging ? ' opacity-40' : ''}`}>
-      {draggable && (
-        <button
-          type="button"
-          {...attributes}
-          {...listeners}
-          className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing text-xs w-3 shrink-0 select-none"
-          title="Drag to sprint"
-        >⠿</button>
-      )}
-      <label className="flex items-center gap-2 cursor-pointer flex-1 min-w-0">
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={onToggle}
-          disabled={isGrouped}
-          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-40"
-        />
-        {isBug && (
-          <span className="flex-shrink-0 text-xs font-medium bg-red-50 text-red-600 border border-red-200 px-1.5 rounded">
-            Bug
-          </span>
+    <div ref={setNodeRef} className={`grid grid-cols-[16px_18px_minmax(0,1fr)_16px_16px_40px] items-center px-2 py-1 rounded hover:bg-gray-50${isDragging ? ' opacity-40' : ''}`}>
+      {/* 1. Drag handle */}
+      <div className="flex items-center justify-center mr-2">
+        {draggable && (
+          <button
+            type="button"
+            {...attributes}
+            {...listeners}
+            className="text-gray-300 hover:text-gray-500 cursor-grab active:cursor-grabbing text-xs w-3 shrink-0 select-none"
+            title="Drag to sprint"
+          >⠿</button>
         )}
-        <span
-          className={`text-xs line-clamp-2 ${isGrouped ? 'text-gray-400' : 'text-gray-700'}`}
-          title={pbi.title}
-        >
-          {displayId && <span className="font-mono text-gray-400">{displayId}</span>}
-          {pbi.title}
+      </div>
+
+      {/* 2. Checkbox + 3. Text (Bug badge + title) */}
+      <label style={{ display: 'contents' }} className="cursor-pointer">
+        <div className="mr-2">
+          <input
+            type="checkbox"
+            checked={selected}
+            onChange={onToggle}
+            disabled={isGrouped}
+            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-40"
+          />
+        </div>
+        <span className="mr-2 flex items-center gap-1 min-w-0">
+          {isBug && (
+            <span className="shrink-0 text-xs font-medium bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-800 px-1.5 rounded">
+              Bug
+            </span>
+          )}
+          <span
+            className={`line-clamp-2 text-xs ${isGrouped ? 'text-gray-400' : 'text-gray-700'}`}
+            title={pbi.title}
+          >
+            {displayId && <span className="font-mono text-gray-400">{displayId}</span>}
+            {pbi.title}
+          </span>
         </span>
       </label>
-      {isEditing && (
-        <button
-          type="button"
-          onClick={() => setEditing(true)}
-          aria-label="Edit"
-          title="Edit"
-          className="flex-shrink-0 text-xs text-gray-400 hover:text-blue-600"
-        >✎</button>
-      )}
-      {effortLabel && (
-        <span className="flex-shrink-0 text-xs font-mono bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded">
-          {effortLabel}
-        </span>
-      )}
-      {isGrouped && (
-        <span className="flex-shrink-0 text-xs text-gray-400 italic">grouped</span>
-      )}
+
+      {/* 4. Group icon */}
+      <div className="flex items-center justify-center">
+        {isGrouped && (
+          <span className="text-xs text-gray-400 flex-shrink-0" title="grouped" aria-label="grouped">⧉</span>
+        )}
+      </div>
+
+      {/* 5. Edit button */}
+      <div className="flex items-center justify-center">
+        {isEditing && (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            aria-label="Edit"
+            title="Edit"
+            className="text-xs text-gray-400 hover:text-blue-600 flex-shrink-0"
+          >✎</button>
+        )}
+      </div>
+
+      {/* 6. Effort badge */}
+      <div className="flex items-center justify-center">
+        {effortLabel && (
+          <span className="text-xs font-mono bg-gray-100 dark:bg-gray-700/60 text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded whitespace-nowrap flex-shrink-0">
+            {effortLabel}
+          </span>
+        )}
+      </div>
+
       <PBIFormModal
         open={editing}
         pbi={pbi}
