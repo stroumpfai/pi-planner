@@ -83,7 +83,7 @@ export function PBIRow({ pbi, projectId, swimlaneId = '', isDraggable = false }:
       )}
 
       {effortLabel && (
-        <span className="text-xs font-mono bg-gray-100 dark:bg-band text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded shrink-0">
+        <span className="text-xs font-mono bg-band text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded-full shrink-0">
           {effortLabel}
         </span>
       )}

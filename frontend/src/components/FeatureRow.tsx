@@ -49,7 +49,7 @@ export function FeatureRow({ feature, projectId }: Props) {
 
         {/* Effort badge */}
         {effortLabel && (
-          <span className="text-xs bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded px-1.5 py-0.5 font-medium shrink-0">
+          <span className="text-xs bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-full shadow-soft-sm px-1.5 py-0.5 font-medium shrink-0">
             {effortLabel}
           </span>
         )}
