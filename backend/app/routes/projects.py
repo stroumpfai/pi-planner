@@ -15,6 +15,7 @@ from app.models.feature import Feature
 from app.models.group import Group
 from app.models.pbi import PBI
 from app.models.pi import PI
+from app.models.pi_event import PIEvent
 from app.models.project import Project
 from app.models.sprint import Sprint
 from app.models.swimline import Swimline
@@ -176,6 +177,8 @@ def _build_id_map(proj_data: dict[str, Any], new_project_id: str) -> dict[str, s
                 id_map[g["system_id"]] = str(uuid4())
         for s in pi.get("sprints", []):
             id_map[s["system_id"]] = str(uuid4())
+        for e in pi.get("events", []):
+            id_map[e["system_id"]] = str(uuid4())
     return id_map
 
 
@@ -217,6 +220,14 @@ def _add_pi_structures(
                 start_date=_opt_date(s.get("start_date")),
                 end_date=_opt_date(s.get("end_date")),
             ))
+        for e in pi.get("events", []):
+            db.add(PIEvent(
+                system_id=id_map[e["system_id"]],
+                pi_id=new_pi_id,
+                name=e["name"],
+                event_date=_opt_date(e.get("event_date")),
+                event_type=e.get("event_type", "other"),
+            ))
 
 
 def _add_features(db: AsyncSession, proj_data: dict[str, Any], new_project_id: str, id_map: dict[str, str]) -> None:
@@ -245,7 +256,7 @@ def _add_groups(db: AsyncSession, proj_data: dict[str, Any], id_map: dict[str, s
                     name=g["name"],
                     sprint_index=g.get("sprint_index"),
                     order_index=g.get("order_index"),
-                    is_implicit=False,
+                    is_implicit=g.get("is_implicit", False),
                 ))
 
 
@@ -259,11 +270,36 @@ def _add_pbis(db: AsyncSession, proj_data: dict[str, Any], new_project_id: str, 
             title=p["title"],
             description=p.get("description"),
             effort=p.get("effort"),
+            item_type=p.get("item_type", "story"),
             location=p.get("location", "backlog"),
             pi_id=_remap(id_map, p.get("pi_id")),
             swimlane_id=_remap(id_map, p.get("swimlane_id")),
             group_id=_remap(id_map, p.get("group_id")),
         ))
+
+
+async def _link_continuations_and_stories(
+    db: AsyncSession, proj_data: dict[str, Any], id_map: dict[str, str]
+) -> None:
+    """Second pass, run after features/groups/PBIs are flushed.
+
+    Sets references that point at rows created in this same import (feature→feature
+    continuation, group→story PBI). Best-effort: a continuation whose origin is absent
+    from the payload is silently dropped (``_remap`` returns ``None``).
+    """
+    for f in proj_data["features"]:
+        if f.get("continued_from_feature_id"):
+            feature = await db.get(Feature, id_map[f["system_id"]])
+            if feature is not None:
+                feature.continued_from_feature_id = _remap(id_map, f["continued_from_feature_id"])
+    for pi in proj_data["pis"]:
+        for sl in pi.get("swimlines", []):
+            for g in sl.get("groups", []):
+                if g.get("story_system_id"):
+                    group = await db.get(Group, id_map[g["system_id"]])
+                    if group is not None:
+                        group.story_system_id = _remap(id_map, g["story_system_id"])
+    await db.flush()
 
 
 @router.post(
@@ -311,6 +347,9 @@ async def import_project(
     await db.flush()
 
     _add_pbis(db, proj_data, new_project_id, id_map)
+    await db.flush()
+
+    await _link_continuations_and_stories(db, proj_data, id_map)
     try:
         await db.commit()
     except IntegrityError:
