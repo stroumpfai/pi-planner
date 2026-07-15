@@ -593,6 +593,59 @@ async def test_import_dangling_group_feature_reference(client: AsyncClient):
     assert resp.json()["detail"]["error"] == "DANGLING_REFERENCE"
 
 
+def _feature(system_id: str, title: str, **overrides) -> dict:
+    return {
+        "system_id": system_id,
+        "id": None,
+        "title": title,
+        "description": None,
+        "effort": 0,
+        "location": "backlog",
+        "pi_id": None,
+        "swimlane_id": None,
+        "continued_from_feature_id": None,
+        "created_at": "2026-01-01T00:00:00+00:00",
+        "modified_at": "2026-01-01T00:00:00+00:00",
+        **overrides,
+    }
+
+
+@pytest.mark.asyncio
+async def test_import_remaps_continuation_link(client: AsyncClient):
+    """A continued_from_feature_id is preserved and remapped to the new origin id."""
+    payload = _make_export_payload("Continuation")
+    payload["project"]["features"] = [
+        _feature("origin-uuid", "Origin"),
+        _feature("cont-uuid", "Continuation", continued_from_feature_id="origin-uuid"),
+    ]
+    resp = await client.post("/api/v1/projects/import", files=[_upload(payload)])
+    assert resp.status_code == 201
+    new_pid = resp.json()["system_id"]
+
+    features = (await client.get(f"/api/v1/projects/{new_pid}/export")).json()["project"]["features"]
+    origin = next(f for f in features if f["title"] == "Origin")
+    cont = next(f for f in features if f["title"] == "Continuation")
+    # Remapped to the imported origin's new id, not the old export id.
+    assert cont["continued_from_feature_id"] == origin["system_id"]
+    assert cont["continued_from_feature_id"] != "origin-uuid"
+    assert origin["continued_from_feature_id"] is None
+
+
+@pytest.mark.asyncio
+async def test_import_drops_dangling_continuation(client: AsyncClient):
+    """A continuation whose origin is absent from the payload imports with the link nulled."""
+    payload = _make_export_payload("Dangling Continuation")
+    payload["project"]["features"] = [
+        _feature("cont-uuid", "Orphan Continuation", continued_from_feature_id="MISSING"),
+    ]
+    resp = await client.post("/api/v1/projects/import", files=[_upload(payload)])
+    assert resp.status_code == 201
+    new_pid = resp.json()["system_id"]
+
+    features = (await client.get(f"/api/v1/projects/{new_pid}/export")).json()["project"]["features"]
+    assert features[0]["continued_from_feature_id"] is None
+
+
 @pytest.mark.asyncio
 async def test_import_file_too_large(client: AsyncClient):
     """File over 10 MB returns 413."""

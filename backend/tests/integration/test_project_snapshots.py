@@ -255,6 +255,95 @@ async def test_restore_snapshot_correctness(client, project, db):
     assert restored_export["effort_unit"] == baseline_export["effort_unit"]
 
 
+async def _seed_continuation(client, pid: str) -> dict:
+    """Split a feature so a continuation feature (continued_from_feature_id) exists.
+
+    Returns origin/continuation feature ids and the moved PBI id.
+    """
+    fid = (await client.post(
+        f"/api/v1/projects/{pid}/features", json={"title": "Origin"}
+    )).json()["system_id"]
+    keep_pbi = (await client.post(
+        f"/api/v1/projects/{pid}/pbis",
+        json={"title": "Keep", "effort": 2, "parent_feature_system_id": fid},
+    )).json()["system_id"]
+    move_pbi = (await client.post(
+        f"/api/v1/projects/{pid}/pbis",
+        json={"title": "Move", "effort": 3, "parent_feature_system_id": fid},
+    )).json()["system_id"]
+
+    pi_id = (await client.post(f"/api/v1/projects/{pid}/pis", json={"name": "PI-1"})).json()["system_id"]
+    sl_id = (await client.post(f"/api/v1/pis/{pi_id}/swimlines", json={"name": "Lane"})).json()["system_id"]
+    # Move origin feature into the PI (required before a split is allowed).
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": sl_id})
+
+    cont = (await client.post(
+        f"/api/v1/features/{fid}/split",
+        json={"target_pi_id": pi_id, "target_swimline_id": sl_id, "pbi_ids": [move_pbi]},
+    )).json()
+    return {
+        "origin_id": fid,
+        "continuation_id": cont["system_id"],
+        "moved_pbi_id": move_pbi,
+        "kept_pbi_id": keep_pbi,
+        "pi_id": pi_id,
+    }
+
+
+@pytest.mark.asyncio
+async def test_restore_preserves_continuation_and_adjacent_fields(client, project, db):
+    """Continuation link, PI events, and item_type survive a snapshot round-trip."""
+    pid = project["system_id"]
+    seeded = await _seed_continuation(client, pid)
+
+    # A PI event and a bug-typed PBI so we cover the other newly-preserved fields.
+    await client.post(
+        f"/api/v1/pis/{seeded['pi_id']}/events",
+        json={"name": "Release", "event_date": "2026-03-01", "event_type": "release"},
+    )
+    bug_id = (await client.post(
+        f"/api/v1/projects/{pid}/pbis",
+        json={"title": "A bug", "effort": 1, "parent_feature_system_id": seeded["origin_id"], "item_type": "bug"},
+    )).json()["system_id"]
+
+    snap = (await client.post(_snapshots_url(pid), json={"name": "Baseline"})).json()
+
+    # Mutate: cancel the continuation and delete the bug, then restore.
+    await client.post(f"/api/v1/features/{seeded['continuation_id']}/cancel-continuation")
+    await client.delete(f"/api/v1/pbis/{bug_id}")
+
+    resp = await client.post(f"{_snapshots_url(pid)}{snap['system_id']}/restore")
+    assert resp.status_code == 200
+
+    export = (await client.get(f"/api/v1/projects/{pid}/export")).json()["project"]
+
+    # Continuation link preserved (original system_ids kept on restore).
+    cont = next(f for f in export["features"] if f["system_id"] == seeded["continuation_id"])
+    assert cont["continued_from_feature_id"] == seeded["origin_id"]
+
+    # item_type preserved (would reset to "story" if dropped).
+    bug = next(p for p in export["pbis"] if p["system_id"] == bug_id)
+    assert bug["item_type"] == "bug"
+
+    # PI events preserved (previously destroyed on restore).
+    pi = next(pi for pi in export["pis"] if pi["system_id"] == seeded["pi_id"])
+    assert [e["name"] for e in pi["events"]] == ["Release"]
+    assert pi["events"][0]["event_type"] == "release"
+
+
+@pytest.mark.asyncio
+async def test_restore_preserves_azure_url(client, db):
+    pid = (await client.post(
+        "/api/v1/projects/", json={"name": "Azure Proj", "azure_devops_url": "https://dev.azure.com/org/proj"}
+    )).json()["system_id"]
+    snap = (await client.post(_snapshots_url(pid), json={"name": "Baseline"})).json()
+
+    await client.patch(f"/api/v1/projects/{pid}", json={"azure_devops_url": None})
+    resp = await client.post(f"{_snapshots_url(pid)}{snap['system_id']}/restore")
+    assert resp.status_code == 200
+    assert resp.json()["azure_devops_url"] == "https://dev.azure.com/org/proj"
+
+
 @pytest.mark.asyncio
 async def test_restore_creates_safety_snapshot(client, project, db):
     pid = project["system_id"]

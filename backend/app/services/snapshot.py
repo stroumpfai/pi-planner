@@ -8,6 +8,7 @@ from app.models.feature import Feature
 from app.models.group import Group
 from app.models.pbi import PBI
 from app.models.pi import PI
+from app.models.pi_event import PIEvent
 from app.models.project import Project
 from app.models.sprint import Sprint
 from app.models.swimline import Swimline
@@ -45,6 +46,14 @@ def restore_pi_structures(db: AsyncSession, proj_data: dict[str, Any], project_i
                 start_date=_opt_date(s.get("start_date")),
                 end_date=_opt_date(s.get("end_date")),
             ))
+        for e in pi.get("events", []):
+            db.add(PIEvent(
+                system_id=e["system_id"],
+                pi_id=pi["system_id"],
+                name=e["name"],
+                event_date=_opt_date(e.get("event_date")),
+                event_type=e.get("event_type", "other"),
+            ))
 
 
 def restore_features(db: AsyncSession, proj_data: dict[str, Any], project_id: str) -> None:
@@ -72,7 +81,7 @@ def restore_groups(db: AsyncSession, proj_data: dict[str, Any]) -> None:
                     name=g["name"],
                     sprint_index=g.get("sprint_index"),
                     order_index=g.get("order_index"),
-                    is_implicit=False,
+                    is_implicit=g.get("is_implicit", False),
                 ))
 
 
@@ -86,11 +95,37 @@ def restore_pbis(db: AsyncSession, proj_data: dict[str, Any], project_id: str) -
             title=p["title"],
             description=p.get("description"),
             effort=p.get("effort"),
+            item_type=p.get("item_type", "story"),
             location=p.get("location", "backlog"),
             pi_id=p.get("pi_id"),
             swimlane_id=p.get("swimlane_id"),
             group_id=p.get("group_id"),
         ))
+
+
+async def restore_continuations_and_stories(db: AsyncSession, proj_data: dict[str, Any]) -> None:
+    """Second-pass linking, run after features/groups/PBIs are flushed.
+
+    Sets the two references that point at rows created in the same rebuild batch and so
+    cannot be satisfied at insert time: ``Feature.continued_from_feature_id`` (self-referential)
+    and ``Group.story_system_id`` (group → PBI, a circular table dependency). IDs are the
+    snapshot's original system_ids, so no remapping is needed here.
+    """
+    for f in proj_data["features"]:
+        origin = f.get("continued_from_feature_id")
+        if origin:
+            feature = await db.get(Feature, f["system_id"])
+            if feature is not None:
+                feature.continued_from_feature_id = origin
+    for pi in proj_data["pis"]:
+        for sl in pi.get("swimlines", []):
+            for g in sl.get("groups", []):
+                story = g.get("story_system_id")
+                if story:
+                    group = await db.get(Group, g["system_id"])
+                    if group is not None:
+                        group.story_system_id = story
+    await db.flush()
 
 
 async def serialize_project(db: AsyncSession, project: Project) -> dict[str, Any]:
@@ -141,6 +176,8 @@ async def serialize_project(db: AsyncSession, project: Project) -> dict[str, Any
                         "feature_system_id": g.feature_system_id,
                         "sprint_index": g.sprint_index,
                         "order_index": g.order_index,
+                        "is_implicit": g.is_implicit,
+                        "story_system_id": g.story_system_id,
                     }
                     for g in groups
                 ],
@@ -150,6 +187,11 @@ async def serialize_project(db: AsyncSession, project: Project) -> dict[str, Any
             select(Sprint).where(Sprint.pi_id == pi.system_id).order_by(Sprint.sprint_index)
         )
         sprints = sprints_result.scalars().all()
+
+        events_result = await db.execute(
+            select(PIEvent).where(PIEvent.pi_id == pi.system_id).order_by(PIEvent.event_date)
+        )
+        events = events_result.scalars().all()
 
         pi_data.append({
             "system_id": pi.system_id,
@@ -170,6 +212,15 @@ async def serialize_project(db: AsyncSession, project: Project) -> dict[str, Any
                     "end_date": s.end_date.isoformat() if s.end_date else None,
                 }
                 for s in sprints
+            ],
+            "events": [
+                {
+                    "system_id": e.system_id,
+                    "name": e.name,
+                    "event_date": e.event_date.isoformat() if e.event_date else None,
+                    "event_type": e.event_type,
+                }
+                for e in events
             ],
         })
 
@@ -194,6 +245,7 @@ async def serialize_project(db: AsyncSession, project: Project) -> dict[str, Any
                     "location": f.location,
                     "pi_id": f.pi_id,
                     "swimlane_id": f.swimlane_id,
+                    "continued_from_feature_id": f.continued_from_feature_id,
                     "created_at": f.created_at.isoformat(),
                     "modified_at": f.modified_at.isoformat(),
                 }
@@ -207,6 +259,7 @@ async def serialize_project(db: AsyncSession, project: Project) -> dict[str, Any
                     "title": p.title,
                     "description": p.description,
                     "effort": p.effort,
+                    "item_type": p.item_type,
                     "location": p.location,
                     "pi_id": p.pi_id,
                     "swimlane_id": p.swimlane_id,

@@ -19,6 +19,7 @@ from app.schemas import ProjectResponse, SnapshotCreate, SnapshotResponse
 from app.services.activity import log_activity
 from app.services.events import broadcaster
 from app.services.snapshot import (
+    restore_continuations_and_stories,
     restore_features,
     restore_groups,
     restore_pbis,
@@ -167,9 +168,14 @@ async def restore_snapshot(
     restore_pbis(db, proj_data, project_id)
     await db.flush()
 
+    # Second pass: link references that point at rows created in this same rebuild
+    # (feature→feature continuation, group→story PBI), which cannot be set at insert time.
+    await restore_continuations_and_stories(db, proj_data)
+
     # 4. Restore project-level fields (keep current name to avoid unique-constraint issues).
     project.description = proj_data.get("description")
     project.effort_unit = proj_data.get("effort_unit", "pts")
+    project.azure_devops_url = proj_data.get("azure_devops_url")
     project.modified_at = datetime.now(timezone.utc)
 
     # 5. Release the edit lock if one is held.
