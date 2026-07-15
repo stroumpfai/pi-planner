@@ -62,7 +62,7 @@ export function CreateProjectModal({ open, onClose }: Props) {
                 id="proj-name"
                 {...register('name')}
                 autoFocus
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                 placeholder="e.g. PI Planning 2026"
               />
               {errors.name && <p className="mt-1 text-xs text-red-600">{errors.name.message}</p>}
@@ -74,7 +74,7 @@ export function CreateProjectModal({ open, onClose }: Props) {
                 id="proj-description"
                 {...register('description')}
                 rows={3}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               />
               {errors.description && <p className="mt-1 text-xs text-red-600">{errors.description.message}</p>}
             </div>
@@ -86,7 +86,7 @@ export function CreateProjectModal({ open, onClose }: Props) {
                 type="url"
                 {...register('azure_devops_url')}
                 placeholder="https://dev.azure.com/org/project"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
               />
               {errors.azure_devops_url && <p className="mt-1 text-xs text-red-600">{errors.azure_devops_url.message}</p>}
               <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Link to the project in Azure DevOps, shown on the project card</p>

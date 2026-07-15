@@ -56,9 +56,9 @@ function CreateSnapshotForm({ projectId }: CreateSnapshotFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-end gap-2 border border-blue-200 rounded-md bg-blue-50 px-4 py-3">
+    <form onSubmit={handleSubmit} className="flex items-end gap-2 border border-blue-200 dark:border-blue-900 rounded-md bg-blue-50 dark:bg-blue-900/20 px-4 py-3">
       <div className="flex-1">
-        <label htmlFor="snapshot-name" className="block text-xs font-medium text-gray-600 mb-1">
+        <label htmlFor="snapshot-name" className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
           Snapshot name
         </label>
         <input
@@ -68,7 +68,7 @@ function CreateSnapshotForm({ projectId }: CreateSnapshotFormProps) {
           onChange={(e) => setName(e.target.value)}
           placeholder={defaultSnapshotName()}
           maxLength={255}
-          className="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+          className="block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
         />
       </div>
       <button
@@ -121,10 +121,10 @@ function SnapshotRow({ projectId, snapshot, canEdit }: SnapshotRowProps) {
 
   return (
     <>
-      <div className="border border-gray-200 rounded-md px-4 py-3 bg-white flex items-start justify-between gap-3">
+      <div className="border border-gray-200 dark:border-gray-700 rounded-md px-4 py-3 bg-white dark:bg-gray-700/40 flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-900 truncate">{snapshot.name}</p>
-          <p className="text-xs text-gray-400 mt-0.5">
+          <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{snapshot.name}</p>
+          <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
             Created: {formatDateTime(snapshot.created_at)}
             {snapshot.created_by ? ` · by ${snapshot.created_by}` : ''}
           </p>
@@ -135,7 +135,7 @@ function SnapshotRow({ projectId, snapshot, canEdit }: SnapshotRowProps) {
               type="button"
               onClick={() => setConfirmRestore(true)}
               disabled={busy}
-              className="px-3 py-1 text-xs font-medium text-blue-600 bg-white border border-blue-200 rounded-md hover:bg-blue-50 disabled:opacity-40"
+              className="px-3 py-1 text-xs font-medium text-blue-600 dark:text-blue-400 bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-900 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/30 disabled:opacity-40"
             >
               Restore
             </button>
@@ -143,7 +143,7 @@ function SnapshotRow({ projectId, snapshot, canEdit }: SnapshotRowProps) {
               type="button"
               onClick={() => setConfirmDelete(true)}
               disabled={busy}
-              className="px-3 py-1 text-xs font-medium text-red-600 bg-white border border-red-200 rounded-md hover:bg-red-50 disabled:opacity-40"
+              className="px-3 py-1 text-xs font-medium text-red-600 dark:text-red-400 bg-white dark:bg-gray-800 border border-red-200 dark:border-red-900 rounded-md hover:bg-red-50 dark:hover:bg-red-900/30 disabled:opacity-40"
             >
               Delete
             </button>
@@ -190,24 +190,24 @@ export function SnapshotsModal({ projectId, open, onClose }: Props) {
     <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onClose() }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-40" />
-        <Dialog.Content className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[85vh] flex flex-col">
+        <Dialog.Content className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[85vh] flex flex-col">
           <div className="flex items-center justify-between mb-4">
-            <Dialog.Title className="text-base font-semibold text-gray-900">Snapshots</Dialog.Title>
-            <Dialog.Close className="text-gray-400 hover:text-gray-600 text-lg leading-none">✕</Dialog.Close>
+            <Dialog.Title className="text-base font-semibold text-gray-900 dark:text-gray-100">Snapshots</Dialog.Title>
+            <Dialog.Close className="text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300 text-lg leading-none">✕</Dialog.Close>
           </div>
 
-          <Dialog.Description className="text-sm text-gray-500 mb-4">
+          <Dialog.Description className="text-sm text-gray-500 dark:text-gray-400 mb-4">
             Capture the full state of this project and restore it later. Restoring overwrites all current data
             (a safety snapshot is taken automatically first).
           </Dialog.Description>
 
           <div className="flex-1 overflow-y-auto space-y-2 pr-1">
             {isLoading && (
-              <p className="text-sm text-gray-500 py-4 text-center">Loading…</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400 py-4 text-center">Loading…</p>
             )}
 
             {isError && (
-              <div className="text-sm text-red-600 py-4 text-center space-y-2">
+              <div className="text-sm text-red-600 dark:text-red-400 py-4 text-center space-y-2">
                 <p>Failed to load snapshots.</p>
                 <button
                   type="button"
@@ -220,7 +220,7 @@ export function SnapshotsModal({ projectId, open, onClose }: Props) {
             )}
 
             {!isLoading && !isError && snapshots.length === 0 && (
-              <p className="text-sm text-gray-400 italic text-center py-4">No snapshots yet.</p>
+              <p className="text-sm text-gray-400 dark:text-gray-500 italic text-center py-4">No snapshots yet.</p>
             )}
 
             {!isLoading && !isError && snapshots.map((snapshot) => (
@@ -234,7 +234,7 @@ export function SnapshotsModal({ projectId, open, onClose }: Props) {
           </div>
 
           {canEdit && (
-            <div className="pt-4 mt-2 border-t border-gray-100 shrink-0">
+            <div className="pt-4 mt-2 border-t border-gray-100 dark:border-gray-700 shrink-0">
               <CreateSnapshotForm projectId={projectId} />
             </div>
           )}
