@@ -330,6 +330,38 @@ async def test_delete_project_with_nested_data(client):
 
 
 @pytest.mark.asyncio
+async def test_delete_project_with_implicit_group(client):
+    """Regression: deleting a project containing an implicit group (a directly-placed story)
+    must not hit SQLAlchemy's CircularDependencyError from the Group.story_system_id <-> PBI.group_id
+    cycle. See delete_project's explicit story-link nulling."""
+    pid = (await client.post("/api/v1/projects/", json={"name": "Implicit Group Delete"})).json()["system_id"]
+
+    # Feature -> PBI
+    fid = (await client.post(
+        f"/api/v1/projects/{pid}/features", json={"title": "F1"}
+    )).json()["system_id"]
+    pbi_id = (await client.post(
+        f"/api/v1/projects/{pid}/pbis",
+        json={"title": "Story", "parent_feature_system_id": fid},
+    )).json()["system_id"]
+
+    # Move feature into a PI + swimline so the story can be placed
+    pi_id = (await client.post(f"/api/v1/projects/{pid}/pis", json={"name": "Q1"})).json()["system_id"]
+    sl_id = (await client.post(f"/api/v1/pis/{pi_id}/swimlines", json={"name": "Team A"})).json()["system_id"]
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": sl_id})
+
+    # Directly place the story -> creates an implicit group with the FK cycle
+    place = await client.post(f"/api/v1/pbis/{pbi_id}/place", json={"sprint_index": 0})
+    assert place.status_code == 200
+    assert place.json()["group"]["is_implicit"] is True
+
+    # Delete must succeed (previously raised 500 CircularDependencyError)
+    resp = await client.delete(f"/api/v1/projects/{pid}")
+    assert resp.status_code == 204
+    assert (await client.get(f"/api/v1/projects/{pid}")).status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_export_content_disposition_filename(client):
     """Content-Disposition header includes safe project name and date."""
     create = await client.post("/api/v1/projects/", json={"name": "My Project Name"})

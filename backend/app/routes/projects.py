@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
 from fastapi.responses import JSONResponse
-from sqlalchemy import select
+from sqlalchemy import select, update as sql_update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -112,6 +112,13 @@ async def delete_project(
     _: Annotated[User, Depends(require_editor_or_above)],
 ) -> None:
     project = await _get_or_404(db, project_id)
+    # Group.story_system_id -> PBI and PBI.group_id -> Group form a cycle that SQLAlchemy's
+    # unit-of-work cannot topologically sort during the cascade delete (implicit groups point
+    # back at their story PBI). Break it by nulling story links first (cf. clear_all_features).
+    feature_ids = select(Feature.system_id).where(Feature.project_id == project_id)
+    await db.execute(
+        sql_update(Group).where(Group.feature_system_id.in_(feature_ids)).values(story_system_id=None)
+    )
     await db.delete(project)
     await db.commit()
     await broadcaster.broadcast(project_id, "project:deleted", {"system_id": project_id})
