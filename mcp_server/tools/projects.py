@@ -322,3 +322,35 @@ async def export_pi_png(
     })
     r = await call_backend_raw("GET", f"/api/v1/pis/{pi_id}/export/png?{params}")
     return {"png_base64": base64.b64encode(r.content).decode()}
+
+
+@projects_mcp.tool()
+async def export_pi_report(
+    pi_id: Annotated[str, Field(description="PI system_id (UUID)")],
+    ctx: Context,
+    report_type: Annotated[str, Field(default="readiness", description="'readiness' (data-quality checks) or 'readout' (planning summary)")] = "readiness",
+    fmt: Annotated[str, Field(default="markdown", description="'markdown' or 'pdf'")] = "markdown",
+    show_ids: Annotated[bool, Field(default=True, description="Include [user_id] prefixes on item names")] = True,
+) -> dict:
+    """
+    Export a management report for a PI.
+
+    Two report types:
+    - 'readiness': a data-quality checklist (unestimated PBIs, over-capacity sprints,
+      features with no PBIs, unplaced PBIs, orphaned items, duplicate/invalid user IDs).
+    - 'readout': an end-of-planning summary (dates, per-team committed load, sprint
+      capacity, over-capacity warnings, and the milestone timeline).
+
+    For fmt='markdown' returns {"report_markdown": "..."} (ready to read/paste).
+    For fmt='pdf' returns {"pdf_base64": "<base64 string>"} — decode and save as a .pdf.
+    This is a read-only operation — no lock is acquired. Use list_pis first to find the pi_id.
+    """
+    params = urlencode({
+        "report_type": report_type,
+        "fmt": fmt,
+        "show_ids": str(show_ids).lower(),
+    })
+    r = await call_backend_raw("GET", f"/api/v1/pis/{pi_id}/report?{params}")
+    if fmt == "pdf":
+        return {"pdf_base64": base64.b64encode(r.content).decode()}
+    return {"report_markdown": r.text}

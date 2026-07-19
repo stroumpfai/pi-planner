@@ -39,6 +39,7 @@ import { BacklogPanel } from '@/components/BacklogPanel'
 import { PIEventsRow } from '@/components/PIEventsRow'
 import { PIEventModal } from '@/components/PIEventModal'
 import { ExportPNGModal } from '@/components/ExportPNGModal'
+import { ReportsModal } from '@/components/ReportsModal'
 import type { FeatureDragData } from '@/components/BacklogPanel'
 import type { GroupDragData } from '@/components/GroupCard'
 import type { PBIDragData } from '@/components/PBIRow'
@@ -148,6 +149,7 @@ export function PIBoardPage({ projectId, piId }: Props) {
   const [editCapacitySprint, setEditCapacitySprint] = useState<Sprint | null>(null)
   const [exportingCsv, setExportingCsv] = useState(false)
   const [exportPngOpen, setExportPngOpen] = useState(false)
+  const [reportsOpen, setReportsOpen] = useState(false)
   const [eventModal, setEventModal] = useState<{ open: boolean; event?: PIEvent }>({ open: false })
   const isEditing = useAuthStore((s) => s.isEditing)
   const featureColumnWidth = useSettingsStore((s) => s.featureColumnWidth)
@@ -380,6 +382,15 @@ export function PIBoardPage({ projectId, piId }: Props) {
               >
                 Export PNG
               </button>
+              <button
+                type="button"
+                onClick={() => setReportsOpen(true)}
+                disabled={!pi}
+                title="Export a readiness or planning-readout report"
+                className="text-xs text-blue-600 hover:text-blue-800 disabled:text-gray-300 disabled:cursor-not-allowed font-medium"
+              >
+                Reports
+              </button>
               <span className="text-gray-200 dark:text-gray-700">|</span>
               <button
                 type="button"
@@ -479,6 +490,15 @@ export function PIBoardPage({ projectId, piId }: Props) {
           piId={piId}
           piName={pi.name}
           onClose={() => setExportPngOpen(false)}
+        />
+      )}
+
+      {pi && (
+        <ReportsModal
+          open={reportsOpen}
+          piId={piId}
+          piName={pi.name}
+          onClose={() => setReportsOpen(false)}
         />
       )}
     </DndContext>

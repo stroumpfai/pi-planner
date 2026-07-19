@@ -29,7 +29,8 @@ RUN pip install --no-cache-dir \
     "itsdangerous>=2.2.0" \
     "pyjwt>=2.13.0" \
     "python-dotenv>=1.2.2" \
-    "matplotlib>=3.8"
+    "matplotlib>=3.8" \
+    "reportlab>=4.2"
 
 # Copy backend source and migrations
 COPY backend/app/ ./app/

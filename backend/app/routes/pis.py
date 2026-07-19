@@ -18,6 +18,13 @@ from app.schemas import PICreate, PIResponse, PIUpdate
 from app.services.effort import pi_effort_and_capacity
 from app.services.events import broadcaster
 from app.services.pi_export import PNGExportOptions, export_pi_csv, export_pi_png, safe_filename
+from app.services.pi_report import (
+    REPORT_FORMATS,
+    REPORT_TYPES,
+    ReportOptions,
+    export_pi_report,
+    report_filename,
+)
 
 router = APIRouter(tags=["pis"])
 
@@ -232,5 +239,29 @@ async def export_pi_png_endpoint(
     return Response(
         content=content,
         media_type="image/png",
+        headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+@router.get("/api/v1/pis/{pi_id}/report")
+async def export_pi_report_endpoint(
+    pi_id: str,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
+    report_type: Annotated[str, Query()] = "readiness",  # readiness | readout
+    fmt: Annotated[str, Query()] = "markdown",  # markdown | pdf
+    show_ids: Annotated[bool, Query()] = True,
+) -> Response:
+    if report_type not in REPORT_TYPES:
+        raise HTTPException(status_code=422, detail=f"Invalid report_type: {report_type}")
+    if fmt not in REPORT_FORMATS:
+        raise HTTPException(status_code=422, detail=f"Invalid fmt: {fmt}")
+    pi = await _get_or_404(db, pi_id)
+    opts = ReportOptions(report_type=report_type, fmt=fmt, show_ids=show_ids)
+    content, media_type, ext = await export_pi_report(db, pi, opts)
+    fname = report_filename(pi.name, report_type, ext)
+    return Response(
+        content=content,
+        media_type=media_type,
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
     )

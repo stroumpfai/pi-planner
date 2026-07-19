@@ -79,3 +79,25 @@ async def pi_capacity(db: AsyncSession, pi_id: str) -> int:
         .where(Sprint.pi_id == pi_id)
     )
     return int(result.scalar_one())
+
+
+def sprint_utilization(effort: float, capacity: int) -> tuple[float, str]:
+    """Classify a sprint's load against its capacity.
+
+    Returns (ratio, status) where status is one of:
+      "no_capacity" — capacity is 0/unset
+      "over"        — load exceeds capacity (ratio > 1.0)
+      "warn"        — load is at/above 85% of capacity
+      "ok"          — load is comfortably within capacity
+
+    Single source of truth for the capacity thresholds shared by the PNG export
+    and the reports so their colour/severity classification stays identical.
+    """
+    if capacity <= 0:
+        return (0.0, "no_capacity")
+    ratio = effort / capacity
+    if ratio > 1.0:
+        return (ratio, "over")
+    if ratio >= 0.85:
+        return (ratio, "warn")
+    return (ratio, "ok")

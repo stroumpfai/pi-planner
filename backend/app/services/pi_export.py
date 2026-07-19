@@ -20,7 +20,12 @@ from app.models.project import Project
 from app.models.pbi import PBI
 from app.models.sprint import Sprint
 from app.models.swimline import Swimline
-from app.services.effort import pi_effort_and_capacity, sprint_efforts_for_pi, swimline_efforts
+from app.services.effort import (
+    pi_effort_and_capacity,
+    sprint_efforts_for_pi,
+    sprint_utilization,
+    swimline_efforts,
+)
 
 
 @dataclass
@@ -135,15 +140,17 @@ def _swimlane_bar_color(ratio: float) -> tuple[str, str]:
     return bar, text
 
 
+_UTIL_COLORS: dict[str, str] = {
+    "no_capacity": "#9ca3af",
+    "over": "#ef4444",
+    "warn": "#f59e0b",
+    "ok": "#3b82f6",
+}
+
+
 def _capacity_bar_color(used: float, capacity: int) -> str:
-    if capacity == 0:
-        return "#9ca3af"
-    pct = used / capacity
-    if pct > 1.0:
-        return "#ef4444"
-    if pct >= 0.85:
-        return "#f59e0b"
-    return "#3b82f6"
+    _, status = sprint_utilization(used, capacity)
+    return _UTIL_COLORS[status]
 
 
 def _draw_sprint_header(

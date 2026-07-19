@@ -77,3 +77,31 @@ export function downloadPIPNG(piId: string, piName: string, options: ExportPNGOp
   })
   return _downloadBlob(`/api/v1/pis/${piId}/export/png?${params}`, `${piName}.png`)
 }
+
+export type ReportType = 'readiness' | 'readout'
+export type ReportFormat = 'markdown' | 'pdf'
+
+export interface ReportOptions {
+  reportType: ReportType
+  format: ReportFormat
+  showIds: boolean
+}
+
+export const DEFAULT_REPORT_OPTIONS: ReportOptions = {
+  reportType: 'readiness',
+  format: 'markdown',
+  showIds: true,
+}
+
+export function downloadPIReport(piId: string, piName: string, options: ReportOptions): Promise<void> {
+  const params = new URLSearchParams({
+    report_type: options.reportType,
+    fmt: options.format,
+    show_ids: String(options.showIds),
+  })
+  const ext = options.format === 'pdf' ? 'pdf' : 'md'
+  return _downloadBlob(
+    `/api/v1/pis/${piId}/report?${params}`,
+    `${piName}-${options.reportType}.${ext}`,
+  )
+}
