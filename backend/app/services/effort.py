@@ -53,6 +53,41 @@ async def sprint_swimline_efforts(
     }
 
 
+async def sprint_swimline_item_counts(
+    db: AsyncSession, pi_id: str
+) -> dict[tuple[int, str], tuple[int, int]]:
+    """Return {(sprint_index, swimline_id): (pbi_count, bug_count)} for placed items.
+
+    The 2-D grid backing the backlog-composition export: counts of story-type
+    ("PBI") and bug-type items placed in each (sprint, swimlane) cell. Unlike the
+    effort aggregations, items are counted regardless of whether they carry an
+    estimate.
+    """
+    result = await db.execute(
+        select(
+            Group.sprint_index,
+            Group.swimline_id,
+            PBI.item_type,
+            func.count().label("n"),
+        )
+        .join(PBI, PBI.group_id == Group.system_id)
+        .join(Swimline, Group.swimline_id == Swimline.system_id)
+        .where(Swimline.pi_id == pi_id)
+        .group_by(Group.sprint_index, Group.swimline_id, PBI.item_type)
+    )
+    counts: dict[tuple[int, str], tuple[int, int]] = {}
+    for row in result.all():
+        if row.sprint_index is None:
+            continue
+        key = (row.sprint_index, row.swimline_id)
+        pbi, bug = counts.get(key, (0, 0))
+        if row.item_type == "bug":
+            counts[key] = (pbi, bug + int(row.n))
+        else:
+            counts[key] = (pbi + int(row.n), bug)
+    return counts
+
+
 async def swimline_efforts(db: AsyncSession, swimline_ids: list[str]) -> dict[str, float]:
     """Return {swimline_id: effort} for the given swimlane IDs."""
     if not swimline_ids:

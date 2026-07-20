@@ -93,6 +93,34 @@ describe('ExportPNGModal', () => {
     expect(saved.layout).toBe('heatmap')
   })
 
+  it('switching to Composition hides layout-specific and sprint/event toggles', async () => {
+    render(<ExportPNGModal {...defaultProps} />)
+    await userEvent.click(screen.getByLabelText(/composition/i))
+
+    expect(screen.getByLabelText(/pi effort/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/export date/i)).toBeInTheDocument()
+    expect(screen.queryByLabelText(/sprint effort/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/^events$/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/swimlane effort/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/split by swimline/i)).not.toBeInTheDocument()
+  })
+
+  it('exports the composition layout', async () => {
+    render(<ExportPNGModal {...defaultProps} />)
+    await userEvent.click(screen.getByLabelText(/composition/i))
+    await userEvent.click(screen.getByRole('button', { name: /export/i }))
+
+    await waitFor(() =>
+      expect(pisService.downloadPIPNG).toHaveBeenCalledWith(
+        'pi-123',
+        'Q1 2026',
+        expect.objectContaining({ layout: 'composition' }),
+      ),
+    )
+    const saved = JSON.parse(localStorage.getItem('pi-export-png-options') ?? '{}')
+    expect(saved.layout).toBe('composition')
+  })
+
   it('all toggles are OFF by default when no stored preference', () => {
     render(<ExportPNGModal {...defaultProps} />)
     const checkboxes = screen.getAllByRole('checkbox')

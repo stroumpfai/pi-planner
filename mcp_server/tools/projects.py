@@ -296,7 +296,7 @@ async def export_pi_csv(
 async def export_pi_png(
     pi_id: Annotated[str, Field(description="PI system_id (UUID)")],
     ctx: Context,
-    layout: Annotated[str, Field(default="roadmap", description="'roadmap' (swimlane bars), 'list' (PBIs per sprint), or 'heatmap' (team × sprint capacity grid)")] = "roadmap",
+    layout: Annotated[str, Field(default="roadmap", description="'roadmap' (swimlane bars), 'list' (PBIs per sprint), 'heatmap' (team × sprint capacity grid), or 'composition' (team × sprint PBI/bug counts)")] = "roadmap",
     show_pi_effort: Annotated[bool, Field(default=False, description="Show total effort/capacity in the PI title")] = False,
     show_sprint_effort: Annotated[bool, Field(default=False, description="Show effort, capacity and ratio bar in each sprint header")] = False,
     show_swimlane_effort: Annotated[bool, Field(default=False, description="Show effort value inside each swimlane bar")] = False,
@@ -309,8 +309,10 @@ async def export_pi_png(
 
     Returns {"png_base64": "<base64 string>"} — decode and save as a .png file to view.
     The `layout` selects the view: 'roadmap' shows swimlane bars across sprints, 'list'
-    lists each sprint's PBIs, and 'heatmap' renders a team × sprint grid coloured by
-    capacity utilization (green/amber/red) — the fastest way to spot over-committed teams.
+    lists each sprint's PBIs, 'heatmap' renders a team × sprint grid coloured by capacity
+    utilization (green/amber/red) — the fastest way to spot over-committed teams — and
+    'composition' shows a team × sprint grid of PBI and bug counts (with per-team and
+    per-sprint totals).
     All display options default to off — enable what you need.
     This is a read-only operation — no lock is acquired.
     Use list_pis first to find the pi_id.

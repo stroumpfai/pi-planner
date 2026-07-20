@@ -108,6 +108,9 @@ export function ExportPNGModal({ piId, piName, open, onClose }: Props) {
     setOpts((prev) => ({ ...prev, layout }))
   }
 
+  // Grid layouts (heatmap, composition) don't use the per-sprint / event toggles.
+  const isGridLayout = opts.layout === 'heatmap' || opts.layout === 'composition'
+
   function handleClose() {
     setOpts(loadOptions())
     onClose()
@@ -140,7 +143,7 @@ export function ExportPNGModal({ piId, piName, open, onClose }: Props) {
 
           <fieldset className="mb-2">
             <legend className="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">Layout</legend>
-            <div className="flex gap-2">
+            <div className="grid grid-cols-2 gap-2">
               <LayoutOption
                 id="export-layout-roadmap"
                 label="Roadmap bars"
@@ -162,6 +165,13 @@ export function ExportPNGModal({ piId, piName, open, onClose }: Props) {
                 checked={opts.layout === 'heatmap'}
                 onSelect={() => setLayout('heatmap')}
               />
+              <LayoutOption
+                id="export-layout-composition"
+                label="Composition"
+                description="PBI & bug counts per team × sprint"
+                checked={opts.layout === 'composition'}
+                onSelect={() => setLayout('composition')}
+              />
             </div>
           </fieldset>
 
@@ -173,7 +183,7 @@ export function ExportPNGModal({ piId, piName, open, onClose }: Props) {
               checked={opts.showPiEffort}
               onChange={() => toggle('showPiEffort')}
             />
-            {opts.layout !== 'heatmap' && (
+            {!isGridLayout && (
               <ToggleRow
                 id="export-sprint-effort"
                 label="Sprint effort"
@@ -182,7 +192,7 @@ export function ExportPNGModal({ piId, piName, open, onClose }: Props) {
                 onChange={() => toggle('showSprintEffort')}
               />
             )}
-            {opts.layout !== 'heatmap' && (
+            {!isGridLayout && (
               <ToggleRow
                 id="export-events"
                 label="Events"

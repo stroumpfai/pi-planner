@@ -387,6 +387,15 @@ async def test_export_pi_png_encodes_heatmap_layout(mock_backend, mock_ctx, patc
     assert params["layout"] == "heatmap"
 
 
+async def test_export_pi_png_encodes_composition_layout(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.get(f"/api/v1/pis/{PI_ID}/export/png").mock(
+        return_value=httpx.Response(200, content=b"\x89PNG", headers={"content-type": "image/png"})
+    )
+    await export_pi_png(pi_id=PI_ID, ctx=mock_ctx, layout="composition")
+    params = mock_backend.calls.last.request.url.params
+    assert params["layout"] == "composition"
+
+
 async def test_export_pi_png_encodes_selected_options(mock_backend, mock_ctx, patch_get_http_request):
     mock_backend.get(f"/api/v1/pis/{PI_ID}/export/png").mock(
         return_value=httpx.Response(200, content=b"\x89PNG", headers={"content-type": "image/png"})

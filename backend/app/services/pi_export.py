@@ -24,6 +24,7 @@ from app.services.effort import (
     pi_effort_and_capacity,
     sprint_efforts_for_pi,
     sprint_swimline_efforts,
+    sprint_swimline_item_counts,
     sprint_utilization,
     swimline_efforts,
 )
@@ -31,7 +32,7 @@ from app.services.effort import (
 
 @dataclass
 class PNGExportOptions:
-    layout: str = "roadmap"  # "roadmap" | "list" | "heatmap"
+    layout: str = "roadmap"  # "roadmap" | "list" | "heatmap" | "composition"
     show_pi_effort: bool = False
     show_sprint_effort: bool = False
     show_swimlane_effort: bool = False  # roadmap only
@@ -346,6 +347,10 @@ async def export_pi_png(db: AsyncSession, pi: PI, opts: PNGExportOptions | None 
         cell_efforts = await sprint_swimline_efforts(db, pi.system_id)
         return _build_heatmap_figure(ctx, cell_efforts)
 
+    if opts.layout == "composition":
+        cell_counts = await sprint_swimline_item_counts(db, pi.system_id)
+        return _build_composition_figure(ctx, cell_counts)
+
     sl_efforts = await swimline_efforts(db, [s.system_id for s in swimlines]) if swimlines else {}
     return await _build_roadmap_figure(db, ctx, sl_efforts)
 
@@ -603,10 +608,10 @@ _HEATMAP_TEXT_COLORS: dict[str, str] = {
 }
 
 
-def _draw_heatmap_header(
+def _draw_grid_header(
     ax_header: object, sprints: list[Sprint], num_sprints: int, x_lo: float, x_hi: float
 ) -> None:
-    """Sprint-name column headers (+ dates) and the right "Total" header for the heatmap."""
+    """Sprint-name column headers (+ dates) and the right "Total" header for a grid layout."""
     ax_header.set_xlim(x_lo, x_hi)  # type: ignore[union-attr]
     ax_header.set_ylim(0.0, 1.0)  # type: ignore[union-attr]
     ax_header.axis("off")  # type: ignore[union-attr]
@@ -656,7 +661,7 @@ def _build_heatmap_figure(
     x_hi = float(num_sprints + 1)
 
     # header strip: sprint names (+ dates) and the "Total" column header
-    _draw_heatmap_header(ax_header, ctx.sprints, num_sprints, x_lo, x_hi)
+    _draw_grid_header(ax_header, ctx.sprints, num_sprints, x_lo, x_hi)
 
     # main grid
     ax.set_xlim(x_lo, x_hi)  # type: ignore[union-attr]
@@ -708,6 +713,113 @@ def _build_heatmap_figure(
     _, gstatus = sprint_utilization(ctx.effort, ctx.capacity)
     draw_cell(num_sprints, n_lanes, _UTIL_COLORS[gstatus],
               f"{ctx.effort:g}/{ctx.capacity}", _HEATMAP_TEXT_COLORS[gstatus], bold=True)
+
+    _apply_title(fig, ctx.pi, opts, ctx.effort, ctx.capacity, ctx.effort_unit)
+
+    if ax_footer is not None:
+        _apply_footer(ax_footer)
+
+    return _fig_to_png(fig)
+
+
+# Backlog-composition palette: story-type items ("PBI") vs bug-type items.
+_COMPOSITION_PBI_COLOR = "#1f2937"  # slate-800
+_COMPOSITION_BUG_COLOR = "#ef4444"  # red-500 — matches the app's bug accent
+
+
+def _draw_count_pair(ax: object, cx: float, cy: float, pbi: int, bug: int,
+                     bold: bool = False) -> None:
+    """Draw ``pbi · bug`` centred at (cx, cy): PBI count dark, Bug count red."""
+    weight = "bold" if bold else "normal"
+    ax.text(cx - 0.11, cy, f"{pbi}", ha="right", va="center", fontsize=7.5,  # type: ignore[union-attr]
+            color=_COMPOSITION_PBI_COLOR, fontweight=weight)
+    ax.text(cx, cy, "·", ha="center", va="center", fontsize=7.5, color="#9ca3af")  # type: ignore[union-attr]
+    ax.text(cx + 0.11, cy, f"{bug}", ha="left", va="center", fontsize=7.5,  # type: ignore[union-attr]
+            color=_COMPOSITION_BUG_COLOR, fontweight=weight)
+
+
+def _build_composition_figure(
+    ctx: _RenderContext, cell_counts: dict[tuple[int, str], tuple[int, int]]
+) -> bytes:
+    """Composition layout: swimlane (team) × sprint grid of PBI and Bug counts.
+
+    Each cell shows ``pbi · bug`` — the number of story-type ("PBI") and bug-type items
+    placed in that (sprint, swimlane) cell, PBIs in dark and Bugs in red. A right-hand
+    column totals per team; a bottom row totals per sprint. Empty cells (no items) render
+    as a faint box so they recede.
+    """
+    opts = ctx.opts
+    num_sprints = ctx.num_sprints
+    swimlines = ctx.swimlines
+    n_lanes = len(swimlines)
+    n_rows = n_lanes + 1  # team rows + a bottom totals row
+
+    LABEL_W = 2.2   # left gutter for team names, in column (data) units
+    COL_W_IN = 1.4  # inches per column
+    ROW_H_IN = 0.5  # inches per row
+    HEADER_H = 0.6  # inches for the sprint-name header strip
+
+    n_cols_total = num_sprints + 1  # sprint columns + a totals column
+    fig_width = max(10.0, (LABEL_W + n_cols_total) * COL_W_IN)
+    main_h = max(1.5, n_rows * ROW_H_IN + 0.4)
+
+    fig, ax_header, ax, ax_footer = _make_figure(fig_width, HEADER_H, main_h, opts.show_export_date)
+
+    x_lo = -LABEL_W
+    x_hi = float(num_sprints + 1)
+
+    _draw_grid_header(ax_header, ctx.sprints, num_sprints, x_lo, x_hi)
+    # colour legend in the top-left gutter
+    ax_header.text(x_lo + 0.05, 0.62, "PBIs", ha="left", va="center", fontsize=7,  # type: ignore[union-attr]
+                   fontweight="bold", color=_COMPOSITION_PBI_COLOR)
+    ax_header.text(x_lo + 0.05, 0.26, "Bugs", ha="left", va="center", fontsize=7,  # type: ignore[union-attr]
+                   fontweight="bold", color=_COMPOSITION_BUG_COLOR)
+
+    ax.set_xlim(x_lo, x_hi)  # type: ignore[union-attr]
+    ax.set_ylim(0.0, float(n_rows))  # type: ignore[union-attr]
+    ax.axis("off")  # type: ignore[union-attr]
+
+    def draw_box(col: int, row_top: int, facecolor: str, edgecolor: str) -> float:
+        """Draw a cell rectangle; return its centre y."""
+        y0 = n_rows - 1 - row_top
+        ax.add_patch(Rectangle(  # type: ignore[union-attr]
+            (col + 0.03, y0 + 0.06), 0.94, 0.88,
+            facecolor=facecolor, edgecolor=edgecolor, linewidth=1.0,
+        ))
+        return y0 + 0.5
+
+    def draw_count_cell(col: int, row_top: int, pbi: int, bug: int,
+                        total: bool = False) -> None:
+        if not total and pbi == 0 and bug == 0:
+            draw_box(col, row_top, "#f8fafc", "#e2e8f0")  # empty → faint, no number
+            return
+        facecolor = "#f1f5f9" if total else "white"
+        cy = draw_box(col, row_top, facecolor, "#e2e8f0")
+        _draw_count_pair(ax, col + 0.5, cy, pbi, bug, bold=total)
+
+    grand_pbi = grand_bug = 0
+    for row, swimline in enumerate(swimlines):
+        ax.text(-0.12, n_rows - 1 - row + 0.5, _truncate(swimline.name, 22),  # type: ignore[union-attr]
+                ha="right", va="center", fontsize=8, fontweight="bold",
+                color="#1f2937", clip_on=False)
+        team_pbi = team_bug = 0
+        for j in range(num_sprints):
+            pbi, bug = cell_counts.get((j, swimline.system_id), (0, 0))
+            team_pbi += pbi
+            team_bug += bug
+            draw_count_cell(j, row, pbi, bug)
+        draw_count_cell(num_sprints, row, team_pbi, team_bug, total=True)
+        grand_pbi += team_pbi
+        grand_bug += team_bug
+
+    # bottom totals row: per-sprint PBI/Bug counts
+    ax.text(-0.12, 0.5, "Total", ha="right", va="center", fontsize=8,  # type: ignore[union-attr]
+            fontweight="bold", color="#1f2937", clip_on=False)
+    for j in range(num_sprints):
+        col_pbi = sum(cell_counts.get((j, s.system_id), (0, 0))[0] for s in swimlines)
+        col_bug = sum(cell_counts.get((j, s.system_id), (0, 0))[1] for s in swimlines)
+        draw_count_cell(j, n_lanes, col_pbi, col_bug, total=True)
+    draw_count_cell(num_sprints, n_lanes, grand_pbi, grand_bug, total=True)
 
     _apply_title(fig, ctx.pi, opts, ctx.effort, ctx.capacity, ctx.effort_unit)
 

@@ -7,7 +7,7 @@ import pytest
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services.effort import sprint_swimline_efforts
+from app.services.effort import sprint_swimline_efforts, sprint_swimline_item_counts
 
 
 # ---------------------------------------------------------------------------
@@ -481,6 +481,119 @@ async def test_png_export_heatmap_empty_pi(client: AsyncClient) -> None:
 
 
 # ---------------------------------------------------------------------------
+# PNG export — backlog composition layout (A2)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+async def planned_composition(client: AsyncClient) -> dict:
+    """A PI with a mix of story ("PBI") and bug items across two swimlanes/sprints.
+
+    Alpha, s0: 2 PBIs + 1 bug;  Alpha, s1: 1 PBI.
+    Beta,  s0: 1 bug.
+    """
+    proj = (await client.post("/api/v1/projects/", json={"name": "Composition Test"})).json()
+    pid = proj["system_id"]
+    pi = (await client.post(
+        f"/api/v1/projects/{pid}/pis", json={"name": "PI Comp", "state": "draft"},
+    )).json()
+    pi_id = pi["system_id"]
+
+    alpha = (await client.post(f"/api/v1/pis/{pi_id}/swimlines", json={"name": "Team Alpha"})).json()
+    beta = (await client.post(f"/api/v1/pis/{pi_id}/swimlines", json={"name": "Team Beta"})).json()
+
+    uid = [100]
+
+    async def feature_in(lane_id: str, title: str) -> str:
+        uid[0] += 1
+        feat = (await client.post(
+            f"/api/v1/projects/{pid}/features", json={"title": title, "id": uid[0]},
+        )).json()
+        await client.patch(
+            f"/api/v1/features/{feat['system_id']}",
+            json={"location": "pi", "pi_id": pi_id, "swimlane_id": lane_id},
+        )
+        return feat["system_id"]
+
+    async def place(feat_id: str, item_type: str, sprint_index: int) -> None:
+        uid[0] += 1
+        pbi = (await client.post(
+            f"/api/v1/projects/{pid}/pbis",
+            json={"title": f"{item_type} {uid[0]}", "id": uid[0], "effort": 3,
+                  "item_type": item_type, "parent_feature_system_id": feat_id},
+        )).json()
+        await client.post(f"/api/v1/pbis/{pbi['system_id']}/place", json={"sprint_index": sprint_index})
+
+    fa = await feature_in(alpha["system_id"], "Alpha Feature")
+    fb = await feature_in(beta["system_id"], "Beta Feature")
+    await place(fa, "story", 0)
+    await place(fa, "story", 0)
+    await place(fa, "bug", 0)
+    await place(fa, "story", 1)
+    await place(fb, "bug", 0)
+
+    return {"pi_id": pi_id, "alpha_id": alpha["system_id"], "beta_id": beta["system_id"]}
+
+
+@pytest.mark.asyncio
+async def test_sprint_swimline_item_counts_grid(
+    client: AsyncClient, db: AsyncSession, planned_composition: dict
+) -> None:
+    """Item counts are keyed by (sprint_index, swimline_id) as (pbi_count, bug_count)."""
+    counts = await sprint_swimline_item_counts(db, planned_composition["pi_id"])
+    alpha, beta = planned_composition["alpha_id"], planned_composition["beta_id"]
+    assert counts == {
+        (0, alpha): (2, 1),
+        (1, alpha): (1, 0),
+        (0, beta): (0, 1),
+    }
+
+
+@pytest.mark.asyncio
+async def test_sprint_swimline_item_counts_empty_pi(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    """A PI with no placed items yields an empty grid."""
+    proj = (await client.post("/api/v1/projects/", json={"name": "Empty Comp"})).json()
+    pi = (await client.post(
+        f"/api/v1/projects/{proj['system_id']}/pis", json={"name": "Empty", "state": "draft"},
+    )).json()
+    assert await sprint_swimline_item_counts(db, pi["system_id"]) == {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("param", [
+    "",
+    "show_pi_effort=true",
+    "show_export_date=true",
+])
+async def test_png_export_composition_layout(
+    client: AsyncClient, planned_composition: dict, param: str
+) -> None:
+    """The composition layout produces a valid PNG across its relevant options."""
+    pi_id = planned_composition["pi_id"]
+    query = "layout=composition" + (f"&{param}" if param else "")
+    resp = await client.get(f"/api/v1/pis/{pi_id}/export/png?{query}")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/png"
+    assert resp.content[:8] == PNG_SIGNATURE
+    assert len(resp.content) > 1000
+
+
+@pytest.mark.asyncio
+async def test_png_export_composition_empty_pi(client: AsyncClient) -> None:
+    """The composition layout on a PI with no items still produces a valid PNG."""
+    proj = (await client.post("/api/v1/projects/", json={"name": "Comp Empty"})).json()
+    pi = (await client.post(
+        f"/api/v1/projects/{proj['system_id']}/pis",
+        json={"name": "Empty Comp PI", "state": "draft"},
+    )).json()
+
+    resp = await client.get(f"/api/v1/pis/{pi['system_id']}/export/png?layout=composition")
+    assert resp.status_code == 200
+    assert resp.content[:8] == PNG_SIGNATURE
+
+
+# ---------------------------------------------------------------------------
 # Access control: readers can export
 # ---------------------------------------------------------------------------
 
@@ -500,3 +613,6 @@ async def test_export_reader_allowed(
 
     heatmap_resp = await reader_client.get(f"/api/v1/pis/{pi_id}/export/png?layout=heatmap")
     assert heatmap_resp.status_code == 200
+
+    composition_resp = await reader_client.get(f"/api/v1/pis/{pi_id}/export/png?layout=composition")
+    assert composition_resp.status_code == 200
