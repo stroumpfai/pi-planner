@@ -5,6 +5,9 @@ import io
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.services.effort import sprint_swimline_efforts
 
 
 # ---------------------------------------------------------------------------
@@ -360,6 +363,124 @@ async def test_png_export_list_layout_empty_pi(client: AsyncClient) -> None:
 
 
 # ---------------------------------------------------------------------------
+# PNG export — capacity-vs-load heatmap layout (A1)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+async def planned_grid(client: AsyncClient) -> dict:
+    """A PI with a 2-team × 2-sprint grid of placed effort, for the heatmap.
+
+    Sprint capacities: s0=10, s1=8.
+    Loads: (Alpha, s0)=8, (Alpha, s1)=3, (Beta, s0)=5  -> s0 over capacity (13/10).
+    """
+    proj = (await client.post("/api/v1/projects/", json={"name": "Heatmap Test"})).json()
+    pid = proj["system_id"]
+    pi = (await client.post(
+        f"/api/v1/projects/{pid}/pis", json={"name": "PI Grid", "state": "draft"},
+    )).json()
+    pi_id = pi["system_id"]
+
+    sprints = (await client.get(f"/api/v1/pis/{pi_id}/sprints")).json()
+    s0 = next(s for s in sprints if s["sprint_index"] == 0)
+    s1 = next(s for s in sprints if s["sprint_index"] == 1)
+    await client.patch(f"/api/v1/sprints/{s0['system_id']}", json={"capacity": 10})
+    await client.patch(f"/api/v1/sprints/{s1['system_id']}", json={"capacity": 8})
+
+    alpha = (await client.post(f"/api/v1/pis/{pi_id}/swimlines", json={"name": "Team Alpha"})).json()
+    beta = (await client.post(f"/api/v1/pis/{pi_id}/swimlines", json={"name": "Team Beta"})).json()
+
+    async def feature_in(lane_id: str, fid: int, title: str) -> str:
+        feat = (await client.post(
+            f"/api/v1/projects/{pid}/features", json={"title": title, "id": fid},
+        )).json()
+        await client.patch(
+            f"/api/v1/features/{feat['system_id']}",
+            json={"location": "pi", "pi_id": pi_id, "swimlane_id": lane_id},
+        )
+        return feat["system_id"]
+
+    async def place(feat_id: str, pid_num: int, effort: int, sprint_index: int) -> None:
+        pbi = (await client.post(
+            f"/api/v1/projects/{pid}/pbis",
+            json={"title": f"PBI {pid_num}", "id": pid_num, "effort": effort,
+                  "parent_feature_system_id": feat_id},
+        )).json()
+        await client.post(f"/api/v1/pbis/{pbi['system_id']}/place", json={"sprint_index": sprint_index})
+
+    fa = await feature_in(alpha["system_id"], 101, "Alpha Feature")
+    fb = await feature_in(beta["system_id"], 102, "Beta Feature")
+    await place(fa, 201, 8, 0)
+    await place(fa, 202, 3, 1)
+    await place(fb, 203, 5, 0)
+
+    return {
+        "pi_id": pi_id,
+        "alpha_id": alpha["system_id"],
+        "beta_id": beta["system_id"],
+    }
+
+
+@pytest.mark.asyncio
+async def test_sprint_swimline_efforts_grid(
+    client: AsyncClient, db: AsyncSession, planned_grid: dict
+) -> None:
+    """The heatmap aggregation returns effort keyed by (sprint_index, swimline_id)."""
+    grid = await sprint_swimline_efforts(db, planned_grid["pi_id"])
+    alpha, beta = planned_grid["alpha_id"], planned_grid["beta_id"]
+    assert grid == {
+        (0, alpha): 8.0,
+        (1, alpha): 3.0,
+        (0, beta): 5.0,
+    }
+
+
+@pytest.mark.asyncio
+async def test_sprint_swimline_efforts_empty_pi(
+    client: AsyncClient, db: AsyncSession
+) -> None:
+    """A PI with no placed PBIs yields an empty grid."""
+    proj = (await client.post("/api/v1/projects/", json={"name": "Empty Grid"})).json()
+    pi = (await client.post(
+        f"/api/v1/projects/{proj['system_id']}/pis", json={"name": "Empty", "state": "draft"},
+    )).json()
+    assert await sprint_swimline_efforts(db, pi["system_id"]) == {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("param", [
+    "",
+    "show_pi_effort=true",
+    "show_export_date=true",
+    "show_pi_effort=true&show_export_date=true",
+])
+async def test_png_export_heatmap_layout(
+    client: AsyncClient, planned_grid: dict, param: str
+) -> None:
+    """The heatmap layout produces a valid PNG across its relevant options."""
+    pi_id = planned_grid["pi_id"]
+    query = "layout=heatmap" + (f"&{param}" if param else "")
+    resp = await client.get(f"/api/v1/pis/{pi_id}/export/png?{query}")
+    assert resp.status_code == 200
+    assert resp.headers["content-type"] == "image/png"
+    assert resp.content[:8] == PNG_SIGNATURE
+    assert len(resp.content) > 1000
+
+
+@pytest.mark.asyncio
+async def test_png_export_heatmap_empty_pi(client: AsyncClient) -> None:
+    """The heatmap on a PI with no swimlines/placed PBIs still produces a valid PNG."""
+    proj = (await client.post("/api/v1/projects/", json={"name": "Heatmap Empty"})).json()
+    pi = (await client.post(
+        f"/api/v1/projects/{proj['system_id']}/pis",
+        json={"name": "Empty Heatmap PI", "state": "draft"},
+    )).json()
+
+    resp = await client.get(f"/api/v1/pis/{pi['system_id']}/export/png?layout=heatmap")
+    assert resp.status_code == 200
+    assert resp.content[:8] == PNG_SIGNATURE
+
+
+# ---------------------------------------------------------------------------
 # Access control: readers can export
 # ---------------------------------------------------------------------------
 
@@ -376,3 +497,6 @@ async def test_export_reader_allowed(
 
     png_resp = await reader_client.get(f"/api/v1/pis/{pi_id}/export/png")
     assert png_resp.status_code == 200
+
+    heatmap_resp = await reader_client.get(f"/api/v1/pis/{pi_id}/export/png?layout=heatmap")
+    assert heatmap_resp.status_code == 200

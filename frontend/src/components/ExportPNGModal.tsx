@@ -155,6 +155,13 @@ export function ExportPNGModal({ piId, piName, open, onClose }: Props) {
                 checked={opts.layout === 'list'}
                 onSelect={() => setLayout('list')}
               />
+              <LayoutOption
+                id="export-layout-heatmap"
+                label="Heatmap"
+                description="Team × sprint capacity grid"
+                checked={opts.layout === 'heatmap'}
+                onSelect={() => setLayout('heatmap')}
+              />
             </div>
           </fieldset>
 
@@ -166,20 +173,24 @@ export function ExportPNGModal({ piId, piName, open, onClose }: Props) {
               checked={opts.showPiEffort}
               onChange={() => toggle('showPiEffort')}
             />
-            <ToggleRow
-              id="export-sprint-effort"
-              label="Sprint effort"
-              description="Show effort, capacity and ratio bar in each sprint header"
-              checked={opts.showSprintEffort}
-              onChange={() => toggle('showSprintEffort')}
-            />
-            <ToggleRow
-              id="export-events"
-              label="Events"
-              description="Show PI events as vertical markers on the chart"
-              checked={opts.showEvents}
-              onChange={() => toggle('showEvents')}
-            />
+            {opts.layout !== 'heatmap' && (
+              <ToggleRow
+                id="export-sprint-effort"
+                label="Sprint effort"
+                description="Show effort, capacity and ratio bar in each sprint header"
+                checked={opts.showSprintEffort}
+                onChange={() => toggle('showSprintEffort')}
+              />
+            )}
+            {opts.layout !== 'heatmap' && (
+              <ToggleRow
+                id="export-events"
+                label="Events"
+                description="Show PI events as vertical markers on the chart"
+                checked={opts.showEvents}
+                onChange={() => toggle('showEvents')}
+              />
+            )}
             <ToggleRow
               id="export-date"
               label="Export date"

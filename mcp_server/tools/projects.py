@@ -296,6 +296,7 @@ async def export_pi_csv(
 async def export_pi_png(
     pi_id: Annotated[str, Field(description="PI system_id (UUID)")],
     ctx: Context,
+    layout: Annotated[str, Field(default="roadmap", description="'roadmap' (swimlane bars), 'list' (PBIs per sprint), or 'heatmap' (team × sprint capacity grid)")] = "roadmap",
     show_pi_effort: Annotated[bool, Field(default=False, description="Show total effort/capacity in the PI title")] = False,
     show_sprint_effort: Annotated[bool, Field(default=False, description="Show effort, capacity and ratio bar in each sprint header")] = False,
     show_swimlane_effort: Annotated[bool, Field(default=False, description="Show effort value inside each swimlane bar")] = False,
@@ -304,15 +305,18 @@ async def export_pi_png(
     show_export_date: Annotated[bool, Field(default=False, description="Show export date in the bottom-right corner")] = False,
 ) -> dict:
     """
-    Export a PI's swimlane roadmap as a PNG image (base64-encoded).
+    Export a PI as a PNG image (base64-encoded).
 
     Returns {"png_base64": "<base64 string>"} — decode and save as a .png file to view.
-    The image shows the full PI board: swimlines, sprints, features, and milestone events.
+    The `layout` selects the view: 'roadmap' shows swimlane bars across sprints, 'list'
+    lists each sprint's PBIs, and 'heatmap' renders a team × sprint grid coloured by
+    capacity utilization (green/amber/red) — the fastest way to spot over-committed teams.
     All display options default to off — enable what you need.
     This is a read-only operation — no lock is acquired.
     Use list_pis first to find the pi_id.
     """
     params = urlencode({
+        "layout": layout,
         "show_pi_effort": str(show_pi_effort).lower(),
         "show_sprint_effort": str(show_sprint_effort).lower(),
         "show_swimlane_effort": str(show_swimlane_effort).lower(),

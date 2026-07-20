@@ -23,6 +23,7 @@ from app.models.swimline import Swimline
 from app.services.effort import (
     pi_effort_and_capacity,
     sprint_efforts_for_pi,
+    sprint_swimline_efforts,
     sprint_utilization,
     swimline_efforts,
 )
@@ -30,7 +31,7 @@ from app.services.effort import (
 
 @dataclass
 class PNGExportOptions:
-    layout: str = "roadmap"  # "roadmap" | "list"
+    layout: str = "roadmap"  # "roadmap" | "list" | "heatmap"
     show_pi_effort: bool = False
     show_sprint_effort: bool = False
     show_swimlane_effort: bool = False  # roadmap only
@@ -341,6 +342,10 @@ async def export_pi_png(db: AsyncSession, pi: PI, opts: PNGExportOptions | None 
         placed = await _placed_pbis_for_pi(db, [s.system_id for s in swimlines])
         return _build_list_figure(ctx, placed)
 
+    if opts.layout == "heatmap":
+        cell_efforts = await sprint_swimline_efforts(db, pi.system_id)
+        return _build_heatmap_figure(ctx, cell_efforts)
+
     sl_efforts = await swimline_efforts(db, [s.system_id for s in swimlines]) if swimlines else {}
     return await _build_roadmap_figure(db, ctx, sl_efforts)
 
@@ -587,3 +592,126 @@ def _draw_list_bands(ax: object, bands: list[dict]) -> None:
         # horizontal separator between bands
         if b is not bands[-1]:
             ax.axhline(y=y, color="#e2e8f0", linewidth=0.8, zorder=0)  # type: ignore[union-attr]
+
+
+# Text colour per capacity status, chosen for contrast against the _UTIL_COLORS fill.
+_HEATMAP_TEXT_COLORS: dict[str, str] = {
+    "no_capacity": "#1f2937",  # gray fill  -> dark text
+    "over": "white",           # red fill   -> white text
+    "warn": "#1f2937",         # amber fill -> dark text
+    "ok": "white",             # blue fill  -> white text
+}
+
+
+def _draw_heatmap_header(
+    ax_header: object, sprints: list[Sprint], num_sprints: int, x_lo: float, x_hi: float
+) -> None:
+    """Sprint-name column headers (+ dates) and the right "Total" header for the heatmap."""
+    ax_header.set_xlim(x_lo, x_hi)  # type: ignore[union-attr]
+    ax_header.set_ylim(0.0, 1.0)  # type: ignore[union-attr]
+    ax_header.axis("off")  # type: ignore[union-attr]
+    for j in range(num_sprints):
+        ax_header.text(j + 0.5, 0.62, f"Sprint {j + 1}", ha="center", va="center",  # type: ignore[union-attr]
+                       fontsize=8, fontweight="bold", color="#374151")
+        sprint = next((s for s in sprints if s.sprint_index == j), None)
+        if sprint and (sprint.start_date or sprint.end_date):
+            ax_header.text(j + 0.5, 0.26,  # type: ignore[union-attr]
+                           f"{_fmt_date(sprint.start_date)} – {_fmt_date(sprint.end_date)}",
+                           ha="center", va="center", fontsize=6.5, color="#6b7280")
+    ax_header.text(num_sprints + 0.5, 0.62, "Total", ha="center", va="center",  # type: ignore[union-attr]
+                   fontsize=8, fontweight="bold", color="#374151")
+
+
+def _build_heatmap_figure(
+    ctx: _RenderContext, cell_efforts: dict[tuple[int, str], float]
+) -> bytes:
+    """Heatmap layout: swimlane (team) × sprint grid coloured by capacity utilization.
+
+    Each cell shows a team's placed load / that sprint's capacity, coloured by the
+    shared capacity thresholds (``sprint_utilization`` / ``_UTIL_COLORS``). A right-hand
+    column totals per team; a bottom row totals per sprint (load vs. capacity — the real
+    over-commit check). Cell capacity is the *whole sprint's* capacity, since the model
+    holds a single capacity per sprint, not one per team.
+    """
+    opts = ctx.opts
+    num_sprints = ctx.num_sprints
+    swimlines = ctx.swimlines
+    n_lanes = len(swimlines)
+    n_rows = n_lanes + 1  # team rows + a bottom totals row
+
+    cap_by_index = {s.sprint_index: (s.capacity or 0) for s in ctx.sprints}
+
+    LABEL_W = 2.2   # left gutter for team names, in column (data) units
+    COL_W_IN = 1.4  # inches per column
+    ROW_H_IN = 0.5  # inches per row
+    HEADER_H = 0.6  # inches for the sprint-name header strip
+
+    n_cols_total = num_sprints + 1  # sprint columns + a totals column
+    fig_width = max(10.0, (LABEL_W + n_cols_total) * COL_W_IN)
+    main_h = max(1.5, n_rows * ROW_H_IN + 0.4)
+
+    fig, ax_header, ax, ax_footer = _make_figure(fig_width, HEADER_H, main_h, opts.show_export_date)
+
+    x_lo = -LABEL_W
+    x_hi = float(num_sprints + 1)
+
+    # header strip: sprint names (+ dates) and the "Total" column header
+    _draw_heatmap_header(ax_header, ctx.sprints, num_sprints, x_lo, x_hi)
+
+    # main grid
+    ax.set_xlim(x_lo, x_hi)  # type: ignore[union-attr]
+    ax.set_ylim(0.0, float(n_rows))  # type: ignore[union-attr]
+    ax.axis("off")  # type: ignore[union-attr]
+
+    def draw_cell(col: int, row_top: int, facecolor: str, text: str, text_color: str,
+                  bold: bool = False, edgecolor: str = "white") -> None:
+        # row_top counts from the top (0 = first lane); each row band spans one unit
+        y0 = n_rows - 1 - row_top
+        ax.add_patch(Rectangle(  # type: ignore[union-attr]
+            (col + 0.03, y0 + 0.06), 0.94, 0.88,
+            facecolor=facecolor, edgecolor=edgecolor, linewidth=1.0,
+        ))
+        if text:
+            ax.text(col + 0.5, y0 + 0.5, text, ha="center", va="center",  # type: ignore[union-attr]
+                    fontsize=7.5, color=text_color, fontweight="bold" if bold else "normal")
+
+    for row, swimline in enumerate(swimlines):
+        ax.text(-0.12, n_rows - 1 - row + 0.5, _truncate(swimline.name, 22),  # type: ignore[union-attr]
+                ha="right", va="center", fontsize=8, fontweight="bold",
+                color="#1f2937", clip_on=False)
+        team_total = 0.0
+        for j in range(num_sprints):
+            load = cell_efforts.get((j, swimline.system_id), 0.0)
+            team_total += load
+            if load > 0:
+                # colour by utilization; the number is just the load (capacity is
+                # implied by the column and shown in the bottom Total row)
+                _, status = sprint_utilization(load, cap_by_index.get(j, 0))
+                draw_cell(j, row, _UTIL_COLORS[status], f"{load:g}",
+                          _HEATMAP_TEXT_COLORS[status])
+            else:
+                # empty cell: a faint outlined box, no number, so it recedes
+                draw_cell(j, row, "#f8fafc", "", "#1f2937", edgecolor="#e2e8f0")
+        # per-team total (no single sprint capacity to compare against)
+        draw_cell(num_sprints, row, "#f1f5f9", f"{team_total:g}", "#1f2937", bold=True)
+
+    # bottom totals row: per-sprint load vs capacity (the real over-commit check)
+    ax.text(-0.12, 0.5, "Total", ha="right", va="center", fontsize=8,  # type: ignore[union-attr]
+            fontweight="bold", color="#1f2937", clip_on=False)
+    for j in range(num_sprints):
+        sprint_total = sum(cell_efforts.get((j, s.system_id), 0.0) for s in swimlines)
+        cap = cap_by_index.get(j, 0)
+        _, status = sprint_utilization(sprint_total, cap)
+        draw_cell(j, n_lanes, _UTIL_COLORS[status], f"{sprint_total:g}/{cap}",
+                  _HEATMAP_TEXT_COLORS[status], bold=True)
+    # grand-total corner cell
+    _, gstatus = sprint_utilization(ctx.effort, ctx.capacity)
+    draw_cell(num_sprints, n_lanes, _UTIL_COLORS[gstatus],
+              f"{ctx.effort:g}/{ctx.capacity}", _HEATMAP_TEXT_COLORS[gstatus], bold=True)
+
+    _apply_title(fig, ctx.pi, opts, ctx.effort, ctx.capacity, ctx.effort_unit)
+
+    if ax_footer is not None:
+        _apply_footer(ax_footer)
+
+    return _fig_to_png(fig)

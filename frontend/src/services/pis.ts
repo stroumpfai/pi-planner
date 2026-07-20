@@ -37,7 +37,7 @@ export function downloadPICSV(piId: string, piName: string): Promise<void> {
   return _downloadBlob(`/api/v1/pis/${piId}/export/csv`, `${piName}.csv`)
 }
 
-export type ExportPNGLayout = 'roadmap' | 'list'
+export type ExportPNGLayout = 'roadmap' | 'list' | 'heatmap'
 
 export interface ExportPNGOptions {
   layout: ExportPNGLayout

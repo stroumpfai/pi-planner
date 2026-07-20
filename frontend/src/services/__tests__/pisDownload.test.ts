@@ -85,6 +85,16 @@ describe('downloadPIPNG', () => {
     expect(url.searchParams.get('show_export_date')).toBe('true')
   })
 
+  it('encodes the heatmap layout', async () => {
+    vi.mocked(fetch).mockResolvedValue(mockResponse({ disposition: null }))
+
+    await downloadPIPNG('pi-9', 'Board', { ...DEFAULT_EXPORT_PNG_OPTIONS, layout: 'heatmap' })
+
+    const url = new URL(vi.mocked(fetch).mock.calls[0][0] as string, 'http://x')
+    expect(url.pathname).toBe('/api/v1/pis/pi-9/export/png')
+    expect(url.searchParams.get('layout')).toBe('heatmap')
+  })
+
   it('serializes false options as "false"', async () => {
     vi.mocked(fetch).mockResolvedValue(mockResponse({ disposition: null }))
 

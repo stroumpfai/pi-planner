@@ -26,6 +26,33 @@ async def sprint_efforts_for_pi(db: AsyncSession, pi_id: str) -> dict[int, float
     }
 
 
+async def sprint_swimline_efforts(
+    db: AsyncSession, pi_id: str
+) -> dict[tuple[int, str], float]:
+    """Return {(sprint_index, swimline_id): effort} for all placed PBIs in the PI.
+
+    The 2-D grid backing the capacity-vs-load heatmap: effort summed per
+    (sprint, swimlane) cell. Mirrors ``sprint_efforts_for_pi`` but groups by both
+    axes.
+    """
+    result = await db.execute(
+        select(
+            Group.sprint_index,
+            Group.swimline_id,
+            func.coalesce(func.sum(PBI.effort), 0).label("effort"),
+        )
+        .join(PBI, PBI.group_id == Group.system_id)
+        .join(Swimline, Group.swimline_id == Swimline.system_id)
+        .where(Swimline.pi_id == pi_id, PBI.effort.is_not(None))
+        .group_by(Group.sprint_index, Group.swimline_id)
+    )
+    return {
+        (row.sprint_index, row.swimline_id): float(row.effort)
+        for row in result.all()
+        if row.sprint_index is not None
+    }
+
+
 async def swimline_efforts(db: AsyncSession, swimline_ids: list[str]) -> dict[str, float]:
     """Return {swimline_id: effort} for the given swimlane IDs."""
     if not swimline_ids:

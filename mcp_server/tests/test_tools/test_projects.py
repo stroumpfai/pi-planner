@@ -366,6 +366,7 @@ async def test_export_pi_png_defaults_all_options_false(mock_backend, mock_ctx, 
     )
     await export_pi_png(pi_id=PI_ID, ctx=mock_ctx)
     params = mock_backend.calls.last.request.url.params
+    assert params["layout"] == "roadmap"
     for name in (
         "show_pi_effort",
         "show_sprint_effort",
@@ -375,6 +376,15 @@ async def test_export_pi_png_defaults_all_options_false(mock_backend, mock_ctx, 
         "show_export_date",
     ):
         assert params[name] == "false"
+
+
+async def test_export_pi_png_encodes_heatmap_layout(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.get(f"/api/v1/pis/{PI_ID}/export/png").mock(
+        return_value=httpx.Response(200, content=b"\x89PNG", headers={"content-type": "image/png"})
+    )
+    await export_pi_png(pi_id=PI_ID, ctx=mock_ctx, layout="heatmap")
+    params = mock_backend.calls.last.request.url.params
+    assert params["layout"] == "heatmap"
 
 
 async def test_export_pi_png_encodes_selected_options(mock_backend, mock_ctx, patch_get_http_request):
