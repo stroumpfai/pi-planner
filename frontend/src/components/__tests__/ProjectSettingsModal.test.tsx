@@ -19,6 +19,8 @@ const fakeProject: Project = {
   system_id: 'p-1',
   name: 'Test Project',
   description: null,
+  azure_devops_url: null,
+  work_item_path_template: null,
   effort_unit: 'pts',
   created_at: '2026-01-01T00:00:00Z',
   modified_at: '2026-01-01T00:00:00Z',

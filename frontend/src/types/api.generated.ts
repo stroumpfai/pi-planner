@@ -141,6 +141,10 @@ export interface paths {
     /** Export Pi Png Endpoint */
     get: operations["export_pi_png_endpoint_api_v1_pis__pi_id__export_png_get"];
   };
+  "/api/v1/pis/{pi_id}/report": {
+    /** Export Pi Report Endpoint */
+    get: operations["export_pi_report_endpoint_api_v1_pis__pi_id__report_get"];
+  };
   "/api/v1/pis/{pi_id}/swimlines": {
     /** List Swimlines */
     get: operations["list_swimlines_api_v1_pis__pi_id__swimlines_get"];
@@ -795,6 +799,8 @@ export interface components {
       description?: string | null;
       /** Azure Devops Url */
       azure_devops_url?: string | null;
+      /** Work Item Path Template */
+      work_item_path_template?: string | null;
     };
     /** ProjectResponse */
     ProjectResponse: {
@@ -806,6 +812,8 @@ export interface components {
       description: string | null;
       /** Azure Devops Url */
       azure_devops_url: string | null;
+      /** Work Item Path Template */
+      work_item_path_template: string | null;
       /** Effort Unit */
       effort_unit: string;
       /**
@@ -827,6 +835,8 @@ export interface components {
       description?: string | null;
       /** Azure Devops Url */
       azure_devops_url?: string | null;
+      /** Work Item Path Template */
+      work_item_path_template?: string | null;
       /** Effort Unit */
       effort_unit?: string | null;
     };
@@ -2112,6 +2122,36 @@ export interface operations {
         show_export_date?: boolean;
         split_by_swimline?: boolean;
         show_id?: boolean;
+      };
+      path: {
+        pi_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Export Pi Report Endpoint */
+  export_pi_report_endpoint_api_v1_pis__pi_id__report_get: {
+    parameters: {
+      query?: {
+        report_type?: string;
+        fmt?: string;
+        show_ids?: boolean;
       };
       path: {
         pi_id: string;

@@ -2,6 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { useForm } from 'react-hook-form'
 import type { AxiosError } from 'axios'
 import type { Feature } from '@/types'
+import { WorkItemLink } from './WorkItemLink'
 
 export type FeatureFormValues = {
   title: string
@@ -99,6 +100,10 @@ export function FeatureFormModal({ open, feature, onClose, onSubmit }: Props) {
               />
               {errors.id && <p className="mt-1 text-xs text-red-600">{errors.id.message}</p>}
             </div>
+
+            {feature && (
+              <WorkItemLink projectId={feature.project_id} id={feature.id} variant="inline" label="Work item" />
+            )}
 
             <div className="flex justify-end gap-3 pt-2">
               <button

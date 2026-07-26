@@ -1,9 +1,10 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useUpdateProject } from '@/hooks/useProjects'
+import { AZURE_DEVOPS_TEMPLATE, JIRA_TEMPLATE } from '@/utils/workItemUrl'
 import type { AxiosError } from 'axios'
 import type { Project } from '@/types'
 
@@ -16,9 +17,25 @@ const schema = z.object({
     .max(2000)
     .optional()
     .refine((v) => !v || /^https?:\/\/.+/i.test(v), 'Must be an http(s):// URL'),
+  work_item_path_template: z
+    .string()
+    .trim()
+    .max(500)
+    .optional()
+    .refine((v) => !v || v.includes('{id}'), 'Must contain the {id} placeholder')
+    .refine((v) => !v || (!v.includes('://') && !/\s/.test(v)), 'Must be a relative path with no spaces'),
 })
 
 type FormValues = z.infer<typeof schema>
+
+type LinkPreset = 'none' | 'azure_devops' | 'jira' | 'custom'
+
+function presetFromTemplate(template: string | null | undefined): LinkPreset {
+  if (!template) return 'none'
+  if (template === AZURE_DEVOPS_TEMPLATE) return 'azure_devops'
+  if (template === JIRA_TEMPLATE) return 'jira'
+  return 'custom'
+}
 
 interface Props {
   readonly open: boolean
@@ -28,13 +45,30 @@ interface Props {
 
 export function EditProjectModal({ open, project, onClose }: Props) {
   const updateProject = useUpdateProject(project.system_id)
-  const { register, handleSubmit, reset, setError, formState: { errors, isSubmitting } } = useForm<FormValues>({
+  const [linkPreset, setLinkPreset] = useState<LinkPreset>('none')
+  const { register, handleSubmit, reset, setError, setValue, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
   })
 
   useEffect(() => {
-    if (open) reset({ name: project.name, description: project.description ?? '', azure_devops_url: project.azure_devops_url ?? '' })
-  }, [open, project.name, project.description, project.azure_devops_url, reset])
+    if (open) {
+      reset({
+        name: project.name,
+        description: project.description ?? '',
+        azure_devops_url: project.azure_devops_url ?? '',
+        work_item_path_template: project.work_item_path_template ?? '',
+      })
+      setLinkPreset(presetFromTemplate(project.work_item_path_template))
+    }
+  }, [open, project.name, project.description, project.azure_devops_url, project.work_item_path_template, reset])
+
+  const handlePresetChange = (value: LinkPreset) => {
+    setLinkPreset(value)
+    if (value === 'azure_devops') setValue('work_item_path_template', AZURE_DEVOPS_TEMPLATE)
+    else if (value === 'jira') setValue('work_item_path_template', JIRA_TEMPLATE)
+    else if (value === 'none') setValue('work_item_path_template', '')
+    // 'custom' keeps the current value so the user can edit it below.
+  }
 
   const onSubmit = async (values: FormValues) => {
     try {
@@ -42,6 +76,7 @@ export function EditProjectModal({ open, project, onClose }: Props) {
         name: values.name,
         description: values.description || null,
         azure_devops_url: values.azure_devops_url || null,
+        work_item_path_template: values.work_item_path_template || null,
       })
       onClose()
     } catch (err) {
@@ -95,6 +130,32 @@ export function EditProjectModal({ open, project, onClose }: Props) {
               />
               {errors.azure_devops_url && <p className="mt-1 text-xs text-red-600">{errors.azure_devops_url.message}</p>}
               <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Link to the project in Azure DevOps, shown on the project card</p>
+            </div>
+
+            <div>
+              <label htmlFor="edit-proj-link-preset" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Work-item links</label>
+              <select
+                id="edit-proj-link-preset"
+                value={linkPreset}
+                onChange={(e) => handlePresetChange(e.target.value as LinkPreset)}
+                className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              >
+                <option value="none">None (no per-item links)</option>
+                <option value="azure_devops">Azure DevOps</option>
+                <option value="jira">Jira</option>
+                <option value="custom">Custom…</option>
+              </select>
+              {linkPreset === 'custom' && (
+                <input
+                  {...register('work_item_path_template')}
+                  placeholder="_workitems/edit/{id}"
+                  className="mt-2 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm font-mono"
+                />
+              )}
+              {errors.work_item_path_template && <p className="mt-1 text-xs text-red-600">{errors.work_item_path_template.message}</p>}
+              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                Builds a per-item link from the URL above + this path (with <code>{'{id}'}</code> as the item ID). Features and stories then show a link to open in the tracker.
+              </p>
             </div>
 
             <div className="flex justify-end gap-3 pt-2">

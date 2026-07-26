@@ -51,7 +51,12 @@ async def create_project(
     db: Annotated[AsyncSession, Depends(get_session)],
     _: Annotated[User, Depends(require_editor_or_above)],
 ) -> ProjectResponse:
-    project = Project(name=body.name, description=body.description, azure_devops_url=body.azure_devops_url)
+    project = Project(
+        name=body.name,
+        description=body.description,
+        azure_devops_url=body.azure_devops_url,
+        work_item_path_template=body.work_item_path_template,
+    )
     db.add(project)
     try:
         await db.commit()
@@ -89,6 +94,9 @@ async def update_project(
     if "azure_devops_url" in body.model_fields_set:
         # Explicitly provided (incl. null/"" to clear); validator normalized "" -> None.
         project.azure_devops_url = body.azure_devops_url
+    if "work_item_path_template" in body.model_fields_set:
+        # Explicitly provided (incl. null/"" to clear); validator normalized "" -> None.
+        project.work_item_path_template = body.work_item_path_template
     if body.effort_unit is not None:
         project.effort_unit = body.effort_unit
     project.modified_at = datetime.now(timezone.utc)
@@ -341,6 +349,7 @@ async def import_project(
         name=resolved_name,
         description=proj_data.get("description"),
         azure_devops_url=proj_data.get("azure_devops_url"),
+        work_item_path_template=proj_data.get("work_item_path_template"),
         effort_unit=proj_data.get("effort_unit", "pts"),
     )
     db.add(project)

@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import type { AxiosError } from 'axios'
 import type { PBI } from '@/types'
 import { EFFORT_VALUES } from '@/constants/effort'
+import { WorkItemLink } from './WorkItemLink'
 
 export type PBIFormValues = {
   title: string
@@ -184,6 +185,10 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', onClose, onSubm
                 {errors.id && <p className="mt-1 text-xs text-red-600">{errors.id.message}</p>}
               </div>
             </div>
+
+            {pbi && (
+              <WorkItemLink projectId={pbi.project_id} id={pbi.id} variant="inline" label="Work item" />
+            )}
 
             <div className="flex justify-end gap-3 pt-2">
               <button

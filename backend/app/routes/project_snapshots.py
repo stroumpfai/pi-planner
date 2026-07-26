@@ -176,6 +176,7 @@ async def restore_snapshot(
     project.description = proj_data.get("description")
     project.effort_unit = proj_data.get("effort_unit", "pts")
     project.azure_devops_url = proj_data.get("azure_devops_url")
+    project.work_item_path_template = proj_data.get("work_item_path_template")
     project.modified_at = datetime.now(timezone.utc)
 
     # 5. Release the edit lock if one is held.

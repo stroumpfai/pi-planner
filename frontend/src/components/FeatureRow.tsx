@@ -3,6 +3,7 @@ import type { Feature } from '@/types'
 import { FeatureFormModal } from './FeatureFormModal'
 import { ConfirmDialog } from './ConfirmDialog'
 import { PBIList } from './PBIList'
+import { WorkItemLink } from './WorkItemLink'
 import { useUpdateFeature, useDeleteFeature } from '@/hooks/useFeatures'
 import { useAuthStore } from '@/stores/authStore'
 import { useEffortUnit } from '@/hooks/useProjects'
@@ -56,6 +57,7 @@ export function FeatureRow({ feature, projectId }: Props) {
 
         {/* Actions — only visible in edit mode */}
         <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+          <WorkItemLink projectId={projectId} id={feature.id} />
           <button
             onClick={() => isEditing && setEditing(true)}
             disabled={!isEditing}

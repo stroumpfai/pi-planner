@@ -232,6 +232,7 @@ async def serialize_project(db: AsyncSession, project: Project) -> dict[str, Any
             "name": project.name,
             "description": project.description,
             "azure_devops_url": project.azure_devops_url,
+            "work_item_path_template": project.work_item_path_template,
             "effort_unit": project.effort_unit,
             "created_at": project.created_at.isoformat(),
             "modified_at": project.modified_at.isoformat(),

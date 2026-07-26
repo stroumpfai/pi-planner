@@ -10,6 +10,7 @@ import { useUiStore } from '@/stores/uiStore'
 import { toast } from '@/stores/toastStore'
 import { PBISelectList } from './PBISelectList'
 import { SplitFeatureModal } from './SplitFeatureModal'
+import { WorkItemLink } from './WorkItemLink'
 import { ConfirmDialog } from './ConfirmDialog'
 import { getFeatureColorIdx, lineageRootId, FEATURE_BORDER_COLORS } from '@/utils/featureColors'
 import type { Feature } from '@/types'
@@ -127,7 +128,7 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
   return (
     <div
       ref={setNodeRef}
-      className={`bg-canvas rounded-xl2 shadow-soft transition-shadow select-none ${
+      className={`group bg-canvas rounded-xl2 shadow-soft transition-shadow select-none ${
         isDragging ? 'opacity-40 border border-blue-400' : `border-l-4 ${borderColor}`
       }`}
     >
@@ -144,6 +145,7 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
           <span className="text-gray-400 dark:text-gray-500 font-mono text-xs">{idPrefix}</span>
           {feature.title}
         </span>
+        <WorkItemLink projectId={projectId} id={feature.id} />
         {feature.effort != null && (
           <span className="flex-shrink-0 text-xs bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-full shadow-soft-sm px-1.5 py-0.5 font-medium">
             {feature.effort}{showEffortUnit ? effortUnit : ''}

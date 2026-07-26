@@ -3,6 +3,7 @@ import { useDraggable } from '@dnd-kit/core'
 import type { PBI } from '@/types'
 import { PBIFormModal } from './PBIFormModal'
 import { ConfirmDialog } from './ConfirmDialog'
+import { WorkItemLink } from './WorkItemLink'
 import { useUpdatePBI, useDeletePBI } from '@/hooks/usePBIs'
 import { useAuthStore } from '@/stores/authStore'
 import { useEffortUnit } from '@/hooks/useProjects'
@@ -89,6 +90,7 @@ export function PBIRow({ pbi, projectId, swimlaneId = '', isDraggable = false }:
       )}
 
       <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+        <WorkItemLink projectId={projectId} id={pbi.id} />
         <button
           onClick={() => isEditing && setEditing(true)}
           disabled={!isEditing}

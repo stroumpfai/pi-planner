@@ -282,6 +282,78 @@ async def test_export_import_round_trips_azure_url(client):
     assert resp.json()["azure_devops_url"] == "https://dev.azure.com/org/proj"
 
 
+# ── Work-item path template ──────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_create_project_defaults_template_null(client):
+    resp = await client.post("/api/v1/projects/", json={"name": "No Template"})
+    assert resp.status_code == 201
+    assert resp.json()["work_item_path_template"] is None
+
+
+@pytest.mark.asyncio
+async def test_create_and_update_project_with_template(client):
+    pid = (await client.post(
+        "/api/v1/projects/",
+        json={"name": "Tmpl Proj", "work_item_path_template": "_workitems/edit/{id}"},
+    )).json()["system_id"]
+    get = await client.get(f"/api/v1/projects/{pid}")
+    assert get.json()["work_item_path_template"] == "_workitems/edit/{id}"
+
+    resp = await client.patch(f"/api/v1/projects/{pid}", json={"work_item_path_template": "browse/{id}"})
+    assert resp.status_code == 200
+    assert resp.json()["work_item_path_template"] == "browse/{id}"
+
+
+@pytest.mark.asyncio
+async def test_update_project_template_can_be_cleared(client):
+    pid = (await client.post(
+        "/api/v1/projects/",
+        json={"name": "Clear Tmpl", "work_item_path_template": "browse/{id}"},
+    )).json()["system_id"]
+    resp = await client.patch(f"/api/v1/projects/{pid}", json={"work_item_path_template": ""})
+    assert resp.status_code == 200
+    assert resp.json()["work_item_path_template"] is None
+
+
+@pytest.mark.asyncio
+async def test_update_project_template_untouched_when_omitted(client):
+    pid = (await client.post(
+        "/api/v1/projects/",
+        json={"name": "Keep Tmpl", "work_item_path_template": "browse/{id}"},
+    )).json()["system_id"]
+    resp = await client.patch(f"/api/v1/projects/{pid}", json={"description": "changed"})
+    assert resp.status_code == 200
+    assert resp.json()["work_item_path_template"] == "browse/{id}"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "bad_template",
+    ["_workitems/edit/123", "https://evil.test/{id}", "_workitems/edit/{id} x"],
+)
+async def test_create_project_rejects_invalid_template(client, bad_template):
+    resp = await client.post(
+        "/api/v1/projects/",
+        json={"name": f"Bad {bad_template[:8]}", "work_item_path_template": bad_template},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_export_import_round_trips_template(client):
+    pid = (await client.post(
+        "/api/v1/projects/",
+        json={"name": "Round Trip Tmpl", "work_item_path_template": "_workitems/edit/{id}"},
+    )).json()["system_id"]
+    export = (await client.get(f"/api/v1/projects/{pid}/export")).json()
+    assert export["project"]["work_item_path_template"] == "_workitems/edit/{id}"
+
+    resp = await client.post("/api/v1/projects/import", files=[_upload(export)])
+    assert resp.status_code == 201
+    assert resp.json()["work_item_path_template"] == "_workitems/edit/{id}"
+
+
 @pytest.mark.asyncio
 async def test_delete_project_not_found(client):
     resp = await client.delete("/api/v1/projects/nonexistent")

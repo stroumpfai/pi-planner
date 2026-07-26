@@ -42,3 +42,35 @@ describe('Project CRUD', () => {
     cy.contains(/already exists|name.*taken|duplicate/i).should('be.visible')
   })
 })
+
+describe('Work-item deep links', () => {
+  let projectId: string
+
+  beforeEach(() => {
+    cy.resetDb()
+    cy.login()
+    cy.request('POST', '/api/v1/projects/', {
+      name: 'Linked Project',
+      azure_devops_url: 'https://devops.example.com/Coll/Proj',
+      work_item_path_template: '_workitems/edit/{id}',
+    }).then((res) => {
+      projectId = res.body.system_id
+    })
+  })
+
+  it('configures the Azure DevOps preset via the edit modal', () => {
+    cy.reload()
+    cy.contains('Linked Project').closest('li, [data-testid]').find('button, [aria-label*="edit" i]').first().click()
+    cy.get('select#edit-proj-link-preset').should('have.value', 'azure_devops')
+  })
+
+  it('shows a work-item link on the feature edit modal', () => {
+    cy.request('POST', `/api/v1/projects/${projectId}/features`, { title: 'Auth Feature', id: 101 })
+    cy.request('POST', `/api/v1/projects/${projectId}/edit-lock/acquire`)
+    cy.reload()
+    cy.contains('Auth Feature').closest('[data-feature-row], li').find('button[aria-label*="edit" i], button').first().click()
+    cy.contains('a', '_workitems/edit/101')
+      .should('have.attr', 'href', 'https://devops.example.com/Coll/Proj/_workitems/edit/101')
+      .and('have.attr', 'target', '_blank')
+  })
+})

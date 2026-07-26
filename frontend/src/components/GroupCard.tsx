@@ -9,6 +9,7 @@ import { useFeatures } from '@/hooks/useFeatures'
 import { getFeatureColorIdx, lineageRootId, FEATURE_BORDER_COLORS, FEATURE_CHIP_CLASSES } from '@/utils/featureColors'
 import { pbisApi } from '@/services/pbis'
 import { PBIFormModal } from './PBIFormModal'
+import { WorkItemLink } from './WorkItemLink'
 import type { Group, PBI } from '@/types'
 
 export interface GroupDragData {
@@ -143,7 +144,7 @@ export function GroupCard({ group, projectId, featureTitle }: Props) {
             const unitSuffix = showEffortUnit ? effortUnit : ''
             const effortLabel = pbi.effort == null ? null : `${pbi.effort}${unitSuffix}`
             return (
-              <li key={pbi.system_id} className="grid grid-cols-[minmax(0,1fr)_16px_40px] items-center gap-1">
+              <li key={pbi.system_id} className="group grid grid-cols-[minmax(0,1fr)_16px_40px] items-center gap-1">
                 {/* 1. Text (Bug badge + title) */}
                 <span className="flex items-center gap-1 min-w-0">
                   {isBug && (
@@ -155,6 +156,7 @@ export function GroupCard({ group, projectId, featureTitle }: Props) {
                     {showIds && pbi.id != null && <span className="font-mono text-gray-400 dark:text-gray-500">[{pbi.id}] </span>}
                     {pbi.title}
                   </span>
+                  <WorkItemLink projectId={projectId} id={pbi.id} />
                 </span>
 
                 {/* 2. Edit button */}
