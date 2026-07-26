@@ -138,7 +138,7 @@ export function GroupCard({ group, projectId, featureTitle }: Props) {
 
       {/* PBI list */}
       {groupPbis.length > 0 && (
-        <ul className="px-2 py-1 space-y-0.5">
+        <ul className="px-2 py-1 space-y-1">
           {groupPbis.map((pbi) => {
             const isBug = pbi.item_type === 'bug'
             const unitSuffix = showEffortUnit ? effortUnit : ''
