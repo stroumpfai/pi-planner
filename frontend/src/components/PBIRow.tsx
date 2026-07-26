@@ -3,7 +3,7 @@ import { useDraggable } from '@dnd-kit/core'
 import type { PBI } from '@/types'
 import { PBIFormModal } from './PBIFormModal'
 import { ConfirmDialog } from './ConfirmDialog'
-import { WorkItemLink } from './WorkItemLink'
+import { ItemEditButton } from './ItemEditButton'
 import { useUpdatePBI, useDeletePBI } from '@/hooks/usePBIs'
 import { useAuthStore } from '@/stores/authStore'
 import { useEffortUnit } from '@/hooks/useProjects'
@@ -89,29 +89,23 @@ export function PBIRow({ pbi, projectId, swimlaneId = '', isDraggable = false }:
         </span>
       )}
 
-      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-        <WorkItemLink projectId={projectId} id={pbi.id} />
-        <button
-          onClick={() => isEditing && setEditing(true)}
-          disabled={!isEditing}
-          title={isEditing ? 'Edit' : 'Request Edit Mode to make changes'}
-          className="text-xs text-blue-500 hover:text-blue-700 disabled:text-gray-300 dark:disabled:text-gray-600 disabled:cursor-not-allowed"
-        >
-          Edit
-        </button>
-        <button
-          onClick={() => isEditing && setConfirming(true)}
-          disabled={!isEditing}
-          title={isEditing ? 'Delete' : 'Request Edit Mode to make changes'}
-          className="text-xs text-red-500 hover:text-red-700 disabled:text-gray-300 dark:disabled:text-gray-600 disabled:cursor-not-allowed"
-        >
-          Delete
-        </button>
+      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
+        <ItemEditButton editable={isEditing} onActivate={() => setEditing(true)} />
+        {isEditing && (
+          <button
+            onClick={() => setConfirming(true)}
+            title="Delete"
+            className="text-xs text-red-500 hover:text-red-700"
+          >
+            Delete
+          </button>
+        )}
       </div>
 
       <PBIFormModal
         open={editing}
         pbi={pbi}
+        readOnly={!isEditing}
         onClose={() => setEditing(false)}
         onSubmit={(values) => updatePBI.mutateAsync({ pbiId: pbi.system_id, body: values })}
       />

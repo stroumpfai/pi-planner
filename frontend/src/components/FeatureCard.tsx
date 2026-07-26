@@ -10,7 +10,8 @@ import { useUiStore } from '@/stores/uiStore'
 import { toast } from '@/stores/toastStore'
 import { PBISelectList } from './PBISelectList'
 import { SplitFeatureModal } from './SplitFeatureModal'
-import { WorkItemLink } from './WorkItemLink'
+import { FeatureFormModal } from './FeatureFormModal'
+import { ItemEditButton } from './ItemEditButton'
 import { ConfirmDialog } from './ConfirmDialog'
 import { getFeatureColorIdx, lineageRootId, FEATURE_BORDER_COLORS } from '@/utils/featureColors'
 import type { Feature } from '@/types'
@@ -62,6 +63,7 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
   const [selectedPbiIds, setSelectedPbiIds] = useState<Set<string>>(new Set())
   const [splitModalOpen, setSplitModalOpen] = useState(false)
   const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
   const isEditing = useAuthStore((s) => s.isEditing)
   const effortUnit = useEffortUnit(projectId)
   const showIds = useSettingsStore((s) => s.showIds)
@@ -132,33 +134,40 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
         isDragging ? 'opacity-40 border border-blue-400' : `border-l-4 ${borderColor}`
       }`}
     >
-      {/* Card header — drag handle */}
+      {/* Card header — drag handle. Grid mirrors the group-card story rows:
+          title | edit/view icon (16px) | effort (36px) | fully-planned ✓ (auto). */}
       <div
-        className="flex items-start gap-2 px-3 py-2 cursor-grab active:cursor-grabbing"
+        className="grid grid-cols-[minmax(0,1fr)_16px_36px_auto] items-start gap-x-0.5 px-3 py-2 cursor-grab active:cursor-grabbing"
         {...attributes}
         {...listeners}
       >
         <span
-          className="text-sm text-gray-900 dark:text-gray-100 leading-snug flex-1 min-w-0 line-clamp-2"
+          className="text-sm text-gray-900 dark:text-gray-100 leading-snug min-w-0 line-clamp-2"
           title={feature.title}
         >
           <span className="text-gray-400 dark:text-gray-500 font-mono text-xs">{idPrefix}</span>
           {feature.title}
         </span>
-        <WorkItemLink projectId={projectId} id={feature.id} />
-        {feature.effort != null && (
-          <span className="flex-shrink-0 text-xs bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-full shadow-soft-sm px-1.5 py-0.5 font-medium">
-            {feature.effort}{showEffortUnit ? effortUnit : ''}
-          </span>
-        )}
-        {isFullyPlanned && (
-          <span
-            className="flex-shrink-0 text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-full shadow-soft-sm px-1.5 py-0.5 font-medium"
-            title="All PBIs assigned to sprints"
-          >
-            ✓
-          </span>
-        )}
+        <div className="flex items-center justify-end">
+          <ItemEditButton editable={isEditing} onActivate={() => setEditing(true)} withinDragHandle />
+        </div>
+        <div className="flex items-center justify-center">
+          {feature.effort != null && (
+            <span className="text-xs bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-full shadow-soft-sm px-1.5 py-0.5 font-medium whitespace-nowrap">
+              {feature.effort}{showEffortUnit ? effortUnit : ''}
+            </span>
+          )}
+        </div>
+        <div className="flex items-center justify-center">
+          {isFullyPlanned && (
+            <span
+              className="text-xs bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300 rounded-full shadow-soft-sm px-1.5 py-0.5 font-medium"
+              title="All PBIs assigned to sprints"
+            >
+              ✓
+            </span>
+          )}
+        </div>
       </div>
 
       {/* Continuation lineage — this feature's work also lives in these PIs */}
@@ -254,6 +263,14 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
           )}
         </div>
       )}
+
+      <FeatureFormModal
+        open={editing}
+        feature={feature}
+        readOnly={!isEditing}
+        onClose={() => setEditing(false)}
+        onSubmit={(values) => updateFeature.mutateAsync({ featureId: feature.system_id, body: values })}
+      />
 
       <SplitFeatureModal
         open={splitModalOpen}

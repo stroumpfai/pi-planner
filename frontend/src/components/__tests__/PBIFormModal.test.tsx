@@ -5,6 +5,19 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { PBIFormModal } from '../PBIFormModal'
 import type { PBI } from '@/types'
 
+vi.mock('@/hooks/useProjects', async () => {
+  const actual = await vi.importActual<typeof import('@/hooks/useProjects')>('@/hooks/useProjects')
+  return {
+    ...actual,
+    useProject: () => ({
+      data: {
+        azure_devops_url: 'https://dev.azure.com/acme/proj',
+        work_item_path_template: '_workitems/edit/{id}',
+      },
+    }),
+  }
+})
+
 const makeWrapper = () => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return ({ children }: { children: React.ReactNode }) => (
@@ -141,5 +154,22 @@ describe('PBIFormModal', () => {
         expect.objectContaining({ effort: null }),
       ),
     )
+  })
+
+  // ── Read-only mode ───────────────────────────────────────────────────────────
+
+  it('read-only mode disables fields and hides the save button', () => {
+    render(<PBIFormModal {...defaultProps} pbi={basePBI} readOnly />, { wrapper: makeWrapper() })
+    expect(screen.getByText(/details/i)).toBeInTheDocument()
+    expect(screen.getByText(/read-only/i)).toBeInTheDocument()
+    expect(screen.getByLabelText(/title/i)).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /save/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /close/i })).toBeInTheDocument()
+  })
+
+  it('read-only mode still exposes the work-item copy link', () => {
+    const linkedPBI: PBI = { ...basePBI, id: 42 }
+    render(<PBIFormModal {...defaultProps} pbi={linkedPBI} readOnly />, { wrapper: makeWrapper() })
+    expect(screen.getByRole('button', { name: /copy work-item link/i })).toBeEnabled()
   })
 })

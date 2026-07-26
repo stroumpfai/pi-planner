@@ -5,6 +5,7 @@ import { useEffortUnit } from '@/hooks/useProjects'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useAuthStore } from '@/stores/authStore'
 import { PBIFormModal } from './PBIFormModal'
+import { ItemEditButton } from './ItemEditButton'
 import type { PBI } from '@/types'
 import type { PBIDragData } from './PBIRow'
 
@@ -92,17 +93,9 @@ function PBISelectRow({ pbi, projectId, selected, onToggle, swimlaneId, canDragT
         </span>
       </label>
 
-      {/* 4. Edit button */}
+      {/* 4. Edit / view button */}
       <div className="flex items-center justify-center">
-        {isEditing && (
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            aria-label="Edit"
-            title="Edit"
-            className="text-xs text-gray-400 hover:text-blue-600 flex-shrink-0"
-          >✎</button>
-        )}
+        <ItemEditButton editable={isEditing} onActivate={() => setEditing(true)} />
       </div>
 
       {/* 5. Effort badge */}
@@ -117,6 +110,7 @@ function PBISelectRow({ pbi, projectId, selected, onToggle, swimlaneId, canDragT
       <PBIFormModal
         open={editing}
         pbi={pbi}
+        readOnly={!isEditing}
         onClose={() => setEditing(false)}
         onSubmit={(values) => updatePBI.mutateAsync({ pbiId: pbi.system_id, body: values })}
       />

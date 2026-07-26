@@ -58,17 +58,26 @@ describe('PBIRow', () => {
     expect(screen.getByText('5pts')).toBeInTheDocument()
   })
 
-  it('edit and delete buttons disabled when not editing', () => {
+  it('shows a View-details icon (no Edit/Delete) when not editing', () => {
     render(<PBIRow pbi={basePBI} projectId="proj-1" />, { wrapper: makeWrapper() })
-    expect(screen.getByRole('button', { name: /edit/i })).toBeDisabled()
-    expect(screen.getByRole('button', { name: /delete/i })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'View details' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument()
   })
 
-  it('edit and delete buttons enabled in edit mode', () => {
+  it('shows Edit and Delete in edit mode', () => {
     useAuthStore.setState({ isEditing: true })
     render(<PBIRow pbi={basePBI} projectId="proj-1" />, { wrapper: makeWrapper() })
-    expect(screen.getByRole('button', { name: /edit/i })).not.toBeDisabled()
-    expect(screen.getByRole('button', { name: /delete/i })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /delete/i })).toBeInTheDocument()
+  })
+
+  it('View-details icon opens a read-only modal when not editing', async () => {
+    render(<PBIRow pbi={basePBI} projectId="proj-1" />, { wrapper: makeWrapper() })
+    await userEvent.click(screen.getByRole('button', { name: 'View details' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByLabelText(/title/i)).toBeDisabled()
+    expect(within(dialog).queryByRole('button', { name: /save/i })).not.toBeInTheDocument()
   })
 
   it('title is plain text, not a click-to-edit control', async () => {

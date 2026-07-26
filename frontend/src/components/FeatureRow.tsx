@@ -3,7 +3,7 @@ import type { Feature } from '@/types'
 import { FeatureFormModal } from './FeatureFormModal'
 import { ConfirmDialog } from './ConfirmDialog'
 import { PBIList } from './PBIList'
-import { WorkItemLink } from './WorkItemLink'
+import { ItemEditButton } from './ItemEditButton'
 import { useUpdateFeature, useDeleteFeature } from '@/hooks/useFeatures'
 import { useAuthStore } from '@/stores/authStore'
 import { useEffortUnit } from '@/hooks/useProjects'
@@ -55,25 +55,18 @@ export function FeatureRow({ feature, projectId }: Props) {
           </span>
         )}
 
-        {/* Actions — only visible in edit mode */}
-        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-          <WorkItemLink projectId={projectId} id={feature.id} />
-          <button
-            onClick={() => isEditing && setEditing(true)}
-            disabled={!isEditing}
-            title={isEditing ? 'Edit' : 'Request Edit Mode to make changes'}
-            className="text-xs text-blue-500 hover:text-blue-700 disabled:text-gray-300 dark:disabled:text-gray-600 disabled:cursor-not-allowed"
-          >
-            Edit
-          </button>
-          <button
-            onClick={() => isEditing && setConfirming(true)}
-            disabled={!isEditing}
-            title={isEditing ? 'Delete' : 'Request Edit Mode to make changes'}
-            className="text-xs text-red-500 hover:text-red-700 disabled:text-gray-300 dark:disabled:text-gray-600 disabled:cursor-not-allowed"
-          >
-            Delete
-          </button>
+        {/* Actions — hover-revealed; Delete only in edit mode */}
+        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
+          <ItemEditButton editable={isEditing} onActivate={() => setEditing(true)} />
+          {isEditing && (
+            <button
+              onClick={() => setConfirming(true)}
+              title="Delete"
+              className="text-xs text-red-500 hover:text-red-700"
+            >
+              Delete
+            </button>
+          )}
         </div>
       </div>
 
@@ -86,6 +79,7 @@ export function FeatureRow({ feature, projectId }: Props) {
       <FeatureFormModal
         open={editing}
         feature={feature}
+        readOnly={!isEditing}
         onClose={() => setEditing(false)}
         onSubmit={(values) =>
           updateFeature.mutateAsync({ featureId: feature.system_id, body: values })

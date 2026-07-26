@@ -190,11 +190,18 @@ describe('GroupCard', () => {
     expect(within(dialog).getByLabelText(/title/i)).toHaveValue('Second')
   })
 
-  it('per-PBI Edit pen is not shown when not in edit mode', async () => {
-    vi.mocked(pbisService.pbisApi).list = vi.fn().mockResolvedValue([makePBI()])
+  it('shows a View-details (not Edit) button per PBI when not in edit mode, opening a read-only modal', async () => {
+    vi.mocked(pbisService.pbisApi).list = vi.fn().mockResolvedValue([makePBI({ title: 'Login flow' })])
     useAuthStore.setState({ isEditing: false })
     render(<GroupCard group={makeGroup()} projectId="p-1" />, { wrapper: makeWrapper() })
     await waitFor(() => screen.getByText('Login flow'))
+
+    // The Edit pen is replaced by a view (eye) affordance.
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'View details' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByLabelText(/title/i)).toBeDisabled()
+    expect(within(dialog).queryByRole('button', { name: /save/i })).not.toBeInTheDocument()
   })
 })

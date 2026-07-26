@@ -13,11 +13,12 @@ export type FeatureFormValues = {
 interface Props {
   readonly open: boolean
   readonly feature?: Feature
+  readonly readOnly?: boolean
   readonly onClose: () => void
   readonly onSubmit: (values: FeatureFormValues) => Promise<unknown>
 }
 
-export function FeatureFormModal({ open, feature, onClose, onSubmit }: Props) {
+export function FeatureFormModal({ open, feature, readOnly = false, onClose, onSubmit }: Props) {
   const isEdit = !!feature
   const { register, handleSubmit, reset, setError, formState: { errors, isSubmitting } } = useForm<FeatureFormValues>({
     defaultValues: feature
@@ -47,6 +48,10 @@ export function FeatureFormModal({ open, feature, onClose, onSubmit }: Props) {
 
   const defaultLabel = isEdit ? 'Save Changes' : 'Create Feature'
   const submitLabel = isSubmitting ? 'Saving…' : defaultLabel
+  const inputClass = 'mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm disabled:bg-gray-100 disabled:text-gray-500 disabled:cursor-not-allowed'
+  let dialogTitle = 'New Feature'
+  if (readOnly) dialogTitle = 'Feature details'
+  else if (isEdit) dialogTitle = 'Edit Feature'
 
   return (
     <Dialog.Root open={open} onOpenChange={(o) => !o && handleClose()}>
@@ -56,11 +61,17 @@ export function FeatureFormModal({ open, feature, onClose, onSubmit }: Props) {
           aria-describedby={undefined}
           className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl p-6 w-full max-w-md"
         >
-          <Dialog.Title className="text-base font-semibold text-gray-900">
-            {isEdit ? 'Edit Feature' : 'New Feature'}
+          <Dialog.Title className="flex items-center gap-2 text-base font-semibold text-gray-900">
+            {dialogTitle}
+            {readOnly && (
+              <span className="text-xs font-medium text-gray-400 border border-gray-200 rounded px-1.5 py-0.5">
+                Read-only
+              </span>
+            )}
           </Dialog.Title>
 
           <form onSubmit={handleSubmit(handleFormSubmit)} className="mt-4 space-y-4">
+            <fieldset disabled={readOnly} className="min-w-0 border-0 p-0 m-0 space-y-4 disabled:opacity-70">
             <div>
               <label htmlFor="feat-title" className="block text-sm font-medium text-gray-700">
                 Title <span className="text-red-500">*</span>
@@ -69,7 +80,7 @@ export function FeatureFormModal({ open, feature, onClose, onSubmit }: Props) {
                 id="feat-title"
                 {...register('title')}
                 autoFocus
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                className={inputClass}
               />
               {errors.title && <p className="mt-1 text-xs text-red-600">{errors.title.message}</p>}
             </div>
@@ -81,7 +92,7 @@ export function FeatureFormModal({ open, feature, onClose, onSubmit }: Props) {
                 {...register('description')}
                 rows={3}
                 maxLength={2000}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                className={inputClass}
               />
             </div>
 
@@ -95,11 +106,12 @@ export function FeatureFormModal({ open, feature, onClose, onSubmit }: Props) {
                 min={1}
                 max={999999}
                 {...register('id', { valueAsNumber: true })}
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+                className={inputClass}
                 placeholder="optional"
               />
               {errors.id && <p className="mt-1 text-xs text-red-600">{errors.id.message}</p>}
             </div>
+            </fieldset>
 
             {feature && (
               <WorkItemLink projectId={feature.project_id} id={feature.id} variant="inline" label="Work item" />
@@ -111,15 +123,17 @@ export function FeatureFormModal({ open, feature, onClose, onSubmit }: Props) {
                 onClick={handleClose}
                 className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
               >
-                Cancel
+                {readOnly ? 'Close' : 'Cancel'}
               </button>
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50"
-              >
-                {submitLabel}
-              </button>
+              {!readOnly && (
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50"
+                >
+                  {submitLabel}
+                </button>
+              )}
             </div>
           </form>
         </Dialog.Content>

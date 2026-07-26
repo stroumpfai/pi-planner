@@ -1,5 +1,5 @@
 import { vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
+import { render, screen, fireEvent, within } from '@testing-library/react'
 import { DndContext } from '@dnd-kit/core'
 import { FeatureCard } from '../FeatureCard'
 import { useAuthStore } from '@/stores/authStore'
@@ -57,6 +57,7 @@ function mockCommonHooks(allFeatures: Feature[]) {
   vi.mocked(useEffortUnit).mockReturnValue('pts')
   vi.mocked(useUpdateFeature).mockReturnValue({
     mutate: vi.fn(),
+    mutateAsync: vi.fn().mockResolvedValue(undefined),
     isPending: false,
   } as unknown as ReturnType<typeof useUpdateFeature>)
   vi.mocked(useSplitFeature).mockReturnValue({
@@ -155,6 +156,36 @@ describe('FeatureCard cancel-continuation action', () => {
     fireEvent.click(screen.getByText('✕ cancel'))
     fireEvent.click(screen.getByRole('button', { name: 'Cancel continuation' }))
     expect(cancelMutate).toHaveBeenCalledWith('f-2', expect.anything())
+  })
+})
+
+describe('FeatureCard edit / view affordance', () => {
+  it('shows an Edit icon opening an editable modal when holding the lock', async () => {
+    mockCommonHooks([baseFeature])
+    useAuthStore.setState({ user: null, isEditing: true })
+    renderWithDnd(<FeatureCard feature={baseFeature} projectId="p-1" />)
+
+    expect(screen.queryByRole('button', { name: 'View details' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Edit' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByLabelText(/title/i)).toHaveValue('Auth Feature')
+    expect(within(dialog).getByLabelText(/title/i)).toBeEnabled()
+    expect(within(dialog).getByRole('button', { name: /save/i })).toBeInTheDocument()
+  })
+
+  it('shows a View-details icon opening a read-only modal when not holding the lock', async () => {
+    mockCommonHooks([baseFeature])
+    useAuthStore.setState({ user: null, isEditing: false })
+    renderWithDnd(<FeatureCard feature={baseFeature} projectId="p-1" />)
+
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'View details' }))
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByLabelText(/title/i)).toBeDisabled()
+    expect(within(dialog).queryByRole('button', { name: /save/i })).not.toBeInTheDocument()
+    expect(within(dialog).getByRole('button', { name: /close/i })).toBeInTheDocument()
   })
 })
 
