@@ -56,7 +56,7 @@ function PreviewTable({ preview }: { readonly preview: ImportPreview }) {
         {preview.orphanCount > 0 && (
           <tr>
             <td className="py-1.5 text-amber-600 text-xs">
-              ↳ {preview.orphanCount} orphan {preview.orphanCount === 1 ? 'story' : 'stories'} — will be placed in "Unassigned" feature
+              ↳ {preview.orphanCount} orphan {preview.orphanCount === 1 ? 'story' : 'stories'} — will be placed in &quot;Unassigned&quot; feature
             </td>
             <td />
           </tr>
@@ -218,7 +218,7 @@ export function ImportCSVModal({ open, projectId, file, onClose }: Props) {
 
               {result.orphan_stories > 0 && (
                 <p className="text-xs text-amber-600 mt-2">
-                  {result.orphan_stories} orphan {result.orphan_stories === 1 ? 'story' : 'stories'} placed in "Unassigned" feature
+                  {result.orphan_stories} orphan {result.orphan_stories === 1 ? 'story' : 'stories'} placed in &quot;Unassigned&quot; feature
                 </p>
               )}
 

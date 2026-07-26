@@ -29,6 +29,9 @@ export function PIEventModal({ open, piId, event, onClose }: Props) {
       setError(null)
       setConfirmDelete(false)
     }
+    // Re-sync the form only when the modal opens or a different event is loaded,
+    // not on every field change — otherwise in-progress edits would be clobbered.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, event?.system_id])
 
   const create = useCreatePIEvent(piId)

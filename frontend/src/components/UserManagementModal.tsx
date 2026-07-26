@@ -577,7 +577,7 @@ function UserCard({ user, currentUsername, onDeleted }: UserCardProps) {
             </div>
 
             {isSelf ? (
-              <p className="text-xs text-gray-400 dark:text-gray-500 italic">Use "Change Password" from the user menu to update your own password.</p>
+              <p className="text-xs text-gray-400 dark:text-gray-500 italic">Use &quot;Change Password&quot; from the user menu to update your own password.</p>
             ) : (
               <div>
                 <label htmlFor={`card-reset-pwd-${user.username}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Reset password</label>

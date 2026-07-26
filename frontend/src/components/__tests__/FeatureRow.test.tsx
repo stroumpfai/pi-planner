@@ -100,7 +100,7 @@ describe('FeatureRow', () => {
   })
 
   it('submitting edit form calls featuresApi.update', async () => {
-    vi.mocked(featuresService.featuresApi.update).mockResolvedValue(baseFeature as any)
+    vi.mocked(featuresService.featuresApi.update).mockResolvedValue(baseFeature)
     useAuthStore.setState({ isEditing: true })
     render(<FeatureRow feature={baseFeature} projectId="p-1" />, { wrapper: makeWrapper() })
     await userEvent.click(screen.getByRole('button', { name: /edit/i }))
