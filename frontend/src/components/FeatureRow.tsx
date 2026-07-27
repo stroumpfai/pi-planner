@@ -4,6 +4,7 @@ import { FeatureFormModal } from './FeatureFormModal'
 import { ConfirmDialog } from './ConfirmDialog'
 import { PBIList } from './PBIList'
 import { ItemEditButton } from './ItemEditButton'
+import { ItemDeleteButton } from './ItemDeleteButton'
 import { useUpdateFeature, useDeleteFeature } from '@/hooks/useFeatures'
 import { useAuthStore } from '@/stores/authStore'
 import { useEffortUnit } from '@/hooks/useProjects'
@@ -48,26 +49,18 @@ export function FeatureRow({ feature, projectId }: Props) {
           {feature.title}
         </span>
 
+        {/* Trailing controls, mirroring the cards: delete, view/edit, effort.
+            Delete is hover-revealed and only in edit mode. */}
+        {isEditing && <ItemDeleteButton onActivate={() => setConfirming(true)} />}
+
+        <ItemEditButton editable={isEditing} onActivate={() => setEditing(true)} />
+
         {/* Effort badge */}
         {effortLabel && (
           <span className="text-xs bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 rounded-full shadow-soft-sm px-1.5 py-0.5 font-medium shrink-0">
             {effortLabel}
           </span>
         )}
-
-        {/* Actions — hover-revealed; Delete only in edit mode */}
-        <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
-          <ItemEditButton editable={isEditing} onActivate={() => setEditing(true)} />
-          {isEditing && (
-            <button
-              onClick={() => setConfirming(true)}
-              title="Delete"
-              className="text-xs text-red-500 hover:text-red-700"
-            >
-              Delete
-            </button>
-          )}
-        </div>
       </div>
 
       {expanded && (

@@ -52,7 +52,7 @@ function PBISelectRow({ pbi, projectId, selected, onToggle, swimlaneId, canDragT
   })
 
   return (
-    <div ref={setNodeRef} className={`grid grid-cols-[16px_18px_minmax(0,1fr)_16px_40px] items-center pl-2 pr-1 py-1 rounded hover:bg-gray-50${isDragging ? ' opacity-40' : ''}`}>
+    <div ref={setNodeRef} className={`group grid grid-cols-[16px_18px_minmax(0,1fr)_16px_36px] items-center pl-2 pr-1 py-1 rounded hover:bg-gray-50${isDragging ? ' opacity-40' : ''}`}>
       {/* 1. Drag handle */}
       <div className="flex items-center justify-center mr-2">
         {draggable && (
@@ -94,7 +94,7 @@ function PBISelectRow({ pbi, projectId, selected, onToggle, swimlaneId, canDragT
       </label>
 
       {/* 4. Edit / view button */}
-      <div className="flex items-center justify-center">
+      <div className="flex items-center justify-end">
         <ItemEditButton editable={isEditing} onActivate={() => setEditing(true)} />
       </div>
 

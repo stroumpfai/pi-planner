@@ -4,6 +4,7 @@ import type { PBI } from '@/types'
 import { PBIFormModal } from './PBIFormModal'
 import { ConfirmDialog } from './ConfirmDialog'
 import { ItemEditButton } from './ItemEditButton'
+import { ItemDeleteButton } from './ItemDeleteButton'
 import { useUpdatePBI, useDeletePBI } from '@/hooks/usePBIs'
 import { useAuthStore } from '@/stores/authStore'
 import { useEffortUnit } from '@/hooks/useProjects'
@@ -83,24 +84,16 @@ export function PBIRow({ pbi, projectId, swimlaneId = '', isDraggable = false }:
         </span>
       )}
 
+      {/* Trailing controls, mirroring the cards: delete, view/edit, effort */}
+      {isEditing && <ItemDeleteButton onActivate={() => setConfirming(true)} />}
+
+      <ItemEditButton editable={isEditing} onActivate={() => setEditing(true)} />
+
       {effortLabel && (
         <span className="text-xs font-mono bg-band text-gray-500 dark:text-gray-400 px-1.5 py-0.5 rounded-full shrink-0">
           {effortLabel}
         </span>
       )}
-
-      <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
-        <ItemEditButton editable={isEditing} onActivate={() => setEditing(true)} />
-        {isEditing && (
-          <button
-            onClick={() => setConfirming(true)}
-            title="Delete"
-            className="text-xs text-red-500 hover:text-red-700"
-          >
-            Delete
-          </button>
-        )}
-      </div>
 
       <PBIFormModal
         open={editing}

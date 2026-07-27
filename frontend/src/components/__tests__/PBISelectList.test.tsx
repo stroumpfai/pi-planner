@@ -1,5 +1,5 @@
 import { vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { DndContext } from '@dnd-kit/core'
@@ -114,10 +114,14 @@ describe('PBISelectList', () => {
     expect(await screen.findByRole('dialog')).toBeInTheDocument()
   })
 
-  it('Edit pen is not shown when not in edit mode', async () => {
+  it('shows a View-details icon (not Edit) opening a read-only modal when not in edit mode', async () => {
     mockApi.list = vi.fn().mockResolvedValue([makePBI()])
     render(<PBISelectList {...defaultProps} />, { wrapper: makeWrapper() })
     await waitFor(() => screen.getByText('Login form'))
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'View details' }))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByLabelText(/title/i)).toBeDisabled()
+    expect(within(dialog).queryByRole('button', { name: /save/i })).not.toBeInTheDocument()
   })
 })

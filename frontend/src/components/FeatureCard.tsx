@@ -130,14 +130,14 @@ export function FeatureCard({ feature, projectId, onCreateGroup }: Props) {
   return (
     <div
       ref={setNodeRef}
-      className={`group bg-canvas rounded-xl2 shadow-soft transition-shadow select-none ${
+      className={`bg-canvas rounded-xl2 shadow-soft transition-shadow select-none ${
         isDragging ? 'opacity-40 border border-blue-400' : `border-l-4 ${borderColor}`
       }`}
     >
       {/* Card header — drag handle. Grid mirrors the group-card story rows:
           title | edit/view icon (16px) | effort (36px) | fully-planned ✓ (auto). */}
       <div
-        className="grid grid-cols-[minmax(0,1fr)_16px_36px_auto] items-start gap-x-0.5 px-3 py-2 cursor-grab active:cursor-grabbing"
+        className="group grid grid-cols-[minmax(0,1fr)_16px_36px_auto] items-start gap-x-0.5 px-3 py-2 cursor-grab active:cursor-grabbing"
         {...attributes}
         {...listeners}
       >
