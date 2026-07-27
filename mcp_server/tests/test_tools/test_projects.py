@@ -15,6 +15,7 @@ from mcp_server.tools.projects import (
     update_sprint,
     export_pi_csv,
     export_pi_png,
+    export_pi_dashboard,
 )
 
 PROJECT_ID = "proj-uuid-1"
@@ -417,3 +418,47 @@ async def test_export_pi_png_encodes_selected_options(mock_backend, mock_ctx, pa
     assert params["show_events"] == "true"
     assert params["swimlane_text_center"] == "true"
     assert params["show_export_date"] == "true"
+
+
+# ---------------------------------------------------------------------------
+# export_pi_dashboard
+# ---------------------------------------------------------------------------
+
+_DASH_HTML = "<!doctype html><html><body>dashboard</body></html>"
+
+
+async def test_export_pi_dashboard_returns_html(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.get(f"/api/v1/pis/{PI_ID}/export/html").mock(
+        return_value=httpx.Response(200, text=_DASH_HTML, headers={"content-type": "text/html"})
+    )
+    result = await export_pi_dashboard(pi_id=PI_ID, ctx=mock_ctx)
+    assert result == {"html": _DASH_HTML}
+
+
+async def test_export_pi_dashboard_defaults(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.get(f"/api/v1/pis/{PI_ID}/export/html").mock(
+        return_value=httpx.Response(200, text=_DASH_HTML, headers={"content-type": "text/html"})
+    )
+    await export_pi_dashboard(pi_id=PI_ID, ctx=mock_ctx)
+    params = mock_backend.calls.last.request.url.params
+    assert params["refresh_seconds"] == "0"  # static snapshot by default for MCP clients
+    assert params["show_ids"] == "false"
+
+
+async def test_export_pi_dashboard_encodes_options(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.get(f"/api/v1/pis/{PI_ID}/export/html").mock(
+        return_value=httpx.Response(200, text=_DASH_HTML, headers={"content-type": "text/html"})
+    )
+    await export_pi_dashboard(pi_id=PI_ID, ctx=mock_ctx, refresh_seconds=30, show_ids=True)
+    params = mock_backend.calls.last.request.url.params
+    assert params["refresh_seconds"] == "30"
+    assert params["show_ids"] == "true"
+
+
+async def test_export_pi_dashboard_does_not_acquire_lock(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.get(f"/api/v1/pis/{PI_ID}/export/html").mock(
+        return_value=httpx.Response(200, text=_DASH_HTML, headers={"content-type": "text/html"})
+    )
+    await export_pi_dashboard(pi_id=PI_ID, ctx=mock_ctx)
+    lock_calls = [c for c in mock_backend.calls if "edit-lock" in str(c.request.url)]
+    assert lock_calls == []

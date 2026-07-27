@@ -17,6 +17,7 @@ from app.models.user import User
 from app.schemas import PICreate, PIResponse, PIUpdate
 from app.services.effort import pi_effort_and_capacity
 from app.services.events import broadcaster
+from app.services.pi_dashboard import DashboardOptions, dashboard_filename, export_pi_dashboard
 from app.services.pi_export import PNGExportOptions, export_pi_csv, export_pi_png, safe_filename
 from app.services.pi_report import (
     REPORT_FORMATS,
@@ -264,4 +265,23 @@ async def export_pi_report_endpoint(
         content=content,
         media_type=media_type,
         headers={"Content-Disposition": f'attachment; filename="{fname}"'},
+    )
+
+
+@router.get("/api/v1/pis/{pi_id}/export/html")
+async def export_pi_dashboard_endpoint(
+    pi_id: str,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
+    refresh_seconds: Annotated[int, Query(ge=0, le=3600)] = 30,
+    show_ids: Annotated[bool, Query()] = False,
+) -> Response:
+    pi = await _get_or_404(db, pi_id)
+    opts = DashboardOptions(refresh_seconds=refresh_seconds, show_ids=show_ids)
+    html = await export_pi_dashboard(db, pi, opts)
+    fname = dashboard_filename(pi.name)
+    return Response(
+        content=html,
+        media_type="text/html; charset=utf-8",
+        headers={"Content-Disposition": f'inline; filename="{fname}"'},
     )

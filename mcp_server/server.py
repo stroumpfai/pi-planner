@@ -14,7 +14,7 @@ from fastmcp import FastMCP, Context
 from fastmcp.server.auth import MultiAuth
 
 from mcp_server.auth import APIKeyAuthProvider
-from mcp_server.backend import get_client, set_http_client
+from mcp_server.backend import call_backend_raw, get_client, set_http_client
 from mcp_server.config import settings
 from mcp_server.oauth_provider import ScopeHintMiddleware
 from mcp_server.tools.read import read_mcp
@@ -123,6 +123,24 @@ async def health_check(ctx: Context) -> str:
             "components": backend_data.get("components", {}),
         }
     )
+
+
+@mcp.resource("dashboard://pi/{pi_id}", mime_type="text/html")
+async def pi_dashboard(pi_id: str, ctx: Context) -> str:
+    """
+    Live HTML dashboard for a PI (C1).
+
+    A self-contained page (inline CSS/JS, no external calls) bundling the
+    glanceable planning views: per-sprint capacity gauges, the capacity-vs-load
+    heatmap (team × sprint), the backlog-composition grid (PBI/bug counts), and a
+    milestone timeline. Regenerated from live data on each read.
+
+    `pi_id` is a PI system_id (UUID) — discover it with the read `list_pis` tool.
+    Equivalent to the export_pi_dashboard tool; exposed as a resource for clients
+    that consume resources.
+    """
+    r = await call_backend_raw("GET", f"/api/v1/pis/{pi_id}/export/html?refresh_seconds=0")
+    return r.text
 
 
 if __name__ == "__main__":

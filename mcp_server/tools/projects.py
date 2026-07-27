@@ -360,3 +360,32 @@ async def export_pi_report(
     if fmt == "pdf":
         return {"pdf_base64": base64.b64encode(r.content).decode()}
     return {"report_markdown": r.text}
+
+
+@projects_mcp.tool()
+async def export_pi_dashboard(
+    pi_id: Annotated[str, Field(description="PI system_id (UUID)")],
+    ctx: Context,
+    refresh_seconds: Annotated[int, Field(default=0, ge=0, le=3600, description="Auto-refresh interval in seconds when the page is opened in a browser; 0 disables it")] = 0,
+    show_ids: Annotated[bool, Field(default=False, description="Include [user_id] prefixes on item names")] = False,
+) -> dict:
+    """
+    Export a live, self-contained HTML dashboard for a PI.
+
+    Bundles the glanceable planning views into one page: capacity gauges per sprint,
+    the capacity-vs-load heatmap (team × sprint, coloured green/amber/red), the
+    backlog-composition grid (PBI/bug counts per team × sprint), and a milestone
+    timeline. The HTML inlines all CSS/JS and makes no external calls, so it can be
+    saved and opened directly or embedded anywhere.
+
+    Returns {"html": "<!doctype html>..."}. `refresh_seconds` only matters when the
+    page is opened in a browser (it re-fetches itself on that interval); leave it 0
+    for a static snapshot. This is a read-only operation — no lock is acquired.
+    Use list_pis first to find the pi_id. See also the dashboard://pi/{pi_id} resource.
+    """
+    params = urlencode({
+        "refresh_seconds": refresh_seconds,
+        "show_ids": str(show_ids).lower(),
+    })
+    r = await call_backend_raw("GET", f"/api/v1/pis/{pi_id}/export/html?{params}")
+    return {"html": r.text}
