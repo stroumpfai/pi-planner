@@ -24,6 +24,7 @@ const schema = z.object({
     .optional()
     .refine((v) => !v || v.includes('{id}'), 'Must contain the {id} placeholder')
     .refine((v) => !v || (!v.includes('://') && !/\s/.test(v)), 'Must be a relative path with no spaces'),
+  effort_unit: z.string().trim().max(20).optional(),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -57,10 +58,11 @@ export function EditProjectModal({ open, project, onClose }: Props) {
         description: project.description ?? '',
         azure_devops_url: project.azure_devops_url ?? '',
         work_item_path_template: project.work_item_path_template ?? '',
+        effort_unit: project.effort_unit ?? 'pts',
       })
       setLinkPreset(presetFromTemplate(project.work_item_path_template))
     }
-  }, [open, project.name, project.description, project.azure_devops_url, project.work_item_path_template, reset])
+  }, [open, project.name, project.description, project.azure_devops_url, project.work_item_path_template, project.effort_unit, reset])
 
   const handlePresetChange = (value: LinkPreset) => {
     setLinkPreset(value)
@@ -77,6 +79,7 @@ export function EditProjectModal({ open, project, onClose }: Props) {
         description: values.description || null,
         azure_devops_url: values.azure_devops_url || null,
         work_item_path_template: values.work_item_path_template || null,
+        effort_unit: values.effort_unit?.trim() || 'pts',
       })
       onClose()
     } catch (err) {
@@ -130,6 +133,19 @@ export function EditProjectModal({ open, project, onClose }: Props) {
               />
               {errors.azure_devops_url && <p className="mt-1 text-xs text-red-600">{errors.azure_devops_url.message}</p>}
               <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Link to the project in Azure DevOps, shown on the project card</p>
+            </div>
+
+            <div>
+              <label htmlFor="effort-unit" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Effort unit</label>
+              <input
+                id="effort-unit"
+                {...register('effort_unit')}
+                maxLength={20}
+                placeholder="pts"
+                className="mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
+              />
+              {errors.effort_unit && <p className="mt-1 text-xs text-red-600">{errors.effort_unit.message}</p>}
+              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">Label shown next to effort and capacity values</p>
             </div>
 
             <div>

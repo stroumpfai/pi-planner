@@ -42,6 +42,7 @@ describe('EditProjectModal — Azure DevOps URL', () => {
       description: 'Desc',
       azure_devops_url: 'https://dev.azure.com/org/proj',
       work_item_path_template: null,
+      effort_unit: 'pts',
     })
   })
 
@@ -66,7 +67,44 @@ describe('EditProjectModal — Azure DevOps URL', () => {
       description: 'Desc',
       azure_devops_url: null,
       work_item_path_template: null,
+      effort_unit: 'pts',
     })
+  })
+})
+
+describe('EditProjectModal — effort unit', () => {
+  const onClose = vi.fn()
+  beforeEach(() => vi.clearAllMocks())
+
+  it('shows the current effort unit in the input', async () => {
+    mockApi.update = vi.fn().mockResolvedValue(project)
+    const withUnit = { ...project, effort_unit: 'sp' }
+    render(<EditProjectModal open project={withUnit} onClose={onClose} />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByLabelText('Effort unit')).toHaveValue('sp'))
+  })
+
+  it('sends the changed effort unit on save', async () => {
+    mockApi.update = vi.fn().mockResolvedValue(project)
+    render(<EditProjectModal open project={project} onClose={onClose} />, { wrapper: makeWrapper() })
+    const input = screen.getByLabelText('Effort unit')
+    await waitFor(() => expect(input).toHaveValue('pts'))
+    await userEvent.clear(input)
+    await userEvent.type(input, 'sp')
+    await userEvent.click(screen.getByRole('button', { name: /save/i }))
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(mockApi.update).toHaveBeenCalledWith('proj-1', expect.objectContaining({ effort_unit: 'sp' }))
+  })
+
+  it('falls back to pts when the effort unit is cleared', async () => {
+    mockApi.update = vi.fn().mockResolvedValue(project)
+    const withUnit = { ...project, effort_unit: 'sp' }
+    render(<EditProjectModal open project={withUnit} onClose={onClose} />, { wrapper: makeWrapper() })
+    const input = screen.getByLabelText('Effort unit')
+    await waitFor(() => expect(input).toHaveValue('sp'))
+    await userEvent.clear(input)
+    await userEvent.click(screen.getByRole('button', { name: /save/i }))
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(mockApi.update).toHaveBeenCalledWith('proj-1', expect.objectContaining({ effort_unit: 'pts' }))
   })
 })
 

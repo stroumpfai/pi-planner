@@ -95,15 +95,14 @@ describe('ProjectListPage', () => {
     expect(screen.getByRole('heading', { name: 'Snapshots' })).toBeInTheDocument()
   })
 
-  it('shows Settings button per project and opens the project settings modal on click', async () => {
-    mockApi.list = vi.fn().mockResolvedValue([fakeProject])
-    mockApi.get = vi.fn().mockResolvedValue({ ...fakeProject, effort_unit: 'pts' })
+  it('shows Edit button per project and opens the edit modal with the effort unit field', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([{ ...fakeProject, effort_unit: 'pts' }])
     render(<ProjectListPage />, { wrapper: makeWrapper() })
-    await waitFor(() => expect(screen.getByText('Settings')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Edit')).toBeInTheDocument())
 
-    await userEvent.click(screen.getByText('Settings'))
+    await userEvent.click(screen.getByText('Edit'))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
-    expect(screen.getByText(/Project Settings/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Edit Project' })).toBeInTheDocument()
     expect(screen.getByLabelText('Effort unit')).toBeInTheDocument()
   })
 
@@ -207,7 +206,6 @@ describe('ProjectListPage', () => {
     expect(screen.queryByRole('button', { name: /new project/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^import$/i })).not.toBeInTheDocument()
     expect(screen.queryByText('Export')).not.toBeInTheDocument()
-    expect(screen.queryByText('Settings')).not.toBeInTheDocument()
     expect(screen.queryByText('Snapshots')).not.toBeInTheDocument()
     expect(screen.queryByText('Delete')).not.toBeInTheDocument()
   })
@@ -219,7 +217,6 @@ describe('ProjectListPage', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /new project/i })).toBeInTheDocument())
     expect(screen.getByRole('button', { name: /^import$/i })).toBeInTheDocument()
     expect(screen.getByText('Export')).toBeInTheDocument()
-    expect(screen.getByText('Settings')).toBeInTheDocument()
     expect(screen.getByText('Snapshots')).toBeInTheDocument()
     expect(screen.getByText('Delete')).toBeInTheDocument()
   })
@@ -230,7 +227,6 @@ describe('ProjectListPage', () => {
     render(<ProjectListPage />, { wrapper: makeWrapper() })
     await waitFor(() => expect(screen.getByRole('button', { name: /new project/i })).toBeInTheDocument())
     expect(screen.getByText('Export')).toBeInTheDocument()
-    expect(screen.getByText('Settings')).toBeInTheDocument()
     expect(screen.getByText('Snapshots')).toBeInTheDocument()
     expect(screen.getByText('Delete')).toBeInTheDocument()
   })

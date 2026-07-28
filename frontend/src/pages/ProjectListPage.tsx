@@ -7,7 +7,6 @@ import { CreateProjectModal } from '@/components/CreateProjectModal'
 import { EditProjectModal } from '@/components/EditProjectModal'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { SnapshotsModal } from '@/components/SnapshotsModal'
-import { ProjectSettingsModal } from '@/components/ProjectSettingsModal'
 import type { Project } from '@/types'
 
 function ExportButton({ project }: { readonly project: Project }) {
@@ -112,7 +111,6 @@ export function ProjectListPage() {
   const [editTarget, setEditTarget] = useState<Project | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<Project | null>(null)
   const [snapshotsTarget, setSnapshotsTarget] = useState<Project | null>(null)
-  const [settingsTarget, setSettingsTarget] = useState<Project | null>(null)
 
   if (isLoading) {
     return (
@@ -181,12 +179,6 @@ export function ProjectListPage() {
                     </button>
                     <ExportButton project={project} />
                     <button
-                      onClick={() => setSettingsTarget(project)}
-                      className="text-xs text-gray-500 hover:text-gray-700"
-                    >
-                      Settings
-                    </button>
-                    <button
                       onClick={() => setSnapshotsTarget(project)}
                       className="text-xs text-gray-500 hover:text-gray-700"
                     >
@@ -221,14 +213,6 @@ export function ProjectListPage() {
           projectId={snapshotsTarget.system_id}
           open={snapshotsTarget !== null}
           onClose={() => setSnapshotsTarget(null)}
-        />
-      )}
-
-      {settingsTarget && (
-        <ProjectSettingsModal
-          projectId={settingsTarget.system_id}
-          open={settingsTarget !== null}
-          onClose={() => setSettingsTarget(null)}
         />
       )}
 
