@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
-from sqlalchemy import JSON, ForeignKey, Index, Text, func
+from sqlalchemy import JSON, ForeignKey, Index, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -21,7 +21,12 @@ class ProjectSnapshot(Base):
         Text, ForeignKey("projects.system_id", ondelete="CASCADE"), nullable=False
     )
     name: Mapped[str] = mapped_column(Text, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(default=func.now())
+    # Python-side default at microsecond precision so "the latest snapshot" is
+    # deterministic — SQLite's func.now() only has second granularity, which lets
+    # two snapshots taken in the same second tie and makes the newest ambiguous.
+    created_at: Mapped[datetime] = mapped_column(
+        default=lambda: datetime.now(timezone.utc)
+    )
     created_by: Mapped[str | None] = mapped_column(Text)
     snapshot_data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 

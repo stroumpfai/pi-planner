@@ -16,6 +16,7 @@ from mcp_server.tools.projects import (
     export_pi_csv,
     export_pi_png,
     export_pi_dashboard,
+    export_snapshot_diff,
 )
 
 PROJECT_ID = "proj-uuid-1"
@@ -165,7 +166,7 @@ async def test_export_project(mock_backend, mock_ctx, patch_get_http_request):
 
 
 async def test_create_snapshot(mock_backend, mock_ctx, patch_get_http_request):
-    mock_backend.post(f"/api/v1/projects/{PROJECT_ID}/snapshots").mock(
+    mock_backend.post(f"/api/v1/projects/{PROJECT_ID}/snapshots/").mock(
         return_value=httpx.Response(201, json=SNAPSHOT_RESP)
     )
     result = await create_snapshot(project_id=PROJECT_ID, name="Pre-refactor", ctx=mock_ctx)
@@ -173,10 +174,12 @@ async def test_create_snapshot(mock_backend, mock_ctx, patch_get_http_request):
     assert result["name"] == "Pre-refactor"
     body = _last_call_body(mock_backend, f"/projects/{PROJECT_ID}/snapshots", method="POST")
     assert body == {"name": "Pre-refactor"}
+    # Canonical (trailing-slash) path — otherwise the POST 307-redirects and the write is dropped.
+    assert str(mock_backend.calls.last.request.url).endswith("/snapshots/")
 
 
 async def test_create_snapshot_does_not_acquire_lock(mock_backend, mock_ctx, patch_get_http_request):
-    mock_backend.post(f"/api/v1/projects/{PROJECT_ID}/snapshots").mock(
+    mock_backend.post(f"/api/v1/projects/{PROJECT_ID}/snapshots/").mock(
         return_value=httpx.Response(201, json=SNAPSHOT_RESP)
     )
     await create_snapshot(project_id=PROJECT_ID, name="Pre-refactor", ctx=mock_ctx)
@@ -460,5 +463,43 @@ async def test_export_pi_dashboard_does_not_acquire_lock(mock_backend, mock_ctx,
         return_value=httpx.Response(200, text=_DASH_HTML, headers={"content-type": "text/html"})
     )
     await export_pi_dashboard(pi_id=PI_ID, ctx=mock_ctx)
+    lock_calls = [c for c in mock_backend.calls if "edit-lock" in str(c.request.url)]
+    assert lock_calls == []
+
+
+# ---------------------------------------------------------------------------
+# export_snapshot_diff
+# ---------------------------------------------------------------------------
+
+_DIFF_HTML = "<!doctype html><html><body>diff</body></html>"
+
+
+async def test_export_snapshot_diff_returns_html(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.get(f"/api/v1/projects/{PROJECT_ID}/snapshots/diff/html").mock(
+        return_value=httpx.Response(200, text=_DIFF_HTML, headers={"content-type": "text/html"})
+    )
+    result = await export_snapshot_diff(project_id=PROJECT_ID, ctx=mock_ctx)
+    assert result == {"html": _DIFF_HTML}
+    params = mock_backend.calls.last.request.url.params
+    assert params["refresh_seconds"] == "0"
+
+
+async def test_export_snapshot_diff_passes_snapshot_and_pi(mock_backend, mock_ctx, patch_get_http_request):
+    route = mock_backend.get(f"/api/v1/projects/{PROJECT_ID}/snapshots/diff/html").mock(
+        return_value=httpx.Response(200, text=_DIFF_HTML, headers={"content-type": "text/html"})
+    )
+    await export_snapshot_diff(
+        project_id=PROJECT_ID, snapshot_id="snap-9", pi_id=PI_ID, ctx=mock_ctx
+    )
+    url = str(route.calls.last.request.url)
+    assert "snapshot_id=snap-9" in url
+    assert f"pi_id={PI_ID}" in url
+
+
+async def test_export_snapshot_diff_does_not_acquire_lock(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.get(f"/api/v1/projects/{PROJECT_ID}/snapshots/diff/html").mock(
+        return_value=httpx.Response(200, text=_DIFF_HTML, headers={"content-type": "text/html"})
+    )
+    await export_snapshot_diff(project_id=PROJECT_ID, ctx=mock_ctx)
     lock_calls = [c for c in mock_backend.calls if "edit-lock" in str(c.request.url)]
     assert lock_calls == []

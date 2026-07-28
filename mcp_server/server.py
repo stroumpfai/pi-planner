@@ -143,6 +143,28 @@ async def pi_dashboard(pi_id: str, ctx: Context) -> str:
     return r.text
 
 
+@mcp.resource("snapshot-diff://project/{project_id}", mime_type="text/html")
+async def snapshot_diff(project_id: str, ctx: Context) -> str:
+    """
+    Live HTML diff of a project's current state vs. its latest snapshot.
+
+    A self-contained page (inline CSS/JS, no external calls) showing what was
+    added, removed, and changed across features, PBIs, PIs, swimlanes, sprints,
+    groups, and events since the most recent snapshot — with an effort headline
+    and field-level from → to deltas. Regenerated from live data on each read.
+
+    `project_id` is a project system_id (UUID) — discover it with the read
+    `list_projects` tool. Covers the common "latest snapshot, whole project" case;
+    for an older baseline or a single-PI scope use the export_snapshot_diff tool.
+    Equivalent to the JSON diff_snapshot tool, rendered for clients that consume
+    resources.
+    """
+    r = await call_backend_raw(
+        "GET", f"/api/v1/projects/{project_id}/snapshots/diff/html?refresh_seconds=0"
+    )
+    return r.text
+
+
 if __name__ == "__main__":
     from starlette.middleware import Middleware as _Middleware
 

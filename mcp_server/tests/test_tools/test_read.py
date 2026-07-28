@@ -14,6 +14,7 @@ from mcp_server.tools.read import (
     list_pbis,
     list_groups,
     list_snapshots,
+    diff_snapshot,
     get_edit_lock_status,
     list_pi_events,
 )
@@ -116,7 +117,10 @@ async def test_list_groups_calls_correct_path(mock_backend, mock_ctx, patch_get_
 
 
 async def test_list_snapshots_calls_correct_path(mock_backend, mock_ctx, patch_get_http_request):
-    mock_backend.get(f"/api/v1/projects/{PROJECT_ID}/snapshots").mock(
+    # The collection route is registered with a trailing slash (prefix + get("/")),
+    # so the tool must request the canonical slash path — otherwise the backend
+    # 307-redirects and the non-redirect-following client gets an empty body.
+    route = mock_backend.get(f"/api/v1/projects/{PROJECT_ID}/snapshots/").mock(
         return_value=httpx.Response(
             200,
             json=[
@@ -132,6 +136,30 @@ async def test_list_snapshots_calls_correct_path(mock_backend, mock_ctx, patch_g
     result = await list_snapshots(project_id=PROJECT_ID, ctx=mock_ctx)
     assert result["items"][0]["system_id"] == "snap-uuid-1"
     assert result["items"][0]["name"] == "Pre-refactor"
+    assert str(route.calls.last.request.url).endswith("/snapshots/")
+
+
+async def test_diff_snapshot_latest_whole_project(mock_backend, mock_ctx, patch_get_http_request):
+    route = mock_backend.get(f"/api/v1/projects/{PROJECT_ID}/snapshots/diff").mock(
+        return_value=httpx.Response(200, json={"narrative": "No changes.", "summary": {}})
+    )
+    result = await diff_snapshot(project_id=PROJECT_ID, ctx=mock_ctx)
+    assert result["narrative"] == "No changes."
+    # No snapshot_id / pi_id → no query params sent
+    assert "snapshot_id" not in str(route.calls.last.request.url)
+    assert "pi_id" not in str(route.calls.last.request.url)
+
+
+async def test_diff_snapshot_passes_snapshot_and_pi(mock_backend, mock_ctx, patch_get_http_request):
+    route = mock_backend.get(f"/api/v1/projects/{PROJECT_ID}/snapshots/diff").mock(
+        return_value=httpx.Response(200, json={"narrative": "…"})
+    )
+    await diff_snapshot(
+        project_id=PROJECT_ID, snapshot_id="snap-9", pi_id=PI_ID, ctx=mock_ctx
+    )
+    url = str(route.calls.last.request.url)
+    assert "snapshot_id=snap-9" in url
+    assert f"pi_id={PI_ID}" in url
 
 
 async def test_list_pi_events_calls_correct_path(mock_backend, mock_ctx, patch_get_http_request):

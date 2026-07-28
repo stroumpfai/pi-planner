@@ -1,7 +1,8 @@
 from datetime import datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi.responses import HTMLResponse
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -15,7 +16,12 @@ from app.models.pi import PI
 from app.models.project import Project
 from app.models.project_snapshot import ProjectSnapshot
 from app.models.user import User
-from app.schemas import ProjectResponse, SnapshotCreate, SnapshotResponse
+from app.schemas import (
+    ProjectResponse,
+    SnapshotCreate,
+    SnapshotDiffResponse,
+    SnapshotResponse,
+)
 from app.services.activity import log_activity
 from app.services.events import broadcaster
 from app.services.snapshot import (
@@ -26,6 +32,8 @@ from app.services.snapshot import (
     restore_pi_structures,
     serialize_project,
 )
+from app.services.snapshot_diff import diff_project_states
+from app.services.snapshot_diff_html import render_diff_html
 
 router = APIRouter(prefix="/api/v1/projects/{project_id}/snapshots", tags=["project-snapshots"])
 
@@ -93,6 +101,82 @@ async def list_snapshots(
         .order_by(ProjectSnapshot.created_at.desc())
     )
     return [SnapshotResponse.model_validate(s) for s in result.scalars().all()]
+
+
+async def _resolve_baseline(
+    db: AsyncSession, project_id: str, snapshot_id: str | None
+) -> ProjectSnapshot:
+    """The named snapshot, or the newest one when ``snapshot_id`` is omitted."""
+    if snapshot_id:
+        return await _get_snapshot_or_404(db, project_id, snapshot_id)
+    result = await db.execute(
+        select(ProjectSnapshot)
+        .where(ProjectSnapshot.project_id == project_id)
+        .order_by(ProjectSnapshot.created_at.desc())
+        .limit(1)
+    )
+    snapshot = result.scalar_one_or_none()
+    if not snapshot:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="No snapshot to diff against",
+        )
+    return snapshot
+
+
+async def _build_diff(
+    db: AsyncSession, project_id: str, snapshot_id: str | None, pi_id: str | None
+) -> dict:
+    project = await _get_project_or_404(db, project_id)
+    if pi_id is not None:
+        pi = await db.get(PI, pi_id)
+        if not pi or pi.project_id != project_id:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="PI not found")
+    snapshot = await _resolve_baseline(db, project_id, snapshot_id)
+
+    baseline_project = snapshot.snapshot_data["project"]
+    current_project = (await serialize_project(db, project))["project"]
+    meta = {
+        "system_id": snapshot.system_id,
+        "name": snapshot.name,
+        "created_at": snapshot.created_at.isoformat(),
+        "created_by": snapshot.created_by,
+    }
+    return diff_project_states(
+        baseline_project, current_project, snapshot_meta=meta, pi_id=pi_id
+    )
+
+
+@router.get("/diff")
+async def diff_snapshot(
+    project_id: str,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(require_editor_or_above)],
+    snapshot_id: Annotated[str | None, Query()] = None,
+    pi_id: Annotated[str | None, Query()] = None,
+) -> SnapshotDiffResponse:
+    """Diff the live project against a snapshot (latest when snapshot_id omitted).
+
+    Pass ``pi_id`` to scope the diff to a single PI (including items moved into or
+    out of it). Returns per-entity added/removed/changed lists, a summary with an
+    effort delta, and a natural-language narrative.
+    """
+    diff = await _build_diff(db, project_id, snapshot_id, pi_id)
+    return SnapshotDiffResponse(**diff)
+
+
+@router.get("/diff/html", response_class=HTMLResponse)
+async def diff_snapshot_html(
+    project_id: str,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(require_editor_or_above)],
+    snapshot_id: Annotated[str | None, Query()] = None,
+    pi_id: Annotated[str | None, Query()] = None,
+    refresh_seconds: Annotated[int, Query(ge=0, le=3600)] = 0,
+) -> HTMLResponse:
+    """Self-contained HTML rendering of the snapshot diff (twin of /diff)."""
+    diff = await _build_diff(db, project_id, snapshot_id, pi_id)
+    return HTMLResponse(render_diff_html(diff, refresh_seconds))
 
 
 @router.delete("/{snapshot_id}", status_code=status.HTTP_204_NO_CONTENT)

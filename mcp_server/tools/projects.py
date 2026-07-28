@@ -102,8 +102,11 @@ async def create_snapshot(
     This does not change project structure — like export_project, no lock is acquired.
     Returns the new snapshot object (system_id, name, created_at, created_by).
     """
+    # Trailing slash required: the route is prefix="…/snapshots" + post("/"), so the
+    # canonical path ends in "/". Without it the backend 307-redirects the POST and
+    # the non-redirect-following client silently drops the write (no snapshot created).
     return await call_backend(
-        "POST", f"/api/v1/projects/{project_id}/snapshots", json={"name": name}
+        "POST", f"/api/v1/projects/{project_id}/snapshots/", json={"name": name}
     )
 
 
@@ -388,4 +391,42 @@ async def export_pi_dashboard(
         "show_ids": str(show_ids).lower(),
     })
     r = await call_backend_raw("GET", f"/api/v1/pis/{pi_id}/export/html?{params}")
+    return {"html": r.text}
+
+
+@projects_mcp.tool()
+async def export_snapshot_diff(
+    project_id: Annotated[str, Field(description="Project system_id (UUID)")],
+    ctx: Context,
+    snapshot_id: Annotated[
+        str | None,
+        Field(default=None, description="Snapshot system_id to compare against; omit for the latest snapshot"),
+    ] = None,
+    pi_id: Annotated[
+        str | None,
+        Field(default=None, description="Optional: scope the diff to a single PI (system_id)"),
+    ] = None,
+    refresh_seconds: Annotated[int, Field(default=0, ge=0, le=3600, description="Auto-refresh interval in seconds when the page is opened in a browser; 0 disables it")] = 0,
+) -> dict:
+    """
+    Export a self-contained HTML page of the snapshot diff (twin of diff_snapshot).
+
+    Renders the same delta that diff_snapshot returns as JSON — added/removed/changed
+    per entity type with field-level from → to deltas and an effort headline — as a
+    single page with all CSS/JS inlined and no external calls, so it can be saved and
+    opened directly. Compares against the latest snapshot unless snapshot_id is given;
+    pass pi_id to scope to one PI.
+
+    Returns {"html": "<!doctype html>..."}. `refresh_seconds` only matters in a
+    browser. Read-only — no lock. See also the snapshot-diff://project/{project_id}
+    resource for the latest whole-project diff.
+    """
+    params: dict = {"refresh_seconds": refresh_seconds}
+    if snapshot_id:
+        params["snapshot_id"] = snapshot_id
+    if pi_id:
+        params["pi_id"] = pi_id
+    r = await call_backend_raw(
+        "GET", f"/api/v1/projects/{project_id}/snapshots/diff/html?{urlencode(params)}"
+    )
     return {"html": r.text}

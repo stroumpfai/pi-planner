@@ -179,7 +179,48 @@ async def list_snapshots(
     the system_id can be passed to restore_snapshot to roll the project back
     to that captured state.
     """
-    return await call_backend("GET", f"/api/v1/projects/{project_id}/snapshots")
+    # Trailing slash is required: this collection route is registered as
+    # prefix="…/snapshots" + get("/"), so the canonical path ends in "/". Omitting
+    # it triggers a 307 redirect that the httpx client does not follow.
+    return await call_backend("GET", f"/api/v1/projects/{project_id}/snapshots/")
+
+
+@read_mcp.tool()
+async def diff_snapshot(
+    project_id: Annotated[str, Field(description="Project system_id (UUID)")],
+    ctx: Context,
+    snapshot_id: Annotated[
+        str | None,
+        Field(default=None, description="Snapshot system_id to compare against; omit for the latest snapshot"),
+    ] = None,
+    pi_id: Annotated[
+        str | None,
+        Field(default=None, description="Optional: scope the diff to a single PI (system_id)"),
+    ] = None,
+) -> dict:
+    """
+    Diff the current project state against a snapshot ("what changed since?").
+
+    Compares the live plan to a baseline snapshot (the latest one unless you pass
+    snapshot_id) and returns what was added, removed, and changed per entity type
+    (features, pbis, pis, swimlines, sprints, groups, events), each 'changed' item
+    listing the specific fields that moved (from → to). Also returns a 'summary'
+    with counts and a total-effort delta, and a 'narrative' — a compact
+    human-readable rundown suitable to show the user.
+
+    Pass pi_id to focus on one PI; items pulled into or pushed out of that PI still
+    appear. Read-only, no lock. Use list_snapshots to find snapshot_id values.
+    Ideal at the end of a planning session: call this to review the delta, then
+    create_snapshot to capture the new baseline.
+    """
+    params: dict = {}
+    if snapshot_id:
+        params["snapshot_id"] = snapshot_id
+    if pi_id:
+        params["pi_id"] = pi_id
+    return await call_backend(
+        "GET", f"/api/v1/projects/{project_id}/snapshots/diff", params=params
+    )
 
 
 @read_mcp.tool()
