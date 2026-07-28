@@ -28,6 +28,7 @@ from app.services.effort import (
     sprint_utilization,
     swimline_efforts,
 )
+from app.services.work_item_url import build_work_item_url
 
 
 @dataclass
@@ -108,16 +109,28 @@ async def export_pi_csv(db: AsyncSession, pi: PI) -> str:
     )
     rows = result.all()
 
+    # Work-item deep links are derived from the project's link config; the url
+    # columns stay blank when the project is unconfigured or the item has no id.
+    project = await db.get(Project, pi.project_id)
+    base_url = project.azure_devops_url if project else None
+    template = project.work_item_path_template if project else None
+
     buf = io.StringIO()
     writer = csv.writer(buf)
-    writer.writerow(["pbi_id", "pbi_name", "feature_id", "feature_name", "pi_name", "sprint_number", "swimlane_name"])
+    writer.writerow([
+        "pbi_id", "pbi_name", "pbi_url",
+        "feature_id", "feature_name", "feature_url",
+        "pi_name", "sprint_number", "swimlane_name",
+    ])
     for row in rows:
         sprint_num = "" if row.sprint_index is None else str(row.sprint_index + 1)
         writer.writerow([
             row.pbi_user_id if row.pbi_user_id is not None else "",
             _csv_safe(row.pbi_title),
+            _csv_safe(build_work_item_url(base_url, template, row.pbi_user_id) or ""),
             row.feature_user_id if row.feature_user_id is not None else "",
             _csv_safe(row.feature_title),
+            _csv_safe(build_work_item_url(base_url, template, row.feature_user_id) or ""),
             _csv_safe(pi.name),
             sprint_num,
             _csv_safe(row.swimlane_name or ""),

@@ -287,7 +287,10 @@ async def export_pi_csv(
     Export a PI's PBIs as a CSV list.
 
     Returns the CSV content as a plain text string in {"csv": "..."}.
-    Columns typically include feature, PBI title, effort, sprint assignment, and status.
+    Columns: pbi_id, pbi_name, pbi_url, feature_id, feature_name, feature_url,
+    pi_name, sprint_number, swimlane_name. The two url columns hold work-item
+    deep links and are only populated when the project has both a URL and a
+    work-item path template configured.
     This is a read-only operation — no lock is acquired.
     Use list_pis first to find the pi_id.
     """

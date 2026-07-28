@@ -87,7 +87,11 @@ async def test_csv_export_structure(client: AsyncClient, planned_pi: dict) -> No
            planned_pi["pi_name"] in resp.headers["Content-Disposition"]
 
     reader = csv.DictReader(io.StringIO(resp.text))
-    assert reader.fieldnames == ["pbi_id", "pbi_name", "feature_id", "feature_name", "pi_name", "sprint_number", "swimlane_name"]
+    assert reader.fieldnames == [
+        "pbi_id", "pbi_name", "pbi_url",
+        "feature_id", "feature_name", "feature_url",
+        "pi_name", "sprint_number", "swimlane_name",
+    ]
 
 
 @pytest.mark.asyncio
@@ -107,6 +111,71 @@ async def test_csv_export_rows(client: AsyncClient, planned_pi: dict) -> None:
     assert row["pi_name"] == "PI 2024.1"
     assert row["sprint_number"] == "1"
     assert row["swimlane_name"] == "Team Alpha"
+    # Project has no work-item link config, so both url columns stay blank.
+    assert row["pbi_url"] == ""
+    assert row["feature_url"] == ""
+
+
+@pytest.mark.asyncio
+async def test_csv_export_work_item_urls(client: AsyncClient, planned_pi: dict) -> None:
+    """With a project URL + path template set, both url columns hold deep links."""
+    await client.patch(
+        f"/api/v1/projects/{planned_pi['project_id']}",
+        json={
+            "azure_devops_url": "https://dev.azure.com/acme/Proj",
+            "work_item_path_template": "_workitems/edit/{id}",
+        },
+    )
+
+    resp = await client.get(f"/api/v1/pis/{planned_pi['pi_id']}/export/csv")
+    assert resp.status_code == 200
+
+    row = list(csv.DictReader(io.StringIO(resp.text)))[0]
+    assert row["pbi_url"] == "https://dev.azure.com/acme/Proj/_workitems/edit/201"
+    assert row["feature_url"] == "https://dev.azure.com/acme/Proj/_workitems/edit/101"
+
+
+@pytest.mark.asyncio
+async def test_csv_export_url_blank_without_template(client: AsyncClient, planned_pi: dict) -> None:
+    """A base URL alone is not enough — the path template is required."""
+    await client.patch(
+        f"/api/v1/projects/{planned_pi['project_id']}",
+        json={"azure_devops_url": "https://dev.azure.com/acme/Proj"},
+    )
+
+    resp = await client.get(f"/api/v1/pis/{planned_pi['pi_id']}/export/csv")
+    assert resp.status_code == 200
+
+    row = list(csv.DictReader(io.StringIO(resp.text)))[0]
+    assert row["pbi_url"] == ""
+    assert row["feature_url"] == ""
+
+
+@pytest.mark.asyncio
+async def test_csv_export_url_blank_without_user_id(client: AsyncClient, planned_pi: dict) -> None:
+    """An item with no user id has nothing to link to, even on a configured project."""
+    await client.patch(
+        f"/api/v1/projects/{planned_pi['project_id']}",
+        json={
+            "azure_devops_url": "https://dev.azure.com/acme/Proj",
+            "work_item_path_template": "_workitems/edit/{id}",
+        },
+    )
+    await client.post(
+        f"/api/v1/projects/{planned_pi['project_id']}/pbis",
+        json={"title": "No id story", "effort": 1,
+              "parent_feature_system_id": planned_pi["feature_id"]},
+    )
+
+    resp = await client.get(f"/api/v1/pis/{planned_pi['pi_id']}/export/csv")
+    assert resp.status_code == 200
+
+    rows = list(csv.DictReader(io.StringIO(resp.text)))
+    row = next(r for r in rows if r["pbi_name"] == "No id story")
+    assert row["pbi_id"] == ""
+    assert row["pbi_url"] == ""
+    # The parent feature does have an id, so its link is still present.
+    assert row["feature_url"] == "https://dev.azure.com/acme/Proj/_workitems/edit/101"
 
 
 @pytest.mark.asyncio
@@ -169,7 +238,11 @@ async def test_csv_export_empty_pi(client: AsyncClient) -> None:
     assert resp.status_code == 200
 
     reader = csv.DictReader(io.StringIO(resp.text))
-    assert reader.fieldnames == ["pbi_id", "pbi_name", "feature_id", "feature_name", "pi_name", "sprint_number", "swimlane_name"]
+    assert reader.fieldnames == [
+        "pbi_id", "pbi_name", "pbi_url",
+        "feature_id", "feature_name", "feature_url",
+        "pi_name", "sprint_number", "swimlane_name",
+    ]
     assert list(reader) == []
 
 
