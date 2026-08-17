@@ -8,6 +8,7 @@ from app.models.pi import PI
 from app.models.pi_event import PIEvent
 from app.models.project import Project
 from app.models.project_snapshot import ProjectSnapshot
+from app.models.project_state import ProjectState
 from app.models.session import Session
 from app.models.sprint import Sprint
 from app.models.swimline import Swimline
@@ -29,4 +30,5 @@ __all__ = [
     "ActivityLog",
     "ActorType",
     "ProjectSnapshot",
+    "ProjectState",
 ]

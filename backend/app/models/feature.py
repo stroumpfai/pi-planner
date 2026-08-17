@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from app.models.pbi import PBI
     from app.models.pi import PI
     from app.models.project import Project
+    from app.models.project_state import ProjectState
     from app.models.swimline import Swimline
 
 
@@ -32,12 +33,18 @@ class Feature(Base):
     continued_from_feature_id: Mapped[str | None] = mapped_column(
         Text, ForeignKey("features.system_id", ondelete="SET NULL")
     )
+    # RESTRICT: a State in use cannot be deleted from the project's State List.
+    state_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("project_states.system_id", ondelete="RESTRICT")
+    )
     created_at: Mapped[datetime] = mapped_column(default=func.now())
     modified_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
 
     project: Mapped[Project] = relationship("Project", back_populates="features")
     pi: Mapped[PI | None] = relationship("PI", back_populates="features")
     swimline: Mapped[Swimline | None] = relationship("Swimline", back_populates="features")
+    # selectin so responses can render the State value without every caller remembering to eager-load it
+    state: Mapped[ProjectState | None] = relationship("ProjectState", lazy="selectin")
     pbis: Mapped[list[PBI]] = relationship("PBI", back_populates="feature", cascade="all, delete-orphan")
     groups: Mapped[list[Group]] = relationship("Group", back_populates="feature", cascade="all, delete-orphan")
 
@@ -47,5 +54,6 @@ class Feature(Base):
         Index("idx_features_pi", "pi_id"),
         Index("idx_features_swimlane", "swimlane_id"),
         Index("idx_features_continued_from", "continued_from_feature_id"),
+        Index("idx_features_state", "state_id"),
         UniqueConstraint("project_id", "user_id"),
     )

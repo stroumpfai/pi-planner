@@ -11,12 +11,14 @@ from matplotlib.gridspec import GridSpec
 from matplotlib.patches import Rectangle
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.models.feature import Feature
 from app.models.group import Group
 from app.models.pi import PI
 from app.models.pi_event import PIEvent
 from app.models.project import Project
+from app.models.project_state import ProjectState
 from app.models.pbi import PBI
 from app.models.sprint import Sprint
 from app.models.swimline import Swimline
@@ -87,17 +89,23 @@ def _csv_safe(value: str) -> str:
 
 async def export_pi_csv(db: AsyncSession, pi: PI) -> str:
     """Return a CSV string of all PBIs whose parent feature is in this PI."""
+    pbi_state = aliased(ProjectState)
+    feature_state = aliased(ProjectState)
     result = await db.execute(
         select(
             PBI.user_id.label("pbi_user_id"),
             PBI.title.label("pbi_title"),
+            pbi_state.value.label("pbi_state"),
             Feature.user_id.label("feature_user_id"),
             Feature.title.label("feature_title"),
+            feature_state.value.label("feature_state"),
             Group.sprint_index.label("sprint_index"),
             Swimline.name.label("swimlane_name"),
             Swimline.order_index.label("swimlane_order"),
         )
         .join(Feature, PBI.parent_feature_system_id == Feature.system_id)
+        .outerjoin(pbi_state, PBI.state_id == pbi_state.system_id)
+        .outerjoin(feature_state, Feature.state_id == feature_state.system_id)
         .outerjoin(Group, PBI.group_id == Group.system_id)
         .outerjoin(Swimline, Group.swimline_id == Swimline.system_id)
         .where(Feature.pi_id == pi.system_id)
@@ -118,8 +126,8 @@ async def export_pi_csv(db: AsyncSession, pi: PI) -> str:
     buf = io.StringIO()
     writer = csv.writer(buf)
     writer.writerow([
-        "pbi_id", "pbi_name", "pbi_url",
-        "feature_id", "feature_name", "feature_url",
+        "pbi_id", "pbi_name", "pbi_url", "pbi_state",
+        "feature_id", "feature_name", "feature_url", "feature_state",
         "pi_name", "sprint_number", "swimlane_name",
     ])
     for row in rows:
@@ -128,9 +136,11 @@ async def export_pi_csv(db: AsyncSession, pi: PI) -> str:
             row.pbi_user_id if row.pbi_user_id is not None else "",
             _csv_safe(row.pbi_title),
             _csv_safe(build_work_item_url(base_url, template, row.pbi_user_id) or ""),
+            _csv_safe(row.pbi_state or ""),
             row.feature_user_id if row.feature_user_id is not None else "",
             _csv_safe(row.feature_title),
             _csv_safe(build_work_item_url(base_url, template, row.feature_user_id) or ""),
+            _csv_safe(row.feature_state or ""),
             _csv_safe(pi.name),
             sprint_num,
             _csv_safe(row.swimlane_name or ""),

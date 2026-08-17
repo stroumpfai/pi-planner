@@ -144,3 +144,33 @@ describe('useFeatures mutations', () => {
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['pis'] })
   })
 })
+
+describe('State List invalidation', () => {
+  // Regression: typing a new State on one item left every other item's dropdown empty,
+  // because the global 5-minute staleTime kept serving the pre-existing empty list.
+  it('useUpdateFeature invalidates the State Lists', async () => {
+    mockApi.update = vi.fn().mockResolvedValue({ system_id: 'f-1' })
+    const { qc, wrapper } = makeWrapper()
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries')
+    const { result } = renderHook(() => useUpdateFeature('p-1'), { wrapper })
+
+    await act(async () => {
+      await result.current.mutateAsync({ featureId: 'f-1', body: { state_value: 'In Review' } })
+    })
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['states', 'p-1'] })
+  })
+
+  it('useCreateFeature invalidates the State Lists', async () => {
+    mockApi.create = vi.fn().mockResolvedValue({ system_id: 'f-1' })
+    const { qc, wrapper } = makeWrapper()
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries')
+    const { result } = renderHook(() => useCreateFeature('p-1'), { wrapper })
+
+    await act(async () => {
+      await result.current.mutateAsync({ title: 'Auth', state_value: 'New' })
+    })
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['states', 'p-1'] })
+  })
+})

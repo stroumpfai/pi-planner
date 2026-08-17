@@ -145,6 +145,10 @@ export interface paths {
     /** Export Pi Report Endpoint */
     get: operations["export_pi_report_endpoint_api_v1_pis__pi_id__report_get"];
   };
+  "/api/v1/pis/{pi_id}/export/html": {
+    /** Export Pi Dashboard Endpoint */
+    get: operations["export_pi_dashboard_endpoint_api_v1_pis__pi_id__export_html_get"];
+  };
   "/api/v1/pis/{pi_id}/swimlines": {
     /** List Swimlines */
     get: operations["list_swimlines_api_v1_pis__pi_id__swimlines_get"];
@@ -207,6 +211,24 @@ export interface paths {
     /** Create Snapshot */
     post: operations["create_snapshot_api_v1_projects__project_id__snapshots__post"];
   };
+  "/api/v1/projects/{project_id}/snapshots/diff": {
+    /**
+     * Diff Snapshot
+     * @description Diff the live project against a snapshot (latest when snapshot_id omitted).
+     *
+     * Pass ``pi_id`` to scope the diff to a single PI (including items moved into or
+     * out of it). Returns per-entity added/removed/changed lists, a summary with an
+     * effort delta, and a natural-language narrative.
+     */
+    get: operations["diff_snapshot_api_v1_projects__project_id__snapshots_diff_get"];
+  };
+  "/api/v1/projects/{project_id}/snapshots/diff/html": {
+    /**
+     * Diff Snapshot Html
+     * @description Self-contained HTML rendering of the snapshot diff (twin of /diff).
+     */
+    get: operations["diff_snapshot_html_api_v1_projects__project_id__snapshots_diff_html_get"];
+  };
   "/api/v1/projects/{project_id}/snapshots/{snapshot_id}": {
     /** Delete Snapshot */
     delete: operations["delete_snapshot_api_v1_projects__project_id__snapshots__snapshot_id__delete"];
@@ -214,6 +236,25 @@ export interface paths {
   "/api/v1/projects/{project_id}/snapshots/{snapshot_id}/restore": {
     /** Restore Snapshot */
     post: operations["restore_snapshot_api_v1_projects__project_id__snapshots__snapshot_id__restore_post"];
+  };
+  "/api/v1/projects/{project_id}/states/": {
+    /**
+     * List Project States
+     * @description All three State Lists for the project, ordered by item type then position.
+     */
+    get: operations["list_project_states_api_v1_projects__project_id__states__get"];
+    /**
+     * Create Project State
+     * @description Add a State to a list. Returns the existing entry if the value already matches.
+     */
+    post: operations["create_project_state_api_v1_projects__project_id__states__post"];
+  };
+  "/api/v1/projects/{project_id}/states/{state_id}": {
+    /**
+     * Delete Project State
+     * @description Remove a State from its list. Refused while any item still holds it.
+     */
+    delete: operations["delete_project_state_api_v1_projects__project_id__states__state_id__delete"];
   };
   "/api/v1/projects/{project_id}/events": {
     /** Project Events */
@@ -390,8 +431,16 @@ export interface components {
     CsvImportRequest: {
       /** Rows */
       rows: components["schemas"]["CsvRow"][];
-      /** Removals */
+      /**
+       * Removals
+       * @default []
+       */
       removals?: string[];
+      /**
+       * Has State Column
+       * @default false
+       */
+      has_state_column?: boolean;
     };
     /** CsvImportResult */
     CsvImportResult: {
@@ -409,6 +458,11 @@ export interface components {
       removed_stories: number;
       /** Orphan Stories */
       orphan_stories: number;
+      /**
+       * Created States
+       * @default 0
+       */
+      created_states?: number;
     };
     /** CsvRow */
     CsvRow: {
@@ -424,6 +478,8 @@ export interface components {
       effort?: number | null;
       /** Parent Id */
       parent_id?: number | null;
+      /** State */
+      state?: string | null;
     };
     /** EditLockResponse */
     EditLockResponse: {
@@ -446,6 +502,8 @@ export interface components {
       description?: string | null;
       /** Id */
       id?: number | null;
+      /** State Value */
+      state_value?: string | null;
     };
     /** FeatureResponse */
     FeatureResponse: {
@@ -470,6 +528,10 @@ export interface components {
       swimlane_id: string | null;
       /** Continued From Feature Id */
       continued_from_feature_id: string | null;
+      /** State Id */
+      state_id?: string | null;
+      /** State */
+      state?: string | null;
       /** Project Id */
       project_id: string;
       /**
@@ -506,6 +568,10 @@ export interface components {
       pi_id?: string | null;
       /** Swimlane Id */
       swimlane_id?: string | null;
+      /** State Id */
+      state_id?: string | null;
+      /** State Value */
+      state_value?: string | null;
     };
     /** GroupCreate */
     GroupCreate: {
@@ -600,6 +666,8 @@ export interface components {
        * @enum {string}
        */
       item_type?: "story" | "bug";
+      /** State Value */
+      state_value?: string | null;
     };
     /** PBIResponse */
     PBIResponse: {
@@ -628,6 +696,10 @@ export interface components {
       swimlane_id: string | null;
       /** Group Id */
       group_id: string | null;
+      /** State Id */
+      state_id?: string | null;
+      /** State */
+      state?: string | null;
       /** Project Id */
       project_id: string;
       /**
@@ -661,6 +733,10 @@ export interface components {
       swimlane_id?: string | null;
       /** Group Id */
       group_id?: string | null;
+      /** State Id */
+      state_id?: string | null;
+      /** State Value */
+      state_value?: string | null;
     };
     /** PICreate */
     PICreate: {
@@ -833,6 +909,39 @@ export interface components {
        */
       modified_at: string;
     };
+    /** ProjectStateCreate */
+    ProjectStateCreate: {
+      /**
+       * Item Type
+       * @enum {string}
+       */
+      item_type: "feature" | "story" | "bug";
+      /** Value */
+      value: string;
+    };
+    /** ProjectStateResponse */
+    ProjectStateResponse: {
+      /** System Id */
+      system_id: string;
+      /** Project Id */
+      project_id: string;
+      /**
+       * Item Type
+       * @enum {string}
+       */
+      item_type: "feature" | "story" | "bug";
+      /** Value */
+      value: string;
+      /** Position */
+      position: number;
+      /** Category */
+      category?: ("not_started" | "in_progress" | "done") | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+    };
     /** ProjectUpdate */
     ProjectUpdate: {
       /** Name */
@@ -855,6 +964,42 @@ export interface components {
     SnapshotCreate: {
       /** Name */
       name: string;
+    };
+    /**
+     * SnapshotDiffResponse
+     * @description Structured diff of the live project against a baseline snapshot.
+     *
+     * ``changes`` holds per-entity-type ``{added, removed, changed}`` lists;
+     * ``summary`` holds the matching counts plus a ``total_effort`` delta;
+     * ``labels`` maps id references (pi/swimline) to names for rendering; and
+     * ``narrative`` is a compact human/LLM-readable summary. See
+     * ``app.services.snapshot_diff`` for the exact shapes.
+     */
+    SnapshotDiffResponse: {
+      /** Baseline Snapshot */
+      baseline_snapshot: {
+        [key: string]: unknown;
+      };
+      /** Compared At */
+      compared_at: string;
+      /** Scope */
+      scope: {
+        [key: string]: unknown;
+      };
+      /** Summary */
+      summary: {
+        [key: string]: unknown;
+      };
+      /** Changes */
+      changes: {
+        [key: string]: unknown;
+      };
+      /** Labels */
+      labels: {
+        [key: string]: unknown;
+      };
+      /** Narrative */
+      narrative: string;
     };
     /** SnapshotResponse */
     SnapshotResponse: {
@@ -2181,6 +2326,35 @@ export interface operations {
       };
     };
   };
+  /** Export Pi Dashboard Endpoint */
+  export_pi_dashboard_endpoint_api_v1_pis__pi_id__export_html_get: {
+    parameters: {
+      query?: {
+        refresh_seconds?: number;
+        show_ids?: boolean;
+      };
+      path: {
+        pi_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   /** List Swimlines */
   list_swimlines_api_v1_pis__pi_id__swimlines_get: {
     parameters: {
@@ -2685,6 +2859,75 @@ export interface operations {
       };
     };
   };
+  /**
+   * Diff Snapshot
+   * @description Diff the live project against a snapshot (latest when snapshot_id omitted).
+   *
+   * Pass ``pi_id`` to scope the diff to a single PI (including items moved into or
+   * out of it). Returns per-entity added/removed/changed lists, a summary with an
+   * effort delta, and a natural-language narrative.
+   */
+  diff_snapshot_api_v1_projects__project_id__snapshots_diff_get: {
+    parameters: {
+      query?: {
+        snapshot_id?: string | null;
+        pi_id?: string | null;
+      };
+      path: {
+        project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["SnapshotDiffResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Diff Snapshot Html
+   * @description Self-contained HTML rendering of the snapshot diff (twin of /diff).
+   */
+  diff_snapshot_html_api_v1_projects__project_id__snapshots_diff_html_get: {
+    parameters: {
+      query?: {
+        snapshot_id?: string | null;
+        pi_id?: string | null;
+        refresh_seconds?: number;
+      };
+      path: {
+        project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "text/html": string;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   /** Delete Snapshot */
   delete_snapshot_api_v1_projects__project_id__snapshots__snapshot_id__delete: {
     parameters: {
@@ -2726,6 +2969,94 @@ export interface operations {
         content: {
           "application/json": components["schemas"]["ProjectResponse"];
         };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Project States
+   * @description All three State Lists for the project, ordered by item type then position.
+   */
+  list_project_states_api_v1_projects__project_id__states__get: {
+    parameters: {
+      path: {
+        project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProjectStateResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Project State
+   * @description Add a State to a list. Returns the existing entry if the value already matches.
+   */
+  create_project_state_api_v1_projects__project_id__states__post: {
+    parameters: {
+      path: {
+        project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProjectStateCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["ProjectStateResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Delete Project State
+   * @description Remove a State from its list. Refused while any item still holds it.
+   */
+  delete_project_state_api_v1_projects__project_id__states__state_id__delete: {
+    parameters: {
+      path: {
+        project_id: string;
+        state_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
       };
       /** @description Validation Error */
       422: {

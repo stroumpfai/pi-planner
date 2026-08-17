@@ -12,6 +12,7 @@ export interface ParsedRow {
   title: string
   effort: number | null
   parentId: number | null
+  state: string           // raw State cell, trimmed; '' when blank
 }
 
 export interface ParseError {
@@ -25,6 +26,7 @@ export interface ParseResult {
   removedCount: number    // rows dropped because State is 'Removed' (any case)
   removedItems: ParsedRow[]         // Removed rows that carry a valid ID (candidates for deletion)
   childrenOfRemovedCount: number    // active child rows dropped because their feature is Removed
+  hasStateColumn: boolean // false when the file has no State header at all
   errors: ParseError[]
 }
 
@@ -35,6 +37,8 @@ export interface ImportPreview {
   featureCount: number
   storyCount: number
   orphanCount: number     // stories with no resolvable parent feature in the file
+  hasStateColumn: boolean
+  stateValues: string[]   // distinct States found, first-seen spelling, in discovery order
   errors: ParseError[]
   hasErrors: boolean
 }
@@ -142,6 +146,10 @@ export function parseImportCSV(text: string): ParseResult {
   const allDataRows = parsed.data
   const totalRows = allDataRows.length
 
+  // A file with no State column says nothing about State, so the import must leave it
+  // alone rather than read every row as blank and clear the whole project.
+  const hasStateColumn = (parsed.meta.fields ?? []).includes(COL_STATE)
+
   const rows: ParsedRow[] = []
   const removedItems: ParsedRow[] = []
   let removedCount = 0
@@ -163,6 +171,7 @@ export function parseImportCSV(text: string): ParseResult {
           title: resolveTitle(raw, itemType),
           effort: null,
           parentId: parseParentId(raw[COL_PARENT] ?? ''),
+          state: '',
         })
       }
       return
@@ -185,7 +194,15 @@ export function parseImportCSV(text: string): ParseResult {
     const effort = parseEffort(raw[COL_EFFORT] ?? '', rowNumber, errors)
     const parentId = parseParentId(raw[COL_PARENT] ?? '')
 
-    rows.push({ rowNumber, itemType, userId, title, effort, parentId })
+    rows.push({
+      rowNumber,
+      itemType,
+      userId,
+      title,
+      effort,
+      parentId,
+      state: (raw[COL_STATE] ?? '').trim(),
+    })
   })
 
   // Remove-with-parent: a Removed feature takes its child stories too, so drop any
@@ -225,7 +242,9 @@ export function parseImportCSV(text: string): ParseResult {
     }
   }
 
-  return { rows, totalRows, removedCount, removedItems, childrenOfRemovedCount, errors }
+  return {
+    rows, totalRows, removedCount, removedItems, childrenOfRemovedCount, hasStateColumn, errors,
+  }
 }
 
 // ── Preview builder ───────────────────────────────────────────────────────────
@@ -249,6 +268,13 @@ export function buildPreview(result: ParseResult): ImportPreview {
     .filter((r) => r.parentId === null || !featureIds.has(r.parentId))
     .length
 
+  // Distinct States across all three lists, deduped the same way the backend does.
+  const seenStates = new Map<string, string>()
+  for (const row of result.rows) {
+    const key = row.state.trim().toLowerCase()
+    if (key !== '' && !seenStates.has(key)) seenStates.set(key, row.state.trim())
+  }
+
   return {
     totalRows: result.totalRows,
     removedRows: result.removedCount,
@@ -256,6 +282,8 @@ export function buildPreview(result: ParseResult): ImportPreview {
     featureCount,
     storyCount,
     orphanCount,
+    hasStateColumn: result.hasStateColumn,
+    stateValues: [...seenStates.values()],
     errors: result.errors,
     hasErrors: result.errors.length > 0,
   }

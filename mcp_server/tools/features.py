@@ -5,6 +5,7 @@ from pydantic import Field
 
 from mcp_server.backend import call_backend
 from mcp_server.lock import edit_lock
+from mcp_server.tools.states import resolve_state_id, state_item_type_for_pbi
 
 features_mcp = FastMCP("features")
 
@@ -30,6 +31,12 @@ async def create_feature(
         Field(default=None, ge=1, le=999999,
               description="Optional business ID shown in UI as [101]. Must be unique per project."),
     ] = None,
+    state: Annotated[
+        str | None,
+        Field(default=None, max_length=100,
+              description="Optional State name. Must already exist in the project's feature "
+                          "State List (see list_states); unknown names are rejected."),
+    ] = None,
 ) -> dict:
     """
     Create a new feature in the project backlog.
@@ -45,6 +52,12 @@ async def create_feature(
         body["description"] = description
     if user_id is not None:
         body["id"] = user_id
+    if state is not None:
+        # Resolved to a value the backend will match exactly, so the auto-create path
+        # in state_value cannot invent a new entry from an agent's typo.
+        state_id = await resolve_state_id(project_id, "feature", state)
+        if state_id is not None:
+            body["state_value"] = state.strip()
 
     async with edit_lock(project_id):
         return await call_backend("POST", f"/api/v1/projects/{project_id}/features", json=body)
@@ -68,6 +81,12 @@ async def update_feature(
         Field(default=None, ge=1, le=999999,
               description="New business ID (1–999999, unique per project). Pass null to clear."),
     ] = _UNSET,
+    state: Annotated[
+        str | None,
+        Field(default=None, max_length=100,
+              description="New State name. Must already exist in the project's feature State "
+                          "List (see list_states); unknown names are rejected. Pass null to clear."),
+    ] = _UNSET,
 ) -> dict:
     """
     Update a feature's metadata: title, description, and/or business ID.
@@ -86,6 +105,10 @@ async def update_feature(
         body["description"] = description  # None sends null → clears the field
     if user_id is not _UNSET:
         body["id"] = user_id  # None sends null → clears the field
+    if state is not _UNSET:
+        # Validated against the list first: unknown names raise rather than creating an entry.
+        await resolve_state_id(project_id, "feature", state or "")
+        body["state_value"] = state.strip() if state else None
 
     async with edit_lock(project_id):
         return await call_backend("PATCH", f"/api/v1/features/{feature_id}", json=body)
@@ -233,6 +256,12 @@ async def create_pbi(
         Literal["story", "bug"],
         Field(default="story", description="PBI type: 'story' (default) or 'bug'"),
     ] = "story",
+    state: Annotated[
+        str | None,
+        Field(default=None, max_length=100,
+              description="Optional State name. Stories and bugs have separate State Lists; the "
+                          "name must already exist in the one matching item_type (see list_states)."),
+    ] = None,
 ) -> dict:
     """
     Create a new PBI (user story or bug) under a feature.
@@ -254,6 +283,10 @@ async def create_pbi(
         body["effort"] = effort
     if user_id is not None:
         body["id"] = user_id
+    if state is not None:
+        state_id = await resolve_state_id(project_id, state_item_type_for_pbi(item_type), state)
+        if state_id is not None:
+            body["state_value"] = state.strip()
 
     async with edit_lock(project_id):
         return await call_backend("POST", f"/api/v1/projects/{project_id}/pbis", json=body)
@@ -284,6 +317,13 @@ async def update_pbi(
         Literal["story", "bug"] | None,
         Field(default=None, description="New type: 'story' or 'bug'"),
     ] = None,
+    state: Annotated[
+        str | None,
+        Field(default=None, max_length=100,
+              description="New State name, from the list matching the PBI's type (see list_states). "
+                          "Unknown names are rejected. Pass null to clear. Note: changing item_type "
+                          "without also passing a state clears the State, since the lists differ."),
+    ] = _UNSET,
 ) -> dict:
     """
     Update a PBI's metadata: title, description, effort, business ID, or type.
@@ -305,6 +345,14 @@ async def update_pbi(
         body["id"] = user_id  # None sends null → clears the field
     if item_type is not None:
         body["item_type"] = item_type
+    if state is not _UNSET:
+        # Which list applies depends on the type the PBI will have after this update.
+        effective_type = item_type
+        if effective_type is None:
+            current = await call_backend("GET", f"/api/v1/pbis/{pbi_id}")
+            effective_type = current.get("item_type", "story")
+        await resolve_state_id(project_id, state_item_type_for_pbi(effective_type), state or "")
+        body["state_value"] = state.strip() if state else None
 
     async with edit_lock(project_id):
         return await call_backend("PATCH", f"/api/v1/pbis/{pbi_id}", json=body)

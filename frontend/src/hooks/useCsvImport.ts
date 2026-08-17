@@ -15,6 +15,8 @@ export const useCsvImport = (projectId: string) => {
       qc.invalidateQueries({ queryKey: ['sprints'] })
       qc.invalidateQueries({ queryKey: ['swimlines'] })
       qc.invalidateQueries({ queryKey: ['pis'] })
+      // Import discovers State List entries.
+      qc.invalidateQueries({ queryKey: ['states', projectId] })
     },
   })
 }

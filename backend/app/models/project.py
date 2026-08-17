@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from app.models.pbi import PBI
     from app.models.pi import PI
     from app.models.project_snapshot import ProjectSnapshot
+    from app.models.project_state import ProjectState
 
 _CASCADE = "all, delete-orphan"
 
@@ -39,6 +40,9 @@ class Project(Base):
     )
     snapshots: Mapped[list[ProjectSnapshot]] = relationship(
         "ProjectSnapshot", back_populates="project", cascade=_CASCADE
+    )
+    states: Mapped[list[ProjectState]] = relationship(
+        "ProjectState", back_populates="project", cascade=_CASCADE
     )
 
     __table_args__ = (Index("idx_projects_name", "name"),)

@@ -42,6 +42,7 @@ export function invalidateAllProjectData(
   qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'swimlines' })
   qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'groups' })
   qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'sprints' })
+  qc.invalidateQueries({ queryKey: ['states', projectId] })
   qc.invalidateQueries({ queryKey: key(projectId) })
 }
 

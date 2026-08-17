@@ -10,6 +10,7 @@ from app.models.pbi import PBI
 from app.models.pi import PI
 from app.models.pi_event import PIEvent
 from app.models.project import Project
+from app.models.project_state import ProjectState
 from app.models.sprint import Sprint
 from app.models.swimline import Swimline
 from app.services.effort import feature_efforts
@@ -56,6 +57,23 @@ def restore_pi_structures(db: AsyncSession, proj_data: dict[str, Any], project_i
             ))
 
 
+def restore_states(db: AsyncSession, proj_data: dict[str, Any], project_id: str) -> None:
+    """Rebuild the project's State Lists. Must run before features/PBIs, which FK to them.
+
+    Snapshots taken before States existed have no "states" key; those projects restore
+    with empty lists and every item stateless.
+    """
+    for s in proj_data.get("states", []):
+        db.add(ProjectState(
+            system_id=s["system_id"],
+            project_id=project_id,
+            item_type=s["item_type"],
+            value=s["value"],
+            position=s.get("position", 0),
+            category=s.get("category"),
+        ))
+
+
 def restore_features(db: AsyncSession, proj_data: dict[str, Any], project_id: str) -> None:
     for f in proj_data["features"]:
         db.add(Feature(
@@ -67,6 +85,7 @@ def restore_features(db: AsyncSession, proj_data: dict[str, Any], project_id: st
             location=f.get("location", "backlog"),
             pi_id=f.get("pi_id"),
             swimlane_id=f.get("swimlane_id"),
+            state_id=f.get("state_id"),
         ))
 
 
@@ -100,6 +119,7 @@ def restore_pbis(db: AsyncSession, proj_data: dict[str, Any], project_id: str) -
             pi_id=p.get("pi_id"),
             swimlane_id=p.get("swimlane_id"),
             group_id=p.get("group_id"),
+            state_id=p.get("state_id"),
         ))
 
 
@@ -151,6 +171,13 @@ async def serialize_project(db: AsyncSession, project: Project) -> dict[str, Any
         select(PI).where(PI.project_id == project_id).order_by(PI.created_at)
     )
     pis = pis_result.scalars().all()
+
+    states_result = await db.execute(
+        select(ProjectState)
+        .where(ProjectState.project_id == project_id)
+        .order_by(ProjectState.item_type, ProjectState.position)
+    )
+    states = states_result.scalars().all()
 
     pi_data = []
     for pi in pis:
@@ -236,6 +263,16 @@ async def serialize_project(db: AsyncSession, project: Project) -> dict[str, Any
             "effort_unit": project.effort_unit,
             "created_at": project.created_at.isoformat(),
             "modified_at": project.modified_at.isoformat(),
+            "states": [
+                {
+                    "system_id": s.system_id,
+                    "item_type": s.item_type,
+                    "value": s.value,
+                    "position": s.position,
+                    "category": s.category,
+                }
+                for s in states
+            ],
             "features": [
                 {
                     "system_id": f.system_id,
@@ -247,6 +284,8 @@ async def serialize_project(db: AsyncSession, project: Project) -> dict[str, Any
                     "pi_id": f.pi_id,
                     "swimlane_id": f.swimlane_id,
                     "continued_from_feature_id": f.continued_from_feature_id,
+                    "state_id": f.state_id,
+                    "state": f.state.value if f.state else None,
                     "created_at": f.created_at.isoformat(),
                     "modified_at": f.modified_at.isoformat(),
                 }
@@ -265,6 +304,8 @@ async def serialize_project(db: AsyncSession, project: Project) -> dict[str, Any
                     "pi_id": p.pi_id,
                     "swimlane_id": p.swimlane_id,
                     "group_id": p.group_id,
+                    "state_id": p.state_id,
+                    "state": p.state.value if p.state else None,
                     "created_at": p.created_at.isoformat(),
                     "modified_at": p.modified_at.isoformat(),
                 }

@@ -89,3 +89,19 @@ describe('usePBIs mutations invalidate the effort-rollup queries', () => {
     expectBroadInvalidation(invalidateSpy)
   })
 })
+
+describe('State List invalidation', () => {
+  // Regression: a State typed on one PBI did not appear in any other PBI's dropdown.
+  it('useUpdatePBI invalidates the State Lists', async () => {
+    mockApi.update = vi.fn().mockResolvedValue({ system_id: 'pbi-1' })
+    const { qc, wrapper } = makeWrapper()
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries')
+    const { result } = renderHook(() => useUpdatePBI('p-1'), { wrapper })
+
+    await act(async () => {
+      await result.current.mutateAsync({ pbiId: 'pbi-1', body: { state_value: 'Committed' } })
+    })
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['states', 'p-1'] })
+  })
+})

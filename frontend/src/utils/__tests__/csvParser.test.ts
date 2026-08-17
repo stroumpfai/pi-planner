@@ -205,3 +205,61 @@ describe('buildPreview', () => {
     expect(preview.storyCount).toBe(0)
   })
 })
+
+// ── State column ──────────────────────────────────────────────────────────────
+
+describe('State column', () => {
+  it('captures the State cell on each row', () => {
+    const result = parseImportCSV(csv('Feature,Auth,101,8,,In Progress'))
+    expect(result.rows[0].state).toBe('In Progress')
+  })
+
+  it('trims surrounding whitespace from the State cell', () => {
+    const result = parseImportCSV(csv('Feature,Auth,101,8,,  Done  '))
+    expect(result.rows[0].state).toBe('Done')
+  })
+
+  it('reports an empty State for a blank cell', () => {
+    const result = parseImportCSV(csv('Feature,Auth,101,8,,'))
+    expect(result.rows[0].state).toBe('')
+  })
+
+  it('flags hasStateColumn when the header includes State', () => {
+    const result = parseImportCSV(csv('Feature,Auth,101,8,,New'))
+    expect(result.hasStateColumn).toBe(true)
+  })
+
+  it('clears hasStateColumn when the file has no State header', () => {
+    const noState = [
+      'Work Item Type,Title 1,ID,Effort,Parent',
+      'Feature,Auth,101,8,',
+    ].join('\n')
+    const result = parseImportCSV(noState)
+    expect(result.hasStateColumn).toBe(false)
+    expect(result.rows[0].state).toBe('')
+  })
+
+  it('collects distinct States in the preview, deduped case-insensitively', () => {
+    const result = parseImportCSV(
+      csv(
+        'Feature,Auth,101,8,,Done',
+        'Feature,Payments,102,8,,done',
+        'Feature,Search,103,8,,In Progress',
+      ),
+    )
+    const preview = buildPreview(result)
+    expect(preview.stateValues).toEqual(['Done', 'In Progress'])
+  })
+
+  it('omits blank States from the preview list', () => {
+    const result = parseImportCSV(csv('Feature,Auth,101,8,,', 'Feature,Pay,102,8,,New'))
+    expect(buildPreview(result).stateValues).toEqual(['New'])
+  })
+
+  it('does not collect States from Removed rows', () => {
+    const result = parseImportCSV(
+      csv('Feature,Gone,101,8,,Removed', 'Feature,Auth,102,8,,New'),
+    )
+    expect(buildPreview(result).stateValues).toEqual(['New'])
+  })
+})

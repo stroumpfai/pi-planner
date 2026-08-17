@@ -1,9 +1,10 @@
 import { useEffect } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import type { AxiosError } from 'axios'
 import type { PBI } from '@/types'
 import { EFFORT_VALUES } from '@/constants/effort'
+import { StateSelect } from './StateSelect'
 import { WorkItemLink } from './WorkItemLink'
 
 export type PBIFormValues = {
@@ -12,6 +13,8 @@ export type PBIFormValues = {
   effort?: number | null
   id?: number | null
   item_type: 'story' | 'bug'
+  /** Blank clears the State; a value not in the list joins it on save. */
+  state_value?: string
 }
 
 interface Props {
@@ -25,11 +28,11 @@ interface Props {
 
 export function PBIFormModal({ open, pbi, defaultType = 'story', readOnly = false, onClose, onSubmit }: Props) {
   const isEdit = !!pbi
-  const { register, handleSubmit, reset, setError, watch, setValue, formState: { errors, isSubmitting } } =
+  const { register, control, handleSubmit, reset, setError, watch, setValue, formState: { errors, isSubmitting } } =
     useForm<PBIFormValues>({
       defaultValues: pbi
-        ? { title: pbi.title, description: pbi.description ?? undefined, effort: pbi.effort, id: pbi.id, item_type: pbi.item_type ?? 'story' }
-        : { item_type: defaultType },
+        ? { title: pbi.title, description: pbi.description ?? undefined, effort: pbi.effort, id: pbi.id, item_type: pbi.item_type ?? 'story', state_value: pbi.state ?? '' }
+        : { item_type: defaultType, state_value: '' },
     })
 
   // Reseed the form each time the modal opens so it reflects the current PBI
@@ -38,8 +41,8 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', readOnly = fals
     if (!open) return
     reset(
       pbi
-        ? { title: pbi.title, description: pbi.description ?? undefined, effort: pbi.effort, id: pbi.id, item_type: pbi.item_type ?? 'story' }
-        : { item_type: defaultType },
+        ? { title: pbi.title, description: pbi.description ?? undefined, effort: pbi.effort, id: pbi.id, item_type: pbi.item_type ?? 'story', state_value: pbi.state ?? '' }
+        : { item_type: defaultType, state_value: '' },
     )
     // Keyed to pbi identity (not the object) so a background refetch while the
     // modal is open doesn't wipe in-progress edits.
@@ -56,6 +59,14 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', readOnly = fals
 
   const handleClose = () => { reset(); onClose() }
 
+  // Stories and Bugs draw from separate State Lists, so switching type strands the
+  // current State — clear it rather than carry a value the new list doesn't have.
+  const switchType = (next: 'story' | 'bug') => {
+    if (next === itemType) return
+    setValue('item_type', next)
+    setValue('state_value', '')
+  }
+
   const handleFormSubmit = async (values: PBIFormValues) => {
     try {
       await onSubmit({
@@ -63,6 +74,7 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', readOnly = fals
         description: values.description || null,
         effort: values.effort ?? null,
         id: values.id || null,
+        state_value: (values.state_value ?? '').trim(),
       })
       reset()
       onClose()
@@ -100,7 +112,7 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', readOnly = fals
             <div className="flex rounded-md border border-gray-300 overflow-hidden w-fit">
               <button
                 type="button"
-                onClick={() => setValue('item_type', 'story')}
+                onClick={() => switchType('story')}
                 className={`px-4 py-1.5 text-sm font-medium transition-colors ${
                   itemType === 'story'
                     ? 'bg-blue-600 text-white'
@@ -111,7 +123,7 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', readOnly = fals
               </button>
               <button
                 type="button"
-                onClick={() => setValue('item_type', 'bug')}
+                onClick={() => switchType('bug')}
                 className={`px-4 py-1.5 text-sm font-medium border-l border-gray-300 transition-colors ${
                   itemType === 'bug'
                     ? 'bg-red-600 text-white'
@@ -195,6 +207,20 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', readOnly = fals
                 {errors.id && <p className="mt-1 text-xs text-red-600">{errors.id.message}</p>}
               </div>
             </div>
+
+            <Controller
+              name="state_value"
+              control={control}
+              render={({ field }) => (
+                <StateSelect
+                  itemType={itemType}
+                  projectId={pbi?.project_id}
+                  value={field.value ?? ''}
+                  onChange={field.onChange}
+                  disabled={readOnly}
+                />
+              )}
+            />
             </fieldset>
 
             {pbi && (

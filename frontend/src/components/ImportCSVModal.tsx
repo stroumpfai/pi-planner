@@ -39,6 +39,7 @@ function parsedRowToCsvRow(r: ParsedRow) {
     title: r.title,
     effort: r.effort,
     parent_id: r.parentId,
+    state: r.state,
   }
 }
 
@@ -109,6 +110,24 @@ function PreviewTable({ preview }: { readonly preview: ImportPreview }) {
               ↳ {preview.orphanCount} orphan {preview.orphanCount === 1 ? 'story' : 'stories'} — will be placed in &quot;Unassigned&quot; feature
             </td>
             <td />
+          </tr>
+        )}
+        {preview.hasStateColumn && preview.stateValues.length > 0 && (
+          <tr>
+            <td className="py-1.5 text-gray-500">
+              States found{' '}
+              <span className="block text-xs text-gray-400">{preview.stateValues.join(', ')}</span>
+            </td>
+            <td className="py-1.5 text-right font-medium text-gray-800 align-top">
+              {preview.stateValues.length}
+            </td>
+          </tr>
+        )}
+        {!preview.hasStateColumn && (
+          <tr>
+            <td className="py-1.5 text-gray-400 text-xs" colSpan={2}>
+              No State column in this file — existing States will be left unchanged.
+            </td>
           </tr>
         )}
       </tbody>
@@ -253,6 +272,8 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, onClose 
       const res = await importMutation.mutateAsync({
         rows: parsedRows.map(parsedRowToCsvRow),
         removals,
+        // A file with no State column must leave every State untouched.
+        has_state_column: preview?.hasStateColumn ?? false,
       })
       setResult(res)
       setStep('done')

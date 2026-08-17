@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useUpdateProject } from '@/hooks/useProjects'
+import { ProjectStatesSection } from './ProjectStatesSection'
 import { AZURE_DEVOPS_TEMPLATE, JIRA_TEMPLATE } from '@/utils/workItemUrl'
 import type { AxiosError } from 'axios'
 import type { Project } from '@/types'
@@ -94,7 +95,7 @@ export function EditProjectModal({ open, project, onClose }: Props) {
     <Dialog.Root open={open} onOpenChange={(o) => { if (!o) onClose() }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-40" />
-        <Dialog.Content className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md">
+        <Dialog.Content className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-md max-h-[85vh] overflow-y-auto">
           <Dialog.Title className="text-base font-semibold text-gray-900 dark:text-gray-100">Edit Project</Dialog.Title>
 
           <form onSubmit={handleSubmit(onSubmit)} className="mt-4 space-y-4">
@@ -173,6 +174,8 @@ export function EditProjectModal({ open, project, onClose }: Props) {
                 Builds a per-item link from the URL above + this path (with <code>{'{id}'}</code> as the item ID). Features and stories then show a link to open in the tracker.
               </p>
             </div>
+
+            <ProjectStatesSection projectId={project.system_id} />
 
             <div className="flex justify-end gap-3 pt-2">
               <button

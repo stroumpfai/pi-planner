@@ -107,3 +107,17 @@ export interface Snapshot {
   created_at: string
   created_by: string | null
 }
+
+/** Which of the three State Lists an entry belongs to. */
+export type StateItemType = 'feature' | 'story' | 'bug'
+
+/** One entry in a project's State List. */
+export interface ProjectState {
+  system_id: string
+  project_id: string
+  item_type: StateItemType
+  value: string
+  position: number
+  category: 'not_started' | 'in_progress' | 'done' | null
+  created_at: string
+}

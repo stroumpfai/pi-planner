@@ -124,6 +124,12 @@ function handleSSEEvent(
       toast.info('Project restored from a snapshot')
       break
 
+    // ── States ────────────────────────────────────────────────────────────
+    case 'state:created':
+    case 'state:deleted':
+      qc.invalidateQueries({ queryKey: ['states', projectId] })
+      break
+
     // ── Edit lock ─────────────────────────────────────────────────────────
     case 'edit-lock:acquired':
     case 'edit-lock:released':

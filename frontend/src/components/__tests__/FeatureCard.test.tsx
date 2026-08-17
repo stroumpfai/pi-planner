@@ -16,6 +16,12 @@ vi.mock('@/hooks/usePIs')
 vi.mock('@/hooks/usePBIs')
 vi.mock('@/hooks/useSwimlinesAndGroups')
 vi.mock('@/hooks/useProjects')
+// The State dropdown inside the feature modal queries the project's State Lists;
+// this file renders without a QueryClientProvider.
+vi.mock('@/hooks/useStates', () => ({
+  useStates: () => ({ data: [], isLoading: false }),
+  useStatesForType: () => ({ states: [], isLoading: false }),
+}))
 
 const renderWithDnd = (ui: React.ReactElement) => render(<DndContext>{ui}</DndContext>)
 

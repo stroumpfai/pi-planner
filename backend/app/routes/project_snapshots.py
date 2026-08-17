@@ -15,6 +15,7 @@ from app.models.pbi import PBI
 from app.models.pi import PI
 from app.models.project import Project
 from app.models.project_snapshot import ProjectSnapshot
+from app.models.project_state import ProjectState
 from app.models.user import User
 from app.schemas import (
     ProjectResponse,
@@ -30,6 +31,7 @@ from app.services.snapshot import (
     restore_groups,
     restore_pbis,
     restore_pi_structures,
+    restore_states,
     serialize_project,
 )
 from app.services.snapshot_diff import diff_project_states
@@ -232,6 +234,9 @@ async def restore_snapshot(
     await db.execute(delete(PBI).where(PBI.project_id == project_id))
     await db.execute(delete(Feature).where(Feature.project_id == project_id))
     await db.flush()
+    # States only after the items that reference them — the FK is RESTRICT.
+    await db.execute(delete(ProjectState).where(ProjectState.project_id == project_id))
+    await db.flush()
     pi_result = await db.execute(select(PI).where(PI.project_id == project_id))
     for pi in pi_result.scalars().all():
         await db.delete(pi)
@@ -241,6 +246,10 @@ async def restore_snapshot(
     proj_data = snapshot.snapshot_data["project"]
 
     restore_pi_structures(db, proj_data, project_id)
+    await db.flush()
+
+    # States first: features and PBIs FK to them.
+    restore_states(db, proj_data, project_id)
     await db.flush()
 
     restore_features(db, proj_data, project_id)

@@ -88,8 +88,8 @@ async def test_csv_export_structure(client: AsyncClient, planned_pi: dict) -> No
 
     reader = csv.DictReader(io.StringIO(resp.text))
     assert reader.fieldnames == [
-        "pbi_id", "pbi_name", "pbi_url",
-        "feature_id", "feature_name", "feature_url",
+        "pbi_id", "pbi_name", "pbi_url", "pbi_state",
+        "feature_id", "feature_name", "feature_url", "feature_state",
         "pi_name", "sprint_number", "swimlane_name",
     ]
 
@@ -239,8 +239,8 @@ async def test_csv_export_empty_pi(client: AsyncClient) -> None:
 
     reader = csv.DictReader(io.StringIO(resp.text))
     assert reader.fieldnames == [
-        "pbi_id", "pbi_name", "pbi_url",
-        "feature_id", "feature_name", "feature_url",
+        "pbi_id", "pbi_name", "pbi_url", "pbi_state",
+        "feature_id", "feature_name", "feature_url", "feature_state",
         "pi_name", "sprint_number", "swimlane_name",
     ]
     assert list(reader) == []

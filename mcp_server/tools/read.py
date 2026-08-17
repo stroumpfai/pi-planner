@@ -96,6 +96,24 @@ async def list_swimlines(
 
 
 @read_mcp.tool()
+async def list_states(
+    project_id: Annotated[str, Field(description="Project system_id (UUID)")],
+    ctx: Context,
+) -> dict:
+    """
+    List the project's State Lists — the labels its work items can carry.
+
+    Each project has three independent lists keyed by item_type: 'feature', 'story',
+    and 'bug'. They start empty and are populated by CSV import (from the file's State
+    column) or by a user typing a new State in the web UI. Returns system_id, item_type,
+    value, and position for every entry, ordered by item type then position.
+    Call this before setting `state` on create_feature, update_feature, create_pbi, or
+    update_pbi — those tools reject names that are not already in the matching list.
+    """
+    return await call_backend("GET", f"/api/v1/projects/{project_id}/states/")
+
+
+@read_mcp.tool()
 async def list_features(
     project_id: Annotated[str, Field(description="Project system_id (UUID)")],
     ctx: Context,

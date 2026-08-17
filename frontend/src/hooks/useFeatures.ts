@@ -23,7 +23,11 @@ export const useCreateFeature = (projectId: string) => {
   const qc = useQueryClient()
   return useMutation({
     mutationFn: (body: FeatureCreate) => featuresApi.create(projectId, body),
-    onSuccess: () => qc.invalidateQueries({ queryKey: prefix(projectId) }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: prefix(projectId) })
+      // Typing a State in the item modal adds it to the project's list.
+      qc.invalidateQueries({ queryKey: ['states', projectId] })
+    },
   })
 }
 
@@ -34,6 +38,8 @@ export const useUpdateFeature = (projectId: string) => {
       featuresApi.update(featureId, body),
     onSuccess: (_data, { body }) => {
       qc.invalidateQueries({ queryKey: prefix(projectId) })
+      // Typing a State in the item modal adds it to the project's list.
+      qc.invalidateQueries({ queryKey: ['states', projectId] })
       // Feature move operations may delete groups and affect capacity
       if ('location' in body || 'swimlane_id' in body) {
         qc.invalidateQueries({ queryKey: ['pbis', projectId] })

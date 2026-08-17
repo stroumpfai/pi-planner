@@ -1,13 +1,16 @@
 import * as Dialog from '@radix-ui/react-dialog'
-import { useForm } from 'react-hook-form'
+import { Controller, useForm } from 'react-hook-form'
 import type { AxiosError } from 'axios'
 import type { Feature } from '@/types'
+import { StateSelect } from './StateSelect'
 import { WorkItemLink } from './WorkItemLink'
 
 export type FeatureFormValues = {
   title: string
   description?: string | null
   id?: number | null
+  /** Blank clears the State; a value not in the list joins it on save. */
+  state_value?: string
 }
 
 interface Props {
@@ -20,10 +23,15 @@ interface Props {
 
 export function FeatureFormModal({ open, feature, readOnly = false, onClose, onSubmit }: Props) {
   const isEdit = !!feature
-  const { register, handleSubmit, reset, setError, formState: { errors, isSubmitting } } = useForm<FeatureFormValues>({
+  const { register, control, handleSubmit, reset, setError, formState: { errors, isSubmitting } } = useForm<FeatureFormValues>({
     defaultValues: feature
-      ? { title: feature.title, description: feature.description ?? undefined, id: feature.id }
-      : {},
+      ? {
+          title: feature.title,
+          description: feature.description ?? undefined,
+          id: feature.id,
+          state_value: feature.state ?? '',
+        }
+      : { state_value: '' },
   })
 
   const handleClose = () => { reset(); onClose() }
@@ -34,6 +42,7 @@ export function FeatureFormModal({ open, feature, readOnly = false, onClose, onS
         ...values,
         description: values.description || null,
         id: values.id || null,
+        state_value: (values.state_value ?? '').trim(),
       })
       reset()
       onClose()
@@ -111,6 +120,20 @@ export function FeatureFormModal({ open, feature, readOnly = false, onClose, onS
               />
               {errors.id && <p className="mt-1 text-xs text-red-600">{errors.id.message}</p>}
             </div>
+
+            <Controller
+              name="state_value"
+              control={control}
+              render={({ field }) => (
+                <StateSelect
+                  itemType="feature"
+                  projectId={feature?.project_id}
+                  value={field.value ?? ''}
+                  onChange={field.onChange}
+                  disabled={readOnly}
+                />
+              )}
+            />
             </fieldset>
 
             {feature && (

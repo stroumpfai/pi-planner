@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from app.models.group import Group
     from app.models.pi import PI
     from app.models.project import Project
+    from app.models.project_state import ProjectState
     from app.models.swimline import Swimline
 
 
@@ -34,6 +35,10 @@ class PBI(Base):
     pi_id: Mapped[str | None] = mapped_column(Text, ForeignKey("pis.system_id"))
     swimlane_id: Mapped[str | None] = mapped_column(Text, ForeignKey("swimlines.system_id"))
     group_id: Mapped[str | None] = mapped_column(Text, ForeignKey("groups.system_id", ondelete="SET NULL"))
+    # RESTRICT: a State in use cannot be deleted from the project's State List.
+    state_id: Mapped[str | None] = mapped_column(
+        Text, ForeignKey("project_states.system_id", ondelete="RESTRICT")
+    )
     created_at: Mapped[datetime] = mapped_column(default=func.now())
     modified_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
 
@@ -41,6 +46,8 @@ class PBI(Base):
     feature: Mapped[Feature] = relationship("Feature", back_populates="pbis")
     pi: Mapped[PI | None] = relationship("PI", back_populates="pbis")
     swimline: Mapped[Swimline | None] = relationship("Swimline", back_populates="pbis")
+    # selectin so responses can render the State value without every caller remembering to eager-load it
+    state: Mapped[ProjectState | None] = relationship("ProjectState", lazy="selectin")
     group: Mapped[Group | None] = relationship(
         "Group",
         back_populates="pbis",
@@ -53,5 +60,6 @@ class PBI(Base):
         Index("idx_pbis_parent", "parent_feature_system_id"),
         Index("idx_pbis_pi", "pi_id"),
         Index("idx_pbis_group", "group_id"),
+        Index("idx_pbis_state", "state_id"),
         UniqueConstraint("project_id", "user_id"),
     )

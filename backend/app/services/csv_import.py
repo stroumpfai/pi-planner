@@ -1,13 +1,15 @@
 from uuid import uuid4
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.feature import Feature
 from app.models.pbi import PBI
+from app.models.project_state import ProjectState, normalise_state
 from app.schemas.csv_import import CsvImportError, CsvImportResult, CsvRow
 from app.services.events import broadcaster
+from app.services.project_state import get_or_create_state, state_item_type_for_pbi
 
 _VALID_ITEM_TYPES = {"feature", "story", "bug"}
 _USER_ID_MIN = 1
@@ -95,36 +97,120 @@ def _cross_entity_errors(
     return errors
 
 
+async def _resolve_row_state(
+    db: AsyncSession,
+    project_id: str,
+    state_list_type: str,
+    row: CsvRow,
+    has_state_column: bool,
+) -> tuple[bool, str | None]:
+    """Work out the State this row assigns.
+
+    Returns (should_change, state_id). A file with no State column changes nothing; a
+    blank cell clears the item's State; any other value joins the list if it is new.
+    """
+    if not has_state_column:
+        return False, None
+    raw = row.state or ""
+    if normalise_state(raw) == "":
+        return True, None
+    # Newly created entries are counted at the end of the import via _count_states,
+    # so the per-row creation flag is not needed here.
+    state, _created = await get_or_create_state(db, project_id, state_list_type, raw)
+    return True, (state.system_id if state else None)
+
+
+async def _upsert_one_feature(
+    db: AsyncSession,
+    project_id: str,
+    row: CsvRow,
+    feature_map: dict[int, str],
+    has_state_column: bool,
+) -> tuple[str, int, int]:
+    """Create or update a single Feature. Returns (system_id, created, updated)."""
+    state_changed, state_id = await _resolve_row_state(
+        db, project_id, "feature", row, has_state_column
+    )
+
+    if row.user_id is not None and row.user_id in feature_map:
+        sysid = feature_map[row.user_id]
+        feature = await db.get(Feature, sysid)
+        if feature is None:
+            return sysid, 0, 0
+        feature.title = row.title
+        if state_changed:
+            feature.state_id = state_id
+        return sysid, 0, 1
+
+    sysid = str(uuid4())
+    db.add(Feature(
+        system_id=sysid,
+        project_id=project_id,
+        user_id=row.user_id,
+        title=row.title,
+        location="backlog",
+        state_id=state_id if state_changed else None,
+    ))
+    return sysid, 1, 0
+
+
 async def _upsert_features(
     db: AsyncSession,
     project_id: str,
     feature_rows: list[CsvRow],
     feature_map: dict[int, str],
+    has_state_column: bool,
 ) -> tuple[dict[int, str], int, int]:
     csv_feature_sysid: dict[int, str] = {}
     created = 0
     updated = 0
     for row in feature_rows:
-        if row.user_id is not None and row.user_id in feature_map:
-            existing_sysid = feature_map[row.user_id]
-            feature = await db.get(Feature, existing_sysid)
-            if feature:
-                feature.title = row.title
-                updated += 1
-            csv_feature_sysid[row.user_id] = existing_sysid
-        else:
-            new_sysid = str(uuid4())
-            db.add(Feature(
-                system_id=new_sysid,
-                project_id=project_id,
-                user_id=row.user_id,
-                title=row.title,
-                location="backlog",
-            ))
-            if row.user_id is not None:
-                csv_feature_sysid[row.user_id] = new_sysid
-            created += 1
+        sysid, was_created, was_updated = await _upsert_one_feature(
+            db, project_id, row, feature_map, has_state_column
+        )
+        created += was_created
+        updated += was_updated
+        if row.user_id is not None:
+            csv_feature_sysid[row.user_id] = sysid
     return csv_feature_sysid, created, updated
+
+
+async def _upsert_one_story(
+    db: AsyncSession,
+    project_id: str,
+    row: CsvRow,
+    parent_sysid: str,
+    pbi_map: dict[int, str],
+    has_state_column: bool,
+) -> tuple[int, int]:
+    """Create or update a single Story/Bug. Returns (created, updated)."""
+    # Stories and Bugs draw from separate State Lists.
+    state_changed, state_id = await _resolve_row_state(
+        db, project_id, state_item_type_for_pbi(row.item_type), row, has_state_column
+    )
+
+    if row.user_id is not None and row.user_id in pbi_map:
+        pbi = await db.get(PBI, pbi_map[row.user_id])
+        if pbi is None:
+            return 0, 0
+        pbi.title = row.title
+        pbi.effort = row.effort
+        pbi.item_type = row.item_type
+        if state_changed:
+            pbi.state_id = state_id
+        return 0, 1
+
+    db.add(PBI(
+        project_id=project_id,
+        parent_feature_system_id=parent_sysid,
+        user_id=row.user_id,
+        title=row.title,
+        effort=row.effort,
+        item_type=row.item_type,
+        location="backlog",
+        state_id=state_id if state_changed else None,
+    ))
+    return 1, 0
 
 
 async def _upsert_stories(
@@ -134,6 +220,7 @@ async def _upsert_stories(
     csv_feature_sysid: dict[int, str],
     pbi_map: dict[int, str],
     unassigned_sysid: str | None,
+    has_state_column: bool,
 ) -> tuple[int, int]:
     created = 0
     updated = 0
@@ -143,24 +230,11 @@ async def _upsert_stories(
             if row.parent_id is not None and row.parent_id in csv_feature_sysid
             else unassigned_sysid  # type: ignore[assignment]
         )
-        if row.user_id is not None and row.user_id in pbi_map:
-            pbi = await db.get(PBI, pbi_map[row.user_id])
-            if pbi:
-                pbi.title = row.title
-                pbi.effort = row.effort
-                pbi.item_type = row.item_type
-                updated += 1
-        else:
-            db.add(PBI(
-                project_id=project_id,
-                parent_feature_system_id=parent_sysid,
-                user_id=row.user_id,
-                title=row.title,
-                effort=row.effort,
-                item_type=row.item_type,
-                location="backlog",
-            ))
-            created += 1
+        was_created, was_updated = await _upsert_one_story(
+            db, project_id, row, parent_sysid, pbi_map, has_state_column
+        )
+        created += was_created
+        updated += was_updated
     return created, updated
 
 
@@ -204,11 +278,20 @@ async def _apply_removals(
     return deleted_feature_ids, deleted_pbis
 
 
+async def _count_states(db: AsyncSession, project_id: str) -> int:
+    return int((await db.execute(
+        select(func.count()).select_from(ProjectState).where(
+            ProjectState.project_id == project_id
+        )
+    )).scalar_one())
+
+
 async def execute_import(
     db: AsyncSession,
     project_id: str,
     rows: list[CsvRow],
     removals: list[str] | None = None,
+    has_state_column: bool = False,
 ) -> CsvImportResult:
     errors = _validate_rows(rows)
     if errors:
@@ -234,8 +317,12 @@ async def execute_import(
     feature_rows = [r for r in rows if r.item_type == "feature"]
     story_rows = [r for r in rows if r.item_type in ("story", "bug")]
 
+    # Counted before any upsert so a failed import registers no vocabulary: everything
+    # below runs in one transaction, and the 422 paths above return before it starts.
+    states_before = await _count_states(db, project_id)
+
     csv_feature_sysid, created_features, updated_features = await _upsert_features(
-        db, project_id, feature_rows, feature_map
+        db, project_id, feature_rows, feature_map, has_state_column
     )
     await db.flush()
 
@@ -257,10 +344,14 @@ async def execute_import(
         await db.flush()
 
     created_stories, updated_stories = await _upsert_stories(
-        db, project_id, story_rows, csv_feature_sysid, pbi_map, unassigned_sysid
+        db, project_id, story_rows, csv_feature_sysid, pbi_map, unassigned_sysid,
+        has_state_column,
     )
+    created_states = await _count_states(db, project_id) - states_before
     await db.commit()
 
+    if created_states:
+        await broadcaster.broadcast(project_id, "state:created", {"count": created_states})
     for feature_id in deleted_feature_ids:
         await broadcaster.broadcast(project_id, "feature:deleted", {"system_id": feature_id})
     for pbi_id, parent_id in deleted_pbis:
@@ -277,4 +368,5 @@ async def execute_import(
         removed_features=len(deleted_feature_ids),
         removed_stories=len(deleted_pbis),
         orphan_stories=orphan_count,
+        created_states=created_states,
     )

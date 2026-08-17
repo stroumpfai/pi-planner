@@ -109,6 +109,7 @@ pi-planner/
 │   │   │   ├── pbi.py      # includes item_type (pbi|bug)
 │   │   │   ├── pi.py
 │   │   │   ├── project.py
+│   │   │   ├── project_state.py  # State List entries (3 per project: feature|story|bug)
 │   │   │   ├── session.py
 │   │   │   ├── sprint.py
 │   │   │   ├── swimline.py
@@ -124,6 +125,7 @@ pi-planner/
 │   │   │   ├── groups.py
 │   │   │   ├── pbis.py
 │   │   │   ├── pis.py
+│   │   │   ├── project_states.py  # State Lists: list/create/guarded delete
 │   │   │   ├── projects.py
 │   │   │   ├── sprints.py
 │   │   │   ├── swimlines.py
@@ -135,6 +137,7 @@ pi-planner/
 │   │   │   ├── csv_import.py
 │   │   │   ├── effort.py   # Derived effort calculations
 │   │   │   ├── events.py   # SSE broadcaster
+│   │   │   ├── project_state.py  # State dedupe, select-or-create, usage checks
 │   │   │   ├── users.py    # User CRUD + seed_from_config
 │   │   │   └── validation.py
 │   │   ├── middleware/
@@ -451,6 +454,8 @@ npm run cypress:run    # headless
 - Skip RBAC guards on new endpoints — every route must call `get_current_user`, `require_editor_or_above`, or `require_admin`
 - Duplicate server state in Zustand
 - Allow CSV import to assign PI/swimlane/sprint (all imports go to backlog only)
+- Let a CSV file with **no** `State` column clear anyone's States (blank cell clears; absent column changes nothing)
+- Let MCP write tools create State List entries — they reject unknown names; only imports and humans create vocabulary
 - Allow multiple PIs in `in_progress` state
 - Allow undelete/trash (deletions are permanent)
 - Commit `.env` or `config/users.json` (contains secrets/hashes)

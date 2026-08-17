@@ -10,6 +10,7 @@ class CsvRow(BaseModel):
     title: str
     effort: ValidEffort = None
     parent_id: int | None = None  # CSV user_id of the parent Feature row
+    state: str | None = None      # raw State cell; "" clears the item's State, None means absent
 
     @field_validator('effort', mode='before')
     @classmethod
@@ -33,6 +34,9 @@ class CsvRow(BaseModel):
 class CsvImportRequest(BaseModel):
     rows: list[CsvRow]
     removals: list[str] = []  # system_ids of existing items to delete (resolved by the client)
+    # False when the file had no State column at all, in which case State is left
+    # untouched on every row rather than cleared.
+    has_state_column: bool = False
 
 
 class CsvImportError(BaseModel):
@@ -48,3 +52,4 @@ class CsvImportResult(BaseModel):
     removed_features: int
     removed_stories: int
     orphan_stories: int
+    created_states: int = 0  # State List entries discovered by this import
