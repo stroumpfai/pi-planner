@@ -390,6 +390,8 @@ export interface components {
     CsvImportRequest: {
       /** Rows */
       rows: components["schemas"]["CsvRow"][];
+      /** Removals */
+      removals?: string[];
     };
     /** CsvImportResult */
     CsvImportResult: {
@@ -401,6 +403,10 @@ export interface components {
       updated_features: number;
       /** Updated Stories */
       updated_stories: number;
+      /** Removed Features */
+      removed_features: number;
+      /** Removed Stories */
+      removed_stories: number;
       /** Orphan Stories */
       orphan_stories: number;
     };

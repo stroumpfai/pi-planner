@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ImportCSVModal } from '../ImportCSVModal'
 import { useCsvImport } from '@/hooks/useCsvImport'
 import * as csvParser from '@/utils/csvParser'
+import type { Feature, PBI } from '@/types'
 
 vi.mock('@/hooks/useCsvImport')
 vi.mock('@/utils/csvParser')
@@ -22,17 +23,37 @@ const fakeParseResult: csvParser.ParseResult = {
   rows: [{ rowNumber: 2, itemType: 'story', userId: null, title: 'Auth', effort: null, parentId: null }],
   totalRows: 1,
   removedCount: 0,
+  removedItems: [],
+  childrenOfRemovedCount: 0,
   errors: [],
 }
 
 const fakePreview: csvParser.ImportPreview = {
   totalRows: 1,
   removedRows: 0,
+  childrenRemovedWithParent: 0,
   featureCount: 0,
   storyCount: 1,
   orphanCount: 0,
   hasErrors: false,
   errors: [],
+}
+
+const okResult = {
+  created_features: 0,
+  created_stories: 1,
+  updated_features: 0,
+  updated_stories: 0,
+  removed_features: 0,
+  removed_stories: 0,
+  orphan_stories: 0,
+}
+
+function makeFeature(id: number, systemId: string, title: string): Feature {
+  return { id, system_id: systemId, title } as unknown as Feature
+}
+function makePBI(id: number, systemId: string, title: string, parent: string): PBI {
+  return { id, system_id: systemId, title, parent_feature_system_id: parent } as unknown as PBI
 }
 
 beforeEach(() => {
@@ -55,6 +76,8 @@ function makeFile(content = 'item_type,title\nstory,Auth'): File {
 
 const defaultProps = {
   projectId: 'p-1',
+  features: [] as Feature[],
+  pbis: [] as PBI[],
   onClose: vi.fn(),
 }
 
@@ -91,28 +114,16 @@ describe('ImportCSVModal', () => {
     await waitFor(() => expect(screen.getByText(/missing title/i)).toBeInTheDocument())
   })
 
-  it('calls mutateAsync with parsed rows when Confirm Import is clicked', async () => {
-    mutateAsync.mockResolvedValue({
-      created_features: 0,
-      created_stories: 1,
-      updated_features: 0,
-      updated_stories: 0,
-      orphan_stories: 0,
-    })
+  it('calls mutateAsync with parsed rows and empty removals when no matches exist', async () => {
+    mutateAsync.mockResolvedValue(okResult)
     render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
     await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
     await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
-    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array) })
+    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: [] })
   })
 
   it('shows "Import complete" after successful import', async () => {
-    mutateAsync.mockResolvedValue({
-      created_features: 0,
-      created_stories: 1,
-      updated_features: 0,
-      updated_stories: 0,
-      orphan_stories: 0,
-    })
+    mutateAsync.mockResolvedValue(okResult)
     render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
     await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
     await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
@@ -128,5 +139,71 @@ describe('ImportCSVModal', () => {
     await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
     await waitFor(() => expect(screen.getByText(/import failed/i)).toBeInTheDocument())
     expect(screen.getByText(/server error/i)).toBeInTheDocument()
+  })
+
+  // ── Reconcile step ─────────────────────────────────────────────────────────
+
+  it('shows the reconcile step when a Removed item matches an existing item', async () => {
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue({
+      ...fakeParseResult,
+      removedItems: [{ rowNumber: 2, itemType: 'feature', userId: 101, title: 'Gone', effort: null, parentId: null }],
+    })
+    render(
+      <ImportCSVModal {...defaultProps} open file={makeFile()} features={[makeFeature(101, 'feat-1', 'Existing')]} />,
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => screen.getByRole('button', { name: /next/i }))
+    await userEvent.click(screen.getByRole('button', { name: /next/i }))
+    expect(screen.getByText(/removed items already in the project/i)).toBeInTheDocument()
+  })
+
+  it('keeps matched items by default (empty removals)', async () => {
+    mutateAsync.mockResolvedValue(okResult)
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue({
+      ...fakeParseResult,
+      removedItems: [{ rowNumber: 2, itemType: 'feature', userId: 101, title: 'Gone', effort: null, parentId: null }],
+    })
+    render(
+      <ImportCSVModal {...defaultProps} open file={makeFile()} features={[makeFeature(101, 'feat-1', 'Existing')]} />,
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => screen.getByRole('button', { name: /next/i }))
+    await userEvent.click(screen.getByRole('button', { name: /next/i }))
+    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: [] })
+  })
+
+  it('includes the system_id in removals when an item is toggled to Remove', async () => {
+    mutateAsync.mockResolvedValue(okResult)
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue({
+      ...fakeParseResult,
+      removedItems: [{ rowNumber: 2, itemType: 'feature', userId: 101, title: 'Gone', effort: null, parentId: null }],
+    })
+    render(
+      <ImportCSVModal {...defaultProps} open file={makeFile()} features={[makeFeature(101, 'feat-1', 'Existing')]} />,
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => screen.getByRole('button', { name: /next/i }))
+    await userEvent.click(screen.getByRole('button', { name: /next/i }))
+    await userEvent.click(screen.getByRole('checkbox'))
+    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: ['feat-1'] })
+  })
+
+  it('shows removed counts on the done step', async () => {
+    mutateAsync.mockResolvedValue({ ...okResult, removed_features: 1, removed_stories: 2 })
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue({
+      ...fakeParseResult,
+      removedItems: [{ rowNumber: 2, itemType: 'feature', userId: 101, title: 'Gone', effort: null, parentId: null }],
+    })
+    render(
+      <ImportCSVModal {...defaultProps} open file={makeFile()} features={[makeFeature(101, 'feat-1', 'Existing')]} pbis={[makePBI(201, 'pbi-1', 'S', 'feat-9')]} />,
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => screen.getByRole('button', { name: /next/i }))
+    await userEvent.click(screen.getByRole('button', { name: /next/i }))
+    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    await waitFor(() => expect(screen.getByText(/features removed/i)).toBeInTheDocument())
+    expect(screen.getByText(/stories removed/i)).toBeInTheDocument()
   })
 })

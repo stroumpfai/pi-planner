@@ -170,6 +170,8 @@ export function BacklogPage({ projectId }: Props) {
         open={showImport}
         projectId={projectId}
         file={selectedFile}
+        features={features ?? []}
+        pbis={pbis ?? []}
         onClose={handleImportClose}
       />
 

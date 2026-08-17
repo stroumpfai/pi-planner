@@ -22,13 +22,16 @@ export interface ParseError {
 export interface ParseResult {
   rows: ParsedRow[]
   totalRows: number       // all data rows before any filtering
-  removedCount: number    // rows dropped because State === 'Removed'
+  removedCount: number    // rows dropped because State is 'Removed' (any case)
+  removedItems: ParsedRow[]         // Removed rows that carry a valid ID (candidates for deletion)
+  childrenOfRemovedCount: number    // active child rows dropped because their feature is Removed
   errors: ParseError[]
 }
 
 export interface ImportPreview {
   totalRows: number
   removedRows: number
+  childrenRemovedWithParent: number
   featureCount: number
   storyCount: number
   orphanCount: number     // stories with no resolvable parent feature in the file
@@ -113,6 +116,14 @@ function parseParentId(raw: string): number | null {
   return Number.isNaN(n) ? null : n
 }
 
+/** Parse an ID without surfacing errors — used for Removed rows, which aren't imported. */
+function parseUserIdLenient(raw: string): number | null {
+  const s = raw.trim()
+  if (!/^\d+$/.test(s)) return null
+  const n = Number.parseInt(s, 10)
+  return n >= USER_ID_MIN && n <= USER_ID_MAX ? n : null
+}
+
 // ── Main parser ───────────────────────────────────────────────────────────────
 
 export function parseImportCSV(text: string): ParseResult {
@@ -132,14 +143,28 @@ export function parseImportCSV(text: string): ParseResult {
   const totalRows = allDataRows.length
 
   const rows: ParsedRow[] = []
+  const removedItems: ParsedRow[] = []
   let removedCount = 0
 
   allDataRows.forEach((raw, index) => {
     const rowNumber = index + 2  // +1 for 0-based, +1 for header row
 
-    // Filter removed items
-    if ((raw[COL_STATE] ?? '').trim() === 'Removed') {
+    // Filter removed items (case-insensitive). Capture those with a valid ID so the
+    // caller can reconcile them against items already in the project.
+    if ((raw[COL_STATE] ?? '').trim().toLowerCase() === 'removed') {
       removedCount++
+      const itemType = ITEM_TYPE_MAP[(raw[COL_TYPE] ?? '').trim()]
+      const userId = parseUserIdLenient(raw[COL_ID] ?? '')
+      if (itemType !== undefined && userId !== null) {
+        removedItems.push({
+          rowNumber,
+          itemType,
+          userId,
+          title: resolveTitle(raw, itemType),
+          effort: null,
+          parentId: parseParentId(raw[COL_PARENT] ?? ''),
+        })
+      }
       return
     }
 
@@ -163,7 +188,29 @@ export function parseImportCSV(text: string): ParseResult {
     rows.push({ rowNumber, itemType, userId, title, effort, parentId })
   })
 
-  // Intra-file duplicate ID check (across all non-Removed rows)
+  // Remove-with-parent: a Removed feature takes its child stories too, so drop any
+  // active child rows in this file whose parent feature is Removed (they must not be
+  // imported or orphaned into "Unassigned").
+  const removedFeatureIds = new Set<number>(
+    removedItems.filter((r) => r.itemType === 'feature' && r.userId !== null).map((r) => r.userId as number),
+  )
+  let childrenOfRemovedCount = 0
+  const keptRows: ParsedRow[] = []
+  for (const row of rows) {
+    if (
+      (row.itemType === 'story' || row.itemType === 'bug') &&
+      row.parentId !== null &&
+      removedFeatureIds.has(row.parentId)
+    ) {
+      childrenOfRemovedCount++
+      continue
+    }
+    keptRows.push(row)
+  }
+  rows.length = 0
+  rows.push(...keptRows)
+
+  // Intra-file duplicate ID check (across all non-Removed, non-dropped rows)
   const seenIds = new Map<number, number>()  // id → first rowNumber
   for (const row of rows) {
     if (row.userId === null) continue
@@ -178,7 +225,7 @@ export function parseImportCSV(text: string): ParseResult {
     }
   }
 
-  return { rows, totalRows, removedCount, errors }
+  return { rows, totalRows, removedCount, removedItems, childrenOfRemovedCount, errors }
 }
 
 // ── Preview builder ───────────────────────────────────────────────────────────
@@ -205,6 +252,7 @@ export function buildPreview(result: ParseResult): ImportPreview {
   return {
     totalRows: result.totalRows,
     removedRows: result.removedCount,
+    childrenRemovedWithParent: result.childrenOfRemovedCount,
     featureCount,
     storyCount,
     orphanCount,

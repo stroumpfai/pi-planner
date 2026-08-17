@@ -254,3 +254,105 @@ async def test_import_project_not_found(client):
     rows = [_row(1, "feature", "Feature A")]
     resp = await client.post("/api/v1/projects/nonexistent/import/csv", json={"rows": rows})
     assert resp.status_code == 404
+
+
+# ── Removals (Removed status reconciliation) ────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_removal_deletes_feature_and_child_pbis(client, project):
+    """Removing a feature cascades to its child PBIs."""
+    pid = project["system_id"]
+    await client.post(_url(pid), json={"rows": [
+        _row(1, "feature", "Auth Feature", user_id=101),
+        _row(2, "story", "Login UI", user_id=201, parent_id=101),
+    ]})
+    features = (await client.get(f"/api/v1/projects/{pid}/features")).json()
+    feature_sid = next(f["system_id"] for f in features if f["id"] == 101)
+
+    resp = await client.post(_url(pid), json={"rows": [], "removals": [feature_sid]})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["removed_features"] == 1
+    assert data["removed_stories"] == 0  # child removed via cascade, not counted separately
+
+    assert (await client.get(f"/api/v1/projects/{pid}/features")).json() == []
+    assert (await client.get(f"/api/v1/projects/{pid}/pbis")).json() == []
+
+
+@pytest.mark.asyncio
+async def test_removal_deletes_story_keeps_feature(client, project):
+    pid = project["system_id"]
+    await client.post(_url(pid), json={"rows": [
+        _row(1, "feature", "Auth Feature", user_id=101),
+        _row(2, "story", "Login UI", user_id=201, parent_id=101),
+    ]})
+    pbis = (await client.get(f"/api/v1/projects/{pid}/pbis")).json()
+    story_sid = next(p["system_id"] for p in pbis if p["id"] == 201)
+
+    resp = await client.post(_url(pid), json={"rows": [], "removals": [story_sid]})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["removed_stories"] == 1
+    assert data["removed_features"] == 0
+
+    assert len((await client.get(f"/api/v1/projects/{pid}/features")).json()) == 1
+    assert (await client.get(f"/api/v1/projects/{pid}/pbis")).json() == []
+
+
+@pytest.mark.asyncio
+async def test_removal_unknown_system_id_is_ignored(client, project):
+    pid = project["system_id"]
+    resp = await client.post(_url(pid), json={"rows": [], "removals": ["does-not-exist"]})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["removed_features"] == 0
+    assert data["removed_stories"] == 0
+
+
+@pytest.mark.asyncio
+async def test_removal_feature_and_its_child_both_listed(client, project):
+    """A child PBI whose id is also in removals is already cascade-deleted — no error."""
+    pid = project["system_id"]
+    await client.post(_url(pid), json={"rows": [
+        _row(1, "feature", "Auth Feature", user_id=101),
+        _row(2, "story", "Login UI", user_id=201, parent_id=101),
+    ]})
+    features = (await client.get(f"/api/v1/projects/{pid}/features")).json()
+    pbis = (await client.get(f"/api/v1/projects/{pid}/pbis")).json()
+    feature_sid = next(f["system_id"] for f in features if f["id"] == 101)
+    story_sid = next(p["system_id"] for p in pbis if p["id"] == 201)
+
+    resp = await client.post(_url(pid), json={"rows": [], "removals": [feature_sid, story_sid]})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["removed_features"] == 1
+    assert data["removed_stories"] == 0  # child gone via cascade before its own removal
+    assert (await client.get(f"/api/v1/projects/{pid}/pbis")).json() == []
+
+
+@pytest.mark.asyncio
+async def test_removal_combined_with_create_and_update(client, project):
+    pid = project["system_id"]
+    await client.post(_url(pid), json={"rows": [
+        _row(1, "feature", "Old Feature", user_id=101),
+        _row(2, "feature", "Doomed Feature", user_id=102),
+    ]})
+    features = (await client.get(f"/api/v1/projects/{pid}/features")).json()
+    doomed_sid = next(f["system_id"] for f in features if f["id"] == 102)
+
+    resp = await client.post(_url(pid), json={
+        "rows": [
+            _row(1, "feature", "Updated Feature", user_id=101),  # update
+            _row(2, "feature", "Brand New", user_id=103),        # create
+        ],
+        "removals": [doomed_sid],                                 # remove
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["updated_features"] == 1
+    assert data["created_features"] == 1
+    assert data["removed_features"] == 1
+
+    features_after = (await client.get(f"/api/v1/projects/{pid}/features")).json()
+    by_id = {f["id"]: f["title"] for f in features_after}
+    assert by_id == {101: "Updated Feature", 103: "Brand New"}

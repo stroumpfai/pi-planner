@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.feature import Feature
 from app.models.pbi import PBI
 from app.schemas.csv_import import CsvImportError, CsvImportResult, CsvRow
+from app.services.events import broadcaster
 
 _VALID_ITEM_TYPES = {"feature", "story", "bug"}
 _USER_ID_MIN = 1
@@ -163,10 +164,51 @@ async def _upsert_stories(
     return created, updated
 
 
+async def _apply_removals(
+    db: AsyncSession,
+    project_id: str,
+    system_ids: list[str],
+) -> tuple[list[str], list[tuple[str, str]]]:
+    """Delete the given features/PBIs (by system_id) belonging to this project.
+
+    Features are deleted first — this cascades to their child PBIs and groups
+    (see Feature.pbis/groups delete-orphan + PBI FK ON DELETE CASCADE), so a child
+    PBI whose id also appears in the list is already gone and is skipped.
+
+    Returns (deleted_feature_ids, deleted_pbis) where deleted_pbis is a list of
+    (pbi_system_id, parent_feature_system_id) for SSE broadcasting.
+    """
+    deleted_feature_ids: list[str] = []
+    deleted_pbis: list[tuple[str, str]] = []
+    remaining: list[str] = []
+
+    for sid in system_ids:
+        feature = await db.get(Feature, sid)
+        if feature is not None and feature.project_id == project_id:
+            await db.delete(feature)
+            deleted_feature_ids.append(sid)
+        else:
+            remaining.append(sid)
+
+    # Flush so feature cascades run before we probe for surviving PBIs.
+    if deleted_feature_ids:
+        await db.flush()
+
+    for sid in remaining:
+        pbi = await db.get(PBI, sid)
+        if pbi is not None and pbi.project_id == project_id:
+            parent_id = pbi.parent_feature_system_id
+            await db.delete(pbi)
+            deleted_pbis.append((sid, parent_id))
+
+    return deleted_feature_ids, deleted_pbis
+
+
 async def execute_import(
     db: AsyncSession,
     project_id: str,
     rows: list[CsvRow],
+    removals: list[str] | None = None,
 ) -> CsvImportResult:
     errors = _validate_rows(rows)
     if errors:
@@ -174,6 +216,12 @@ async def execute_import(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"errors": [e.model_dump() for e in errors]},
         )
+
+    deleted_feature_ids, deleted_pbis = await _apply_removals(
+        db, project_id, removals or []
+    )
+    if deleted_feature_ids or deleted_pbis:
+        await db.flush()
 
     feature_map, pbi_map = await _fetch_existing(db, project_id)
     cross_errors = _cross_entity_errors(rows, feature_map, pbi_map)
@@ -213,10 +261,20 @@ async def execute_import(
     )
     await db.commit()
 
+    for feature_id in deleted_feature_ids:
+        await broadcaster.broadcast(project_id, "feature:deleted", {"system_id": feature_id})
+    for pbi_id, parent_id in deleted_pbis:
+        await broadcaster.broadcast(
+            project_id, "pbi:deleted",
+            {"system_id": pbi_id, "feature_id": parent_id},
+        )
+
     return CsvImportResult(
         created_features=created_features,
         created_stories=created_stories,
         updated_features=updated_features,
         updated_stories=updated_stories,
+        removed_features=len(deleted_feature_ids),
+        removed_stories=len(deleted_pbis),
         orphan_stories=orphan_count,
     )

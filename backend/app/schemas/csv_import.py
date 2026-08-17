@@ -32,6 +32,7 @@ class CsvRow(BaseModel):
 
 class CsvImportRequest(BaseModel):
     rows: list[CsvRow]
+    removals: list[str] = []  # system_ids of existing items to delete (resolved by the client)
 
 
 class CsvImportError(BaseModel):
@@ -44,4 +45,6 @@ class CsvImportResult(BaseModel):
     created_stories: int
     updated_features: int
     updated_stories: int
+    removed_features: int
+    removed_stories: int
     orphan_stories: int

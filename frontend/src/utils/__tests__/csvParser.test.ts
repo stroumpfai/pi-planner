@@ -64,6 +64,53 @@ describe('parseImportCSV', () => {
     expect(result.rows[0].title).toBe('Active Feature')
   })
 
+  it('matches the Removed status case-insensitively', () => {
+    const result = parseImportCSV(
+      csv(
+        'Feature,Lower,,,,removed',
+        'Feature,Upper,,,,REMOVED',
+        'Feature,Spaced,,,, Removed',
+        'Feature,Active,,,,',
+      ),
+    )
+    expect(result.removedCount).toBe(3)
+    expect(result.rows).toHaveLength(1)
+    expect(result.rows[0].title).toBe('Active')
+  })
+
+  it('captures Removed rows that carry a valid ID as removedItems', () => {
+    const result = parseImportCSV(
+      csv('Feature,Gone,101,,,Removed', 'Product Backlog Item,Gone Story,202,,,Removed'),
+    )
+    expect(result.removedItems).toHaveLength(2)
+    expect(result.removedItems).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ userId: 101, itemType: 'feature', title: 'Gone' }),
+        expect.objectContaining({ userId: 202, itemType: 'story', title: 'Gone Story' }),
+      ]),
+    )
+  })
+
+  it('does not capture Removed rows without an ID', () => {
+    const result = parseImportCSV(csv('Feature,No Id,,,,Removed'))
+    expect(result.removedCount).toBe(1)
+    expect(result.removedItems).toHaveLength(0)
+  })
+
+  it('drops active child rows whose parent feature is Removed', () => {
+    const result = parseImportCSV(
+      csv(
+        'Feature,Doomed,101,,,Removed',
+        'Product Backlog Item,Child A,201,3,101,',
+        'Bug,Child B,202,2,101,',
+        'Product Backlog Item,Survivor,203,3,999,',
+      ),
+    )
+    expect(result.childrenOfRemovedCount).toBe(2)
+    expect(result.rows).toHaveLength(1)
+    expect(result.rows[0].title).toBe('Survivor')
+  })
+
   it('records an error for an out-of-range ID', () => {
     const result = parseImportCSV(csv('Feature,Auth,1000000,,,'))
     expect(result.errors.some((e) => /out of range/i.test(e.message))).toBe(true)
@@ -147,5 +194,14 @@ describe('buildPreview', () => {
     const preview = buildPreview(result)
     expect(preview.removedRows).toBe(1)
     expect(preview.totalRows).toBe(2)
+  })
+
+  it('reflects children dropped with a removed parent feature', () => {
+    const result = parseImportCSV(
+      csv('Feature,Doomed,101,,,Removed', 'Product Backlog Item,Child,201,3,101,'),
+    )
+    const preview = buildPreview(result)
+    expect(preview.childrenRemovedWithParent).toBe(1)
+    expect(preview.storyCount).toBe(0)
   })
 })
