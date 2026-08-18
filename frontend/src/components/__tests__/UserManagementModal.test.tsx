@@ -16,9 +16,25 @@ function makeWrapper() {
   )
 }
 
-const fakeAdmin = { username: 'admin', display_name: 'Administrator', role: 'admin' as const }
-const fakeEditor = { username: 'alice', display_name: 'Alice', role: 'editor' as const }
-const fakeReader = { username: 'bob', display_name: 'Bob', role: 'reader' as const }
+const fakeAdmin = {
+  username: 'admin', display_name: 'Administrator', role: 'admin' as const,
+  created_at: '2026-08-10T09:00:00+00:00',
+  last_login_at: '2026-08-17T16:05:00+00:00',
+  password_changed_at: '2026-08-12T11:30:00+00:00',
+}
+const fakeEditor = {
+  username: 'alice', display_name: 'Alice', role: 'editor' as const,
+  created_at: '2026-08-11T09:00:00+00:00',
+  last_login_at: '2026-08-16T08:15:00+00:00',
+  password_changed_at: null,
+}
+// Never logged in, never changed their password — both nullable stamps render as 'Never'.
+const fakeReader = {
+  username: 'bob', display_name: 'Bob', role: 'reader' as const,
+  created_at: '2026-08-12T09:00:00+00:00',
+  last_login_at: null,
+  password_changed_at: null,
+}
 
 describe('UserManagementModal', () => {
   const onClose = vi.fn()
@@ -70,6 +86,36 @@ describe('UserManagementModal', () => {
     expect(screen.getByText('Display name')).toBeInTheDocument()
     expect(screen.getByText('Role')).toBeInTheDocument()
     expect(screen.getByText('Reset password')).toBeInTheDocument()
+  })
+
+  it('expanded card shows account timestamps', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([fakeEditor])
+    render(<UserManagementModal open onClose={onClose} />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByText('alice'))
+    await userEvent.click(screen.getByText('alice'))
+
+    expect(screen.getByText('Created:')).toBeInTheDocument()
+    expect(screen.getByText('Last login:')).toBeInTheDocument()
+    expect(screen.getByText('Password changed:')).toBeInTheDocument()
+    // Both created_at and last_login_at render a date; the exact wall clock
+    // depends on the runner's TZ, so assert the stable parts only.
+    expect(screen.getAllByText(/Aug \d+, 2026/).length).toBe(2)
+  })
+
+  it('renders Never for a user who has not logged in or changed their password', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([fakeReader])
+    render(<UserManagementModal open onClose={onClose} />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByText('bob'))
+    await userEvent.click(screen.getByText('bob'))
+
+    expect(screen.getAllByText('Never')).toHaveLength(2)
+  })
+
+  it('does not show timestamps on a collapsed card', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([fakeEditor])
+    render(<UserManagementModal open onClose={onClose} />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByText('alice'))
+    expect(screen.queryByText('Last login:')).not.toBeInTheDocument()
   })
 
   // ── Self-row guards ─────────────────────────────────────────────────────────

@@ -1,7 +1,8 @@
-from datetime import datetime
 from urllib.parse import urlparse
 
 from pydantic import BaseModel, Field, field_validator
+
+from app.schemas.common import UtcDatetime
 
 
 def _validate_azure_devops_url(value: str | None) -> str | None:
@@ -79,7 +80,7 @@ class ProjectResponse(BaseModel):
     azure_devops_url: str | None
     work_item_path_template: str | None
     effort_unit: str
-    created_at: datetime
-    modified_at: datetime
+    created_at: UtcDatetime
+    modified_at: UtcDatetime
 
     model_config = {"from_attributes": True}

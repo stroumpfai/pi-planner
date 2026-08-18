@@ -294,3 +294,54 @@ async def test_optional_user_valid_token_returns_user(db, alice):
     result = await get_optional_user(session_token=token, db=db)
     assert result is not None
     assert result.username == "alice"
+
+
+# ── Account timestamps ────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_login_stamps_and_advances_last_login(anon_client, alice, db):
+    assert alice.last_login_at is None
+
+    resp = await anon_client.post(_LOGIN_URL, json={"username": "alice", "password": _ALICE_SECRET})
+    assert resp.status_code == 200
+    # The login response itself already reflects the stamp.
+    first = resp.json()["user"]["last_login_at"]
+    assert first is not None
+    assert first.endswith("+00:00")
+
+    resp = await anon_client.post(_LOGIN_URL, json={"username": "alice", "password": _ALICE_SECRET})
+    assert resp.status_code == 200
+    second = resp.json()["user"]["last_login_at"]
+    assert datetime.fromisoformat(second) >= datetime.fromisoformat(first)
+
+
+@pytest.mark.asyncio
+async def test_failed_login_does_not_stamp_last_login(anon_client, alice, db):
+    resp = await anon_client.post(_LOGIN_URL, json={"username": "alice", "password": "wrong"})  # NOSONAR
+    assert resp.status_code == 401
+
+    await db.refresh(alice)
+    assert alice.last_login_at is None
+
+
+@pytest.mark.asyncio
+async def test_me_returns_account_timestamps(auth_client):
+    resp = await auth_client.get("/api/v1/auth/me")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["created_at"].endswith("+00:00")
+    assert body["last_login_at"] is not None
+    assert body["password_changed_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_change_password_stamps_password_changed_at(auth_client):
+    resp = await auth_client.post(
+        "/api/v1/auth/change-password",
+        json={"old_password": _ALICE_SECRET, "new_password": _NEW_SECRET},
+    )
+    assert resp.status_code == 204
+
+    body = (await auth_client.get("/api/v1/auth/me")).json()
+    assert body["password_changed_at"] is not None
+    assert body["password_changed_at"].endswith("+00:00")

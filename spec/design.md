@@ -348,12 +348,13 @@ CREATE TABLE sessions (
 );
 
 CREATE TABLE users (
-  username      TEXT PRIMARY KEY,
-  password_hash TEXT NOT NULL,
-  display_name  TEXT,
-  role          TEXT NOT NULL DEFAULT 'viewer',  -- 'admin' | 'editor' | 'viewer'
-  created_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  updated_at    TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  username            TEXT PRIMARY KEY,
+  password_hash       TEXT NOT NULL,          -- argon2id
+  display_name        TEXT,
+  role                TEXT NOT NULL,          -- 'admin' | 'editor' | 'reader'
+  created_at          TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  last_login_at       TIMESTAMP,              -- NULL until the first interactive login
+  password_changed_at TIMESTAMP               -- NULL until the first admin reset or self-service change
 );
 ```
 

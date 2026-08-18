@@ -2,6 +2,7 @@
 uncovered) and its validation branches."""
 
 import json
+from datetime import datetime, timezone
 
 import pytest
 
@@ -100,3 +101,62 @@ async def test_set_password_noop_for_missing_user(db):
 async def test_update_returns_none_for_missing_user(db):
     result = await users_service.update(db, "ghost", {"display_name"}, display_name="X")
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Account timestamps
+# ---------------------------------------------------------------------------
+
+
+async def test_create_stamps_created_at(db):
+    before = datetime.now(timezone.utc).replace(tzinfo=None)
+    user = await users_service.create(db, "stamped", _HASH, None, Role.editor)
+
+    assert user.created_at is not None
+    assert user.created_at >= before
+    # A fresh account has never logged in and never changed its password.
+    assert user.last_login_at is None
+    assert user.password_changed_at is None
+
+
+async def test_seed_stamps_created_at(db, tmp_path):
+    path = _write(tmp_path, [{"username": "seeded", "role": "admin", "password_hash": _HASH}])
+    await users_service.seed_from_config(db, path)
+
+    user = await users_service.get(db, "seeded")
+    assert user is not None
+    assert user.created_at is not None
+
+
+async def test_set_password_stamps_password_changed_at(db):
+    await users_service.create(db, "pwstamp", _HASH, None, Role.editor)
+    user = await users_service.get(db, "pwstamp")
+    assert user is not None and user.password_changed_at is None
+
+    await users_service.set_password(db, "pwstamp", hash_password("another-strong-password-456"))
+
+    user = await users_service.get(db, "pwstamp")
+    assert user is not None
+    assert user.password_changed_at is not None
+
+
+async def test_touch_last_login_sets_and_advances(db):
+    await users_service.create(db, "loginstamp", _HASH, None, Role.reader)
+
+    await users_service.touch_last_login(db, "loginstamp")
+    user = await users_service.get(db, "loginstamp")
+    assert user is not None
+    first = user.last_login_at
+    assert first is not None
+
+    # A later login must move the stamp forward, not leave the first one in place.
+    await users_service.touch_last_login(db, "loginstamp")
+    user = await users_service.get(db, "loginstamp")
+    assert user is not None
+    assert user.last_login_at is not None
+    assert user.last_login_at >= first
+
+
+async def test_touch_last_login_noop_for_missing_user(db):
+    # Should not raise when the user does not exist.
+    await users_service.touch_last_login(db, "ghost")

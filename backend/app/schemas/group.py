@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from pydantic import BaseModel, Field
+
+from app.schemas.common import UtcDatetime
 
 
 class GroupCreate(BaseModel):
@@ -30,8 +30,8 @@ class GroupResponse(BaseModel):
     order_index: int | None
     is_implicit: bool
     story_system_id: str | None
-    created_at: datetime
-    modified_at: datetime
+    created_at: UtcDatetime
+    modified_at: UtcDatetime
 
     model_config = {"from_attributes": True}
 

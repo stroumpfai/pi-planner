@@ -1,6 +1,6 @@
-from datetime import datetime
-
 from pydantic import BaseModel, Field
+
+from app.schemas.common import UtcDatetime
 
 
 class SwimlineCreate(BaseModel):
@@ -24,7 +24,7 @@ class SwimlineResponse(BaseModel):
     order_index: int | None
     effort: float = 0
     capacity: int = 0
-    created_at: datetime
-    modified_at: datetime
+    created_at: UtcDatetime
+    modified_at: UtcDatetime
 
     model_config = {"from_attributes": True}

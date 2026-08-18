@@ -1,7 +1,9 @@
-from datetime import date, datetime
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field
+
+from app.schemas.common import UtcDatetime
 
 PIEventType = Literal["release", "milestone", "deadline", "pilot", "go_no_go", "other"]
 
@@ -24,7 +26,7 @@ class PIEventResponse(BaseModel):
     name: str
     event_date: date
     event_type: PIEventType
-    created_at: datetime
-    modified_at: datetime
+    created_at: UtcDatetime
+    modified_at: UtcDatetime
 
     model_config = {"from_attributes": True}

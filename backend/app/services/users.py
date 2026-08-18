@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import func, select
@@ -10,6 +11,11 @@ from app.models.user import Role, User
 logger = logging.getLogger(__name__)
 
 _VALID_ROLES = {"admin", "editor", "reader"}
+
+
+def _utcnow() -> datetime:
+    """Naive UTC, matching how every other datetime in the app is stored."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 async def get(db: AsyncSession, username: str) -> User | None:
@@ -61,9 +67,20 @@ async def update(
 
 
 async def set_password(db: AsyncSession, username: str, new_hash: str) -> None:
+    """The single funnel for both admin reset-password and self-service change-password."""
     user = await get(db, username)
     if user:
         user.password_hash = new_hash
+        user.password_changed_at = _utcnow()
+        await db.commit()
+
+
+async def touch_last_login(db: AsyncSession, username: str) -> None:
+    """Stamp an interactive login. Not called from authenticate() — that is reachable
+    from non-interactive paths — nor from the MCP service-JWT path."""
+    user = await get(db, username)
+    if user:
+        user.last_login_at = _utcnow()
         await db.commit()
 
 

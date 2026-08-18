@@ -1,7 +1,8 @@
-from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
+
+from app.schemas.common import UtcDatetime
 
 FeatureLocation = Literal["backlog", "pi"]
 
@@ -46,8 +47,8 @@ class FeatureResponse(BaseModel):
     state_id: str | None = None
     state: str | None = None  # the State's value, resolved for display
     project_id: str
-    created_at: datetime
-    modified_at: datetime
+    created_at: UtcDatetime
+    modified_at: UtcDatetime
 
     model_config = {"from_attributes": True, "populate_by_name": True}
 

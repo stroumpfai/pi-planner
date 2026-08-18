@@ -3,6 +3,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from app.models.user import Role
+from app.schemas.common import UtcDatetime
 
 
 class LoginRequest(BaseModel):
@@ -15,6 +16,9 @@ class UserResponse(BaseModel):
     username: str
     display_name: str | None
     role: Literal["admin", "editor", "reader"]
+    created_at: UtcDatetime
+    last_login_at: UtcDatetime | None
+    password_changed_at: UtcDatetime | None
 
     model_config = {"from_attributes": True}
 

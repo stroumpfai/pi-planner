@@ -1,7 +1,9 @@
-from datetime import date, datetime
+from datetime import date
 from typing import Literal
 
 from pydantic import BaseModel, Field
+
+from app.schemas.common import UtcDatetime
 
 PIState = Literal["draft", "in_progress", "closed"]
 
@@ -32,7 +34,7 @@ class PIResponse(BaseModel):
     end_date: date | None
     total_effort: float = 0
     total_capacity: int = 0
-    created_at: datetime
-    modified_at: datetime
+    created_at: UtcDatetime
+    modified_at: UtcDatetime
 
     model_config = {"from_attributes": True}

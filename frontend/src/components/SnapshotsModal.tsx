@@ -10,19 +10,10 @@ import {
   useDeleteSnapshot,
   useRestoreSnapshot,
 } from '@/hooks/useSnapshots'
+import { fmtDateTime } from '@/utils/dates'
 import type { Snapshot } from '@/types'
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
-
-function formatDateTime(iso: string): string {
-  return new Date(iso).toLocaleString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  })
-}
 
 function defaultSnapshotName(): string {
   const now = new Date()
@@ -125,7 +116,7 @@ function SnapshotRow({ projectId, snapshot, canEdit }: SnapshotRowProps) {
         <div className="flex-1 min-w-0">
           <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{snapshot.name}</p>
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5">
-            Created: {formatDateTime(snapshot.created_at)}
+            Created: {fmtDateTime(snapshot.created_at)}
             {snapshot.created_by ? ` · by ${snapshot.created_by}` : ''}
           </p>
         </div>

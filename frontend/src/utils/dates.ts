@@ -19,3 +19,15 @@ export function fromInputDate(dmy: string | null | undefined): string | null {
   if (!match) return null
   return `${match[3]}-${match[2]}-${match[1]}`
 }
+
+/** Format an ISO datetime for display, e.g. "Aug 17, 2026, 4:05 PM". Returns `fallback` for null/undefined/empty. */
+export function fmtDateTime(iso: string | null | undefined, fallback = '—'): string {
+  if (!iso) return fallback
+  return new Date(iso).toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
+}

@@ -9,6 +9,8 @@ Covers:
   - display_name update/clear via model_fields_set
   - last-admin guard (count_by_role service function)
 """
+from datetime import datetime, timezone
+
 import pytest
 import pytest_asyncio  # noqa: F401 (fixture discovery)
 
@@ -313,3 +315,53 @@ async def test_count_by_role(db):
     assert await count_by_role(db, Role.admin) == 1
     assert await count_by_role(db, Role.editor) == 1
     assert await count_by_role(db, Role.reader) == 2
+
+
+# ── Account timestamps ────────────────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_create_user_response_carries_utc_timestamps(client):
+    resp = await client.post(
+        "/api/v1/users/",
+        json={"username": "stamped", "role": "reader", "password": _NEW_USER_SECRET},
+    )
+    assert resp.status_code == 201
+    body = resp.json()
+
+    # The offset suffix is the whole point: without it the browser parses as local time.
+    assert body["created_at"].endswith("+00:00")
+    parsed = datetime.fromisoformat(body["created_at"])
+    assert parsed.tzinfo is not None
+    assert parsed <= datetime.now(timezone.utc)
+    assert body["last_login_at"] is None
+    assert body["password_changed_at"] is None
+
+
+@pytest.mark.asyncio
+async def test_list_users_includes_timestamps(client):
+    resp = await client.get("/api/v1/users/")
+    assert resp.status_code == 200
+    for user in resp.json():
+        assert user["created_at"] is not None
+        assert "last_login_at" in user
+        assert "password_changed_at" in user
+
+
+@pytest.mark.asyncio
+async def test_admin_reset_password_stamps_password_changed_at(client):
+    await client.post(
+        "/api/v1/users/",
+        json={"username": "resetstamp", "role": "reader", "password": _NEW_USER_SECRET},
+    )
+    listed = {u["username"]: u for u in (await client.get("/api/v1/users/")).json()}
+    assert listed["resetstamp"]["password_changed_at"] is None
+
+    resp = await client.post(
+        "/api/v1/users/resetstamp/reset-password",
+        json={"new_password": "brand-new-pw!"},  # NOSONAR
+    )
+    assert resp.status_code == 204
+
+    listed = {u["username"]: u for u in (await client.get("/api/v1/users/")).json()}
+    assert listed["resetstamp"]["password_changed_at"] is not None
+    assert listed["resetstamp"]["password_changed_at"].endswith("+00:00")

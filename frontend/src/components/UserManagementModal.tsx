@@ -11,6 +11,7 @@ import { apiKeysApi } from '@/services/apiKeys'
 import { toast } from '@/stores/toastStore'
 import { useAuthStore } from '@/stores/authStore'
 import { isAppNamePassword, isCommonPassword } from '@/utils/passwordPolicy'
+import { fmtDateTime } from '@/utils/dates'
 import { ConfirmDialog } from './ConfirmDialog'
 import { PasswordStrengthBar } from './PasswordStrengthBar'
 import type { User, ApiKey, ApiKeyCreate, ApiKeyCreateResponse } from '@/types'
@@ -506,6 +507,7 @@ function UserCard({ user, currentUsername, onDeleted }: UserCardProps) {
   const resetMutation = useMutation({
     mutationFn: () => usersApi.resetPassword(user.username, { new_password: resetPassword }),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] })
       toast.success(`Password reset for ${user.username}`)
       setResetPassword('')
     },
@@ -544,6 +546,21 @@ function UserCard({ user, currentUsername, onDeleted }: UserCardProps) {
 
         {expanded && (
           <div className="border-t border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-4 py-4 space-y-4">
+            <dl className="text-xs text-gray-400 dark:text-gray-500 space-y-0.5">
+              <div className="flex gap-2">
+                <dt className="w-32 shrink-0">Created:</dt>
+                <dd>{fmtDateTime(user.created_at)}</dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="w-32 shrink-0">Last login:</dt>
+                <dd>{fmtDateTime(user.last_login_at, 'Never')}</dd>
+              </div>
+              <div className="flex gap-2">
+                <dt className="w-32 shrink-0">Password changed:</dt>
+                <dd>{fmtDateTime(user.password_changed_at, 'Never')}</dd>
+              </div>
+            </dl>
+
             <div>
               <label htmlFor={`card-display-name-${user.username}`} className="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Display name</label>
               <input

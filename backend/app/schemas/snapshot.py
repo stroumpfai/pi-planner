@@ -1,7 +1,8 @@
-from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
+
+from app.schemas.common import UtcDatetime
 
 
 class SnapshotCreate(BaseModel):
@@ -11,7 +12,7 @@ class SnapshotCreate(BaseModel):
 class SnapshotResponse(BaseModel):
     system_id: str
     name: str
-    created_at: datetime
+    created_at: UtcDatetime
     created_by: str | None
 
     model_config = {"from_attributes": True}

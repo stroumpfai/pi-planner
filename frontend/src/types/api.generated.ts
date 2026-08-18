@@ -1132,6 +1132,15 @@ export interface components {
        * @enum {string}
        */
       role: "admin" | "editor" | "reader";
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Last Login At */
+      last_login_at: string | null;
+      /** Password Changed At */
+      password_changed_at: string | null;
     };
     /** UserUpdate */
     UserUpdate: {

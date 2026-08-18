@@ -1,10 +1,10 @@
-from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, Field
 
 from app.models.activity_log import ActorType
 from app.models.user import Role
+from app.schemas.common import UtcDatetime
 
 
 class APIKeyResponse(BaseModel):
@@ -12,9 +12,9 @@ class APIKeyResponse(BaseModel):
     username: str
     name: str
     purpose: str | None
-    created_at: datetime
-    expires_at: datetime | None
-    last_used_at: datetime | None
+    created_at: UtcDatetime
+    expires_at: UtcDatetime | None
+    last_used_at: UtcDatetime | None
     is_active: bool
 
     model_config = {"from_attributes": True}
@@ -25,8 +25,8 @@ class APIKeyCreateResponse(BaseModel):
     full_token: str
     username: str
     name: str
-    created_at: datetime
-    expires_at: datetime | None
+    created_at: UtcDatetime
+    expires_at: UtcDatetime | None
 
 
 class APIKeyCreate(BaseModel):
@@ -56,7 +56,7 @@ class ActivityLogResponse(BaseModel):
     resource_id: str | None
     project_id: str | None
     details: dict[str, Any] | None
-    timestamp: datetime
+    timestamp: UtcDatetime
     status: str
 
     model_config = {"from_attributes": True}

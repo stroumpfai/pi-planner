@@ -1,7 +1,8 @@
-from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
+
+from app.schemas.common import UtcDatetime
 
 StateItemType = Literal["feature", "story", "bug"]
 StateCategory = Literal["not_started", "in_progress", "done"]
@@ -22,7 +23,7 @@ class ProjectStateResponse(BaseModel):
     position: int
     # Reserved for the future progress/filtering feature; nothing writes it yet.
     category: StateCategory | None = None
-    created_at: datetime
+    created_at: UtcDatetime
 
     model_config = {"from_attributes": True}
 

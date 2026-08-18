@@ -7591,13 +7591,45 @@
               "reader"
             ],
             "title": "Role"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "last_login_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login At"
+          },
+          "password_changed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password Changed At"
           }
         },
         "type": "object",
         "required": [
           "username",
           "display_name",
-          "role"
+          "role",
+          "created_at",
+          "last_login_at",
+          "password_changed_at"
         ],
         "title": "UserResponse"
       },

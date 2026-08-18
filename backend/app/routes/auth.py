@@ -49,6 +49,7 @@ async def login(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid credentials")
 
     clear_failures(ip, body.username)
+    await users_service.touch_last_login(db, user.username)
 
     session_id = await create_session(db, user.username, body.remember_me)
     token = sign_session_id(session_id)

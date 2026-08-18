@@ -1,6 +1,8 @@
-from datetime import date, datetime
+from datetime import date
 
 from pydantic import BaseModel, Field
+
+from app.schemas.common import UtcDatetime
 
 
 class SprintCreate(BaseModel):
@@ -24,7 +26,7 @@ class SprintResponse(BaseModel):
     effort: float = 0
     start_date: date | None
     end_date: date | None
-    created_at: datetime
-    modified_at: datetime
+    created_at: UtcDatetime
+    modified_at: UtcDatetime
 
     model_config = {"from_attributes": True}
