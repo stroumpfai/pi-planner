@@ -105,10 +105,12 @@ async def list_states(
 
     Each project has three independent lists keyed by item_type: 'feature', 'story',
     and 'bug'. They start empty and are populated by CSV import (from the file's State
-    column) or by a user typing a new State in the web UI. Returns system_id, item_type,
-    value, and position for every entry, ordered by item type then position.
+    column), from the States editor in the web UI, or with create_state. Returns
+    system_id, item_type, value, and position for every entry, ordered by item type
+    then position.
     Call this before setting `state` on create_feature, update_feature, create_pbi, or
-    update_pbi — those tools reject names that are not already in the matching list.
+    update_pbi — those tools reject names that are not already in the matching list —
+    and before rename_state, reorder_states or delete_state, which take system_ids.
     """
     return await call_backend("GET", f"/api/v1/projects/{project_id}/states/")
 

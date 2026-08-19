@@ -13,8 +13,8 @@ const makeState = (value: string, itemType: StateItemType, position: number): Pr
   item_type: itemType,
   value,
   position,
-  category: null,
   created_at: '2026-01-01T00:00:00Z',
+  category: null,
 })
 
 const mockStates = (states: ProjectState[]) => {
@@ -27,51 +27,69 @@ describe('StateSelect', () => {
     mockStates([])
   })
 
-  it('offers every State in the list for this item type', () => {
+  it('offers every State in the list for this item type, in list order', () => {
     mockStates([
       makeState('New', 'feature', 0),
       makeState('In Progress', 'feature', 1),
     ])
-    render(<StateSelect itemType="feature" value="" onChange={vi.fn()} projectId="p-1" />)
+    render(<StateSelect itemType="feature" value={null} onChange={vi.fn()} projectId="p-1" />)
 
-    const options = document.querySelectorAll('datalist option')
-    expect([...options].map((o) => o.getAttribute('value'))).toEqual(['New', 'In Progress'])
+    const options = screen.getAllByRole('option')
+    expect(options.map((o) => o.textContent)).toEqual(['(none)', 'New', 'In Progress'])
   })
 
-  it('shows the current value', () => {
+  it('is a select, offering no way to type a new State', () => {
+    mockStates([makeState('New', 'feature', 0)])
+    render(<StateSelect itemType="feature" value={null} onChange={vi.fn()} projectId="p-1" />)
+    expect(screen.getByTestId('state-select').tagName).toBe('SELECT')
+  })
+
+  it('shows the current State by id', () => {
     mockStates([makeState('Done', 'feature', 0)])
-    render(<StateSelect itemType="feature" value="Done" onChange={vi.fn()} projectId="p-1" />)
-    expect(screen.getByTestId('state-select')).toHaveValue('Done')
+    render(<StateSelect itemType="feature" value="st-Done" onChange={vi.fn()} projectId="p-1" />)
+    expect(screen.getByTestId('state-select')).toHaveValue('st-Done')
   })
 
-  it('explains the empty state before the first import', () => {
-    render(<StateSelect itemType="feature" value="" onChange={vi.fn()} projectId="p-1" />)
-    expect(screen.getByText(/no States for this item type yet/i)).toBeInTheDocument()
+  it('reports the chosen state_id, not its text', async () => {
+    const onChange = vi.fn()
+    mockStates([makeState('New', 'feature', 0), makeState('Done', 'feature', 1)])
+    render(<StateSelect itemType="feature" value={null} onChange={onChange} projectId="p-1" />)
+
+    await userEvent.selectOptions(screen.getByTestId('state-select'), 'st-Done')
+    expect(onChange).toHaveBeenCalledWith('st-Done')
+  })
+
+  it('reports null when (none) is chosen', async () => {
+    const onChange = vi.fn()
+    mockStates([makeState('New', 'feature', 0)])
+    render(<StateSelect itemType="feature" value="st-New" onChange={onChange} projectId="p-1" />)
+
+    await userEvent.selectOptions(screen.getByTestId('state-select'), '')
+    expect(onChange).toHaveBeenCalledWith(null)
+  })
+
+  it('points at the States editor when the list is empty', () => {
+    render(<StateSelect itemType="feature" value={null} onChange={vi.fn()} projectId="p-1" />)
+    expect(screen.getByText(/Edit Project → Manage States/)).toBeInTheDocument()
+    expect(screen.getByTestId('state-select')).toBeDisabled()
   })
 
   it('hides the empty-state hint once the list has entries', () => {
     mockStates([makeState('New', 'feature', 0)])
-    render(<StateSelect itemType="feature" value="" onChange={vi.fn()} projectId="p-1" />)
-    expect(screen.queryByText(/no States for this item type yet/i)).not.toBeInTheDocument()
-  })
-
-  it('reports a typed value that is not in the list', async () => {
-    const onChange = vi.fn()
-    mockStates([makeState('New', 'feature', 0)])
-    render(<StateSelect itemType="feature" value="" onChange={onChange} projectId="p-1" />)
-
-    await userEvent.type(screen.getByTestId('state-select'), 'X')
-    expect(onChange).toHaveBeenCalledWith('X')
+    render(<StateSelect itemType="feature" value={null} onChange={vi.fn()} projectId="p-1" />)
+    expect(screen.queryByText(/Manage States/)).not.toBeInTheDocument()
   })
 
   it('disables the field in read-only mode', () => {
     mockStates([makeState('New', 'feature', 0)])
-    render(<StateSelect itemType="feature" value="New" onChange={vi.fn()} projectId="p-1" disabled />)
+    render(
+      <StateSelect itemType="feature" value="st-New" onChange={vi.fn()} projectId="p-1" disabled />,
+    )
     expect(screen.getByTestId('state-select')).toBeDisabled()
   })
 
   it('requests the list for the given item type', () => {
-    render(<StateSelect itemType="bug" value="" onChange={vi.fn()} projectId="p-1" />)
+    render(<StateSelect itemType="bug" value={null} onChange={vi.fn()} projectId="p-1" />)
     expect(useStatesForType).toHaveBeenCalledWith('p-1', 'bug')
   })
 })

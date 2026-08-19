@@ -245,7 +245,7 @@ export interface paths {
     get: operations["list_project_states_api_v1_projects__project_id__states__get"];
     /**
      * Create Project State
-     * @description Add a State to a list. Returns the existing entry if the value already matches.
+     * @description Add a State to a list. Refused when the list already holds this value.
      */
     post: operations["create_project_state_api_v1_projects__project_id__states__post"];
   };
@@ -255,6 +255,18 @@ export interface paths {
      * @description Remove a State from its list. Refused while any item still holds it.
      */
     delete: operations["delete_project_state_api_v1_projects__project_id__states__state_id__delete"];
+    /**
+     * Rename Project State
+     * @description Rename a State. Items reference it by id, so every one of them follows.
+     */
+    patch: operations["rename_project_state_api_v1_projects__project_id__states__state_id__patch"];
+  };
+  "/api/v1/projects/{project_id}/states/reorder": {
+    /**
+     * Reorder Project States
+     * @description Set the display order of one list. The other two lists are untouched.
+     */
+    post: operations["reorder_project_states_api_v1_projects__project_id__states_reorder_post"];
   };
   "/api/v1/projects/{project_id}/events": {
     /** Project Events */
@@ -502,8 +514,8 @@ export interface components {
       description?: string | null;
       /** Id */
       id?: number | null;
-      /** State Value */
-      state_value?: string | null;
+      /** State Id */
+      state_id?: string | null;
     };
     /** FeatureResponse */
     FeatureResponse: {
@@ -570,8 +582,6 @@ export interface components {
       swimlane_id?: string | null;
       /** State Id */
       state_id?: string | null;
-      /** State Value */
-      state_value?: string | null;
     };
     /** GroupCreate */
     GroupCreate: {
@@ -666,8 +676,8 @@ export interface components {
        * @enum {string}
        */
       item_type?: "story" | "bug";
-      /** State Value */
-      state_value?: string | null;
+      /** State Id */
+      state_id?: string | null;
     };
     /** PBIResponse */
     PBIResponse: {
@@ -735,8 +745,6 @@ export interface components {
       group_id?: string | null;
       /** State Id */
       state_id?: string | null;
-      /** State Value */
-      state_value?: string | null;
     };
     /** PICreate */
     PICreate: {
@@ -919,6 +927,22 @@ export interface components {
       /** Value */
       value: string;
     };
+    /**
+     * ProjectStateReorder
+     * @description The new order of one list. The three lists are ordered independently.
+     */
+    ProjectStateReorder: {
+      /**
+       * Item Type
+       * @enum {string}
+       */
+      item_type: "feature" | "story" | "bug";
+      /**
+       * Order
+       * @description Ordered list of State system_ids
+       */
+      order: string[];
+    };
     /** ProjectStateResponse */
     ProjectStateResponse: {
       /** System Id */
@@ -941,6 +965,14 @@ export interface components {
        * Format: date-time
        */
       created_at: string;
+    };
+    /**
+     * ProjectStateUpdate
+     * @description Rename one entry. Every item holding it follows, since items reference by id.
+     */
+    ProjectStateUpdate: {
+      /** Value */
+      value: string;
     };
     /** ProjectUpdate */
     ProjectUpdate: {
@@ -3017,7 +3049,7 @@ export interface operations {
   };
   /**
    * Create Project State
-   * @description Add a State to a list. Returns the existing entry if the value already matches.
+   * @description Add a State to a list. Refused when the list already holds this value.
    */
   create_project_state_api_v1_projects__project_id__states__post: {
     parameters: {
@@ -3066,6 +3098,73 @@ export interface operations {
       /** @description Successful Response */
       204: {
         content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Rename Project State
+   * @description Rename a State. Items reference it by id, so every one of them follows.
+   */
+  rename_project_state_api_v1_projects__project_id__states__state_id__patch: {
+    parameters: {
+      path: {
+        project_id: string;
+        state_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProjectStateUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProjectStateResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Reorder Project States
+   * @description Set the display order of one list. The other two lists are untouched.
+   */
+  reorder_project_states_api_v1_projects__project_id__states_reorder_post: {
+    parameters: {
+      path: {
+        project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["ProjectStateReorder"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProjectStateResponse"][];
+        };
       };
       /** @description Validation Error */
       422: {

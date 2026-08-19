@@ -24,7 +24,7 @@ from app.schemas import (
 )
 from app.services.effort import feature_efforts
 from app.services.events import broadcaster
-from app.services.project_state import get_or_create_state, resolve_state_assignment
+from app.services.project_state import resolve_state_assignment, validate_state_id
 from app.services.validation import is_user_id_available
 
 router = APIRouter(tags=["features"])
@@ -53,8 +53,8 @@ async def _enrich(db: AsyncSession, feature: Feature) -> FeatureResponse:
 
 async def _apply_metadata_fields(
     db: AsyncSession, feature: Feature, body: FeatureUpdate, fields: set[str]
-) -> bool:
-    """Apply title/description/id/State. Returns True if a new State entry was created."""
+) -> None:
+    """Apply the title/description/id/State fields present on the body."""
     if "id" in fields and body.id != feature.user_id:
         if body.id is not None and not await is_user_id_available(
             db, feature.project_id, body.id, exclude_feature_id=feature.system_id
@@ -67,11 +67,10 @@ async def _apply_metadata_fields(
         feature.description = body.description
 
     assignment = await resolve_state_assignment(
-        db, feature.project_id, "feature", fields, body.state_id, body.state_value
+        db, feature.project_id, "feature", fields, body.state_id
     )
     if assignment.changed:
         feature.state_id = assignment.state_id
-    return assignment.created
 
 
 async def _apply_move_to_swimlane(db: AsyncSession, feature: Feature, body: FeatureUpdate, fields: set[str]) -> None:
@@ -164,23 +163,19 @@ async def create_feature(
     if user_id is not None and not await is_user_id_available(db, project_id, user_id):
         raise _id_conflict(user_id)
 
-    state, created_state = await get_or_create_state(
-        db, project_id, "feature", body.state_value or ""
-    )
+    state_id = await validate_state_id(db, project_id, "feature", body.state_id)
 
     feature = Feature(
         project_id=project_id,
         user_id=user_id,
         title=body.title,
         description=body.description,
-        state_id=state.system_id if state else None,
+        state_id=state_id,
     )
     db.add(feature)
     await db.commit()
     await db.refresh(feature)
     await broadcaster.broadcast(project_id, "feature:created", {"system_id": feature.system_id})
-    if created_state:
-        await broadcaster.broadcast(project_id, "state:created", {"item_type": "feature"})
     return await _enrich(db, feature)
 
 
@@ -203,7 +198,7 @@ async def update_feature(
     feature = await _get_feature_or_404(db, feature_id)
     fields = body.model_fields_set
 
-    created_state = await _apply_metadata_fields(db, feature, body, fields)
+    await _apply_metadata_fields(db, feature, body, fields)
 
     moving_to_swimlane = "swimlane_id" in fields and body.swimlane_id is not None
     moving_to_backlog = "location" in fields and body.location == "backlog"
@@ -220,8 +215,6 @@ async def update_feature(
     await db.refresh(feature)
     event = "feature:moved" if (moving_to_swimlane or moving_to_backlog) else "feature:updated"
     await broadcaster.broadcast(feature.project_id, event, {"system_id": feature_id})
-    if created_state:
-        await broadcaster.broadcast(feature.project_id, "state:created", {"item_type": "feature"})
     return await _enrich(db, feature)
 
 
@@ -276,6 +269,9 @@ async def split_feature(
         pi_id=body.target_pi_id,
         swimlane_id=body.target_swimline_id,
         continued_from_feature_id=feature.system_id,
+        # The continuation is the same work carried into a later PI, so it starts from
+        # the same State. Both lists are the project's feature list, so the id is valid.
+        state_id=feature.state_id,
     )
     db.add(new_feature)
     await db.flush()

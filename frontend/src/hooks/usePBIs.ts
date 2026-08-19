@@ -23,8 +23,6 @@ function invalidatePBIRelated(qc: ReturnType<typeof useQueryClient>, projectId: 
   qc.invalidateQueries({ queryKey: ['sprints'] })
   qc.invalidateQueries({ queryKey: ['swimlines'] })
   qc.invalidateQueries({ queryKey: ['pis'] })
-  // Typing a State in the item modal adds it to the project's list.
-  qc.invalidateQueries({ queryKey: ['states', projectId] })
 }
 
 export const useCreatePBI = (projectId: string) => {

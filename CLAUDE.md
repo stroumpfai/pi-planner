@@ -125,7 +125,7 @@ pi-planner/
 │   │   │   ├── groups.py
 │   │   │   ├── pbis.py
 │   │   │   ├── pis.py
-│   │   │   ├── project_states.py  # State Lists: list/create/guarded delete
+│   │   │   ├── project_states.py  # State Lists: list/create/rename/reorder/guarded delete
 │   │   │   ├── projects.py
 │   │   │   ├── sprints.py
 │   │   │   ├── swimlines.py
@@ -455,7 +455,7 @@ npm run cypress:run    # headless
 - Duplicate server state in Zustand
 - Allow CSV import to assign PI/swimlane/sprint (all imports go to backlog only)
 - Let a CSV file with **no** `State` column clear anyone's States (blank cell clears; absent column changes nothing)
-- Let MCP write tools create State List entries — they reject unknown names; only imports and humans create vocabulary
+- Let an *item* write create a State List entry — feature/PBI writes take `state_id` only, and MCP rejects unknown names there. Vocabulary is created deliberately: by CSV import, in the States editor, or via the MCP `create_state` tool (see `docs/adr/0003-states-are-managed-explicitly.md`)
 - Allow multiple PIs in `in_progress` state
 - Allow undelete/trash (deletions are permanent)
 - Commit `.env` or `config/users.json` (contains secrets/hashes)

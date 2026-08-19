@@ -4329,7 +4329,7 @@
           "states"
         ],
         "summary": "Create Project State",
-        "description": "Add a State to a list. Returns the existing entry if the value already matches.",
+        "description": "Add a State to a list. Refused when the list already holds this value.",
         "operationId": "create_project_state_api_v1_projects__project_id__states__post",
         "parameters": [
           {
@@ -4439,6 +4439,155 @@
         "responses": {
           "204": {
             "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "states"
+        ],
+        "summary": "Rename Project State",
+        "description": "Rename a State. Items reference it by id, so every one of them follows.",
+        "operationId": "rename_project_state_api_v1_projects__project_id__states__state_id__patch",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "state_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "State Id"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectStateUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectStateResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/states/reorder": {
+      "post": {
+        "tags": [
+          "states"
+        ],
+        "summary": "Reorder Project States",
+        "description": "Set the display order of one list. The other two lists are untouched.",
+        "operationId": "reorder_project_states_api_v1_projects__project_id__states_reorder_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProjectStateReorder"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectStateResponse"
+                  },
+                  "title": "Response Reorder Project States Api V1 Projects  Project Id  States Reorder Post"
+                }
+              }
+            }
           },
           "422": {
             "description": "Validation Error",
@@ -5626,17 +5775,16 @@
             ],
             "title": "Id"
           },
-          "state_value": {
+          "state_id": {
             "anyOf": [
               {
-                "type": "string",
-                "maxLength": 100
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "State Value"
+            "title": "State Id"
           }
         },
         "type": "object",
@@ -5884,18 +6032,6 @@
               }
             ],
             "title": "State Id"
-          },
-          "state_value": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 100
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "State Value"
           }
         },
         "type": "object",
@@ -6182,17 +6318,16 @@
             "title": "Item Type",
             "default": "story"
           },
-          "state_value": {
+          "state_id": {
             "anyOf": [
               {
-                "type": "string",
-                "maxLength": 100
+                "type": "string"
               },
               {
                 "type": "null"
               }
             ],
-            "title": "State Value"
+            "title": "State Id"
           }
         },
         "type": "object",
@@ -6472,18 +6607,6 @@
               }
             ],
             "title": "State Id"
-          },
-          "state_value": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 100
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "State Value"
           }
         },
         "type": "object",
@@ -7034,6 +7157,34 @@
         ],
         "title": "ProjectStateCreate"
       },
+      "ProjectStateReorder": {
+        "properties": {
+          "item_type": {
+            "type": "string",
+            "enum": [
+              "feature",
+              "story",
+              "bug"
+            ],
+            "title": "Item Type"
+          },
+          "order": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Order",
+            "description": "Ordered list of State system_ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "item_type",
+          "order"
+        ],
+        "title": "ProjectStateReorder",
+        "description": "The new order of one list. The three lists are ordered independently."
+      },
       "ProjectStateResponse": {
         "properties": {
           "system_id": {
@@ -7093,6 +7244,22 @@
           "created_at"
         ],
         "title": "ProjectStateResponse"
+      },
+      "ProjectStateUpdate": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value"
+        ],
+        "title": "ProjectStateUpdate",
+        "description": "Rename one entry. Every item holding it follows, since items reference by id."
       },
       "ProjectUpdate": {
         "properties": {

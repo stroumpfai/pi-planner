@@ -16,9 +16,9 @@ from app.schemas import PBICreate, PBIResponse, PBIUpdate, PlaceStoryRequest, Pl
 from app.schemas.group import GroupResponse
 from app.services.events import broadcaster
 from app.services.project_state import (
-    get_or_create_state,
     resolve_state_assignment,
     state_item_type_for_pbi,
+    validate_state_id,
 )
 from app.services.validation import is_user_id_available
 
@@ -79,8 +79,8 @@ async def create_pbi(
     if user_id is not None and not await is_user_id_available(db, project_id, user_id):
         raise _id_conflict(user_id)
 
-    state, created_state = await get_or_create_state(
-        db, project_id, state_item_type_for_pbi(body.item_type), body.state_value or ""
+    state_id = await validate_state_id(
+        db, project_id, state_item_type_for_pbi(body.item_type), body.state_id
     )
 
     pbi = PBI(
@@ -91,7 +91,7 @@ async def create_pbi(
         description=body.description,
         effort=body.effort,
         item_type=body.item_type,
-        state_id=state.system_id if state else None,
+        state_id=state_id,
     )
     db.add(pbi)
     await db.commit()
@@ -100,11 +100,6 @@ async def create_pbi(
         project_id, _EVT_PBI_CREATED,
         {"system_id": pbi.system_id, "feature_id": body.parent_feature_system_id},
     )
-    if created_state:
-        await broadcaster.broadcast(
-            project_id, "state:created",
-            {"item_type": state_item_type_for_pbi(body.item_type)},
-        )
     return PBIResponse.model_validate(pbi)
 
 
@@ -146,12 +141,11 @@ def _apply_scalar_fields(pbi: PBI, body: PBIUpdate, fields: set[str]) -> None:
 
 async def _apply_state_change(
     db: AsyncSession, pbi: PBI, body: PBIUpdate, fields: set[str], previous_item_type: str
-) -> bool:
+) -> None:
     """Apply a State change, resolved against the PBI's (possibly new) item type.
 
     Stories and Bugs draw from separate State Lists, so switching type strands the old
     State — it is cleared unless this same request assigns a new one.
-    Returns True if a new State entry was added to the list.
     """
     assignment = await resolve_state_assignment(
         db,
@@ -159,13 +153,11 @@ async def _apply_state_change(
         state_item_type_for_pbi(pbi.item_type),
         fields,
         body.state_id,
-        body.state_value,
     )
     if assignment.changed:
         pbi.state_id = assignment.state_id
     elif pbi.item_type != previous_item_type:
         pbi.state_id = None
-    return assignment.created
 
 
 async def _apply_group_change(db: AsyncSession, pbi: PBI, new_group_id: str | None) -> None:
@@ -195,17 +187,13 @@ async def update_pbi(
     await _apply_pbi_id(db, pbi, body, fields)
     previous_item_type = pbi.item_type
     _apply_scalar_fields(pbi, body, fields)
-    created_state = await _apply_state_change(db, pbi, body, fields, previous_item_type)
+    await _apply_state_change(db, pbi, body, fields, previous_item_type)
     if "group_id" in fields:
         await _apply_group_change(db, pbi, body.group_id)
     pbi.modified_at = datetime.now(timezone.utc)
     await db.commit()
     await db.refresh(pbi)
     await broadcaster.broadcast(pbi.project_id, _EVT_PBI_UPDATED, {"system_id": pbi_id})
-    if created_state:
-        await broadcaster.broadcast(
-            pbi.project_id, "state:created", {"item_type": state_item_type_for_pbi(pbi.item_type)}
-        )
     return PBIResponse.model_validate(pbi)
 
 

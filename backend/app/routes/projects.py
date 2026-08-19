@@ -17,6 +17,7 @@ from app.models.pbi import PBI
 from app.models.pi import PI
 from app.models.pi_event import PIEvent
 from app.models.project import Project
+from app.models.project_state import ProjectState
 from app.models.sprint import Sprint
 from app.models.swimline import Swimline
 from app.models.user import User
@@ -180,6 +181,8 @@ def _require_remap(id_map: dict[str, str], old_id: str | None, context: str) -> 
 
 def _build_id_map(proj_data: dict[str, Any], new_project_id: str) -> dict[str, str]:
     id_map: dict[str, str] = {proj_data["system_id"]: new_project_id}
+    for st in proj_data.get("states", []):
+        id_map[st["system_id"]] = str(uuid4())
     for f in proj_data["features"]:
         id_map[f["system_id"]] = str(uuid4())
     for p in proj_data["pbis"]:
@@ -245,6 +248,23 @@ def _add_pi_structures(
             ))
 
 
+def _add_states(db: AsyncSession, proj_data: dict[str, Any], new_project_id: str, id_map: dict[str, str]) -> None:
+    """Rebuild the three State Lists. Must run before features/PBIs, which FK to them.
+
+    Exports predating States have no "states" key; those import with empty lists, and
+    ``_remap`` then leaves every item stateless.
+    """
+    for st in proj_data.get("states", []):
+        db.add(ProjectState(
+            system_id=id_map[st["system_id"]],
+            project_id=new_project_id,
+            item_type=st["item_type"],
+            value=st["value"],
+            position=st.get("position", 0),
+            category=st.get("category"),
+        ))
+
+
 def _add_features(db: AsyncSession, proj_data: dict[str, Any], new_project_id: str, id_map: dict[str, str]) -> None:
     for f in proj_data["features"]:
         db.add(Feature(
@@ -256,6 +276,7 @@ def _add_features(db: AsyncSession, proj_data: dict[str, Any], new_project_id: s
             location=f.get("location", "backlog"),
             pi_id=_remap(id_map, f.get("pi_id")),
             swimlane_id=_remap(id_map, f.get("swimlane_id")),
+            state_id=_remap(id_map, f.get("state_id")),
         ))
 
 
@@ -290,6 +311,7 @@ def _add_pbis(db: AsyncSession, proj_data: dict[str, Any], new_project_id: str, 
             pi_id=_remap(id_map, p.get("pi_id")),
             swimlane_id=_remap(id_map, p.get("swimlane_id")),
             group_id=_remap(id_map, p.get("group_id")),
+            state_id=_remap(id_map, p.get("state_id")),
         ))
 
 
@@ -354,6 +376,10 @@ async def import_project(
     )
     db.add(project)
     _add_pi_structures(db, proj_data, new_project_id, id_map)
+    await db.flush()
+
+    # States first: features and PBIs FK to them.
+    _add_states(db, proj_data, new_project_id, id_map)
     await db.flush()
 
     _add_features(db, proj_data, new_project_id, id_map)

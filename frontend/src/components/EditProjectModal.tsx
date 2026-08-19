@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { useUpdateProject } from '@/hooks/useProjects'
-import { ProjectStatesSection } from './ProjectStatesSection'
+import { ProjectStatesModal } from './ProjectStatesModal'
 import { AZURE_DEVOPS_TEMPLATE, JIRA_TEMPLATE } from '@/utils/workItemUrl'
 import type { AxiosError } from 'axios'
 import type { Project } from '@/types'
@@ -48,6 +48,7 @@ interface Props {
 export function EditProjectModal({ open, project, onClose }: Props) {
   const updateProject = useUpdateProject(project.system_id)
   const [linkPreset, setLinkPreset] = useState<LinkPreset>('none')
+  const [showStates, setShowStates] = useState(false)
   const { register, handleSubmit, reset, setError, setValue, formState: { errors, isSubmitting } } = useForm<FormValues>({
     resolver: zodResolver(schema),
   })
@@ -175,7 +176,20 @@ export function EditProjectModal({ open, project, onClose }: Props) {
               </p>
             </div>
 
-            <ProjectStatesSection projectId={project.system_id} />
+            <div className="border-t border-gray-200 dark:border-gray-700 pt-4">
+              <p className="block text-sm font-medium text-gray-700 dark:text-gray-300">States</p>
+              <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
+                The labels the features, PBIs and bugs in this project can carry.
+                Also populated by CSV import.
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowStates(true)}
+                className="mt-2 px-3 py-1.5 text-sm font-medium text-gray-700 dark:text-gray-300 bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md hover:bg-gray-50 dark:hover:bg-gray-600"
+              >
+                Manage States…
+              </button>
+            </div>
 
             <div className="flex justify-end gap-3 pt-2">
               <button
@@ -196,6 +210,13 @@ export function EditProjectModal({ open, project, onClose }: Props) {
           </form>
         </Dialog.Content>
       </Dialog.Portal>
+
+      {/* Nested, not a replacement: closing Edit Project here would discard its unsaved fields. */}
+      <ProjectStatesModal
+        open={showStates}
+        projectId={project.system_id}
+        onClose={() => setShowStates(false)}
+      />
     </Dialog.Root>
   )
 }

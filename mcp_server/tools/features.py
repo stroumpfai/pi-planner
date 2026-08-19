@@ -53,11 +53,11 @@ async def create_feature(
     if user_id is not None:
         body["id"] = user_id
     if state is not None:
-        # Resolved to a value the backend will match exactly, so the auto-create path
-        # in state_value cannot invent a new entry from an agent's typo.
+        # Resolved here so an unknown name is rejected before the write, and so the
+        # backend — which only accepts ids — never has to interpret a name.
         state_id = await resolve_state_id(project_id, "feature", state)
         if state_id is not None:
-            body["state_value"] = state.strip()
+            body["state_id"] = state_id
 
     async with edit_lock(project_id):
         return await call_backend("POST", f"/api/v1/projects/{project_id}/features", json=body)
@@ -107,8 +107,7 @@ async def update_feature(
         body["id"] = user_id  # None sends null → clears the field
     if state is not _UNSET:
         # Validated against the list first: unknown names raise rather than creating an entry.
-        await resolve_state_id(project_id, "feature", state or "")
-        body["state_value"] = state.strip() if state else None
+        body["state_id"] = await resolve_state_id(project_id, "feature", state or "")
 
     async with edit_lock(project_id):
         return await call_backend("PATCH", f"/api/v1/features/{feature_id}", json=body)
@@ -174,8 +173,8 @@ async def split_feature(
     If pbi_ids covers every PBI currently under the feature, the whole feature is simply
     relocated to the target PI/swimline (same as move_feature) — no split occurs.
     Otherwise, a new linked "continuation" feature is created in the target PI/swimline
-    (same title, continued_from_feature_id pointing back to this feature) holding only
-    the selected PBIs; the original feature keeps the rest. The moved PBIs land unsprinted
+    (same title and State, continued_from_feature_id pointing back to this feature)
+    holding only the selected PBIs; the original feature keeps the rest. The moved PBIs land unsprinted
     in the target swimline — use place_pbi_in_sprint afterwards to assign them to sprints.
     A continuation feature can itself be split again later, forming a chain across more
     than two PIs.
@@ -286,7 +285,7 @@ async def create_pbi(
     if state is not None:
         state_id = await resolve_state_id(project_id, state_item_type_for_pbi(item_type), state)
         if state_id is not None:
-            body["state_value"] = state.strip()
+            body["state_id"] = state_id
 
     async with edit_lock(project_id):
         return await call_backend("POST", f"/api/v1/projects/{project_id}/pbis", json=body)
@@ -351,8 +350,9 @@ async def update_pbi(
         if effective_type is None:
             current = await call_backend("GET", f"/api/v1/pbis/{pbi_id}")
             effective_type = current.get("item_type", "story")
-        await resolve_state_id(project_id, state_item_type_for_pbi(effective_type), state or "")
-        body["state_value"] = state.strip() if state else None
+        body["state_id"] = await resolve_state_id(
+            project_id, state_item_type_for_pbi(effective_type), state or ""
+        )
 
     async with edit_lock(project_id):
         return await call_backend("PATCH", f"/api/v1/pbis/{pbi_id}", json=body)

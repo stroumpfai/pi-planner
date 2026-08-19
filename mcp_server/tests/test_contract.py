@@ -11,6 +11,7 @@ from mcp_server.tools.features import features_mcp
 from mcp_server.tools.groups import groups_mcp
 from mcp_server.tools.workflows import workflows_mcp
 from mcp_server.tools.pi_events import pi_events_mcp
+from mcp_server.tools.states import states_mcp
 from mcp_server.server import mcp
 
 
@@ -77,6 +78,13 @@ EXPECTED_GROUPS_TOOLS = {
     "create_group",
     "update_group",
     "delete_group",
+}
+
+EXPECTED_STATES_TOOLS = {
+    "create_state",
+    "rename_state",
+    "reorder_states",
+    "delete_state",
 }
 
 EXPECTED_WORKFLOWS_TOOLS = {
@@ -153,19 +161,26 @@ async def test_pi_events_tools_all_registered():
 
 
 @pytest.mark.asyncio
+async def test_states_tools_all_registered():
+    names = await _tool_names(states_mcp)
+    missing = EXPECTED_STATES_TOOLS - names
+    assert not missing, f"Missing states tools: {missing}"
+
+
+@pytest.mark.asyncio
 async def test_total_tool_count():
     all_names = set()
-    for server in (read_mcp, projects_mcp, swimlines_mcp, features_mcp, groups_mcp, workflows_mcp, pi_events_mcp):
+    for server in (read_mcp, projects_mcp, swimlines_mcp, features_mcp, groups_mcp, workflows_mcp, pi_events_mcp, states_mcp):
         all_names |= await _tool_names(server)
-    assert len(all_names) >= 42, f"Expected at least 42 tools, found {len(all_names)}: {all_names}"
+    assert len(all_names) >= 46, f"Expected at least 46 tools, found {len(all_names)}: {all_names}"
 
 
 @pytest.mark.asyncio
 async def test_main_server_mounts_all_groups():
-    """Verify the main server exposes tools from all 6 sub-servers (prefixed)."""
+    """Verify the main server exposes tools from every sub-server (prefixed)."""
     all_tools = await _tool_names(mcp)
     prefixes = {name.split("_")[0] for name in all_tools if "_" in name}
-    for expected_prefix in ("read", "projects", "swimlines", "features", "groups", "workflows", "pi"):
+    for expected_prefix in ("read", "projects", "swimlines", "features", "groups", "workflows", "pi", "states"):
         assert expected_prefix in prefixes, (
             f"Mount prefix '{expected_prefix}' not found in main server tools. "
             f"Found prefixes: {prefixes}"

@@ -510,6 +510,57 @@ async def test_split_feature_partial_creates_continuation(client, project, pi, s
 
 
 @pytest.mark.asyncio
+async def test_split_feature_continuation_inherits_the_state(client, project, pi, swimline, pi2, swimline2, feature):
+    """The continuation is the same work in a later PI, so it carries the same State."""
+    pid, fid = project["system_id"], feature["system_id"]
+    state = (await client.post(
+        f"/api/v1/projects/{pid}/states/", json={"item_type": "feature", "value": "In Progress"}
+    )).json()
+    await client.patch(
+        f"/api/v1/features/{fid}",
+        json={"swimlane_id": swimline["system_id"], "state_id": state["system_id"]},
+    )
+    done_pbi = await _create_pbi(client, pid, fid, "Done PBI")
+    remaining = await _create_pbi(client, pid, fid, "Remaining PBI")
+    await client.post(f"/api/v1/pbis/{done_pbi['system_id']}/place", json={"sprint_index": 0})
+
+    resp = await client.post(
+        f"/api/v1/features/{fid}/split",
+        json={
+            "target_pi_id": pi2["system_id"],
+            "target_swimline_id": swimline2["system_id"],
+            "pbi_ids": [remaining["system_id"]],
+        },
+    )
+    assert resp.status_code == 200
+    assert resp.json()["state_id"] == state["system_id"]
+    assert resp.json()["state"] == "In Progress"
+    # The original keeps its own State — the two are independent from here on.
+    assert (await client.get(f"/api/v1/features/{fid}")).json()["state"] == "In Progress"
+
+
+@pytest.mark.asyncio
+async def test_split_feature_continuation_of_a_stateless_feature_stays_stateless(
+    client, project, pi, swimline, pi2, swimline2, feature
+):
+    pid, fid = project["system_id"], feature["system_id"]
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": swimline["system_id"]})
+    done_pbi = await _create_pbi(client, pid, fid, "Done PBI")
+    remaining = await _create_pbi(client, pid, fid, "Remaining PBI")
+    await client.post(f"/api/v1/pbis/{done_pbi['system_id']}/place", json={"sprint_index": 0})
+
+    resp = await client.post(
+        f"/api/v1/features/{fid}/split",
+        json={
+            "target_pi_id": pi2["system_id"],
+            "target_swimline_id": swimline2["system_id"],
+            "pbi_ids": [remaining["system_id"]],
+        },
+    )
+    assert resp.json()["state"] is None
+
+
+@pytest.mark.asyncio
 async def test_split_feature_all_pbis_reuses_whole_move(client, project, pi, swimline, pi2, swimline2, feature):
     pid, fid = project["system_id"], feature["system_id"]
     await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": swimline["system_id"]})

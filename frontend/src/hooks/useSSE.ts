@@ -127,7 +127,15 @@ function handleSSEEvent(
     // ── States ────────────────────────────────────────────────────────────
     case 'state:created':
     case 'state:deleted':
+    case 'state:reordered':
       qc.invalidateQueries({ queryKey: ['states', projectId] })
+      break
+
+    case 'state:updated':
+      qc.invalidateQueries({ queryKey: ['states', projectId] })
+      // A rename changes the value items display, without changing the items themselves.
+      qc.invalidateQueries({ queryKey: ['features', projectId] })
+      qc.invalidateQueries({ queryKey: ['pbis', projectId] })
       break
 
     // ── Edit lock ─────────────────────────────────────────────────────────

@@ -3,7 +3,27 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { PBIFormModal } from '../PBIFormModal'
-import type { PBI } from '@/types'
+import { useStatesForType } from '@/hooks/useStates'
+import type { PBI, ProjectState, StateItemType } from '@/types'
+
+vi.mock('@/hooks/useStates')
+
+// Every test here renders the modal, and the modal renders StateSelect.
+beforeEach(() => {
+  vi.mocked(useStatesForType).mockImplementation((_projectId, itemType) => ({
+    states: [makeState('Committed', itemType), makeState('Done', itemType)],
+  } as ReturnType<typeof useStatesForType>))
+})
+
+const makeState = (value: string, itemType: StateItemType): ProjectState => ({
+  system_id: `st-${value}`,
+  project_id: 'p-1',
+  item_type: itemType,
+  value,
+  position: 0,
+  category: null,
+  created_at: '2026-01-01T00:00:00Z',
+})
 
 vi.mock('@/hooks/useProjects', async () => {
   const actual = await vi.importActual<typeof import('@/hooks/useProjects')>('@/hooks/useProjects')
@@ -177,10 +197,10 @@ describe('PBIFormModal', () => {
 describe('PBIFormModal State field', () => {
   it('pre-fills the State when editing', () => {
     render(
-      <PBIFormModal {...defaultProps} pbi={{ ...basePBI, state: 'Committed' }} />,
+      <PBIFormModal {...defaultProps} pbi={{ ...basePBI, state_id: 'st-Committed' }} />,
       { wrapper: makeWrapper() },
     )
-    expect(screen.getByTestId('state-select')).toHaveValue('Committed')
+    expect(screen.getByTestId('state-select')).toHaveValue('st-Committed')
   })
 
   it('starts blank when the item has no State', () => {
@@ -188,38 +208,39 @@ describe('PBIFormModal State field', () => {
     expect(screen.getByTestId('state-select')).toHaveValue('')
   })
 
-  it('submits the typed State as state_value', async () => {
+  it('submits the chosen State as state_id', async () => {
     onSubmit.mockResolvedValue(undefined)
     render(<PBIFormModal {...defaultProps} pbi={basePBI} />, { wrapper: makeWrapper() })
 
-    await userEvent.type(screen.getByTestId('state-select'), 'In Review')
+    await userEvent.selectOptions(screen.getByTestId('state-select'), 'st-Done')
     await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
 
     await waitFor(() =>
-      expect(onSubmit).toHaveBeenCalledWith(
-        expect.objectContaining({ state_value: 'In Review' }),
-      ),
+      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ state_id: 'st-Done' })),
     )
   })
 
-  it('trims whitespace from the submitted State', async () => {
+  it('submits null when the State is cleared', async () => {
     onSubmit.mockResolvedValue(undefined)
-    render(<PBIFormModal {...defaultProps} pbi={basePBI} />, { wrapper: makeWrapper() })
+    render(
+      <PBIFormModal {...defaultProps} pbi={{ ...basePBI, state_id: 'st-Committed' }} />,
+      { wrapper: makeWrapper() },
+    )
 
-    await userEvent.type(screen.getByTestId('state-select'), '  Done  ')
+    await userEvent.selectOptions(screen.getByTestId('state-select'), '')
     await userEvent.click(screen.getByRole('button', { name: /save changes/i }))
 
     await waitFor(() =>
-      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ state_value: 'Done' })),
+      expect(onSubmit).toHaveBeenCalledWith(expect.objectContaining({ state_id: null })),
     )
   })
 
   it('clears the State when switching between PBI and Bug', async () => {
     render(
-      <PBIFormModal {...defaultProps} pbi={{ ...basePBI, state: 'Committed' }} />,
+      <PBIFormModal {...defaultProps} pbi={{ ...basePBI, state_id: 'st-Committed' }} />,
       { wrapper: makeWrapper() },
     )
-    expect(screen.getByTestId('state-select')).toHaveValue('Committed')
+    expect(screen.getByTestId('state-select')).toHaveValue('st-Committed')
 
     await userEvent.click(screen.getByRole('button', { name: /^bug$/i }))
     expect(screen.getByTestId('state-select')).toHaveValue('')
@@ -227,10 +248,10 @@ describe('PBIFormModal State field', () => {
 
   it('keeps the State when the type toggle is clicked for the current type', async () => {
     render(
-      <PBIFormModal {...defaultProps} pbi={{ ...basePBI, state: 'Committed' }} />,
+      <PBIFormModal {...defaultProps} pbi={{ ...basePBI, state_id: 'st-Committed' }} />,
       { wrapper: makeWrapper() },
     )
     await userEvent.click(screen.getByRole('button', { name: /^pbi$/i }))
-    expect(screen.getByTestId('state-select')).toHaveValue('Committed')
+    expect(screen.getByTestId('state-select')).toHaveValue('st-Committed')
   })
 })

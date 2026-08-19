@@ -59,18 +59,22 @@ _Avoid_: UUID, primary key, internal ID
 ## State
 
 **State**:
-A project-defined label describing where a work item stands, sourced from the `State` column of an imported CSV. Purely descriptive today. Named `state` to match the CSV column and the existing `PI.state`.
+A project-defined label describing where a work item stands, sourced from the `State` column of an imported CSV or added in the States editor. Purely descriptive today. Named `state` to match the CSV column and the existing `PI.state`.
 _Avoid_: Status, workflow state, stage
 
 **State List**:
-The ordered set of States available to one Item type within one project. Each project has three — Feature, Story, and Bug — independent of each other and empty until a CSV import or a user populates them. Two States are the same if they match after trimming whitespace, ignoring case; the first spelling seen is the one kept.
+The ordered set of States available to one Item type within one project. Each project has three — Feature, Story, and Bug — independent of each other and empty until a CSV import discovers values or someone adds them. Two States are the same if they match after trimming whitespace, ignoring case; the first spelling seen is the one kept. Entries are only ever created deliberately: assigning a State to an item picks from the list and never extends it.
 _Avoid_: Status list, vocabulary, enum, taxonomy
+
+**States editor**:
+The modal behind "Manage States…" in Edit Project, where the three State Lists are added to, renamed, reordered and deleted. Renaming updates every item carrying the State, because items reference States by identity rather than by text; deleting one still in use is refused.
+_Avoid_: State manager, status settings
 
 **Removed**:
 The `State` cell value in an imported CSV that means the matching work item is to be deleted from the project, along with its children. Deletion is permanent — there is no trash.
 _Avoid_: Deleted, archived, cancelled
 
-Note the word carries a second, unrelated meaning: a user may also type `Removed` into a State List by hand, where it is an ordinary descriptive label that deletes nothing. The two meanings meet if such an item is exported and re-imported, at which point the label is read as the control value and the item is deleted.
+Note the word carries a second, unrelated meaning: a user may also add `Removed` to a State List in the States editor, where it is an ordinary descriptive label that deletes nothing. The two meanings meet if such an item is exported and re-imported, at which point the label is read as the control value and the item is deleted.
 
 ## Editing
 

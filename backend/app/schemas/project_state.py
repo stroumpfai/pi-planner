@@ -15,6 +15,19 @@ class ProjectStateCreate(BaseModel):
     value: str = Field(..., min_length=1, max_length=MAX_STATE_LENGTH)
 
 
+class ProjectStateUpdate(BaseModel):
+    """Rename one entry. Every item holding it follows, since items reference by id."""
+
+    value: str = Field(..., min_length=1, max_length=MAX_STATE_LENGTH)
+
+
+class ProjectStateReorder(BaseModel):
+    """The new order of one list. The three lists are ordered independently."""
+
+    item_type: StateItemType
+    order: list[str] = Field(..., description="Ordered list of State system_ids")
+
+
 class ProjectStateResponse(BaseModel):
     system_id: str
     project_id: str

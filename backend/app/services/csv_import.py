@@ -114,9 +114,7 @@ async def _resolve_row_state(
     raw = row.state or ""
     if normalise_state(raw) == "":
         return True, None
-    # Newly created entries are counted at the end of the import via _count_states,
-    # so the per-row creation flag is not needed here.
-    state, _created = await get_or_create_state(db, project_id, state_list_type, raw)
+    state = await get_or_create_state(db, project_id, state_list_type, raw)
     return True, (state.system_id if state else None)
 
 

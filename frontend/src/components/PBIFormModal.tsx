@@ -13,8 +13,8 @@ export type PBIFormValues = {
   effort?: number | null
   id?: number | null
   item_type: 'story' | 'bug'
-  /** Blank clears the State; a value not in the list joins it on save. */
-  state_value?: string
+  /** An entry in the State List matching item_type; null means no State. */
+  state_id?: string | null
 }
 
 interface Props {
@@ -31,8 +31,8 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', readOnly = fals
   const { register, control, handleSubmit, reset, setError, watch, setValue, formState: { errors, isSubmitting } } =
     useForm<PBIFormValues>({
       defaultValues: pbi
-        ? { title: pbi.title, description: pbi.description ?? undefined, effort: pbi.effort, id: pbi.id, item_type: pbi.item_type ?? 'story', state_value: pbi.state ?? '' }
-        : { item_type: defaultType, state_value: '' },
+        ? { title: pbi.title, description: pbi.description ?? undefined, effort: pbi.effort, id: pbi.id, item_type: pbi.item_type ?? 'story', state_id: pbi.state_id ?? null }
+        : { item_type: defaultType, state_id: null },
     })
 
   // Reseed the form each time the modal opens so it reflects the current PBI
@@ -41,8 +41,8 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', readOnly = fals
     if (!open) return
     reset(
       pbi
-        ? { title: pbi.title, description: pbi.description ?? undefined, effort: pbi.effort, id: pbi.id, item_type: pbi.item_type ?? 'story', state_value: pbi.state ?? '' }
-        : { item_type: defaultType, state_value: '' },
+        ? { title: pbi.title, description: pbi.description ?? undefined, effort: pbi.effort, id: pbi.id, item_type: pbi.item_type ?? 'story', state_id: pbi.state_id ?? null }
+        : { item_type: defaultType, state_id: null },
     )
     // Keyed to pbi identity (not the object) so a background refetch while the
     // modal is open doesn't wipe in-progress edits.
@@ -64,7 +64,7 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', readOnly = fals
   const switchType = (next: 'story' | 'bug') => {
     if (next === itemType) return
     setValue('item_type', next)
-    setValue('state_value', '')
+    setValue('state_id', null)
   }
 
   const handleFormSubmit = async (values: PBIFormValues) => {
@@ -74,7 +74,7 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', readOnly = fals
         description: values.description || null,
         effort: values.effort ?? null,
         id: values.id || null,
-        state_value: (values.state_value ?? '').trim(),
+        state_id: values.state_id ?? null,
       })
       reset()
       onClose()
@@ -209,13 +209,13 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', readOnly = fals
             </div>
 
             <Controller
-              name="state_value"
+              name="state_id"
               control={control}
               render={({ field }) => (
                 <StateSelect
                   itemType={itemType}
                   projectId={pbi?.project_id}
-                  value={field.value ?? ''}
+                  value={field.value ?? null}
                   onChange={field.onChange}
                   disabled={readOnly}
                 />

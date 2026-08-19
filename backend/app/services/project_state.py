@@ -3,7 +3,7 @@
 A project owns three independent State Lists, keyed by item type (feature / story / bug).
 Entries are compared after trimming and lower-casing; the first spelling seen is stored.
 This module is the only place that creates State entries, so the dedupe rule applies
-identically to CSV import and to values typed in the item modals.
+identically to CSV import and to the States editor.
 """
 
 from typing import NamedTuple
@@ -61,22 +61,21 @@ async def _next_position(db: AsyncSession, project_id: str, item_type: str) -> i
 
 async def get_or_create_state(
     db: AsyncSession, project_id: str, item_type: str, value: str
-) -> tuple[ProjectState | None, bool]:
-    """Return (state, was_created) for this value, adding it to the list if new.
+) -> ProjectState | None:
+    """Return the State for this value, adding it to the list if new.
 
     The state is None for a blank value — blank is the absence of a State, never an
-    entry. `was_created` lets callers broadcast `state:created` after they commit, so
-    other sessions refresh their dropdowns.
+    entry.
 
     Does not commit; the caller owns the transaction so that a failed import registers
     no vocabulary.
     """
     if normalise_state(value) == "":
-        return None, False
+        return None
 
     existing = await find_state(db, project_id, item_type, value)
     if existing is not None:
-        return existing, False
+        return existing
 
     state = ProjectState(
         project_id=project_id,
@@ -86,7 +85,7 @@ async def get_or_create_state(
     )
     db.add(state)
     await db.flush()
-    return state, True
+    return state
 
 
 async def state_usage(db: AsyncSession, state_id: str) -> tuple[int, int]:
@@ -106,15 +105,31 @@ def state_item_type_for_pbi(item_type: str) -> str:
 
 
 class StateAssignment(NamedTuple):
-    """What an update body says about an item's State.
-
-    `created` is true when resolving the value added a new entry to the list, so the
-    caller can broadcast `state:created` after committing.
-    """
+    """What an update body says about an item's State."""
 
     changed: bool
     state_id: str | None
-    created: bool = False
+
+
+async def validate_state_id(
+    db: AsyncSession, project_id: str, item_type: str, state_id: str | None
+) -> str | None:
+    """Check that a state_id names an entry in this project's list for `item_type`.
+
+    Returns the id back (None stays None) so callers can assign the result directly.
+    """
+    if state_id is None:
+        return None
+    state = await db.get(ProjectState, state_id)
+    if state is None or state.project_id != project_id or state.item_type != item_type:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "error": "UNKNOWN_STATE",
+                "message": f"No such State for {item_type} items in this project",
+            },
+        )
+    return state.system_id
 
 
 async def resolve_state_assignment(
@@ -123,35 +138,16 @@ async def resolve_state_assignment(
     item_type: str,
     fields: set[str],
     state_id: str | None,
-    state_value: str | None,
 ) -> StateAssignment:
-    """Interpret the state_id / state_value pair on an update body.
+    """Interpret the state_id on an update body.
 
-    `state_value` wins when both are sent: it is the field the modal uses when a user
-    types a State that may not exist yet.
+    States are never created here: an item write can only point at an entry the States
+    editor or a CSV import already put in the list. Explicit null clears the State.
     """
-    if "state_value" in fields:
-        if state_value is None or normalise_state(state_value) == "":
-            return StateAssignment(changed=True, state_id=None)
-        state, created = await get_or_create_state(db, project_id, item_type, state_value)
+    if "state_id" in fields:
         return StateAssignment(
             changed=True,
-            state_id=state.system_id if state else None,
-            created=created,
+            state_id=await validate_state_id(db, project_id, item_type, state_id),
         )
-
-    if "state_id" in fields:
-        if state_id is None:
-            return StateAssignment(changed=True, state_id=None)
-        state = await db.get(ProjectState, state_id)
-        if state is None or state.project_id != project_id or state.item_type != item_type:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail={
-                    "error": "UNKNOWN_STATE",
-                    "message": f"No such State for {item_type} items in this project",
-                },
-            )
-        return StateAssignment(changed=True, state_id=state.system_id)
 
     return StateAssignment(changed=False, state_id=None)

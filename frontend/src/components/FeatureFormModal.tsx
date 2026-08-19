@@ -9,8 +9,8 @@ export type FeatureFormValues = {
   title: string
   description?: string | null
   id?: number | null
-  /** Blank clears the State; a value not in the list joins it on save. */
-  state_value?: string
+  /** An entry in the project's feature State List; null means no State. */
+  state_id?: string | null
 }
 
 interface Props {
@@ -29,9 +29,9 @@ export function FeatureFormModal({ open, feature, readOnly = false, onClose, onS
           title: feature.title,
           description: feature.description ?? undefined,
           id: feature.id,
-          state_value: feature.state ?? '',
+          state_id: feature.state_id ?? null,
         }
-      : { state_value: '' },
+      : { state_id: null },
   })
 
   const handleClose = () => { reset(); onClose() }
@@ -42,7 +42,7 @@ export function FeatureFormModal({ open, feature, readOnly = false, onClose, onS
         ...values,
         description: values.description || null,
         id: values.id || null,
-        state_value: (values.state_value ?? '').trim(),
+        state_id: values.state_id ?? null,
       })
       reset()
       onClose()
@@ -122,13 +122,13 @@ export function FeatureFormModal({ open, feature, readOnly = false, onClose, onS
             </div>
 
             <Controller
-              name="state_value"
+              name="state_id"
               control={control}
               render={({ field }) => (
                 <StateSelect
                   itemType="feature"
                   projectId={feature?.project_id}
-                  value={field.value ?? ''}
+                  value={field.value ?? null}
                   onChange={field.onChange}
                   disabled={readOnly}
                 />

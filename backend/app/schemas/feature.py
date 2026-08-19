@@ -11,8 +11,8 @@ class FeatureCreate(BaseModel):
     title: str = Field(..., max_length=255)
     description: str | None = Field(None, max_length=2000)
     id: int | None = Field(None, ge=1, le=999999, alias="id")
-    # Blank or absent means no State; a value not in the list joins it.
-    state_value: str | None = Field(None, max_length=100)
+    # An entry in the project's feature State List; absent or null means no State.
+    state_id: str | None = None
 
 
 class FeatureUpdate(BaseModel):
@@ -22,10 +22,8 @@ class FeatureUpdate(BaseModel):
     location: FeatureLocation | None = None
     pi_id: str | None = None
     swimlane_id: str | None = None
-    # Send state_id to select an existing State, or state_value to select-or-create one
-    # (the modal lets users type a new State). Explicit null clears the State.
+    # An entry in the project's feature State List. Explicit null clears the State.
     state_id: str | None = None
-    state_value: str | None = Field(None, max_length=100)
 
 
 class FeatureSplitRequest(BaseModel):
