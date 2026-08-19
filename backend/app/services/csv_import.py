@@ -7,7 +7,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.feature import Feature
 from app.models.pbi import PBI
 from app.models.project_state import ProjectState, normalise_state
-from app.schemas.csv_import import CsvImportError, CsvImportResult, CsvRow
+from app.schemas.csv_import import (
+    CsvImportError,
+    CsvImportResult,
+    CsvRow,
+    OrphanLocation,
+)
 from app.services.events import broadcaster
 from app.services.project_state import get_or_create_state, state_item_type_for_pbi
 
@@ -276,6 +281,74 @@ async def _apply_removals(
     return deleted_feature_ids, deleted_pbis
 
 
+_UNASSIGNED_TITLE = "Unassigned"
+
+
+async def _get_or_create_unassigned(db: AsyncSession, project_id: str) -> str:
+    """Return the system_id of the project's backlog "Unassigned" placeholder feature.
+
+    Reused across imports: creating a fresh one every time would leave an empty
+    placeholder behind on each re-import, since orphan stories that already exist
+    are updated in place and stay under the original.
+
+    Only a placeholder still sitting in the backlog qualifies. Once one has been
+    moved onto the PI board it is no longer a landing spot — reusing it would put
+    imported stories straight onto the board, and imports go to the backlog only.
+    """
+    existing = (await db.execute(
+        select(Feature.system_id).where(
+            Feature.project_id == project_id,
+            Feature.user_id.is_(None),
+            Feature.title == _UNASSIGNED_TITLE,
+            Feature.location == "backlog",
+        ).order_by(Feature.created_at).limit(1)
+    )).scalar_one_or_none()
+    if existing is not None:
+        return existing
+
+    sysid = str(uuid4())
+    db.add(Feature(
+        system_id=sysid,
+        project_id=project_id,
+        user_id=None,
+        title=_UNASSIGNED_TITLE,
+        location="backlog",
+    ))
+    return sysid
+
+
+async def _orphan_locations(
+    db: AsyncSession,
+    orphan_rows: list[CsvRow],
+    pbi_map: dict[int, str],
+) -> list[OrphanLocation]:
+    """Group the orphan rows that matched an existing story by the feature holding them.
+
+    An orphan row whose ID is already in the project is updated where it sits — the
+    import never re-parents it — so the result has to name that feature, and say
+    whether it is in the backlog or on the PI board, for the summary to be truthful.
+    """
+    sysids = [
+        pbi_map[r.user_id]
+        for r in orphan_rows
+        if r.user_id is not None and r.user_id in pbi_map
+    ]
+    if not sysids:
+        return []
+
+    rows = (await db.execute(
+        select(Feature.title, Feature.location, func.count())
+        .join(PBI, PBI.parent_feature_system_id == Feature.system_id)
+        .where(PBI.system_id.in_(sysids))
+        .group_by(Feature.system_id)
+        .order_by(func.count().desc(), Feature.title)
+    )).all()
+    return [
+        OrphanLocation(feature_title=title, location=location, count=count)
+        for title, location, count in rows
+    ]
+
+
 async def _count_states(db: AsyncSession, project_id: str) -> int:
     return int((await db.execute(
         select(func.count()).select_from(ProjectState).where(
@@ -324,21 +397,23 @@ async def execute_import(
     )
     await db.flush()
 
-    orphan_count = sum(
-        1 for r in story_rows
+    orphan_rows = [
+        r for r in story_rows
         if r.parent_id is None or r.parent_id not in csv_feature_sysid
-    )
+    ]
+    orphan_count = len(orphan_rows)
+
+    # Only rows that will be *created* need the placeholder as their parent; an
+    # orphan row matching an existing story is updated in place and keeps its
+    # current feature, so a file of pure updates must not conjure one.
+    new_orphan_rows = [
+        r for r in orphan_rows if r.user_id is None or r.user_id not in pbi_map
+    ]
+    orphan_locations = await _orphan_locations(db, orphan_rows, pbi_map)
 
     unassigned_sysid: str | None = None
-    if orphan_count > 0:
-        unassigned_sysid = str(uuid4())
-        db.add(Feature(
-            system_id=unassigned_sysid,
-            project_id=project_id,
-            user_id=None,
-            title="Unassigned",
-            location="backlog",
-        ))
+    if new_orphan_rows:
+        unassigned_sysid = await _get_or_create_unassigned(db, project_id)
         await db.flush()
 
     created_stories, updated_stories = await _upsert_stories(
@@ -366,5 +441,7 @@ async def execute_import(
         removed_features=len(deleted_feature_ids),
         removed_stories=len(deleted_pbis),
         orphan_stories=orphan_count,
+        orphan_stories_placed=len(new_orphan_rows),
+        orphan_stories_existing=orphan_locations,
         created_states=created_states,
     )

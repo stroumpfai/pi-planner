@@ -50,6 +50,8 @@ const okResult = {
   removed_features: 0,
   removed_stories: 0,
   orphan_stories: 0,
+  orphan_stories_placed: 0,
+  orphan_stories_existing: [],
 }
 
 function makeFeature(id: number, systemId: string, title: string): Feature {
@@ -131,6 +133,58 @@ describe('ImportCSVModal', () => {
     await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
     await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
     await waitFor(() => expect(screen.getByText(/import complete/i)).toBeInTheDocument())
+  })
+
+  it('stays on "Import complete" when features/pbis refetch after the import', async () => {
+    mutateAsync.mockResolvedValue(okResult)
+    const file = makeFile()
+    const { rerender } = render(
+      <ImportCSVModal {...defaultProps} open file={file} features={[]} pbis={[]} />,
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
+    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    await waitFor(() => expect(screen.getByText(/import complete/i)).toBeInTheDocument())
+
+    // The import invalidates the features/pbis queries — the refetch hands the
+    // modal fresh arrays. The result summary must survive that.
+    rerender(<ImportCSVModal {...defaultProps} open file={file} features={[]} pbis={[]} />)
+    await waitFor(() => expect(screen.getByText(/import complete/i)).toBeInTheDocument())
+    expect(screen.queryByText('Import CSV')).not.toBeInTheDocument()
+  })
+
+  it('names the feature holding orphans that already exist, and where it lives', async () => {
+    mutateAsync.mockResolvedValue({
+      ...okResult,
+      created_stories: 0,
+      updated_stories: 3,
+      orphan_stories: 3,
+      orphan_stories_placed: 0,
+      orphan_stories_existing: [{ feature_title: 'Unassigned', location: 'pi', count: 3 }],
+    })
+    render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
+    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    await waitFor(() => expect(screen.getByText(/import complete/i)).toBeInTheDocument())
+    expect(screen.getByText(/already exist under "Unassigned"/i)).toBeInTheDocument()
+    expect(screen.getByText(/on the PI board, not the backlog/i)).toBeInTheDocument()
+    // Nothing was placed, so the placement line must not appear.
+    expect(screen.queryByText(/placed in "Unassigned"/i)).not.toBeInTheDocument()
+  })
+
+  it('reports newly placed orphans separately from existing ones', async () => {
+    mutateAsync.mockResolvedValue({
+      ...okResult,
+      orphan_stories: 2,
+      orphan_stories_placed: 1,
+      orphan_stories_existing: [{ feature_title: 'Auth Feature', location: 'backlog', count: 1 }],
+    })
+    render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
+    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    await waitFor(() => expect(screen.getByText(/import complete/i)).toBeInTheDocument())
+    expect(screen.getByText(/1 orphan story placed in "Unassigned" feature/i)).toBeInTheDocument()
+    expect(screen.getByText(/already exists under "Auth Feature" — left in the backlog/i)).toBeInTheDocument()
   })
 
   it('shows "Import failed" after server error', async () => {

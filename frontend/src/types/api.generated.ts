@@ -471,6 +471,16 @@ export interface components {
       /** Orphan Stories */
       orphan_stories: number;
       /**
+       * Orphan Stories Placed
+       * @default 0
+       */
+      orphan_stories_placed?: number;
+      /**
+       * Orphan Stories Existing
+       * @default []
+       */
+      orphan_stories_existing?: components["schemas"]["OrphanLocation"][];
+      /**
        * Created States
        * @default 0
        */
@@ -657,6 +667,18 @@ export interface components {
        * @default false
        */
       remember_me?: boolean;
+    };
+    /**
+     * OrphanLocation
+     * @description Where orphan rows that matched an existing story already live.
+     */
+    OrphanLocation: {
+      /** Feature Title */
+      feature_title: string;
+      /** Location */
+      location: string;
+      /** Count */
+      count: number;
     };
     /** PBICreate */
     PBICreate: {

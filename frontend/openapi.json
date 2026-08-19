@@ -5602,6 +5602,19 @@
             "type": "integer",
             "title": "Orphan Stories"
           },
+          "orphan_stories_placed": {
+            "type": "integer",
+            "title": "Orphan Stories Placed",
+            "default": 0
+          },
+          "orphan_stories_existing": {
+            "items": {
+              "$ref": "#/components/schemas/OrphanLocation"
+            },
+            "type": "array",
+            "title": "Orphan Stories Existing",
+            "default": []
+          },
           "created_states": {
             "type": "integer",
             "title": "Created States",
@@ -6261,6 +6274,30 @@
           "password"
         ],
         "title": "LoginRequest"
+      },
+      "OrphanLocation": {
+        "properties": {
+          "feature_title": {
+            "type": "string",
+            "title": "Feature Title"
+          },
+          "location": {
+            "type": "string",
+            "title": "Location"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "feature_title",
+          "location",
+          "count"
+        ],
+        "title": "OrphanLocation",
+        "description": "Where orphan rows that matched an existing story already live."
       },
       "PBICreate": {
         "properties": {

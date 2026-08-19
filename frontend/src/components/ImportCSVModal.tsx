@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import type { AxiosError } from 'axios'
 import { parseImportCSV, buildPreview } from '@/utils/csvParser'
@@ -107,7 +107,7 @@ function PreviewTable({ preview }: { readonly preview: ImportPreview }) {
         {preview.orphanCount > 0 && (
           <tr>
             <td className="py-1.5 text-amber-600 text-xs">
-              ↳ {preview.orphanCount} orphan {preview.orphanCount === 1 ? 'story' : 'stories'} — will be placed in &quot;Unassigned&quot; feature
+              ↳ {preview.orphanCount} orphan {preview.orphanCount === 1 ? 'story' : 'stories'} (no parent in this file) — new ones go to &quot;Unassigned&quot;, ones already in the project stay where they are
             </td>
             <td />
           </tr>
@@ -217,6 +217,13 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, onClose 
 
   const importMutation = useCsvImport(projectId)
 
+  // Project data is read when the file is parsed, but must not re-trigger the
+  // parse: a successful import invalidates the features/pbis queries, and the
+  // resulting new array identities would otherwise reset the modal back to the
+  // preview step and hide the "Import complete" summary.
+  const projectItems = useRef({ features, pbis })
+  projectItems.current = { features, pbis }
+
   // Parse the file whenever a new one is selected and the modal opens
   useEffect(() => {
     if (!open || !file) return
@@ -232,9 +239,10 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, onClose 
       const parseResult: ParseResult = parseImportCSV(text)
       setParsedRows(parseResult.rows)
       setPreview(buildPreview(parseResult))
-      setCandidates(computeCandidates(parseResult.removedItems, features, pbis))
+      const { features: f, pbis: p } = projectItems.current
+      setCandidates(computeCandidates(parseResult.removedItems, f, p))
     })
-  }, [open, file, features, pbis])
+  }, [open, file])
 
   // Stories whose parent feature is being removed are deleted via cascade — show them
   // as forced Remove (disabled) so the list stays truthful.
@@ -450,11 +458,24 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, onClose 
                 </tbody>
               </table>
 
-              {result.orphan_stories > 0 && (
+              {(result.orphan_stories_placed ?? 0) > 0 && (
                 <p className="text-xs text-amber-600 mt-2">
-                  {result.orphan_stories} orphan {result.orphan_stories === 1 ? 'story' : 'stories'} placed in &quot;Unassigned&quot; feature
+                  {result.orphan_stories_placed} orphan {result.orphan_stories_placed === 1 ? 'story' : 'stories'} placed in &quot;Unassigned&quot; feature
                 </p>
               )}
+
+              {/* Orphan rows matching an item already in the project are updated where
+                  they sit — naming that feature keeps the summary honest, especially
+                  when it is on the PI board and so invisible from the backlog. */}
+              {(result.orphan_stories_existing ?? []).map((loc, i) => (
+                <p key={`${loc.feature_title}-${i}`} className="text-xs text-gray-500 mt-2">
+                  {loc.count} orphan {loc.count === 1 ? 'story' : 'stories'} already{' '}
+                  {loc.count === 1 ? 'exists' : 'exist'} under &quot;{loc.feature_title}&quot; —{' '}
+                  {loc.location === 'backlog'
+                    ? 'left in the backlog'
+                    : 'on the PI board, not the backlog'}
+                </p>
+              ))}
 
               <div className="flex justify-end mt-6">
                 <button

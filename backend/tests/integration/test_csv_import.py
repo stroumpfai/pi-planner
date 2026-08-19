@@ -70,6 +70,157 @@ async def test_import_stories_only_creates_unassigned_feature(client, project):
 
 
 @pytest.mark.asyncio
+async def test_reimport_orphans_reuses_single_unassigned_feature(client, project):
+    """Re-importing the same orphan stories must not pile up empty "Unassigned" features."""
+    pid = project["system_id"]
+    rows = [
+        _row(1, "story", "Login Story", user_id=201),
+        _row(2, "story", "Logout Story", user_id=202),
+    ]
+    await client.post(_url(pid), json={"rows": rows})
+    resp = await client.post(_url(pid), json={"rows": rows})
+    assert resp.status_code == 200
+    assert resp.json()["updated_stories"] == 2
+    assert resp.json()["created_stories"] == 0
+
+    features = (await client.get(f"/api/v1/projects/{pid}/features")).json()
+    unassigned = [f for f in features if f["title"] == "Unassigned"]
+    assert len(unassigned) == 1
+
+    # The one placeholder still holds both stories — none were orphaned elsewhere.
+    pbis = (await client.get(f"/api/v1/projects/{pid}/pbis?feature_id={unassigned[0]['system_id']}")).json()
+    assert len(pbis) == 2
+
+
+@pytest.mark.asyncio
+async def test_new_orphans_join_the_existing_unassigned_feature(client, project):
+    pid = project["system_id"]
+    await client.post(_url(pid), json={"rows": [_row(1, "story", "First", user_id=201)]})
+    resp = await client.post(_url(pid), json={"rows": [_row(1, "story", "Second", user_id=202)]})
+    assert resp.status_code == 200
+    assert resp.json()["created_stories"] == 1
+
+    features = (await client.get(f"/api/v1/projects/{pid}/features")).json()
+    unassigned = [f for f in features if f["title"] == "Unassigned"]
+    assert len(unassigned) == 1
+    pbis = (await client.get(f"/api/v1/projects/{pid}/pbis?feature_id={unassigned[0]['system_id']}")).json()
+    assert {p["title"] for p in pbis} == {"First", "Second"}
+
+
+@pytest.mark.asyncio
+async def test_result_reports_where_existing_orphans_live(client, project):
+    """A re-import that only updates orphans must name the feature holding them."""
+    pid = project["system_id"]
+    await client.post(_url(pid), json={"rows": [_row(1, "story", "First", user_id=201)]})
+    feats = (await client.get(f"/api/v1/projects/{pid}/features")).json()
+    placeholder = [f for f in feats if f["title"] == "Unassigned"][0]
+
+    pi = (await client.post(f"/api/v1/projects/{pid}/pis", json={
+        "name": "PI 1", "start_date": "2026-01-01",
+        "sprint_count": 2, "sprint_length_days": 14,
+    })).json()
+    swimline = (await client.post(
+        f"/api/v1/pis/{pi['system_id']}/swimlines", json={"name": "Team A"}
+    )).json()
+    await client.patch(f"/api/v1/features/{placeholder['system_id']}", json={
+        "location": "pi", "swimlane_id": swimline["system_id"], "pi_id": pi["system_id"],
+    })
+
+    resp = await client.post(_url(pid), json={"rows": [_row(1, "story", "First v2", user_id=201)]})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["orphan_stories"] == 1
+    assert data["orphan_stories_placed"] == 0
+    assert data["orphan_stories_existing"] == [
+        {"feature_title": "Unassigned", "location": "pi", "count": 1}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_result_reports_newly_placed_orphans(client, project):
+    pid = project["system_id"]
+    resp = await client.post(_url(pid), json={"rows": [
+        _row(1, "story", "A", user_id=201),
+        _row(2, "story", "B"),
+    ]})
+    data = resp.json()
+    assert data["orphan_stories"] == 2
+    assert data["orphan_stories_placed"] == 2
+    assert data["orphan_stories_existing"] == []
+
+
+@pytest.mark.asyncio
+async def test_result_splits_placed_and_existing_orphans(client, project):
+    """A file mixing a new orphan with one that already exists reports both sides."""
+    pid = project["system_id"]
+    await client.post(_url(pid), json={"rows": [
+        _row(1, "feature", "Auth Feature", user_id=101),
+        _row(2, "story", "Known", user_id=201, parent_id=101),
+    ]})
+
+    resp = await client.post(_url(pid), json={"rows": [
+        _row(1, "story", "Known v2", user_id=201),
+        _row(2, "story", "Brand new", user_id=202),
+    ]})
+    data = resp.json()
+    assert data["orphan_stories"] == 2
+    assert data["orphan_stories_placed"] == 1
+    assert data["orphan_stories_existing"] == [
+        {"feature_title": "Auth Feature", "location": "backlog", "count": 1}
+    ]
+
+
+@pytest.mark.asyncio
+async def test_unassigned_on_the_pi_board_is_not_reused(client, project):
+    """Imports land in the backlog, so a placeholder moved onto the board is not a target."""
+    pid = project["system_id"]
+    await client.post(_url(pid), json={"rows": [_row(1, "story", "First", user_id=201)]})
+    feats = (await client.get(f"/api/v1/projects/{pid}/features")).json()
+    placeholder = [f for f in feats if f["title"] == "Unassigned"][0]
+
+    pi = (await client.post(f"/api/v1/projects/{pid}/pis", json={
+        "name": "PI 1", "start_date": "2026-01-01",
+        "sprint_count": 2, "sprint_length_days": 14,
+    })).json()
+    swimline = (await client.post(
+        f"/api/v1/pis/{pi['system_id']}/swimlines", json={"name": "Team A"}
+    )).json()
+    moved = await client.patch(f"/api/v1/features/{placeholder['system_id']}", json={
+        "location": "pi", "swimlane_id": swimline["system_id"], "pi_id": pi["system_id"],
+    })
+    assert moved.status_code == 200
+
+    resp = await client.post(_url(pid), json={"rows": [_row(1, "story", "Second", user_id=202)]})
+    assert resp.status_code == 200
+    assert resp.json()["created_stories"] == 1
+
+    feats = (await client.get(f"/api/v1/projects/{pid}/features")).json()
+    backlog = [f for f in feats if f["location"] == "backlog" and f["title"] == "Unassigned"]
+    assert len(backlog) == 1
+    pbis = (await client.get(f"/api/v1/projects/{pid}/pbis?feature_id={backlog[0]['system_id']}")).json()
+    assert [p["title"] for p in pbis] == ["Second"]
+
+
+@pytest.mark.asyncio
+async def test_orphan_updates_alone_create_no_unassigned_feature(client, project):
+    """A re-import of stories that already live under a real feature adds no placeholder."""
+    pid = project["system_id"]
+    await client.post(_url(pid), json={"rows": [
+        _row(1, "feature", "Auth Feature", user_id=101),
+        _row(2, "story", "Login UI", user_id=201, parent_id=101),
+    ]})
+
+    # Same story, but the parent feature is absent from this file — an orphan row
+    # that nonetheless resolves to an existing story and is updated in place.
+    resp = await client.post(_url(pid), json={"rows": [_row(1, "story", "Login UI v2", user_id=201)]})
+    assert resp.status_code == 200
+    assert resp.json()["updated_stories"] == 1
+
+    features = (await client.get(f"/api/v1/projects/{pid}/features")).json()
+    assert [f["title"] for f in features] == ["Auth Feature"]
+
+
+@pytest.mark.asyncio
 async def test_import_mixed_with_parent_linking(client, project):
     pid = project["system_id"]
     rows = [

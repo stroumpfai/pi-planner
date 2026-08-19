@@ -44,6 +44,13 @@ class CsvImportError(BaseModel):
     message: str
 
 
+class OrphanLocation(BaseModel):
+    """Where orphan rows that matched an existing story already live."""
+    feature_title: str
+    location: str       # "backlog" | "pi"
+    count: int
+
+
 class CsvImportResult(BaseModel):
     created_features: int
     created_stories: int
@@ -51,5 +58,10 @@ class CsvImportResult(BaseModel):
     updated_stories: int
     removed_features: int
     removed_stories: int
-    orphan_stories: int
+    orphan_stories: int          # rows in the file with no resolvable parent
+    # Of those, the ones newly created under the "Unassigned" placeholder. The rest
+    # matched stories already in the project and were updated where they sit, which
+    # may be under a feature on the PI board rather than in the backlog.
+    orphan_stories_placed: int = 0
+    orphan_stories_existing: list[OrphanLocation] = []
     created_states: int = 0  # State List entries discovered by this import
