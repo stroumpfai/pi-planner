@@ -33,9 +33,66 @@ describe('ReportsModal', () => {
     render(<ReportsModal {...defaultProps} />)
     expect(screen.getByLabelText(/readiness/i)).toBeChecked()
     expect(screen.getByLabelText(/planning readout/i)).not.toBeChecked()
+    expect(screen.getByLabelText(/sprint breakdown/i)).not.toBeChecked()
     expect(screen.getByLabelText(/markdown/i)).toBeChecked()
     expect(screen.getByLabelText(/pdf/i)).not.toBeChecked()
     expect(screen.getByLabelText(/display ids/i)).toBeChecked()
+  })
+
+  it('hides the breakdown-only toggles for readiness and readout', async () => {
+    render(<ReportsModal {...defaultProps} />)
+    expect(screen.queryByLabelText(/display states/i)).not.toBeInTheDocument()
+    expect(screen.queryByLabelText(/include unplaced items/i)).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByLabelText(/planning readout/i))
+    expect(screen.queryByLabelText(/display states/i)).not.toBeInTheDocument()
+  })
+
+  it('reveals the breakdown-only toggles, both on, when Sprint breakdown is picked', async () => {
+    render(<ReportsModal {...defaultProps} />)
+    await userEvent.click(screen.getByLabelText(/sprint breakdown/i))
+
+    expect(screen.getByLabelText(/display states/i)).toBeChecked()
+    expect(screen.getByLabelText(/include unplaced items/i)).toBeChecked()
+    expect(screen.getByLabelText(/display ids/i)).toBeChecked()
+  })
+
+  it('exports the breakdown report with its toggles and saves them', async () => {
+    render(<ReportsModal {...defaultProps} />)
+    await userEvent.click(screen.getByLabelText(/sprint breakdown/i))
+    await userEvent.click(screen.getByLabelText(/display states/i)) // turn off
+    await userEvent.click(screen.getByLabelText(/include unplaced items/i)) // turn off
+    await userEvent.click(screen.getByRole('button', { name: /export/i }))
+
+    await waitFor(() =>
+      expect(pisService.downloadPIReport).toHaveBeenCalledWith(
+        'pi-123',
+        'Q1 2026',
+        expect.objectContaining({
+          reportType: 'breakdown',
+          showStates: false,
+          includeUnplaced: false,
+          showIds: true,
+        }),
+      ),
+    )
+
+    const saved = JSON.parse(localStorage.getItem('pi-export-report-options') ?? '{}')
+    expect(saved.reportType).toBe('breakdown')
+    expect(saved.showStates).toBe(false)
+    expect(saved.includeUnplaced).toBe(false)
+  })
+
+  it('restores saved breakdown preferences on open', () => {
+    localStorage.setItem(
+      'pi-export-report-options',
+      JSON.stringify({ reportType: 'breakdown', showStates: false }),
+    )
+    render(<ReportsModal {...defaultProps} />)
+    expect(screen.getByLabelText(/sprint breakdown/i)).toBeChecked()
+    expect(screen.getByLabelText(/display states/i)).not.toBeChecked()
+    // Keys absent from storage fall back to the defaults.
+    expect(screen.getByLabelText(/include unplaced items/i)).toBeChecked()
   })
 
   it('restores saved preferences from localStorage on open', () => {

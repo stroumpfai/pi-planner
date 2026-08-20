@@ -141,7 +141,7 @@ export function ReportsModal({ piId, piName, open, onClose }: Props) {
 
           <fieldset className="mb-3">
             <legend className="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">Report</legend>
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2">
               <CardOption
                 id="report-type-readiness"
                 name="report-type"
@@ -157,6 +157,14 @@ export function ReportsModal({ piId, piName, open, onClose }: Props) {
                 description="Summary: load per team, capacity, milestones"
                 checked={opts.reportType === 'readout'}
                 onSelect={() => setReportType('readout')}
+              />
+              <CardOption
+                id="report-type-breakdown"
+                name="report-type"
+                label="Sprint breakdown"
+                description="Tree of sprints → features → PBIs/bugs"
+                checked={opts.reportType === 'breakdown'}
+                onSelect={() => setReportType('breakdown')}
               />
             </div>
           </fieldset>
@@ -191,6 +199,24 @@ export function ReportsModal({ piId, piName, open, onClose }: Props) {
               checked={opts.showIds}
               onChange={(v) => setOpts((prev) => ({ ...prev, showIds: v }))}
             />
+            {opts.reportType === 'breakdown' && (
+              <>
+                <ToggleRow
+                  id="report-show-states"
+                  label="Display states"
+                  description="Show each item's State"
+                  checked={opts.showStates}
+                  onChange={(v) => setOpts((prev) => ({ ...prev, showStates: v }))}
+                />
+                <ToggleRow
+                  id="report-include-unplaced"
+                  label="Include unplaced items"
+                  description="List PBIs and features not placed in a sprint"
+                  checked={opts.includeUnplaced}
+                  onChange={(v) => setOpts((prev) => ({ ...prev, includeUnplaced: v }))}
+                />
+              </>
+            )}
           </div>
 
           <div className="flex justify-end gap-2 pt-4">

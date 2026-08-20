@@ -78,19 +78,25 @@ export function downloadPIPNG(piId: string, piName: string, options: ExportPNGOp
   return _downloadBlob(`/api/v1/pis/${piId}/export/png?${params}`, `${piName}.png`)
 }
 
-export type ReportType = 'readiness' | 'readout'
+export type ReportType = 'readiness' | 'readout' | 'breakdown'
 export type ReportFormat = 'markdown' | 'pdf'
 
 export interface ReportOptions {
   reportType: ReportType
   format: ReportFormat
   showIds: boolean
+  /** Breakdown report only: show each item's State. */
+  showStates: boolean
+  /** Breakdown report only: list items not placed in a sprint. */
+  includeUnplaced: boolean
 }
 
 export const DEFAULT_REPORT_OPTIONS: ReportOptions = {
   reportType: 'readiness',
   format: 'markdown',
   showIds: true,
+  showStates: true,
+  includeUnplaced: true,
 }
 
 export function downloadPIReport(piId: string, piName: string, options: ReportOptions): Promise<void> {
@@ -98,6 +104,8 @@ export function downloadPIReport(piId: string, piName: string, options: ReportOp
     report_type: options.reportType,
     fmt: options.format,
     show_ids: String(options.showIds),
+    show_states: String(options.showStates),
+    include_unplaced: String(options.includeUnplaced),
   })
   const ext = options.format === 'pdf' ? 'pdf' : 'md'
   return _downloadBlob(

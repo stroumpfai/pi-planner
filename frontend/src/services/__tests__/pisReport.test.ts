@@ -34,7 +34,12 @@ function mockResponse(opts: {
 describe('downloadPIReport', () => {
   it('encodes report_type, fmt and show_ids as query params', async () => {
     vi.mocked(fetch).mockResolvedValue(mockResponse({ disposition: null }))
-    const opts: ReportOptions = { reportType: 'readout', format: 'pdf', showIds: false }
+    const opts: ReportOptions = {
+      ...DEFAULT_REPORT_OPTIONS,
+      reportType: 'readout',
+      format: 'pdf',
+      showIds: false,
+    }
 
     await downloadPIReport('pi-7', 'Board', opts)
 
@@ -44,6 +49,48 @@ describe('downloadPIReport', () => {
     expect(url.searchParams.get('fmt')).toBe('pdf')
     expect(url.searchParams.get('show_ids')).toBe('false')
     expect(fetch).toHaveBeenCalledWith(expect.any(String), { credentials: 'include' })
+  })
+
+  it('encodes the breakdown-only show_states and include_unplaced params', async () => {
+    vi.mocked(fetch).mockResolvedValue(mockResponse({ disposition: null }))
+    const opts: ReportOptions = {
+      reportType: 'breakdown',
+      format: 'markdown',
+      showIds: true,
+      showStates: false,
+      includeUnplaced: false,
+    }
+
+    await downloadPIReport('pi-7', 'Board', opts)
+
+    const url = new URL(vi.mocked(fetch).mock.calls[0][0] as string, 'http://x')
+    expect(url.searchParams.get('report_type')).toBe('breakdown')
+    expect(url.searchParams.get('show_states')).toBe('false')
+    expect(url.searchParams.get('include_unplaced')).toBe('false')
+  })
+
+  it('defaults show_states and include_unplaced to true', async () => {
+    vi.mocked(fetch).mockResolvedValue(mockResponse({ disposition: null }))
+
+    await downloadPIReport('pi-7', 'Board', DEFAULT_REPORT_OPTIONS)
+
+    const url = new URL(vi.mocked(fetch).mock.calls[0][0] as string, 'http://x')
+    expect(url.searchParams.get('show_states')).toBe('true')
+    expect(url.searchParams.get('include_unplaced')).toBe('true')
+  })
+
+  it('uses a .md fallback filename for the breakdown report', async () => {
+    vi.mocked(fetch).mockResolvedValue(mockResponse({ disposition: null }))
+    const anchor = document.createElement('a')
+    const createSpy = vi.spyOn(document, 'createElement').mockReturnValue(anchor)
+
+    await downloadPIReport('pi-7', 'My PI', {
+      ...DEFAULT_REPORT_OPTIONS,
+      reportType: 'breakdown',
+    })
+
+    expect(anchor.download).toBe('My PI-breakdown.md')
+    createSpy.mockRestore()
   })
 
   it('defaults to a readiness markdown filename', async () => {
@@ -62,7 +109,11 @@ describe('downloadPIReport', () => {
     const anchor = document.createElement('a')
     const createSpy = vi.spyOn(document, 'createElement').mockReturnValue(anchor)
 
-    await downloadPIReport('pi-7', 'My PI', { reportType: 'readout', format: 'pdf', showIds: true })
+    await downloadPIReport('pi-7', 'My PI', {
+      ...DEFAULT_REPORT_OPTIONS,
+      reportType: 'readout',
+      format: 'pdf',
+    })
 
     expect(anchor.download).toBe('My PI-readout.pdf')
     createSpy.mockRestore()

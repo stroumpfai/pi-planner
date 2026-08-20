@@ -57,9 +57,34 @@ describe('Reports export modal', () => {
     cy.contains('Export report').should('be.visible') // modal title
     cy.get('#report-type-readiness').should('be.checked')
     cy.get('#report-type-readout').should('not.be.checked')
+    cy.get('#report-type-breakdown').should('not.be.checked')
     cy.get('#report-fmt-markdown').should('be.checked')
     cy.get('#report-fmt-pdf').should('not.be.checked')
     cy.get('#report-show-ids').should('be.checked')
+    // The breakdown-only toggles stay hidden until that report is selected.
+    cy.get('#report-show-states').should('not.exist')
+    cy.get('#report-include-unplaced').should('not.exist')
+  })
+
+  it('sends correct query params for a sprint breakdown with states and unplaced off', () => {
+    setupPI()
+    goToBoard()
+
+    cy.intercept('GET', '/api/v1/pis/*/report*').as('report')
+
+    cy.contains('button', 'Reports').click()
+    cy.get('#report-type-breakdown').click()
+    cy.get('#report-show-states').should('be.checked').click() // turn off
+    cy.get('#report-include-unplaced').should('be.checked').click() // turn off
+    cy.contains('button', 'Export').last().click()
+
+    cy.wait('@report').its('request.url').should((url) => {
+      expect(url).to.include('report_type=breakdown')
+      expect(url).to.include('fmt=markdown')
+      expect(url).to.include('show_ids=true')
+      expect(url).to.include('show_states=false')
+      expect(url).to.include('include_unplaced=false')
+    })
   })
 
   it('sends correct query params for a readout PDF with IDs hidden', () => {

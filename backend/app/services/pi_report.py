@@ -1,10 +1,10 @@
-"""PI report service: generates readiness (B1) and planning-readout (B2) reports
-for a planned PI, in Markdown or PDF.
+"""PI report service: generates readiness (B1), planning-readout (B2) and
+sprint-breakdown reports for a planned PI, in Markdown or PDF.
 
-Both reports are derived entirely from existing planning data (effort estimates,
-sprint capacity, item placement, PI/sprint dates, PI events) — no schema change.
-Data-gathering is kept separate from rendering: `build_readiness_model` /
-`build_readout_model` produce plain dataclasses that the Markdown and PDF
+The reports are derived entirely from existing planning data (effort estimates,
+sprint capacity, item placement, item States, PI/sprint dates, PI events) — no
+schema change. Data-gathering is kept separate from rendering: the
+`build_*_model` functions produce plain dataclasses that the Markdown and PDF
 renderers consume, so the two output formats never drift.
 """
 
@@ -16,6 +16,7 @@ from datetime import date, datetime, timezone
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from app.models.feature import Feature
 from app.models.group import Group
@@ -23,6 +24,7 @@ from app.models.pbi import PBI
 from app.models.pi import PI
 from app.models.pi_event import PIEvent
 from app.models.project import Project
+from app.models.project_state import ProjectState
 from app.models.sprint import Sprint
 from app.models.swimline import Swimline
 from app.services.effort import (
@@ -33,7 +35,7 @@ from app.services.effort import (
 )
 from app.services.pi_export import _pbi_label, safe_filename  # reuse label + filename helpers
 
-REPORT_TYPES = ("readiness", "readout")
+REPORT_TYPES = ("readiness", "readout", "breakdown")
 REPORT_FORMATS = ("markdown", "pdf")
 
 _USER_ID_MIN = 1
@@ -42,9 +44,12 @@ _USER_ID_MAX = 999_999
 
 @dataclass
 class ReportOptions:
-    report_type: str = "readiness"  # readiness | readout
+    report_type: str = "readiness"  # readiness | readout | breakdown
     fmt: str = "markdown"           # markdown | pdf
     show_ids: bool = True
+    # breakdown-only; ignored by the readiness and readout reports
+    show_states: bool = True
+    include_unplaced: bool = True
 
 
 # ── report models ────────────────────────────────────────────────────────────
@@ -128,6 +133,49 @@ class ReadoutModel:
     @property
     def utilization(self) -> float:
         return self.total_effort / self.total_capacity if self.total_capacity else 0.0
+
+
+@dataclass
+class BreakdownItem:
+    """One PBI or bug under a feature, in one sprint section."""
+    user_id: int | None
+    title: str
+    item_type: str          # "story" | "bug"
+    state: str | None
+
+
+@dataclass
+class BreakdownFeature:
+    user_id: int | None
+    title: str
+    state: str | None
+    items: list[BreakdownItem] = field(default_factory=list)
+
+
+@dataclass
+class BreakdownSection:
+    """One sprint, or the trailing unplaced bucket (sprint_number is None)."""
+    sprint_number: int | None
+    start_date: date | None = None
+    end_date: date | None = None
+    features: list[BreakdownFeature] = field(default_factory=list)
+
+    @property
+    def is_unplaced(self) -> bool:
+        return self.sprint_number is None
+
+    @property
+    def title(self) -> str:
+        if self.is_unplaced:
+            return "Not placed in a sprint"
+        dates = _date_range(self.start_date, self.end_date)
+        return f"Sprint {self.sprint_number}{dates}"
+
+
+@dataclass
+class BreakdownModel:
+    pi_name: str
+    sections: list[BreakdownSection]
 
 
 # ── data gathering ───────────────────────────────────────────────────────────
@@ -306,6 +354,110 @@ async def build_readout_model(db: AsyncSession, pi: PI) -> ReadoutModel:
     )
 
 
+async def build_breakdown_model(
+    db: AsyncSession, pi: PI, include_unplaced: bool
+) -> BreakdownModel:
+    """Sprint → Feature → PBI/Bug, with each level's State resolved.
+
+    A PBI has no sprint of its own: placement lives on `Group.sprint_index`, and
+    the group may be an *implicit* single-PBI wrapper. Groups are therefore
+    traversed but never rendered — surfacing them would add a phantom tree level
+    named after the PBI itself.
+    """
+    pbi_state = aliased(ProjectState)
+    feature_state = aliased(ProjectState)
+    rows = (await db.execute(
+        select(
+            Group.sprint_index.label("sprint_index"),
+            Feature.system_id.label("feature_system_id"),
+            Feature.user_id.label("feature_user_id"),
+            Feature.title.label("feature_title"),
+            feature_state.value.label("feature_state"),
+            PBI.user_id.label("pbi_user_id"),
+            PBI.title.label("pbi_title"),
+            PBI.item_type.label("item_type"),
+            pbi_state.value.label("pbi_state"),
+        )
+        .join(Feature, PBI.parent_feature_system_id == Feature.system_id)
+        .outerjoin(pbi_state, PBI.state_id == pbi_state.system_id)
+        .outerjoin(feature_state, Feature.state_id == feature_state.system_id)
+        .outerjoin(Group, PBI.group_id == Group.system_id)
+        .where(Feature.pi_id == pi.system_id)
+        .order_by(
+            Feature.user_id.asc().nullslast(),
+            Feature.title.asc(),
+            PBI.user_id.asc().nullslast(),
+            PBI.title.asc(),
+        )
+    )).all()
+
+    sprints = (await db.execute(
+        select(Sprint).where(Sprint.pi_id == pi.system_id).order_by(Sprint.sprint_index.asc())
+    )).scalars().all()
+    known_indices = {s.sprint_index for s in sprints if s.sprint_index is not None}
+
+    # bucket key: the sprint_index, or None for the unplaced bucket. An orphaned
+    # PBI (group_id pointing at a deleted group) outer-joins to NULL and lands
+    # there too, which is where it belongs.
+    buckets: dict[int | None, dict[str, BreakdownFeature]] = {}
+    seen_features: set[str] = set()
+    for row in rows:
+        seen_features.add(row.feature_system_id)
+        key = row.sprint_index if row.sprint_index in known_indices else None
+        if key is None and not include_unplaced:
+            continue
+        by_feature = buckets.setdefault(key, {})
+        feature = by_feature.get(row.feature_system_id)
+        if feature is None:
+            feature = BreakdownFeature(
+                user_id=row.feature_user_id,
+                title=row.feature_title,
+                state=row.feature_state,
+            )
+            by_feature[row.feature_system_id] = feature
+        feature.items.append(BreakdownItem(
+            user_id=row.pbi_user_id,
+            title=row.pbi_title,
+            item_type=row.item_type,
+            state=row.pbi_state,
+        ))
+
+    sections = [
+        BreakdownSection(
+            sprint_number=(sprint.sprint_index if sprint.sprint_index is not None else pos) + 1,
+            start_date=sprint.start_date,
+            end_date=sprint.end_date,
+            # An index-less sprint holds nothing: `None` is the unplaced bucket's
+            # key, and reading it here would pull the unplaced items into it.
+            features=(
+                [] if sprint.sprint_index is None
+                else list(buckets.get(sprint.sprint_index, {}).values())
+            ),
+        )
+        for pos, sprint in enumerate(sprints)
+    ]
+
+    if include_unplaced:
+        unplaced = list(buckets.get(None, {}).values())
+        # Features in the PI with no PBIs at all have no row above, so they are
+        # collected separately — they are unplaced by definition.
+        empty_rows = (await db.execute(
+            select(Feature.system_id, Feature.user_id, Feature.title, feature_state.value)
+            .outerjoin(feature_state, Feature.state_id == feature_state.system_id)
+            .where(Feature.pi_id == pi.system_id)
+            .order_by(Feature.user_id.asc().nullslast(), Feature.title.asc())
+        )).all()
+        unplaced += [
+            BreakdownFeature(user_id=uid, title=title, state=state)
+            for sysid, uid, title, state in empty_rows
+            if sysid not in seen_features
+        ]
+        if unplaced:
+            sections.append(BreakdownSection(sprint_number=None, features=unplaced))
+
+    return BreakdownModel(pi_name=pi.name, sections=sections)
+
+
 # ── formatting helpers ───────────────────────────────────────────────────────
 
 def _num(value: float) -> str:
@@ -323,6 +475,22 @@ def _md_cell(text: str) -> str:
 
 def _now_str() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+
+def _date_range(start: date | None, end: date | None) -> str:
+    """`"  (06.01.2026 → 19.01.2026)"`, or an empty string when neither is set."""
+    if start is None and end is None:
+        return ""
+    return f"  ({_fmt_date(start)} → {_fmt_date(end)})"
+
+
+def _item_type_label(item_type: str) -> str:
+    """The user-facing wording: a PBI is either a PBI (story) or a Bug."""
+    return "Bug" if item_type == "bug" else "PBI"
+
+
+def _state_suffix(state: str | None, show_states: bool) -> str:
+    return f" — {state}" if show_states and state else ""
 
 
 # ── Markdown renderers ───────────────────────────────────────────────────────
@@ -417,6 +585,59 @@ _STATUS_COLOR: dict[str, str] = {
     "ok": "#3b82f6",
     "no_capacity": "#9ca3af",
 }
+
+
+def _breakdown_columns(show_ids: bool, show_states: bool) -> list[str]:
+    """The active item-table columns. Header and body are both built from this
+    list so the two toggles can never desync them."""
+    cols = ["Type"]
+    if show_ids:
+        cols.append("ID")
+    cols.append("Title")
+    if show_states:
+        cols.append("State")
+    return cols
+
+
+def _breakdown_row(item: BreakdownItem, show_ids: bool, show_states: bool) -> list[str]:
+    cells = [_item_type_label(item.item_type)]
+    if show_ids:
+        cells.append("" if item.user_id is None else str(item.user_id))
+    cells.append(item.title)
+    if show_states:
+        cells.append(item.state or "")
+    return cells
+
+
+def render_breakdown_markdown(model: BreakdownModel, show_ids: bool, show_states: bool) -> str:
+    columns = _breakdown_columns(show_ids, show_states)
+    header = "| " + " | ".join(columns) + " |"
+    divider = "|" + "|".join("------" for _ in columns) + "|"
+
+    lines: list[str] = [f"# Sprint Breakdown — {model.pi_name}", "", f"_Generated {_now_str()}_", ""]
+    if not model.sections:
+        lines += ["_This PI has no sprints and no items._", ""]
+
+    for section in model.sections:
+        lines += [f"## {section.title}", ""]
+        if not section.features:
+            lines += ["_No items placed._", ""]
+            continue
+        for feature in section.features:
+            label = _pbi_label(feature.user_id, feature.title, show_ids)
+            lines += [f"### {label}{_state_suffix(feature.state, show_states)}", ""]
+            if not feature.items:
+                lines += ["_No PBIs._", ""]
+                continue
+            lines += [header, divider]
+            lines += [
+                "| " + " | ".join(_md_cell(c) for c in _breakdown_row(item, show_ids, show_states))
+                + " |"
+                for item in feature.items
+            ]
+            lines += [""]
+
+    return "\n".join(lines).rstrip() + "\n"
 
 
 # ── PDF renderers (ReportLab) ────────────────────────────────────────────────
@@ -547,6 +768,57 @@ def render_readout_pdf(model: ReadoutModel) -> bytes:
     return _build_pdf(story)
 
 
+def render_breakdown_pdf(model: BreakdownModel, show_ids: bool, show_states: bool) -> bytes:
+    from reportlab.lib.styles import getSampleStyleSheet
+    from reportlab.platypus import Paragraph, Spacer, Table
+
+    styles = getSampleStyleSheet()
+    columns = _breakdown_columns(show_ids, show_states)
+    story: list[object] = [
+        Paragraph(f"Sprint Breakdown — {_esc(model.pi_name)}", styles["Title"]),
+        Paragraph(f"Generated {_now_str()}", styles["Italic"]),
+        Spacer(1, 12),
+    ]
+    if not model.sections:
+        story.append(Paragraph("<i>This PI has no sprints and no items.</i>", styles["Normal"]))
+
+    for section in model.sections:
+        story.append(Paragraph(_esc(section.title), styles["Heading2"]))
+        if not section.features:
+            story.append(Paragraph("<i>No items placed.</i>", styles["Normal"]))
+            story.append(Spacer(1, 8))
+            continue
+        for feature in section.features:
+            label = _pbi_label(feature.user_id, feature.title, show_ids)
+            heading = f"{label}{_state_suffix(feature.state, show_states)}"
+            story.append(Paragraph(_esc(heading), styles["Heading3"]))
+            if not feature.items:
+                story.append(Paragraph("<i>No PBIs.</i>", styles["Normal"]))
+                story.append(Spacer(1, 8))
+                continue
+            rows = [columns]
+            rows += [_breakdown_row(item, show_ids, show_states) for item in feature.items]
+            # Wrap the title cells so long titles break instead of overflowing A4.
+            title_col = columns.index("Title")
+            body = styles["Normal"]
+            rows = [rows[0]] + [
+                [Paragraph(_esc(c), body) if i == title_col else c for i, c in enumerate(row)]
+                for row in rows[1:]
+            ]
+            story.append(_grid(Table(rows, colWidths=_breakdown_col_widths(columns), hAlign="LEFT")))
+            story.append(Spacer(1, 10))
+
+    return _build_pdf(story)
+
+
+def _breakdown_col_widths(columns: list[str]) -> list[float]:
+    from reportlab.lib.units import inch
+
+    fixed = {"Type": 0.6 * inch, "ID": 0.6 * inch, "State": 1.4 * inch}
+    used = sum(fixed[c] for c in columns if c in fixed)
+    return [fixed.get(c, 6.4 * inch - used) for c in columns]
+
+
 def _grid(table: object) -> object:
     from reportlab.lib import colors
     from reportlab.platypus import TableStyle
@@ -598,15 +870,28 @@ async def export_pi_report(
 ) -> tuple[bytes, str, str]:
     """Return (content_bytes, media_type, extension) for the requested report."""
     if opts.report_type == "readiness":
-        model = await build_readiness_model(db, pi, opts.show_ids)
+        readiness = await build_readiness_model(db, pi, opts.show_ids)
         if opts.fmt == "pdf":
-            return render_readiness_pdf(model), "application/pdf", "pdf"
-        text = render_readiness_markdown(model)
-    else:  # readout
+            return render_readiness_pdf(readiness), "application/pdf", "pdf"
+        text = render_readiness_markdown(readiness)
+    elif opts.report_type == "readout":
         readout = await build_readout_model(db, pi)
         if opts.fmt == "pdf":
             return render_readout_pdf(readout), "application/pdf", "pdf"
         text = render_readout_markdown(readout)
+    elif opts.report_type == "breakdown":
+        breakdown = await build_breakdown_model(db, pi, opts.include_unplaced)
+        if opts.fmt == "pdf":
+            return (
+                render_breakdown_pdf(breakdown, opts.show_ids, opts.show_states),
+                "application/pdf",
+                "pdf",
+            )
+        text = render_breakdown_markdown(breakdown, opts.show_ids, opts.show_states)
+    else:
+        # Explicit, so a type added to REPORT_TYPES without a renderer fails loudly
+        # instead of silently rendering as some other report.
+        raise ValueError(f"Unknown report_type: {opts.report_type}")
     return text.encode("utf-8"), "text/markdown; charset=utf-8", "md"
 
 

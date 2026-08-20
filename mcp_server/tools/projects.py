@@ -340,18 +340,25 @@ async def export_pi_png(
 async def export_pi_report(
     pi_id: Annotated[str, Field(description="PI system_id (UUID)")],
     ctx: Context,
-    report_type: Annotated[str, Field(default="readiness", description="'readiness' (data-quality checks) or 'readout' (planning summary)")] = "readiness",
+    report_type: Annotated[str, Field(default="readiness", description="'readiness' (data-quality checks), 'readout' (planning summary), or 'breakdown' (sprint -> feature -> PBI/bug tree)")] = "readiness",
     fmt: Annotated[str, Field(default="markdown", description="'markdown' or 'pdf'")] = "markdown",
     show_ids: Annotated[bool, Field(default=True, description="Include [user_id] prefixes on item names")] = True,
+    show_states: Annotated[bool, Field(default=True, description="Breakdown report only: show each item's State")] = True,
+    include_unplaced: Annotated[bool, Field(default=True, description="Breakdown report only: include items not placed in a sprint")] = True,
 ) -> dict:
     """
     Export a management report for a PI.
 
-    Two report types:
+    Three report types:
     - 'readiness': a data-quality checklist (unestimated PBIs, over-capacity sprints,
       features with no PBIs, unplaced PBIs, orphaned items, duplicate/invalid user IDs).
     - 'readout': an end-of-planning summary (dates, per-team committed load, sprint
       capacity, over-capacity warnings, and the milestone timeline).
+    - 'breakdown': a hierarchical listing of the PI's contents — one section per sprint
+      (with its dates), then each feature, then a table of its PBIs and bugs. The
+      show_ids and show_states flags add or remove the ID and State columns; when
+      include_unplaced is true a trailing "Not placed in a sprint" section lists items
+      and features that have no sprint.
 
     For fmt='markdown' returns {"report_markdown": "..."} (ready to read/paste).
     For fmt='pdf' returns {"pdf_base64": "<base64 string>"} — decode and save as a .pdf.
@@ -361,6 +368,8 @@ async def export_pi_report(
         "report_type": report_type,
         "fmt": fmt,
         "show_ids": str(show_ids).lower(),
+        "show_states": str(show_states).lower(),
+        "include_unplaced": str(include_unplaced).lower(),
     })
     r = await call_backend_raw("GET", f"/api/v1/pis/{pi_id}/report?{params}")
     if fmt == "pdf":
