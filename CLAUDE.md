@@ -226,7 +226,8 @@ npm install
 npm run dev               # http://localhost:5173
 npm run test              # Vitest
 npm run test:watch
-npm run cypress:open      # E2E interactive
+npm run e2e               # E2E, headless (isolated backend — see below)
+npm run e2e:open          # E2E, interactive
 ```
 
 ### Database
@@ -427,10 +428,16 @@ pytest --cov=app tests/
 
 ```typescript
 describe('Create Feature', () => {
+  beforeEach(() => {
+    cy.resetDb()
+    cy.login()
+    cy.request('POST', '/api/v1/projects/', { name: 'Backlog Test' })
+  })
+
   it('creates a feature', () => {
-    cy.visit('/')
-    cy.login('editor', 'password')
-    cy.get('[data-testid="btn-create-feature"]').click()
+    cy.openProject('Backlog Test')   // no URL routing — navigation is clicked
+    cy.enterEditMode()               // isEditing is client-side state
+    cy.contains('button', /\+ feature/i).click()
     cy.get('input[name="title"]').type('Authentication')
     cy.get('button[type="submit"]').click()
     cy.contains('Authentication').should('be.visible')
@@ -438,10 +445,38 @@ describe('Create Feature', () => {
 })
 ```
 
+Specs select by accessible name, role and label — the app has almost no
+`data-testid` attributes (`backlog-panel` and `backlog-list` are the exceptions,
+added so E2E can tell the backlog column apart from the board).
+
 ```bash
-npm run cypress:open   # interactive
-npm run cypress:run    # headless
+npm run e2e                                      # whole suite, headless
+npm run e2e:open                                 # interactive runner
+npm run e2e -- --spec cypress/e2e/backlog.cy.ts  # one spec
 ```
+
+⚠️ **Never point Cypress at your own dev server.** The suite calls
+`POST /api/v1/test/reset`, which deletes every project, feature, PBI and PI in the
+database. `scripts/e2e.sh` exists so that can't happen: it starts a throwaway
+backend on :8901 with its own SQLite file and `ALLOW_TEST_RESET=true`, a vite dev
+server on :5901 proxying to it, seeds `testuser` and `testuser2`, runs the suite,
+then tears it all down. `cypress:run` / `cypress:open` are aliases of it.
+
+Three things the specs must respect, all consequences of how the app works:
+
+1. **There is no URL routing.** The active project and PI live in `uiStore`, so
+   navigation is clicked, never asserted on the URL, and a `cy.reload()` mid-journey
+   drops you back to the project list. Use `cy.openProject(name)` / `cy.openPI(name)`.
+2. **`isEditing` is client-side state**, set only by the acquire mutation's
+   `onSuccess`. Acquiring the edit lock over the API leaves every write control
+   disabled and makes drag-and-drop drops no-ops. Use `cy.enterEditMode()`.
+3. **Match action labels exactly.** Item names collide with button labels — a
+   project called "To Delete" is matched by `contains('button', 'Delete')`, and a PI
+   called "Export PI" by `contains('button', 'Export')`. Use anchored regexes
+   (`/^Delete$/`) and scope modal actions with `cy.get('[role="dialog"]')`.
+
+If Cypress dies with `bad option: --no-sandbox`, `ELECTRON_RUN_AS_NODE=1` is set in
+your environment; `scripts/e2e.sh` already unsets it.
 
 ---
 

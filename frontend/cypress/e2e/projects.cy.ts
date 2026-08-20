@@ -2,9 +2,13 @@ describe('Project CRUD', () => {
   beforeEach(() => {
     cy.resetDb()
     cy.login()
-    // Acquire edit mode (admin user)
-    cy.request('POST', '/api/v1/auth/login', { username: 'testuser', password: 'testpass' })
   })
+
+  // Project-level Edit/Delete are gated on role (canEdit), not on the edit lock,
+  // so an admin sees them without requesting edit mode. The action labels are
+  // matched with anchored regexes: the project-name button comes first in the DOM,
+  // so a substring match on "Delete" would hit a project called "To Delete".
+  const projectRow = (name: string) => cy.contains('li', name)
 
   it('creates a project and it appears in the list', () => {
     cy.contains('button', /new project|create project/i).click()
@@ -16,8 +20,7 @@ describe('Project CRUD', () => {
   it('renames a project and new name is reflected', () => {
     cy.request('POST', '/api/v1/projects/', { name: 'Original Name' })
     cy.reload()
-    cy.contains('Original Name').should('be.visible')
-    cy.contains('Original Name').closest('li, [data-testid]').find('button, [aria-label*="edit" i]').first().click()
+    projectRow('Original Name').contains('button', /^Edit$/).click()
     cy.get('input[name="name"]').clear().type('Renamed Project')
     cy.get('button[type="submit"]').click()
     cy.contains('Renamed Project').should('be.visible')
@@ -27,9 +30,8 @@ describe('Project CRUD', () => {
   it('deletes a project with confirmation and it disappears from the list', () => {
     cy.request('POST', '/api/v1/projects/', { name: 'To Delete' })
     cy.reload()
-    cy.contains('To Delete').should('be.visible')
-    cy.contains('To Delete').closest('li, [data-testid]').find('button, [aria-label*="delete" i]').first().click()
-    cy.contains('button', /confirm|delete/i).last().click()
+    projectRow('To Delete').contains('button', /^Delete$/).click()
+    cy.get('[role="dialog"]').contains('button', /^Delete$/).click()
     cy.contains('To Delete').should('not.exist')
   })
 
@@ -60,15 +62,18 @@ describe('Work-item deep links', () => {
 
   it('configures the Azure DevOps preset via the edit modal', () => {
     cy.reload()
-    cy.contains('Linked Project').closest('li, [data-testid]').find('button, [aria-label*="edit" i]').first().click()
+    cy.contains('li', 'Linked Project').contains('button', /^Edit$/).click()
     cy.get('select#edit-proj-link-preset').should('have.value', 'azure_devops')
   })
 
   it('shows a work-item link on the feature edit modal', () => {
     cy.request('POST', `/api/v1/projects/${projectId}/features`, { title: 'Auth Feature', id: 101 })
-    cy.request('POST', `/api/v1/projects/${projectId}/edit-lock/acquire`)
-    cy.reload()
-    cy.contains('Auth Feature').closest('[data-feature-row], li').find('button[aria-label*="edit" i], button').first().click()
+    cy.openProject('Linked Project')
+    cy.enterEditMode()
+    cy.contains('Auth Feature').should('be.visible')
+    // Feature rows are divs, not list items, and the edit affordance is revealed on
+    // hover — force the click rather than relying on hover state.
+    cy.get('button[aria-label="Edit"]').first().click({ force: true })
     cy.contains('a', '_workitems/edit/101')
       .should('have.attr', 'href', 'https://devops.example.com/Coll/Proj/_workitems/edit/101')
       .and('have.attr', 'target', '_blank')

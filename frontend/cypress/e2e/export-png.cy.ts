@@ -43,12 +43,11 @@ describe('PNG export modal', () => {
     })
   }
 
+  // No URL routing: the active project and PI live in uiStore, so navigation
+  // is clicked through and there is nothing in the URL to assert on.
   function goToBoard() {
-    cy.visit('/')
-    cy.contains('PNG Export Test').click()
-    cy.url().should('include', projectId)
-    cy.contains('Export PI').click()
-    cy.url().should('include', piId)
+    cy.openProject('PNG Export Test')
+    cy.openPI('Export PI')
   }
 
   it('opens the export modal when clicking Export PNG', () => {
@@ -71,9 +70,9 @@ describe('PNG export modal', () => {
     cy.intercept('GET', '/api/v1/pis/*/export/png*').as('pngExport')
 
     cy.contains('button', 'Export PNG').click()
-    cy.get('#export-events').click()
-    cy.get('#export-sprint-effort').click()
-    cy.contains('button', 'Export').last().click()
+    cy.get('#export-events').click({ force: true })
+    cy.get('#export-sprint-effort').click({ force: true })
+    cy.get('[role="dialog"]').contains('button', /^Export$/).click()
 
     cy.wait('@pngExport').its('request.url').should((url) => {
       expect(url).to.include('show_events=true')
@@ -90,13 +89,13 @@ describe('PNG export modal', () => {
 
     cy.contains('button', 'Export PNG').click()
     // Switch to the PBI list layout and enable its options
-    cy.get('#export-layout-list').click()
-    cy.get('#export-split-swimline').click()
-    cy.get('#export-show-id').click()
+    cy.get('#export-layout-list').click({ force: true })
+    cy.get('#export-split-swimline').click({ force: true })
+    cy.get('#export-show-id').click({ force: true })
     // roadmap-only options are hidden in list layout
     cy.get('#export-swimlane-effort').should('not.exist')
     cy.get('#export-swimlane-center').should('not.exist')
-    cy.contains('button', 'Export').last().click()
+    cy.get('[role="dialog"]').contains('button', /^Export$/).click()
 
     cy.wait('@pngExport').its('request.url').should((url) => {
       expect(url).to.include('layout=list')
@@ -113,9 +112,9 @@ describe('PNG export modal', () => {
 
     // First export: enable PI effort and export date
     cy.contains('button', 'Export PNG').click()
-    cy.get('#export-pi-effort').click()
-    cy.get('#export-date').click()
-    cy.contains('button', 'Export').last().click()
+    cy.get('#export-pi-effort').click({ force: true })
+    cy.get('#export-date').click({ force: true })
+    cy.get('[role="dialog"]').contains('button', /^Export$/).click()
     cy.wait('@pngExport')
 
     // Re-open modal and verify settings were saved

@@ -42,12 +42,11 @@ describe('Reports export modal', () => {
     })
   }
 
+  // No URL routing: the active project and PI live in uiStore, so navigation
+  // is clicked through and there is nothing in the URL to assert on.
   function goToBoard() {
-    cy.visit('/')
-    cy.contains('Report Export Test').click()
-    cy.url().should('include', projectId)
-    cy.contains('Report PI').click()
-    cy.url().should('include', piId)
+    cy.openProject('Report Export Test')
+    cy.openPI('Report PI')
   }
 
   it('opens the reports modal with default selections', () => {
@@ -73,10 +72,10 @@ describe('Reports export modal', () => {
     cy.intercept('GET', '/api/v1/pis/*/report*').as('report')
 
     cy.contains('button', 'Reports').click()
-    cy.get('#report-type-breakdown').click()
-    cy.get('#report-show-states').should('be.checked').click() // turn off
-    cy.get('#report-include-unplaced').should('be.checked').click() // turn off
-    cy.contains('button', 'Export').last().click()
+    cy.get('#report-type-breakdown').click({ force: true })
+    cy.get('#report-show-states').should('be.checked').click({ force: true }) // turn off
+    cy.get('#report-include-unplaced').should('be.checked').click({ force: true }) // turn off
+    cy.get('[role="dialog"]').contains('button', /^Export$/).click()
 
     cy.wait('@report').its('request.url').should((url) => {
       expect(url).to.include('report_type=breakdown')
@@ -94,10 +93,10 @@ describe('Reports export modal', () => {
     cy.intercept('GET', '/api/v1/pis/*/report*').as('report')
 
     cy.contains('button', 'Reports').click()
-    cy.get('#report-type-readout').click()
-    cy.get('#report-fmt-pdf').click()
-    cy.get('#report-show-ids').click() // turn off
-    cy.contains('button', 'Export').last().click()
+    cy.get('#report-type-readout').click({ force: true })
+    cy.get('#report-fmt-pdf').click({ force: true })
+    cy.get('#report-show-ids').click({ force: true }) // turn off
+    cy.get('[role="dialog"]').contains('button', /^Export$/).click()
 
     cy.wait('@report').its('request.url').should((url) => {
       expect(url).to.include('report_type=readout')
@@ -113,9 +112,9 @@ describe('Reports export modal', () => {
     cy.intercept('GET', '/api/v1/pis/*/report*').as('report')
 
     cy.contains('button', 'Reports').click()
-    cy.get('#report-type-readout').click()
-    cy.get('#report-fmt-pdf').click()
-    cy.contains('button', 'Export').last().click()
+    cy.get('#report-type-readout').click({ force: true })
+    cy.get('#report-fmt-pdf').click({ force: true })
+    cy.get('[role="dialog"]').contains('button', /^Export$/).click()
     cy.wait('@report')
 
     cy.contains('button', 'Reports').click()

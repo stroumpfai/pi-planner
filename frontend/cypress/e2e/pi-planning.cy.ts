@@ -9,20 +9,17 @@ describe('PI planning journey', () => {
     })
   })
 
-  function goToPI() {
-    cy.visit('/')
-    cy.contains('PI Test').click()
-    cy.url().should('include', projectId)
-  }
-
-  function acquireEditLock() {
-    cy.request('POST', `/api/v1/projects/${projectId}/edit-lock/acquire`)
-    cy.reload()
+  // Opens the project and takes the lock through the UI. Both matter: there is no
+  // URL routing to assert on, and `isEditing` is client-side state that an API-only
+  // acquisition never sets — without it every write control stays disabled and
+  // drag-and-drop drops are discarded by the board's canEdit guard.
+  function openProjectAsEditor() {
+    cy.openProject('PI Test')
+    cy.enterEditMode()
   }
 
   it('creates a PI and it appears with Draft state badge', () => {
-    goToPI()
-    acquireEditLock()
+    openProjectAsEditor()
     cy.contains('button', /\+ new pi/i).click()
     cy.get('input[name="name"]').type('Q1-2026')
     cy.get('button[type="submit"]').click()
@@ -32,26 +29,26 @@ describe('PI planning journey', () => {
 
   it('transitions PI from Draft to In Progress and badge updates', () => {
     cy.request('POST', `/api/v1/projects/${projectId}/pis`, { name: 'Q1-2026' })
-    goToPI()
-    acquireEditLock()
+    openProjectAsEditor()
     cy.contains('button', /start pi/i).click()
-    cy.contains('button', /start pi/i).last().click() // confirm dialog
+    cy.get('[role="dialog"]').contains('button', /start pi/i).click()
     cy.contains(/in progress/i).should('be.visible')
   })
 
   it('only one PI can be In Progress at a time', () => {
     cy.request('POST', `/api/v1/projects/${projectId}/pis`, { name: 'Q1-2026' })
     cy.request('POST', `/api/v1/projects/${projectId}/pis`, { name: 'Q2-2026' })
-    goToPI()
-    acquireEditLock()
-    // Start the first PI
-    cy.contains('Q1-2026').closest('li').contains('button', /start pi/i).click()
-    cy.contains('button', /start pi/i).last().click()
+    openProjectAsEditor()
+
+    cy.contains('li', 'Q1-2026').contains('button', /start pi/i).click()
+    cy.get('[role="dialog"]').contains('button', /start pi/i).click()
     cy.contains(/in progress/i).should('be.visible')
-    // Attempt to start the second PI
-    cy.contains('Q2-2026').closest('li').contains('button', /start pi/i).click()
-    cy.contains('button', /start pi/i).last().click()
-    cy.contains(/only one pi|already.*in progress|error/i).should('be.visible')
+
+    // The Start control stays visible on the second PI; the rule is enforced by
+    // the backend and surfaced as an inline error in the PI list panel.
+    cy.contains('li', 'Q2-2026').contains('button', /start pi/i).click()
+    cy.get('[role="dialog"]').contains('button', /start pi/i).click()
+    cy.contains(/only one pi|already.*in progress|in progress/i).should('be.visible')
   })
 
   it('moves a feature from backlog into a swimlane', () => {
@@ -59,12 +56,24 @@ describe('PI planning journey', () => {
     cy.request('POST', `/api/v1/projects/${projectId}/pis`, { name: 'Q1-2026' }).then((piRes) => {
       cy.request('POST', `/api/v1/pis/${piRes.body.system_id}/swimlines`, { name: 'Team A' })
     })
-    goToPI()
-    acquireEditLock()
-    // Find feature card in backlog and drop target (swimlane)
-    cy.contains('Auth Feature').realMouseDown()
-    cy.contains('Team A').realMouseMove(0, 0).realMouseUp()
-    cy.contains('Team A').closest('[data-swimlane]').contains('Auth Feature').should('be.visible')
+    openProjectAsEditor()
+    cy.openPI('Q1-2026')
+
+    // dnd-kit's PointerSensor needs >5px of movement to activate, and the drop
+    // zone's label changes once hovered, so resolve its coordinates up front and
+    // drive the pointer over <body> in viewport space.
+    cy.contains('Drop features here').then(($zone) => {
+      const rect = $zone[0].getBoundingClientRect()
+      const x = Math.round(rect.left + rect.width / 2)
+      const y = Math.round(rect.top + rect.height / 2)
+      cy.get('[data-testid="backlog-list"]').contains('Auth Feature').realMouseDown()
+      cy.get('body').realMouseMove(x - 150, y)
+      cy.get('body').realMouseMove(x, y)
+      cy.get('body').realMouseUp()
+    })
+
+    cy.get('[data-testid="backlog-list"]').should('not.contain', 'Auth Feature')
+    cy.contains('Auth Feature').should('be.visible')
   })
 
   it('creates a group in a swimlane and assigns PBIs', () => {
@@ -74,15 +83,27 @@ describe('PI planning journey', () => {
         parent_feature_system_id: fRes.body.system_id,
         item_type: 'story',
       })
+      cy.request('POST', `/api/v1/projects/${projectId}/pis`, { name: 'Q1-2026' }).then((piRes) => {
+        cy.request('POST', `/api/v1/pis/${piRes.body.system_id}/swimlines`, { name: 'Team A' }).then((slRes) => {
+          cy.request('PATCH', `/api/v1/features/${fRes.body.system_id}`, {
+            location: 'pi',
+            pi_id: piRes.body.system_id,
+            swimlane_id: slRes.body.system_id,
+          })
+        })
+      })
     })
-    cy.request('POST', `/api/v1/projects/${projectId}/pis`, { name: 'Q1-2026' }).then((piRes) => {
-      cy.request('POST', `/api/v1/pis/${piRes.body.system_id}/swimlines`, { name: 'Team A' })
-    })
-    goToPI()
-    acquireEditLock()
-    cy.contains('button', /create group/i).first().click()
-    cy.get('input[name="name"]').type('Sprint Group 1')
-    cy.contains('Story 1').click()
+    openProjectAsEditor()
+    cy.openPI('Q1-2026')
+
+    // Grouping is a three-step affordance on the feature card: expand it, tick the
+    // PBIs, then confirm — which opens the name modal.
+    cy.get('button[title="Select PBIs to group"]').first().click({ force: true })
+    // The PBI's row label uses `display: contents`, so it measures 0x0 and Cypress
+    // refuses an unforced click even though it is on screen.
+    cy.contains('Story 1').click({ force: true })
+    cy.contains('button', /^\+ Group \d+ PBI/).click()
+    cy.get('#group-name').type('Sprint Group 1')
     cy.get('button[type="submit"]').click()
     cy.contains('Sprint Group 1').should('be.visible')
   })

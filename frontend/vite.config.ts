@@ -13,10 +13,12 @@ export default defineConfig({
     chunkSizeWarningLimit: 1400,
   },
   server: {
-    port: 5173,
+    // Overridable so the E2E runner can point a throwaway dev server at its own
+    // isolated backend instead of the developer's (see scripts/e2e.sh).
+    port: Number(process.env.VITE_PORT) || 5173,
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: process.env.VITE_API_TARGET || 'http://localhost:8000',
         changeOrigin: true,
       },
     },

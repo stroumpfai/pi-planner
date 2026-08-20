@@ -10,16 +10,14 @@ describe('Edit lock lifecycle', () => {
   })
 
   it('Request Edit Mode → button becomes You • Editor and editing is enabled', () => {
-    cy.visit('/')
-    cy.contains('Lock Test').click()
+    cy.openProject('Lock Test')
     cy.contains('button', /request edit mode/i).click()
     cy.contains(/you.*editor/i).should('be.visible')
     cy.contains('button', /\+ feature/i).should('not.be.disabled')
   })
 
   it('Release lock → button returns to Request Edit Mode', () => {
-    cy.visit('/')
-    cy.contains('Lock Test').click()
+    cy.openProject('Lock Test')
     cy.contains('button', /request edit mode/i).click()
     cy.contains(/you.*editor/i).should('be.visible')
     cy.contains('button', /release/i).click()
@@ -28,9 +26,11 @@ describe('Edit lock lifecycle', () => {
   })
 
   it('heartbeat fires keepalive after 1 minute', () => {
+    cy.openProject('Lock Test')
+    // Freeze time only after the page has loaded: a frozen clock stalls the
+    // timers React Query needs to fetch the project list. The heartbeat interval
+    // is created when isEditing flips true, which is still ahead of us here.
     cy.clock()
-    cy.visit('/')
-    cy.contains('Lock Test').click()
     cy.contains('button', /request edit mode/i).click()
     cy.contains(/you.*editor/i).should('be.visible')
     cy.intercept('POST', `/api/v1/projects/${projectId}/edit-lock/keepalive`).as('keepalive')
@@ -39,21 +39,15 @@ describe('Edit lock lifecycle', () => {
   })
 
   it('lock held by another user → Edit button shows Locked by and is not clickable', () => {
-    // Seed a lock held by a different session by posting directly via the API
-    cy.request({
-      method: 'POST',
-      url: `/api/v1/projects/${projectId}/edit-lock/acquire`,
-      failOnStatusCode: false,
-    })
-    // Simulate the lock belonging to a different user by overwriting via direct DB seed
-    // We seed it via a second login to get a different session then acquire
+    // testuser2 is seeded alongside testuser by scripts/e2e.sh.
     cy.request('POST', '/api/v1/auth/logout')
-    cy.request('POST', '/api/v1/auth/login', { username: 'testuser2', password: 'testpass' }).then(() => {
-      cy.request('POST', `/api/v1/projects/${projectId}/edit-lock/acquire`)
-    })
-    cy.login() // login back as testuser
-    cy.visit('/')
-    cy.contains('Lock Test').click()
+    cy.request('POST', '/api/v1/auth/login', { username: 'testuser2', password: 'testpass' })
+    cy.request('POST', `/api/v1/projects/${projectId}/edit-lock/acquire`)
+    cy.request('POST', '/api/v1/auth/logout')
+
+    cy.login()
+    cy.openProject('Lock Test')
     cy.contains(/locked by/i).should('be.visible')
+    cy.contains('button', /request edit mode/i).should('not.exist')
   })
 })

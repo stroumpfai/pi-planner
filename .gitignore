@@ -38,6 +38,7 @@ dist/
 # Cypress
 cypress/videos/
 cypress/screenshots/
+cypress/downloads/
 
 # Coverage
 coverage/
