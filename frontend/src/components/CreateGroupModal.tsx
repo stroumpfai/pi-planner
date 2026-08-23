@@ -47,7 +47,10 @@ export function CreateGroupModal({ open, swimlaneId, featureId, pbiIds, onClose 
     <Dialog.Root open={open} onOpenChange={(o) => { if (!o) handleClose() }}>
       <Dialog.Portal>
         <Dialog.Overlay className="fixed inset-0 bg-black/30 z-40" />
-        <Dialog.Content className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-lg shadow-xl p-6 w-80">
+        <Dialog.Content
+          aria-describedby={undefined}
+          className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 z-50 bg-white rounded-lg shadow-xl p-6 w-80"
+        >
           <Dialog.Title className="text-base font-semibold text-gray-900 mb-1">New Group</Dialog.Title>
           {pbiIds.length > 0 && (
             <p className="text-xs text-gray-500 mb-4">{pbiIds.length} PBI{pbiIds.length === 1 ? '' : 's'} will be added</p>

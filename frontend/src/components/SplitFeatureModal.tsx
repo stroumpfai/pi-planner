@@ -66,9 +66,9 @@ export function SplitFeatureModal({ open, projectId, featureId, currentPiId, pbi
           <Dialog.Title className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">
             Move to PI
           </Dialog.Title>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+          <Dialog.Description className="text-xs text-gray-500 dark:text-gray-400 mb-4">
             {pbiIds.length} PBI{pbiIds.length === 1 ? '' : 's'} will move to the target PI, unsprinted.
-          </p>
+          </Dialog.Description>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>

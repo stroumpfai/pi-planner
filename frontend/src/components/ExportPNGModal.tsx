@@ -137,9 +137,9 @@ export function ExportPNGModal({ piId, piName, open, onClose }: Props) {
           <Dialog.Title className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">
             Export PNG
           </Dialog.Title>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+          <Dialog.Description className="text-xs text-gray-500 dark:text-gray-400 mb-4">
             Choose what to include in the exported image. Settings are saved for next time.
-          </p>
+          </Dialog.Description>
 
           <fieldset className="mb-2">
             <legend className="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">Layout</legend>

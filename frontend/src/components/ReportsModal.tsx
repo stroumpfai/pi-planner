@@ -135,9 +135,9 @@ export function ReportsModal({ piId, piName, open, onClose }: Props) {
           <Dialog.Title className="text-base font-semibold text-gray-900 dark:text-gray-100 mb-1">
             Export report
           </Dialog.Title>
-          <p className="text-xs text-gray-500 dark:text-gray-400 mb-4">
+          <Dialog.Description className="text-xs text-gray-500 dark:text-gray-400 mb-4">
             Generate a management report for this PI. Settings are saved for next time.
-          </p>
+          </Dialog.Description>
 
           <fieldset className="mb-3">
             <legend className="text-sm font-medium text-gray-800 dark:text-gray-100 mb-2">Report</legend>
