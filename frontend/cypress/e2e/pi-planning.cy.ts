@@ -107,4 +107,107 @@ describe('PI planning journey', () => {
     cy.get('button[type="submit"]').click()
     cy.contains('Sprint Group 1').should('be.visible')
   })
+
+  // Group and PBI drops onto a sprint cell — the two board interactions with no
+  // browser-level coverage. Both go through handleDragEnd's sprintcell branches,
+  // which the unit spec drives directly; this proves dnd-kit really produces
+  // those payloads from a real pointer.
+  describe('dropping onto a sprint cell', () => {
+    let swimlaneId: string
+    let featureId: string
+    let pbiId: string
+
+    beforeEach(() => {
+      cy.request('POST', `/api/v1/projects/${projectId}/features`, { title: 'Payments' }).then((fRes) => {
+        featureId = fRes.body.system_id
+        cy.request('POST', `/api/v1/projects/${projectId}/pbis`, {
+          title: 'Card capture',
+          parent_feature_system_id: featureId,
+          item_type: 'story',
+        }).then((pRes) => {
+          pbiId = pRes.body.system_id
+        })
+        cy.request('POST', `/api/v1/projects/${projectId}/pis`, { name: 'Q1-2026' }).then((piRes) => {
+          cy.request('POST', `/api/v1/pis/${piRes.body.system_id}/swimlines`, { name: 'Team A' }).then((slRes) => {
+            swimlaneId = slRes.body.system_id
+            cy.request('PATCH', `/api/v1/features/${featureId}`, {
+              location: 'pi',
+              pi_id: piRes.body.system_id,
+              swimlane_id: swimlaneId,
+            })
+          })
+        })
+      })
+    })
+
+    // Empty cells carry a data-testid because they render no text until a drag
+    // hovers them — there is nothing else to aim at.
+    const cell = (sprintIndex: number) =>
+      cy.get(`[data-testid="sprintcell:${swimlaneId}:${featureId}:${sprintIndex}"]`)
+
+    const centre = (el: Element) => {
+      const r = el.getBoundingClientRect()
+      return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }
+    }
+
+    // Drags the given handle onto a sprint cell.
+    //
+    // Two things make this more than "move the pointer to the target". dnd-kit's
+    // PointerSensor needs >5px of travel before the drag exists at all, and the
+    // board uses closestCenter — which resolves the drop from the centre of the
+    // *dragged element*, not from the pointer. Grabbing a handle at the far left
+    // of a wide row therefore lands a column to the right unless the grab offset
+    // is subtracted. In both cases here the draggable node (the one holding
+    // dnd-kit's ref) is the handle's grandparent: the listeners sit on an inner
+    // wrapper.
+    function dragTo(handle: () => Cypress.Chainable<JQuery<HTMLElement>>, sprintIndex: number) {
+      let offset = { x: 0, y: 0 }
+      handle().then(($handle) => {
+        const grab = centre($handle[0])
+        const node = $handle[0].parentElement?.parentElement ?? $handle[0]
+        const nodeCentre = centre(node)
+        offset = { x: grab.x - nodeCentre.x, y: grab.y - nodeCentre.y }
+
+        cy.wrap($handle).realMouseDown()
+        cy.get('body').realMouseMove(grab.x + 20, grab.y)
+      })
+      // Measured after the drag is live, so any reflow it caused is already applied.
+      cell(sprintIndex).then(($cell) => {
+        const to = centre($cell[0])
+        cy.get('body').realMouseMove(to.x + offset.x, to.y + offset.y)
+        cy.get('body').realMouseUp()
+      })
+    }
+
+    it('drags a PBI into a sprint cell', () => {
+      openProjectAsEditor()
+      cy.openPI('Q1-2026')
+
+      // The drag handle lives in the card's PBI panel, behind the same toggle the
+      // grouping journey uses.
+      cy.get('button[title="Select PBIs to group"]').first().click({ force: true })
+      dragTo(() => cy.get('[title="Drag to sprint"]').first(), 1)
+
+      cell(1).should('contain', 'Card capture')
+    })
+
+    it('drags a group from one sprint to another', () => {
+      cy.then(() => {
+        cy.request('POST', `/api/v1/swimlines/${swimlaneId}/groups`, {
+          name: 'Payment Group',
+          feature_system_id: featureId,
+          pbi_ids: [pbiId],
+          sprint_index: 0,
+        })
+      })
+      openProjectAsEditor()
+      cy.openPI('Q1-2026')
+      cell(0).should('contain', 'Payment Group')
+
+      dragTo(() => cy.contains('Payment Group'), 2)
+
+      cell(2).should('contain', 'Payment Group')
+      cell(0).should('not.contain', 'Payment Group')
+    })
+  })
 })

@@ -26,6 +26,9 @@ export function SprintCell({ swimlaneId, sprintIndex, groups, projectId, feature
   return (
     <div
       ref={setNodeRef}
+      // An empty cell has no text until a drag hovers it, so E2E has nothing else
+      // to aim at — the same reason backlog-panel and backlog-list carry one.
+      data-testid={droppableId}
       className={`m-1.5 p-2 rounded-xl min-h-16 space-y-2 transition-colors ${
         isOver ? 'bg-blue-50/80 ring-1 ring-blue-200' : ''
       }`}

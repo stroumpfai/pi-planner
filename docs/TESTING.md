@@ -81,7 +81,7 @@ seeds `testuser` and `testuser2`, runs the suite and tears it all down.
 | `csv-import` | Preview, validation errors, confirmed import, empty file |
 | `edit-lock` | Acquire, release, heartbeat, lock held by another user |
 | `swimlanes` | Swimlane CRUD, collapse/expand all, focus mode |
-| `pi-planning` | PI create, state transitions, single-in-progress rule, feature drag, grouping |
+| `pi-planning` | PI create, state transitions, single-in-progress rule, feature drag, grouping, group and PBI drops onto sprint cells |
 | `snapshots-and-states` | Snapshot create and restore; State lists add, separation, guarded delete |
 | `admin-users` | User management, password policy, reader and editor RBAC |
 | `api-keys` | Issue, reveal, cycle and revoke an API key |

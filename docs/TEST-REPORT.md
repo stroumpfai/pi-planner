@@ -5,9 +5,9 @@
 | | |
 |---|---|
 | **Status** | ✅ all green |
-| **Generated** | 2026-08-23 15:31 UTC |
-| **Commit** | `071b6f5` on `test/unit-specs-for-untested-components` |
-| **Total tests** | **1602** |
+| **Generated** | 2026-08-23 18:15 UTC |
+| **Commit** | `9ca7f7d` on `test/unit-specs-for-untested-components` |
+| **Total tests** | **1646** |
 
 ## Suites
 
@@ -15,8 +15,8 @@
 |---|---|---|---|
 | Backend (pytest) | 601 | 95.62% | `cd backend && pytest tests/` |
 | MCP server (pytest) | 220 | 94.75% | `cd mcp_server && pytest tests/` |
-| Frontend unit (Vitest) | 719 | 93.69% | `npm run test` |
-| End-to-end (Cypress) | 62 across 15 specs | n/a — journey coverage | `npm run e2e` |
+| Frontend unit (Vitest) | 761 | 95.48% | `npm run test` |
+| End-to-end (Cypress) | 64 across 15 specs | n/a — journey coverage | `npm run e2e` |
 
 Coverage gates are enforced by the runners themselves: 75% for the backend
 (`backend/pyproject.toml`), 80% for the MCP server, and 70% statements / 65%
