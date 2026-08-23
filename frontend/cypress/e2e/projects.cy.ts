@@ -79,3 +79,91 @@ describe('Work-item deep links', () => {
       .and('have.attr', 'target', '_blank')
   })
 })
+
+// Export and import move a whole project in bulk, and the import rebuilds every
+// ID on the way in — the kind of thing that breaks silently. The round-trip is
+// driven end to end: what the export actually returned is what gets uploaded.
+describe('Project JSON export and import', () => {
+  let projectId: string
+
+  const projectRow = (name: string) => cy.contains('li', name)
+
+  beforeEach(() => {
+    cy.resetDb()
+    cy.login()
+    cy.request('POST', '/api/v1/projects/', { name: 'Portable' }).then((res) => {
+      projectId = res.body.system_id
+      cy.request('POST', `/api/v1/projects/${projectId}/features`, {
+        title: 'Exported Feature',
+        id: 404,
+      }).then((fRes) => {
+        cy.request('POST', `/api/v1/projects/${projectId}/pbis`, {
+          title: 'Exported Story',
+          parent_feature_system_id: fRes.body.system_id,
+          item_type: 'story',
+        })
+      })
+      cy.request('POST', `/api/v1/projects/${projectId}/pis`, { name: 'Exported PI' }).then((piRes) => {
+        cy.request('POST', `/api/v1/pis/${piRes.body.system_id}/swimlines`, { name: 'Exported Lane' })
+      })
+    })
+    cy.reload()
+  })
+
+  // The button builds a blob and clicks a synthetic <a download>, which the
+  // browser handles outside the page — so the request is what there is to
+  // observe, and its body is what the import half consumes.
+  function exportProject() {
+    cy.intercept('GET', '/api/v1/projects/*/export').as('exportProject')
+    projectRow('Portable').contains('button', /^Export$/).click()
+    return cy.wait('@exportProject').its('response')
+  }
+
+  it('exports the project as JSON carrying its contents', () => {
+    exportProject().then((response) => {
+      expect(response?.statusCode).to.equal(200)
+      expect(response?.headers['content-disposition']).to.match(/filename="?Portable_\d{4}-\d{2}-\d{2}\.json/)
+
+      const payload = response?.body
+      expect(payload.project.name).to.equal('Portable')
+      expect(payload.project.features.map((f: { title: string }) => f.title)).to.include('Exported Feature')
+      expect(payload.project.pis.map((p: { name: string }) => p.name)).to.include('Exported PI')
+    })
+  })
+
+  it('re-imports an exported file as a second, independent project', () => {
+    exportProject().then((response) => {
+      cy.get('input[aria-label="Import project file"]').selectFile(
+        {
+          contents: Cypress.Buffer.from(JSON.stringify(response?.body)),
+          fileName: 'Portable.json',
+          mimeType: 'application/json',
+        },
+        { force: true },
+      )
+    })
+
+    // The name collides with the original, so the backend disambiguates it.
+    cy.contains('li', 'Portable (imported)').should('be.visible')
+    cy.contains('li', /^Portable/).should('exist')
+
+    cy.openProject('Portable (imported)')
+    cy.contains('[404]').should('be.visible')
+    cy.contains('Exported Feature').should('be.visible')
+    cy.openPI('Exported PI')
+    cy.contains('Exported Lane').should('be.visible')
+  })
+
+  it('reports a malformed import file instead of failing silently', () => {
+    cy.get('input[aria-label="Import project file"]').selectFile(
+      {
+        contents: Cypress.Buffer.from('this is not json'),
+        fileName: 'broken.json',
+        mimeType: 'application/json',
+      },
+      { force: true },
+    )
+
+    cy.contains(/Import failed|Expecting value/i).should('be.visible')
+  })
+})

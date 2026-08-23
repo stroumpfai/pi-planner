@@ -75,8 +75,9 @@ seeds `testuser` and `testuser2`, runs the suite and tears it all down.
 | Spec | Journey |
 |---|---|
 | `auth` | Login, bad password, no session, logout |
-| `projects` | Project CRUD, duplicate-name error, Azure DevOps work-item links |
-| `backlog` | Feature and PBI/bug create, edit, delete; persistence across reload |
+| `projects` | Project CRUD, duplicate-name error, Azure DevOps work-item links, JSON export/import round-trip |
+| `backlog` | Feature and PBI/bug create, edit, delete; persistence across reload; Clear backlog vs everything |
+| `feature-split` | Split PBIs into another PI, continuation lineage, cancel continuation |
 | `backlog-search` | Filter by ID and title, clear, drag while filtered |
 | `csv-import` | Preview, validation errors, confirmed import, empty file |
 | `edit-lock` | Acquire, release, heartbeat, lock held by another user |
@@ -106,12 +107,11 @@ handling: 401 redirect, network failure, the error-envelope unwrapping that ever
 component's error message depends on.
 
 ### 3. Journeys with no E2E coverage
-Feature split and continuation, Clear Backlog, project JSON export/import,
-snapshot diffing, and theme switching. Ranked roughly by how much a silent break
-would hurt: **feature split** and **project import** first — both move data in
-bulk and neither has a browser-level test. (PI events, sprint capacity editing and
-column resize are now unit-tested instead of driven through a browser, which is
-where the guidance below would put them anyway.)
+Snapshot diffing and theme switching — what is left after the bulk-data journeys
+were covered. Neither moves data, so a silent break costs a reader a stale view
+rather than lost work. (PI events, sprint capacity editing and column resize are
+unit-tested instead of driven through a browser, which is where the guidance below
+would put them anyway.)
 
 ## Adding coverage well
 

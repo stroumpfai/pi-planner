@@ -92,4 +92,82 @@ describe('Core backlog journey', () => {
     cy.get('[role="dialog"]').contains('button', /^Delete$/).click()
     cy.contains('To Delete Feature').should('not.exist')
   })
+
+  // Clearing is bulk and permanent, and the two radio options differ in exactly
+  // one way: whether features already placed in a PI are spared.
+  describe('Clear features', () => {
+    beforeEach(() => {
+      cy.request('POST', `/api/v1/projects/${projectId}/features`, { title: 'Backlog One' })
+      cy.request('POST', `/api/v1/projects/${projectId}/features`, { title: 'Backlog Two' }).then((fRes) => {
+        cy.request('POST', `/api/v1/projects/${projectId}/pbis`, {
+          title: 'Child Story',
+          parent_feature_system_id: fRes.body.system_id,
+          item_type: 'story',
+        })
+      })
+      cy.request('POST', `/api/v1/projects/${projectId}/features`, { title: 'Planned Feature' }).then((fRes) => {
+        cy.request('POST', `/api/v1/projects/${projectId}/pis`, { name: 'Q1-2026' }).then((piRes) => {
+          cy.request('POST', `/api/v1/pis/${piRes.body.system_id}/swimlines`, { name: 'Team A' }).then((slRes) => {
+            cy.request('PATCH', `/api/v1/features/${fRes.body.system_id}`, {
+              location: 'pi',
+              pi_id: piRes.body.system_id,
+              swimlane_id: slRes.body.system_id,
+            })
+          })
+        })
+      })
+    })
+
+    function openClearDialog() {
+      openBacklogAsEditor()
+      cy.contains('button', /^Clear$/).click()
+      return cy.get('[role="dialog"]')
+    }
+
+    it('is offered only to the editor holding the lock', () => {
+      cy.openProject('Backlog Test')
+      cy.contains('button', /^Clear$/).should('be.disabled')
+    })
+
+    it('deletes the backlog features and keeps the ones in a PI', () => {
+      openClearDialog().within(() => {
+        cy.contains('label', 'Backlog only').should('contain', '2 features')
+        cy.contains('label', 'Everything').should('contain', '3 features')
+        cy.contains('button', /^Delete$/).click()
+      })
+
+      cy.contains('Deleted 2 backlog features').should('be.visible')
+      cy.contains('Backlog One').should('not.exist')
+      cy.contains('Backlog Two').should('not.exist')
+      // The PBI under a cleared feature goes with it.
+      cy.contains('Child Story').should('not.exist')
+
+      // The PI feature survives, and its board still shows it.
+      cy.openPI('Q1-2026')
+      cy.contains('Planned Feature').should('be.visible')
+    })
+
+    it('deletes every feature, in a PI or not, when Everything is chosen', () => {
+      openClearDialog().within(() => {
+        cy.contains('label', 'Everything').click()
+        cy.contains('button', /^Delete$/).click()
+      })
+
+      cy.contains('Deleted 3 features').should('be.visible')
+
+      cy.openPI('Q1-2026')
+      cy.contains('Planned Feature').should('not.exist')
+      // The board structure is kept — only the work is gone.
+      cy.contains('Team A').should('be.visible')
+    })
+
+    it('cancelling changes nothing', () => {
+      openClearDialog().within(() => {
+        cy.contains('button', /^Cancel$/).click()
+      })
+
+      cy.get('[role="dialog"]').should('not.exist')
+      cy.contains('Backlog One').should('be.visible')
+    })
+  })
 })
