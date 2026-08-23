@@ -2668,6 +2668,26 @@
             }
           },
           {
+            "name": "show_states",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Show States"
+            }
+          },
+          {
+            "name": "include_unplaced",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Include Unplaced"
+            }
+          },
+          {
             "name": "pi_session",
             "in": "cookie",
             "required": false,

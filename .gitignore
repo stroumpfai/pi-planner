@@ -35,10 +35,10 @@ node_modules/
 dist/
 .vite/
 
-# Cypress
-cypress/videos/
-cypress/screenshots/
-cypress/downloads/
+# Cypress (the suite lives in frontend/, so these must not be root-anchored)
+**/cypress/videos/
+**/cypress/screenshots/
+**/cypress/downloads/
 
 # Coverage
 coverage/

@@ -168,7 +168,7 @@ pi-planner/
 │   │   │   └── settingsStore.ts
 │   │   ├── services/       # Typed API client functions (one file per resource)
 │   │   ├── types/
-│   │   │   ├── api.generated.ts  # Generated from OpenAPI spec
+│   │   │   ├── api.generated.ts  # Generated from openapi.json — see scripts/openapi.sh
 │   │   │   └── index.ts          # Clean domain type aliases
 │   │   ├── utils/
 │   │   │   ├── csvParser.ts
@@ -229,6 +229,20 @@ npm run test:watch
 npm run e2e               # E2E, headless (isolated backend — see below)
 npm run e2e:open          # E2E, interactive
 ```
+
+### API Contract
+
+`frontend/openapi.json` is a checked-in copy of the FastAPI spec, and
+`frontend/src/types/api.generated.ts` is generated from it. Neither is produced by
+the build, so **after changing any route signature or schema, regenerate both**:
+
+```bash
+scripts/openapi.sh          # rewrite both files
+scripts/openapi.sh --check  # fail if either is stale (no writes)
+```
+
+Skipping this leaves the frontend typed against an API that no longer exists — a new
+query parameter simply won't be visible to `tsc`.
 
 ### Database
 - Local dev: `~/.pi-planning/db.sqlite`

@@ -2366,6 +2366,8 @@ export interface operations {
         report_type?: string;
         fmt?: string;
         show_ids?: boolean;
+        show_states?: boolean;
+        include_unplaced?: boolean;
       };
       path: {
         pi_id: string;
