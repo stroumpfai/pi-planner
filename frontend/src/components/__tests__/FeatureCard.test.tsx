@@ -109,7 +109,7 @@ describe('FeatureCard continuation badges', () => {
   it('jumps to the linked PI when a PI is clicked', async () => {
     mockCommonHooks([baseFeature, continuationFeature])
     renderWithDnd(<FeatureCard feature={baseFeature} projectId="p-1" />)
-    screen.getByRole('button', { name: 'PI 2' }).click()
+    fireEvent.click(screen.getByRole('button', { name: 'PI 2' }))
     expect(useUiStore.getState().activePIId).toBe('pi-2')
   })
 
@@ -200,7 +200,7 @@ describe('FeatureCard move-to-PI action', () => {
     mockCommonHooks([baseFeature])
     useAuthStore.setState({ user: null, isEditing: true })
     renderWithDnd(<FeatureCard feature={baseFeature} projectId="p-1" />)
-    screen.getByTitle('Select PBIs to group').click()
+    fireEvent.click(screen.getByTitle('Select PBIs to group'))
     expect(screen.queryByText(/move .* pbi.* to pi/i)).not.toBeInTheDocument()
   })
 
@@ -208,7 +208,7 @@ describe('FeatureCard move-to-PI action', () => {
     mockCommonHooks([{ ...baseFeature, location: 'backlog', pi_id: null, swimlane_id: null }])
     useAuthStore.setState({ user: null, isEditing: true })
     renderWithDnd(<FeatureCard feature={{ ...baseFeature, location: 'backlog', pi_id: null, swimlane_id: null }} projectId="p-1" />)
-    screen.getByTitle('Select PBIs to group').click()
+    fireEvent.click(screen.getByTitle('Select PBIs to group'))
     expect(screen.queryByText(/move .* pbi.* to pi/i)).not.toBeInTheDocument()
   })
 })

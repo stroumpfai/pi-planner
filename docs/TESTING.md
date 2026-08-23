@@ -42,6 +42,15 @@ Components, hooks, stores, services and utils with the network mocked. Each spec
 declares its own `makeWrapper()` and data factories — there is no shared
 `test-utils`, by convention rather than accident, so a spec reads standalone.
 
+⚠️ **Keep `@testing-library/dom` deduped to a single copy** (`npm ls
+@testing-library/dom`). Testing Library registers its `act()` event wrapper on
+that package's module-level config, so a second copy — which is what
+`@testing-library/react` v14 installed, since it depended on v9 while
+`user-event` resolved v10 — leaves every `userEvent` interaction unwrapped and
+floods the run with thousands of "not wrapped in act" warnings. Nothing fails, so
+the regression is silent; `npm run test 2>&1 | grep -c 'not wrapped in act'`
+should print `0`.
+
 ### End-to-end
 A real browser against a real backend on a throwaway database. This layer exists
 for what the other three structurally cannot see: that the pieces are wired

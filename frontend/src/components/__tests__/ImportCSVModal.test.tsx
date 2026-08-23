@@ -94,9 +94,11 @@ const defaultProps = {
 }
 
 describe('ImportCSVModal', () => {
-  it('shows "Import CSV" title when open', () => {
+  it('shows "Import CSV" title when open', async () => {
     render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
     expect(screen.getByText('Import CSV')).toBeInTheDocument()
+    // The file is parsed asynchronously — let the preview land before the test ends.
+    await screen.findByText('Rows in file')
   })
 
   it('shows preview table after file is parsed', async () => {
