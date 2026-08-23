@@ -94,32 +94,24 @@ seeds `testuser` and `testuser2`, runs the suite and tears it all down.
 Ranked by risk, not by percentage. A low number on a file nobody edits matters
 less than an untested path through code that changes every week.
 
-### 1. `PIBoardPage.tsx` — 66% statements, 35% functions
-The uncovered functions are the drag-and-drop handlers: `handleDragStart`,
-`handleDragEnd`, and the `applyFeatureDrop` / `applySwimlaneReorder` branches for
-group and PBI drops. E2E covers feature-to-swimlane and (in `backlog-search`)
-dragging while filtered, but **group-to-sprint and PBI-to-sprint-cell drops have
-no test at any layer**. Those two helpers are pure functions taking the drag and
-drop payloads — they can be unit tested directly, without a browser, which is much
-cheaper than more `realMouseDown` choreography.
-
-### 2. Hooks that only exist behind components — `useAuth` 26%, `useEditLock` 31%, `useStates` 47%
+### 1. Hooks that only exist behind components — `useAuth` 26%, `useEditLock` 31%, `useStates` 47%
 Not alarming on their own, since components and E2E exercise the happy paths. What
 is missing is the *failure* branches: a 409 from `acquire`, a session expiring
 mid-edit, a keepalive that fails. The single-writer model is the app's core
 constraint and its unhappy paths are the least tested part of it.
 
-### 3. `services/api.ts` — 12.5% branch coverage
+### 2. `services/api.ts` — 12.5% branch coverage
 The axios instance and its interceptors. Almost every uncovered branch is error
 handling: 401 redirect, network failure, the error-envelope unwrapping that every
 component's error message depends on.
 
-### 4. Journeys with no E2E coverage
-PI events (create/edit/delete), sprint capacity editing, feature split and
-continuation, Clear Backlog, project JSON export/import, snapshot diffing, theme
-switching, and column resize. Ranked roughly by how much a silent break would
-hurt: **feature split** and **project import** first — both move data in bulk and
-neither has a browser-level test.
+### 3. Journeys with no E2E coverage
+Feature split and continuation, Clear Backlog, project JSON export/import,
+snapshot diffing, and theme switching. Ranked roughly by how much a silent break
+would hurt: **feature split** and **project import** first — both move data in
+bulk and neither has a browser-level test. (PI events, sprint capacity editing and
+column resize are now unit-tested instead of driven through a browser, which is
+where the guidance below would put them anyway.)
 
 ## Adding coverage well
 
