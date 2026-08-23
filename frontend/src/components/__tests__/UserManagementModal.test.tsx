@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { UserManagementModal } from '../UserManagementModal'
 import * as usersService from '@/services/users'
 import { useAuthStore } from '@/stores/authStore'
+import { useToastStore } from '@/stores/toastStore'
 
 vi.mock('@/services/users')
 const mockApi = vi.mocked(usersService.usersApi)
@@ -36,12 +37,15 @@ const fakeReader = {
   password_changed_at: null,
 }
 
+const toastMessages = () => useToastStore.getState().toasts.map((t) => t.message)
+
 describe('UserManagementModal', () => {
   const onClose = vi.fn()
 
   beforeEach(() => {
     vi.clearAllMocks()
     useAuthStore.setState({ user: { username: 'admin', display_name: 'Administrator', role: 'admin' } })
+    useToastStore.setState({ toasts: [] })
   })
 
   afterEach(() => vi.unstubAllGlobals())
@@ -306,5 +310,180 @@ describe('UserManagementModal', () => {
     expect(screen.getByRole('button', { name: /create user/i })).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /cancel/i }))
     expect(screen.queryByRole('button', { name: /create user/i })).not.toBeInTheDocument()
+  })
+
+  // ── Save (update user) ──────────────────────────────────────────────────────
+
+  async function expandAlice() {
+    mockApi.list = vi.fn().mockResolvedValue([fakeEditor])
+    render(<UserManagementModal open onClose={onClose} />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByText('alice'))
+    await userEvent.click(screen.getByText('alice'))
+  }
+
+  it('saves a new display name and role', async () => {
+    mockApi.update = vi.fn().mockResolvedValue({ ...fakeEditor, role: 'admin' })
+    await expandAlice()
+    await userEvent.clear(screen.getByLabelText('Display name'))
+    await userEvent.type(screen.getByLabelText('Display name'), 'Alice Smith')
+    await userEvent.selectOptions(screen.getByLabelText('Role'), 'admin')
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }))
+
+    await waitFor(() =>
+      expect(mockApi.update).toHaveBeenCalledWith('alice', {
+        display_name: 'Alice Smith',
+        role: 'admin',
+      })
+    )
+    await waitFor(() => expect(toastMessages()).toContain('Updated alice'))
+  })
+
+  it('collapses the card after a successful save', async () => {
+    mockApi.update = vi.fn().mockResolvedValue(fakeEditor)
+    await expandAlice()
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }))
+
+    await waitFor(() => expect(screen.queryByLabelText('Display name')).not.toBeInTheDocument())
+  })
+
+  it('sends null when the display name is cleared', async () => {
+    mockApi.update = vi.fn().mockResolvedValue(fakeEditor)
+    await expandAlice()
+    await userEvent.clear(screen.getByLabelText('Display name'))
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }))
+
+    await waitFor(() =>
+      expect(mockApi.update).toHaveBeenCalledWith('alice', { display_name: null, role: 'editor' })
+    )
+  })
+
+  it('omits the role when saving your own account', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([fakeAdmin])
+    mockApi.update = vi.fn().mockResolvedValue(fakeAdmin)
+    render(<UserManagementModal open onClose={onClose} />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getAllByText('admin').length).toBeGreaterThan(0))
+    await userEvent.click(screen.getAllByText('admin')[0])
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }))
+
+    await waitFor(() =>
+      expect(mockApi.update).toHaveBeenCalledWith('admin', {
+        display_name: 'Administrator',
+        role: undefined,
+      })
+    )
+  })
+
+  it('toasts and stays expanded when the save fails', async () => {
+    mockApi.update = vi.fn().mockRejectedValue(new Error('boom'))
+    await expandAlice()
+    await userEvent.click(screen.getByRole('button', { name: /^save$/i }))
+
+    await waitFor(() => expect(toastMessages()).toContain('Failed to update user'))
+    expect(screen.getByLabelText('Display name')).toBeInTheDocument()
+  })
+
+  // ── Reset password ──────────────────────────────────────────────────────────
+
+  const resetField = () => screen.getByPlaceholderText(/new password/i)
+  const resetButton = () => screen.getByRole('button', { name: /^reset$/i })
+
+  it('keeps Reset disabled until the password is long enough', async () => {
+    await expandAlice()
+    expect(resetButton()).toBeDisabled()
+
+    await userEvent.type(resetField(), 'short')
+    expect(await screen.findByText('At least 12 characters required')).toBeInTheDocument()
+    expect(resetButton()).toBeDisabled()
+  })
+
+  it('rejects a reset password containing the username', async () => {
+    await expandAlice()
+    await userEvent.type(resetField(), 'alice-secure-pw')
+
+    expect(await screen.findByText('Password must not contain the username')).toBeInTheDocument()
+    expect(resetButton()).toBeDisabled()
+  })
+
+  it('rejects a reset password related to the application name', async () => {
+    await expandAlice()
+    await userEvent.type(resetField(), 'piplanner2024!')
+
+    expect(
+      await screen.findByText('Password must not relate to the application name')
+    ).toBeInTheDocument()
+    expect(resetButton()).toBeDisabled()
+  })
+
+  it('rejects a reset password from the common-password list', async () => {
+    await expandAlice()
+    await userEvent.type(resetField(), '123456qwerty')
+
+    expect(await screen.findByText('This password is too commonly used')).toBeInTheDocument()
+    expect(resetButton()).toBeDisabled()
+  })
+
+  it('resets the password and clears the field', async () => {
+    mockApi.resetPassword = vi.fn().mockResolvedValue(undefined)
+    await expandAlice()
+    await userEvent.type(resetField(), 'correct-horse-battery')
+    expect(resetButton()).toBeEnabled()
+    await userEvent.click(resetButton())
+
+    await waitFor(() =>
+      expect(mockApi.resetPassword).toHaveBeenCalledWith('alice', {
+        new_password: 'correct-horse-battery',
+      })
+    )
+    await waitFor(() => expect(toastMessages()).toContain('Password reset for alice'))
+    await waitFor(() => expect(resetField()).toHaveValue(''))
+  })
+
+  it('toasts when the reset fails', async () => {
+    mockApi.resetPassword = vi.fn().mockRejectedValue(new Error('boom'))
+    await expandAlice()
+    await userEvent.type(resetField(), 'correct-horse-battery')
+    await userEvent.click(resetButton())
+
+    await waitFor(() => expect(toastMessages()).toContain('Failed to reset password'))
+  })
+
+  // ── Delete outcomes ─────────────────────────────────────────────────────────
+
+  async function confirmDeleteAlice() {
+    await expandAlice()
+    await userEvent.click(screen.getByRole('button', { name: /delete/i }))
+    const dialogs = screen.getAllByRole('dialog')
+    await userEvent.click(within(dialogs[dialogs.length - 1]).getByRole('button', { name: /delete/i }))
+  }
+
+  it('toasts on a successful delete', async () => {
+    mockApi.delete = vi.fn().mockResolvedValue(undefined)
+    await confirmDeleteAlice()
+
+    await waitFor(() => expect(toastMessages()).toContain('Deleted alice'))
+  })
+
+  it('toasts when the delete fails', async () => {
+    mockApi.delete = vi.fn().mockRejectedValue(new Error('boom'))
+    await confirmDeleteAlice()
+
+    await waitFor(() => expect(toastMessages()).toContain('Failed to delete user'))
+  })
+
+  // ── Create user, non-409 failure ────────────────────────────────────────────
+
+  it('toasts on a create failure that is not a duplicate username', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([])
+    mockApi.create = vi.fn().mockRejectedValue({ response: { status: 500 } })
+    render(<UserManagementModal open onClose={onClose} />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByText(/▾ add user/i))
+    await userEvent.click(screen.getByText(/▾ add user/i))
+    await userEvent.type(screen.getByLabelText(/username/i), 'newuser')
+    await userEvent.type(screen.getByLabelText(/^password /i), 'secure-pass-ok!')
+    await userEvent.type(screen.getByLabelText(/confirm password/i), 'secure-pass-ok!')
+    await userEvent.click(screen.getByRole('button', { name: /create user/i }))
+
+    await waitFor(() => expect(toastMessages()).toContain('Failed to create user'))
+    expect(screen.queryByText('Username is already taken')).not.toBeInTheDocument()
   })
 })

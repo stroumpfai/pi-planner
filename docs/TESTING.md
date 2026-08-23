@@ -68,6 +68,7 @@ seeds `testuser` and `testuser2`, runs the suite and tears it all down.
 | `pi-planning` | PI create, state transitions, single-in-progress rule, feature drag, grouping |
 | `snapshots-and-states` | Snapshot create and restore; State lists add, separation, guarded delete |
 | `admin-users` | User management, password policy, reader and editor RBAC |
+| `api-keys` | Issue, reveal, cycle and revoke an API key |
 | `export-png` / `export-report` | Modal options mapped to export query params |
 | `sse-updates` | A second session's writes arriving over the event stream |
 | `smoke` | The app boots |
@@ -77,14 +78,7 @@ seeds `testuser` and `testuser2`, runs the suite and tears it all down.
 Ranked by risk, not by percentage. A low number on a file nobody edits matters
 less than an untested path through code that changes every week.
 
-### 1. `UserManagementModal.tsx` — 57% statements, the weakest file in the app
-Admin-only account and API-key management: role changes, password resets, key
-creation and revocation. E2E now covers creating a user, the password policy and
-RBAC enforcement, but the API-key half and the role/reset edit paths are still
-mostly unexercised. This is security-adjacent code — worth unit tests for each
-mutation and its error branch.
-
-### 2. `PIBoardPage.tsx` — 66% statements, 35% functions
+### 1. `PIBoardPage.tsx` — 66% statements, 35% functions
 The uncovered functions are the drag-and-drop handlers: `handleDragStart`,
 `handleDragEnd`, and the `applyFeatureDrop` / `applySwimlaneReorder` branches for
 group and PBI drops. E2E covers feature-to-swimlane and (in `backlog-search`)
@@ -93,23 +87,23 @@ no test at any layer**. Those two helpers are pure functions taking the drag and
 drop payloads — they can be unit tested directly, without a browser, which is much
 cheaper than more `realMouseDown` choreography.
 
-### 3. Hooks that only exist behind components — `useAuth` 26%, `useEditLock` 31%, `useStates` 47%
+### 2. Hooks that only exist behind components — `useAuth` 26%, `useEditLock` 31%, `useStates` 47%
 Not alarming on their own, since components and E2E exercise the happy paths. What
 is missing is the *failure* branches: a 409 from `acquire`, a session expiring
 mid-edit, a keepalive that fails. The single-writer model is the app's core
 constraint and its unhappy paths are the least tested part of it.
 
-### 4. `services/api.ts` — 12.5% branch coverage
+### 3. `services/api.ts` — 12.5% branch coverage
 The axios instance and its interceptors. Almost every uncovered branch is error
 handling: 401 redirect, network failure, the error-envelope unwrapping that every
 component's error message depends on.
 
-### 5. Journeys with no E2E coverage
+### 4. Journeys with no E2E coverage
 PI events (create/edit/delete), sprint capacity editing, feature split and
-continuation, Clear Backlog, project JSON export/import, snapshot diffing, API key
-management, theme switching, and column resize. Ranked roughly by how much a
-silent break would hurt: **feature split** and **project import** first — both
-move data in bulk and neither has a browser-level test.
+continuation, Clear Backlog, project JSON export/import, snapshot diffing, theme
+switching, and column resize. Ranked roughly by how much a silent break would
+hurt: **feature split** and **project import** first — both move data in bulk and
+neither has a browser-level test.
 
 ## Adding coverage well
 
