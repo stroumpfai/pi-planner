@@ -123,7 +123,13 @@ async def test_stream_sends_keepalive_on_timeout(broadcaster):
     gen = broadcaster.stream("proj-1", request)
     await gen.__anext__()  # connected
 
-    with patch("app.services.events.asyncio.wait_for", side_effect=asyncio.TimeoutError):
+    # The real wait_for takes ownership of the coroutine it is handed; a plain
+    # side_effect leaves q.get() un-awaited and warns when it is collected.
+    async def timeout_immediately(coro, timeout):  # noqa: ANN001, ARG001
+        coro.close()
+        raise asyncio.TimeoutError
+
+    with patch("app.services.events.asyncio.wait_for", timeout_immediately):
         keepalive = await gen.__anext__()
 
     assert keepalive == ": keepalive\n\n"

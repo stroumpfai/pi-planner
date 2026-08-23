@@ -31,6 +31,10 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Warnings are a gate, like the coverage floor: both suites run clean, so a
+# new one (a deprecation from a dependency bump, an un-awaited coroutine)
+# fails here instead of scrolling past in the output.
+filterwarnings = ["error"]
 addopts = "--cov=mcp_server --cov-fail-under=80 --cov-report=term-missing"
 
 [tool.coverage.run]

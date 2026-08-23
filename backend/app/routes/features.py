@@ -75,7 +75,7 @@ async def _apply_metadata_fields(
 
 async def _apply_move_to_swimlane(db: AsyncSession, feature: Feature, body: FeatureUpdate, fields: set[str]) -> None:
     if body.swimlane_id is None:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="swimlane_id required")
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="swimlane_id required")
     swimline = await db.get(Swimline, body.swimlane_id)
     if not swimline:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Swimline not found")
@@ -228,7 +228,7 @@ async def split_feature(
     feature = await _get_feature_or_404(db, feature_id)
     if feature.location != "pi":
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"error": "FEATURE_NOT_IN_PI", "message": "Feature must be in a PI to split"},
         )
 
@@ -237,7 +237,7 @@ async def split_feature(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Swimline not found")
     if swimline.pi_id != body.target_pi_id:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"error": "SWIMLANE_PI_MISMATCH", "message": "Swimline does not belong to target PI"},
         )
 
@@ -247,7 +247,7 @@ async def split_feature(
     selected_ids = set(body.pbi_ids)
     if not selected_ids.issubset(all_pbi_ids):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"error": "PBI_NOT_IN_FEATURE", "message": "One or more PBIs do not belong to this feature"},
         )
 
@@ -304,7 +304,7 @@ async def cancel_continuation(
     feature = await _get_feature_or_404(db, feature_id)
     if feature.continued_from_feature_id is None:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"error": "NOT_A_CONTINUATION", "message": "Feature is not a continuation"},
         )
 
@@ -313,7 +313,7 @@ async def cancel_continuation(
     )).scalar_one()
     if downstream > 0:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail={"error": "HAS_CONTINUATIONS", "message": "Cancel its downstream continuations first"},
         )
 

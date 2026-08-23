@@ -1,7 +1,9 @@
+import warnings
 from typing import Annotated, Any, Literal
 
 from fastmcp import FastMCP, Context
 from pydantic import Field
+from pydantic.json_schema import PydanticJsonSchemaWarning
 
 from mcp_server.backend import call_backend
 from mcp_server.lock import edit_lock
@@ -15,6 +17,14 @@ _UUID_RE = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 # passed null to clear the field".  FastMCP calls tools with **kwargs, so omitted
 # params arrive as the Python default (_UNSET); explicitly-null params arrive as None.
 _UNSET: Any = object()
+
+# Pydantic cannot serialise the sentinel into the JSON schema, so it drops the
+# default — exactly what this parameter wants: omitted must not advertise one.
+warnings.filterwarnings(
+    "ignore",
+    category=PydanticJsonSchemaWarning,
+    message=".*is not JSON serializable.*",
+)
 
 
 @features_mcp.tool()

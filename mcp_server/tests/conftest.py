@@ -9,12 +9,14 @@ from mcp_server.config import settings
 from mcp_server.backend import set_http_client
 
 _TEST_BACKEND_URL = "http://test-backend"
+# HS256 keys under 32 bytes make PyJWT warn on every encode and decode.
+_TEST_SIGNING_SECRET = "test-mcp-signing-secret-at-least-32-bytes-long"
 
 
 @pytest.fixture(autouse=True)
 def mock_settings(monkeypatch):
     """Override settings for all tests to use predictable values."""
-    monkeypatch.setattr(settings, "mcp_signing_secret", "test-secret-32chars-xxxxxxxxxxx")
+    monkeypatch.setattr(settings, "mcp_signing_secret", _TEST_SIGNING_SECRET)
     monkeypatch.setattr(settings, "backend_url", _TEST_BACKEND_URL)
 
 

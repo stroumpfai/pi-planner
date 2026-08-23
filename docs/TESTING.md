@@ -22,6 +22,13 @@ scripts/test-report.sh --check    # same, but exit non-zero if anything failed
 Each gate is enforced by the runner itself, so a suite fails on its own if coverage
 regresses. They are floors, not targets — the actual numbers sit well above them.
 
+Both pytest suites also run under `filterwarnings = ["error"]`, so a warning fails
+the suite rather than scrolling past — a dependency's new deprecation, an
+un-awaited coroutine left by a mock. When one fires, fix it at the source; add a
+narrowly scoped `ignore` (matched on category *and* message) only when the
+warning is telling you about behaviour you deliberately want, and say so in a
+comment — as `mcp_server/tools/features.py` does for its `_UNSET` sentinel.
+
 ### Backend
 `tests/unit/` covers services in isolation (argon2id hashing and the password
 policy, effort rollups, the SSE broadcaster, rate limiting, schema serialization).
