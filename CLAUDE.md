@@ -397,6 +397,11 @@ alembic upgrade head
 
 ## Testing
 
+Full picture — layers, how to run each, and the current gaps — in
+[`docs/TESTING.md`](docs/TESTING.md). Generated pass/fail and coverage numbers per
+commit in [`docs/TEST-REPORT.md`](docs/TEST-REPORT.md), rewritten by
+`scripts/test-report.sh` (run it before cutting a release).
+
 ### Frontend (Vitest)
 
 ```typescript
