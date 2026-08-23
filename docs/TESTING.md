@@ -104,13 +104,7 @@ The axios instance and its interceptors. Almost every uncovered branch is error
 handling: 401 redirect, network failure, the error-envelope unwrapping that every
 component's error message depends on.
 
-### 5. Components with no unit test at all
-`FeatureFormModal`, `FeatureSubRow`, `PIEventModal`, `CreatePIModal`,
-`ChangePasswordModal` (12.5% functions), `DateInput`, `ConfirmDialog`,
-`ItemEditButton`, `ItemDeleteButton`, `PasswordStrengthBar`. `FeatureFormModal`
-and `ChangePasswordModal` are the two that carry real logic.
-
-### 6. Journeys with no E2E coverage
+### 5. Journeys with no E2E coverage
 PI events (create/edit/delete), sprint capacity editing, feature split and
 continuation, Clear Backlog, project JSON export/import, snapshot diffing, API key
 management, theme switching, and column resize. Ranked roughly by how much a
