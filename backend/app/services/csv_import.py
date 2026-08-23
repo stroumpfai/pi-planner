@@ -14,6 +14,7 @@ from app.schemas.csv_import import (
     OrphanLocation,
 )
 from app.services.events import broadcaster
+from app.services.pbi_delete import delete_pbi_and_empty_group
 from app.services.project_state import get_or_create_state, state_item_type_for_pbi
 
 _VALID_ITEM_TYPES = {"feature", "story", "bug"}
@@ -196,11 +197,17 @@ async def _upsert_one_story(
         pbi = await db.get(PBI, pbi_map[row.user_id])
         if pbi is None:
             return 0, 0
+        previous_item_type = pbi.item_type
         pbi.title = row.title
         pbi.effort = row.effort
         pbi.item_type = row.item_type
         if state_changed:
             pbi.state_id = state_id
+        elif row.item_type != previous_item_type:
+            # A file with no State column says nothing about State, but switching a
+            # Story to a Bug still strands the old State in the other list — clear it,
+            # exactly as PATCH /pbis/{id} does.
+            pbi.state_id = None
         return 0, 1
 
     db.add(PBI(
@@ -245,18 +252,24 @@ async def _apply_removals(
     db: AsyncSession,
     project_id: str,
     system_ids: list[str],
-) -> tuple[list[str], list[tuple[str, str]]]:
+) -> tuple[list[str], list[tuple[str, str]], list[str]]:
     """Delete the given features/PBIs (by system_id) belonging to this project.
 
     Features are deleted first — this cascades to their child PBIs and groups
     (see Feature.pbis/groups delete-orphan + PBI FK ON DELETE CASCADE), so a child
     PBI whose id also appears in the list is already gone and is skipped.
 
-    Returns (deleted_feature_ids, deleted_pbis) where deleted_pbis is a list of
-    (pbi_system_id, parent_feature_system_id) for SSE broadcasting.
+    A story deleted on its own goes through ``delete_pbi_and_empty_group`` so it
+    cannot strand the group holding it on the PI board — the same cleanup
+    ``DELETE /pbis/{id}`` performs.
+
+    Returns (deleted_feature_ids, deleted_pbis, deleted_group_ids) where
+    deleted_pbis is a list of (pbi_system_id, parent_feature_system_id) for SSE
+    broadcasting.
     """
     deleted_feature_ids: list[str] = []
     deleted_pbis: list[tuple[str, str]] = []
+    deleted_group_ids: list[str] = []
     remaining: list[str] = []
 
     for sid in system_ids:
@@ -275,10 +288,12 @@ async def _apply_removals(
         pbi = await db.get(PBI, sid)
         if pbi is not None and pbi.project_id == project_id:
             parent_id = pbi.parent_feature_system_id
-            await db.delete(pbi)
+            group_id = await delete_pbi_and_empty_group(db, pbi)
             deleted_pbis.append((sid, parent_id))
+            if group_id:
+                deleted_group_ids.append(group_id)
 
-    return deleted_feature_ids, deleted_pbis
+    return deleted_feature_ids, deleted_pbis, deleted_group_ids
 
 
 _UNASSIGNED_TITLE = "Unassigned"
@@ -371,7 +386,7 @@ async def execute_import(
             detail={"errors": [e.model_dump() for e in errors]},
         )
 
-    deleted_feature_ids, deleted_pbis = await _apply_removals(
+    deleted_feature_ids, deleted_pbis, deleted_group_ids = await _apply_removals(
         db, project_id, removals or []
     )
     if deleted_feature_ids or deleted_pbis:
@@ -432,6 +447,8 @@ async def execute_import(
             project_id, "pbi:deleted",
             {"system_id": pbi_id, "feature_id": parent_id},
         )
+    for group_id in deleted_group_ids:
+        await broadcaster.broadcast(project_id, "group:deleted", {"system_id": group_id})
 
     return CsvImportResult(
         created_features=created_features,

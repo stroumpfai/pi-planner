@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import type { AxiosError } from 'axios'
-import { parseImportCSV, buildPreview } from '@/utils/csvParser'
+import { parseImportCSV, buildPreview, selectImportRows } from '@/utils/csvParser'
 import type { ImportPreview, ParsedRow, ParseResult } from '@/utils/csvParser'
 import { useCsvImport } from '@/hooks/useCsvImport'
 import type { CsvImportResult, Feature, PBI } from '@/types'
@@ -147,6 +147,14 @@ function ErrorList({ errors }: { readonly errors: { row: number; message: string
   )
 }
 
+function ImportingLabel() {
+  return (
+    <span className="flex items-center gap-2">
+      <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />{' '}Importing…
+    </span>
+  )
+}
+
 function ResultRow({ label, value }: { readonly label: string; readonly value: number }) {
   return (
     <tr>
@@ -209,7 +217,7 @@ function ReconcileList({
 export function ImportCSVModal({ open, projectId, file, features, pbis, onClose }: Props) {
   const [step, setStep] = useState<Step>('preview')
   const [preview, setPreview] = useState<ImportPreview | null>(null)
-  const [parsedRows, setParsedRows] = useState<ParsedRow[]>([])
+  const [parsed, setParsed] = useState<ParseResult | null>(null)
   const [candidates, setCandidates] = useState<RemovalCandidate[]>([])
   const [removeSelection, setRemoveSelection] = useState<Set<string>>(new Set())
   const [result, setResult] = useState<CsvImportResult | null>(null)
@@ -229,7 +237,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, onClose 
     if (!open || !file) return
     setStep('preview')
     setPreview(null)
-    setParsedRows([])
+    setParsed(null)
     setCandidates([])
     setRemoveSelection(new Set())
     setResult(null)
@@ -237,7 +245,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, onClose 
 
     file.text().then((text) => {
       const parseResult: ParseResult = parseImportCSV(text)
-      setParsedRows(parseResult.rows)
+      setParsed(parseResult)
       setPreview(buildPreview(parseResult))
       const { features: f, pbis: p } = projectItems.current
       setCandidates(computeCandidates(parseResult.removedItems, f, p))
@@ -259,6 +267,26 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, onClose 
     return f
   }, [candidates, removeSelection])
 
+  // A Removed feature the user keeps takes its child rows back into the import — the
+  // parser holds them precisely so this decision can still go either way.
+  const keptRemovedFeatureIds = useMemo(() => {
+    const kept = new Set<number>()
+    for (const c of candidates) {
+      if (c.isFeature && !removeSelection.has(c.systemId)) kept.add(c.userId)
+    }
+    return kept
+  }, [candidates, removeSelection])
+
+  const rowsToImport: ParsedRow[] = useMemo(
+    () => (parsed === null ? [] : selectImportRows(parsed, keptRemovedFeatureIds)),
+    [parsed, keptRemovedFeatureIds],
+  )
+
+  // Child rows that survive only because their feature is being kept — worth naming,
+  // since the preview counted them as dropped.
+  const keptChildCount =
+    parsed === null ? 0 : rowsToImport.length - selectImportRows(parsed).length
+
   function toggleRemove(systemId: string, remove: boolean) {
     setRemoveSelection((prev) => {
       const next = new Set(prev)
@@ -278,7 +306,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, onClose 
       // Forced children are handled by cascade, but including them is harmless and explicit.
       const removals = Array.from(new Set([...removeSelection, ...forced]))
       const res = await importMutation.mutateAsync({
-        rows: parsedRows.map(parsedRowToCsvRow),
+        rows: rowsToImport.map(parsedRowToCsvRow),
         removals,
         // A file with no State column must leave every State untouched.
         has_state_column: preview?.hasStateColumn ?? false,
@@ -305,7 +333,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, onClose 
   function handleClose() {
     setStep('preview')
     setPreview(null)
-    setParsedRows([])
+    setParsed(null)
     setCandidates([])
     setRemoveSelection(new Set())
     setResult(null)
@@ -314,6 +342,13 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, onClose 
   }
 
   const removeCount = new Set([...removeSelection, ...forced]).size
+
+  // 'importing' has no screen of its own — it keeps whichever step launched it on
+  // display, with a spinner in the Confirm button. Reconcile is reached only when
+  // there are candidates, so that alone says which screen to hold.
+  const importing = step === 'importing'
+  const showReconcile = step === 'reconcile' || (importing && candidates.length > 0)
+  const showPreview = step === 'preview' || (importing && candidates.length === 0)
 
   return (
     <Dialog.Root open={open} onOpenChange={(o) => { if (!o) handleClose() }}>
@@ -325,7 +360,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, onClose 
         >
 
           {/* ── Preview ────────────────────────────────────────────────────── */}
-          {step === 'preview' && (
+          {showPreview && (
             <>
               <Dialog.Title className="text-base font-semibold text-gray-900 mb-4">
                 Import CSV
@@ -358,24 +393,25 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, onClose 
                 <button
                   type="button"
                   onClick={handleClose}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                  disabled={importing}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={handleConfirm}
-                  disabled={preview === null || preview.hasErrors}
+                  disabled={preview === null || preview.hasErrors || importing}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {candidates.length > 0 ? 'Next' : 'Confirm Import'}
+                  {importing ? <ImportingLabel /> : candidates.length > 0 ? 'Next' : 'Confirm Import'}
                 </button>
               </div>
             </>
           )}
 
           {/* ── Reconcile ──────────────────────────────────────────────────── */}
-          {(step === 'reconcile' || step === 'importing') && (
+          {showReconcile && (
             <>
               <Dialog.Title className="text-base font-semibold text-gray-900 mb-1">
                 Removed items already in the project
@@ -407,11 +443,18 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, onClose 
                 </p>
               )}
 
+              {keptChildCount > 0 && (
+                <p className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded-md px-3 py-2 mt-2">
+                  {keptChildCount} child {keptChildCount === 1 ? 'row' : 'rows'} from this file
+                  {keptChildCount === 1 ? ' belongs' : ' belong'} to a kept feature and will be imported too.
+                </p>
+              )}
+
               <div className="flex justify-end gap-3 mt-6">
                 <button
                   type="button"
                   onClick={() => setStep('preview')}
-                  disabled={step === 'importing'}
+                  disabled={importing}
                   className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
                 >
                   Back
@@ -419,14 +462,10 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, onClose 
                 <button
                   type="button"
                   onClick={runImport}
-                  disabled={step === 'importing'}
+                  disabled={importing}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {step === 'importing' ? (
-                    <span className="flex items-center gap-2">
-                      <span className="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />{' '}Importing…
-                    </span>
-                  ) : 'Confirm Import'}
+                  {importing ? <ImportingLabel /> : 'Confirm Import'}
                 </button>
               </div>
             </>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { parseImportCSV, buildPreview } from '../csvParser'
+import { parseImportCSV, buildPreview, selectImportRows } from '../csvParser'
 
 // Columns: Work Item Type, Title 1, ID, Effort, Parent, State
 const HEADER = 'Work Item Type,Title 1,ID,Effort,Parent,State'
@@ -97,7 +97,7 @@ describe('parseImportCSV', () => {
     expect(result.removedItems).toHaveLength(0)
   })
 
-  it('drops active child rows whose parent feature is Removed', () => {
+  it('counts active child rows whose parent feature is Removed but keeps them in rows', () => {
     const result = parseImportCSV(
       csv(
         'Feature,Doomed,101,,,Removed',
@@ -106,9 +106,10 @@ describe('parseImportCSV', () => {
         'Product Backlog Item,Survivor,203,3,999,',
       ),
     )
+    // The rows survive parsing — reconcile has not decided the feature's fate yet.
+    expect(result.rows).toHaveLength(3)
+    expect(result.removedFeatureIds).toEqual([101])
     expect(result.childrenOfRemovedCount).toBe(2)
-    expect(result.rows).toHaveLength(1)
-    expect(result.rows[0].title).toBe('Survivor')
   })
 
   it('records an error for an out-of-range ID', () => {
@@ -158,6 +159,50 @@ describe('parseImportCSV', () => {
   it('rejects non-numeric effort', () => {
     const result = parseImportCSV(csv('Product Backlog Item,Story,,XL,101,'))
     expect(result.errors.some((e) => /not a valid number/i.test(e.message))).toBe(true)
+  })
+})
+
+// ── selectImportRows ──────────────────────────────────────────────────────────
+
+describe('selectImportRows', () => {
+  const withRemovedFeature = () =>
+    parseImportCSV(
+      csv(
+        'Feature,Doomed,101,,,Removed',
+        'Product Backlog Item,Child A,201,3,101,',
+        'Bug,Child B,202,2,101,',
+        'Product Backlog Item,Survivor,203,3,999,',
+      ),
+    )
+
+  it('drops children of a Removed feature when nothing is kept', () => {
+    const rows = selectImportRows(withRemovedFeature())
+    expect(rows.map((r) => r.title)).toEqual(['Survivor'])
+  })
+
+  it('keeps the children of a Removed feature the user chose to keep', () => {
+    const rows = selectImportRows(withRemovedFeature(), new Set([101]))
+    expect(rows.map((r) => r.title)).toEqual(['Child A', 'Child B', 'Survivor'])
+  })
+
+  it('drops children of the Removed features that are still going', () => {
+    const result = parseImportCSV(
+      csv(
+        'Feature,Kept,101,,,Removed',
+        'Feature,Doomed,102,,,Removed',
+        'Product Backlog Item,Under Kept,201,3,101,',
+        'Product Backlog Item,Under Doomed,202,3,102,',
+      ),
+    )
+    const rows = selectImportRows(result, new Set([101]))
+    expect(rows.map((r) => r.title)).toEqual(['Under Kept'])
+  })
+
+  it('never drops a feature row of its own', () => {
+    const result = parseImportCSV(
+      csv('Feature,Doomed,101,,,Removed', 'Feature,Nested,102,,101,'),
+    )
+    expect(selectImportRows(result).map((r) => r.title)).toEqual(['Nested'])
   })
 })
 

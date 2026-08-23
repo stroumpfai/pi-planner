@@ -155,6 +155,22 @@ async def reorder_project_states(
                 },
             )
 
+    # Positions are assigned from the index in `order`, so anything left out keeps a
+    # stale position that collides with the ones just handed out — the list would come
+    # back in an arbitrary order. A reorder has to name the whole list, once each.
+    if len(body.order) != len(by_id) or len(set(body.order)) != len(body.order):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "error": "INCOMPLETE_ORDER",
+                "message": (
+                    f"Reorder must list each of the {len(by_id)} "
+                    f"{body.item_type} States exactly once"
+                ),
+                "details": {"expected": len(by_id), "received": len(body.order)},
+            },
+        )
+
     for index, state_id in enumerate(body.order):
         by_id[state_id].position = index
 

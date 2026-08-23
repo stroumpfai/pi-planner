@@ -8,7 +8,13 @@ import * as csvParser from '@/utils/csvParser'
 import type { Feature, PBI } from '@/types'
 
 vi.mock('@/hooks/useCsvImport')
-vi.mock('@/utils/csvParser')
+// Only the file-reading entry points are faked; selectImportRows stays real so the
+// tests exercise the actual remove-with-parent rules.
+vi.mock('@/utils/csvParser', async (importOriginal) => ({
+  ...(await importOriginal<typeof csvParser>()),
+  parseImportCSV: vi.fn(),
+  buildPreview: vi.fn(),
+}))
 
 const makeWrapper = () => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -24,6 +30,7 @@ const fakeParseResult: csvParser.ParseResult = {
   totalRows: 1,
   removedCount: 0,
   removedItems: [],
+  removedFeatureIds: [],
   childrenOfRemovedCount: 0,
   hasStateColumn: true,
   errors: [],
@@ -245,6 +252,70 @@ describe('ImportCSVModal', () => {
     await userEvent.click(screen.getByRole('checkbox'))
     await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
     expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: ['feat-1'], has_state_column: true })
+  })
+
+  it('stays on the preview screen while importing when there is nothing to reconcile', async () => {
+    let release: (v: unknown) => void = () => {}
+    mutateAsync.mockReturnValue(new Promise((resolve) => { release = resolve }))
+    render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
+    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+
+    // The reconcile heading has no list to show here — it must not flash up.
+    expect(screen.queryByText(/removed items already in the project/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/import csv/i)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /importing/i })).toBeDisabled()
+
+    release(okResult)
+    await waitFor(() => expect(screen.getByText(/import complete/i)).toBeInTheDocument())
+  })
+
+  // ── Remove-with-parent ─────────────────────────────────────────────────────
+
+  const removedFeatureWithChild = {
+    ...fakeParseResult,
+    rows: [
+      { rowNumber: 3, itemType: 'story' as const, userId: 201, title: 'Child', effort: 3, parentId: 101, state: 'New' },
+    ],
+    removedItems: [{ rowNumber: 2, itemType: 'feature' as const, userId: 101, title: 'Gone', effort: null, parentId: null, state: '' }],
+    removedFeatureIds: [101],
+    childrenOfRemovedCount: 1,
+  }
+
+  it('drops the child rows of a Removed feature that is being removed', async () => {
+    mutateAsync.mockResolvedValue(okResult)
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue(removedFeatureWithChild)
+    render(
+      <ImportCSVModal {...defaultProps} open file={makeFile()} features={[makeFeature(101, 'feat-1', 'Existing')]} />,
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => screen.getByRole('button', { name: /next/i }))
+    await userEvent.click(screen.getByRole('button', { name: /next/i }))
+    await userEvent.click(screen.getByRole('checkbox'))
+    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    expect(mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ rows: [], removals: ['feat-1'] }),
+    )
+  })
+
+  it('imports the child rows of a Removed feature the user keeps', async () => {
+    mutateAsync.mockResolvedValue(okResult)
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue(removedFeatureWithChild)
+    render(
+      <ImportCSVModal {...defaultProps} open file={makeFile()} features={[makeFeature(101, 'feat-1', 'Existing')]} />,
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => screen.getByRole('button', { name: /next/i }))
+    await userEvent.click(screen.getByRole('button', { name: /next/i }))
+    // Kept by default — the child row must come along rather than vanish silently.
+    expect(screen.getByText(/1 child row from this file/i)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    expect(mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        rows: [expect.objectContaining({ user_id: 201, title: 'Child' })],
+        removals: [],
+      }),
+    )
   })
 
   it('shows removed counts on the done step', async () => {

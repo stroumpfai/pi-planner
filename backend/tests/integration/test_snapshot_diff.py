@@ -125,6 +125,60 @@ async def test_diff_reports_title_change(client, project):
 
 
 @pytest.mark.asyncio
+async def test_diff_reports_a_feature_state_change(client, project):
+    pid = project["system_id"]
+    fid = await _feature(client, pid, "Auth")
+    doing = (await client.post(
+        f"/api/v1/projects/{pid}/states/", json={"item_type": "feature", "value": "Doing"}
+    )).json()
+    await _snapshot(client, pid)
+
+    await client.patch(f"/api/v1/features/{fid}", json={"state_id": doing["system_id"]})
+
+    diff = (await client.get(_diff_url(pid))).json()
+    changed = diff["changes"]["features"]["changed"]
+    assert changed[0]["fields"]["state"] == {"from": None, "to": "Doing"}
+    assert "state — → Doing" in diff["narrative"]
+
+
+@pytest.mark.asyncio
+async def test_diff_reports_a_pbi_state_change(client, project):
+    pid = project["system_id"]
+    fid = await _feature(client, pid)
+    pbi_id = await _pbi(client, pid, fid)
+    new, done = [
+        (await client.post(
+            f"/api/v1/projects/{pid}/states/", json={"item_type": "story", "value": value}
+        )).json()
+        for value in ("New", "Done")
+    ]
+    await client.patch(f"/api/v1/pbis/{pbi_id}", json={"state_id": new["system_id"]})
+    await _snapshot(client, pid)
+
+    await client.patch(f"/api/v1/pbis/{pbi_id}", json={"state_id": done["system_id"]})
+
+    diff = (await client.get(_diff_url(pid))).json()
+    changed = diff["changes"]["pbis"]["changed"]
+    assert changed[0]["fields"]["state"] == {"from": "New", "to": "Done"}
+
+
+@pytest.mark.asyncio
+async def test_diff_ignores_an_unchanged_state(client, project):
+    pid = project["system_id"]
+    fid = await _feature(client, pid, "Auth")
+    doing = (await client.post(
+        f"/api/v1/projects/{pid}/states/", json={"item_type": "feature", "value": "Doing"}
+    )).json()
+    await client.patch(f"/api/v1/features/{fid}", json={"state_id": doing["system_id"]})
+    await _snapshot(client, pid)
+
+    await client.patch(f"/api/v1/features/{fid}", json={"title": "Authorization"})
+
+    diff = (await client.get(_diff_url(pid))).json()
+    assert list(diff["changes"]["features"]["changed"][0]["fields"]) == ["title"]
+
+
+@pytest.mark.asyncio
 async def test_diff_reports_sprint_capacity_change(client, project):
     pid = project["system_id"]
     pi_id, _ = await _pi_with_swimline(client, pid)

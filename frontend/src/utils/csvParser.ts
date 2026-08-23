@@ -21,11 +21,17 @@ export interface ParseError {
 }
 
 export interface ParseResult {
+  /**
+   * Every active (non-Removed) row in the file, including child rows whose parent
+   * feature is Removed — those are only dropped by `selectImportRows`, once the
+   * reconcile step has settled which Removed features are actually going away.
+   */
   rows: ParsedRow[]
   totalRows: number       // all data rows before any filtering
   removedCount: number    // rows dropped because State is 'Removed' (any case)
   removedItems: ParsedRow[]         // Removed rows that carry a valid ID (candidates for deletion)
-  childrenOfRemovedCount: number    // active child rows dropped because their feature is Removed
+  removedFeatureIds: number[]       // IDs of the Removed rows that are features
+  childrenOfRemovedCount: number    // active child rows a full removal would drop
   hasStateColumn: boolean // false when the file has no State header at all
   errors: ParseError[]
 }
@@ -205,29 +211,17 @@ export function parseImportCSV(text: string): ParseResult {
     })
   })
 
-  // Remove-with-parent: a Removed feature takes its child stories too, so drop any
-  // active child rows in this file whose parent feature is Removed (they must not be
-  // imported or orphaned into "Unassigned").
-  const removedFeatureIds = new Set<number>(
-    removedItems.filter((r) => r.itemType === 'feature' && r.userId !== null).map((r) => r.userId as number),
-  )
-  let childrenOfRemovedCount = 0
-  const keptRows: ParsedRow[] = []
-  for (const row of rows) {
-    if (
-      (row.itemType === 'story' || row.itemType === 'bug') &&
-      row.parentId !== null &&
-      removedFeatureIds.has(row.parentId)
-    ) {
-      childrenOfRemovedCount++
-      continue
-    }
-    keptRows.push(row)
-  }
-  rows.length = 0
-  rows.push(...keptRows)
+  // Remove-with-parent: a Removed feature takes its child stories too. The rows stay
+  // in `rows` — whether they are dropped depends on what the user decides about each
+  // Removed feature in reconcile — so this is only the preview count: what would go
+  // if every Removed feature is in fact removed.
+  const removedFeatureIds = removedItems
+    .filter((r) => r.itemType === 'feature')
+    .map((r) => r.userId as number)
+  const childrenOfRemovedCount =
+    rows.length - dropChildrenOf(rows, new Set(removedFeatureIds)).length
 
-  // Intra-file duplicate ID check (across all non-Removed, non-dropped rows)
+  // Intra-file duplicate ID check (across all active rows)
   const seenIds = new Map<number, number>()  // id → first rowNumber
   for (const row of rows) {
     if (row.userId === null) continue
@@ -243,18 +237,50 @@ export function parseImportCSV(text: string): ParseResult {
   }
 
   return {
-    rows, totalRows, removedCount, removedItems, childrenOfRemovedCount, hasStateColumn, errors,
+    rows, totalRows, removedCount, removedItems, removedFeatureIds,
+    childrenOfRemovedCount, hasStateColumn, errors,
   }
+}
+
+// ── Import row selection ──────────────────────────────────────────────────────
+
+function dropChildrenOf(rows: readonly ParsedRow[], featureIds: ReadonlySet<number>): ParsedRow[] {
+  if (featureIds.size === 0) return [...rows]
+  return rows.filter(
+    (r) => r.itemType === 'feature' || r.parentId === null || !featureIds.has(r.parentId),
+  )
+}
+
+/**
+ * The rows an import should actually send.
+ *
+ * A Removed feature takes its child stories with it, so active child rows whose
+ * parent feature is Removed in this file are dropped — they must not be imported
+ * or orphaned into "Unassigned". `keptFeatureIds` names the Removed features the
+ * user chose to *keep* during reconcile: those are staying, so their children are
+ * part of the import after all and must not be silently discarded.
+ */
+export function selectImportRows(
+  result: ParseResult,
+  keptFeatureIds: ReadonlySet<number> = new Set(),
+): ParsedRow[] {
+  return dropChildrenOf(
+    result.rows,
+    new Set(result.removedFeatureIds.filter((id) => !keptFeatureIds.has(id))),
+  )
 }
 
 // ── Preview builder ───────────────────────────────────────────────────────────
 
 export function buildPreview(result: ParseResult): ImportPreview {
+  // Reconcile has not happened yet, so preview the default: every Removed feature
+  // goes, taking its children with it.
+  const rows = selectImportRows(result)
   const featureIds = new Set<number>()
   let featureCount = 0
   let storyCount = 0
 
-  for (const row of result.rows) {
+  for (const row of rows) {
     if (row.itemType === 'feature') {
       featureCount++
       if (row.userId !== null) featureIds.add(row.userId)
@@ -263,14 +289,14 @@ export function buildPreview(result: ParseResult): ImportPreview {
     }
   }
 
-  const orphanCount = result.rows
+  const orphanCount = rows
     .filter((r) => r.itemType === 'story' || r.itemType === 'bug')
     .filter((r) => r.parentId === null || !featureIds.has(r.parentId))
     .length
 
   // Distinct States across all three lists, deduped the same way the backend does.
   const seenStates = new Map<string, string>()
-  for (const row of result.rows) {
+  for (const row of rows) {
     const key = row.state.trim().toLowerCase()
     if (key !== '' && !seenStates.has(key)) seenStates.set(key, row.state.trim())
   }

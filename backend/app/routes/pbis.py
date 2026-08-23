@@ -15,6 +15,7 @@ from app.models.user import User
 from app.schemas import PBICreate, PBIResponse, PBIUpdate, PlaceStoryRequest, PlaceStoryResponse
 from app.schemas.group import GroupResponse
 from app.services.events import broadcaster
+from app.services.pbi_delete import delete_pbi_and_empty_group
 from app.services.project_state import (
     resolve_state_assignment,
     state_item_type_for_pbi,
@@ -289,22 +290,15 @@ async def delete_pbi(
     pbi = await _get_or_404(db, pbi_id)
     project_id = pbi.project_id
     feature_id = pbi.parent_feature_system_id
-    group_id = pbi.group_id
 
-    await db.delete(pbi)
-    await db.flush()
-
-    if group_id:
-        remaining = (await db.execute(
-            select(func.count()).where(PBI.group_id == group_id)
-        )).scalar_one()
-        if remaining == 0:
-            group = await db.get(Group, group_id)
-            if group:
-                await db.delete(group)
+    deleted_group_id = await delete_pbi_and_empty_group(db, pbi)
 
     await db.commit()
     await broadcaster.broadcast(
         project_id, _EVT_PBI_DELETED,
         {"system_id": pbi_id, "feature_id": feature_id},
     )
+    if deleted_group_id:
+        await broadcaster.broadcast(
+            project_id, _EVT_GROUP_DELETED, {"system_id": deleted_group_id}
+        )

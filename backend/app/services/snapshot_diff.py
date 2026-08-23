@@ -28,13 +28,16 @@ from typing import Any
 # planning-relevant fields whose changes count as a "changed" entity — volatile
 # timestamps are deliberately excluded.
 TRACKED_FIELDS: dict[str, list[str]] = {
+    # "state" is the State's *value*, not its id: a diff reads better as
+    # "New → In Progress" than as a pair of UUIDs, and it also catches a State
+    # that was renamed out from under the item.
     "features": [
         "id", "title", "description", "location", "pi_id", "swimlane_id",
-        "continued_from_feature_id", "effort",
+        "continued_from_feature_id", "effort", "state",
     ],
     "pbis": [
         "id", "parent_feature_system_id", "title", "description", "effort",
-        "item_type", "location", "pi_id", "swimlane_id", "group_id",
+        "item_type", "location", "pi_id", "swimlane_id", "group_id", "state",
     ],
     "pis": ["name", "description", "state", "start_date", "end_date"],
     "swimlines": ["name", "order_index"],

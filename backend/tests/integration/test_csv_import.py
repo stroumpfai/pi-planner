@@ -15,6 +15,18 @@ def _row(row_number: int, item_type: str, title: str, **kwargs):
     return {"row_number": row_number, "item_type": item_type, "title": title, **kwargs}
 
 
+@pytest.fixture
+def captured_events(monkeypatch):
+    events: list[tuple[str, str, dict]] = []
+
+    async def fake_broadcast(project_id, event_type, data):
+        events.append((project_id, event_type, data))
+
+    from app.services.events import broadcaster
+    monkeypatch.setattr(broadcaster, "broadcast", fake_broadcast)
+    return events
+
+
 # ── Empty rows ────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
@@ -507,3 +519,147 @@ async def test_removal_combined_with_create_and_update(client, project):
     features_after = (await client.get(f"/api/v1/projects/{pid}/features")).json()
     by_id = {f["id"]: f["title"] for f in features_after}
     assert by_id == {101: "Updated Feature", 103: "Brand New"}
+
+
+# ── Removals and the PI board ─────────────────────────────────────────────────
+
+async def _place_story_in_sprint(client, pid: str) -> tuple[str, str]:
+    """Create a story sitting in a sprint and return (story_system_id, group_system_id)."""
+    pi_id = (await client.post(f"/api/v1/projects/{pid}/pis", json={"name": "Q1"})).json()["system_id"]
+    sl_id = (await client.post(f"/api/v1/pis/{pi_id}/swimlines", json={"name": "Team A"})).json()["system_id"]
+
+    await client.post(_url(pid), json={"rows": [
+        _row(1, "feature", "Board Feature", user_id=101),
+        _row(2, "story", "Placed Story", user_id=201, parent_id=101),
+    ]})
+    features = (await client.get(f"/api/v1/projects/{pid}/features")).json()
+    feature_sid = next(f["system_id"] for f in features if f["id"] == 101)
+    await client.patch(f"/api/v1/features/{feature_sid}", json={"swimlane_id": sl_id})
+
+    pbis = (await client.get(f"/api/v1/projects/{pid}/pbis")).json()
+    story_sid = next(p["system_id"] for p in pbis if p["id"] == 201)
+    group = (await client.post(
+        f"/api/v1/pbis/{story_sid}/place", json={"sprint_index": 1}
+    )).json()["group"]
+    return story_sid, group["system_id"]
+
+
+@pytest.mark.asyncio
+async def test_removing_a_placed_story_takes_its_implicit_group(client, project):
+    """SQLite runs without foreign-key enforcement, so the group has to be cleaned up
+    here — otherwise the board keeps a card pointing at a story that no longer exists."""
+    pid = project["system_id"]
+    story_sid, group_sid = await _place_story_in_sprint(client, pid)
+
+    resp = await client.post(_url(pid), json={"rows": [], "removals": [story_sid]})
+    assert resp.status_code == 200
+    assert resp.json()["removed_stories"] == 1
+
+    assert (await client.get(f"/api/v1/groups/{group_sid}")).status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_removing_a_placed_story_broadcasts_group_deleted(client, project, captured_events):
+    pid = project["system_id"]
+    story_sid, group_sid = await _place_story_in_sprint(client, pid)
+    captured_events.clear()
+
+    await client.post(_url(pid), json={"rows": [], "removals": [story_sid]})
+
+    assert (pid, "group:deleted", {"system_id": group_sid}) in captured_events
+
+
+@pytest.mark.asyncio
+async def test_removing_one_of_two_stories_leaves_the_group_alone(client, project):
+    pid = project["system_id"]
+    _, group_sid = await _place_story_in_sprint(client, pid)
+
+    # A second story joins the same group, so removing the first must not empty it.
+    features = (await client.get(f"/api/v1/projects/{pid}/features")).json()
+    feature_sid = next(f["system_id"] for f in features if f["id"] == 101)
+    other = (await client.post(f"/api/v1/projects/{pid}/pbis", json={
+        "title": "Room-mate", "parent_feature_system_id": feature_sid,
+    })).json()
+    await client.patch(f"/api/v1/pbis/{other['system_id']}", json={"group_id": group_sid})
+
+    pbis = (await client.get(f"/api/v1/projects/{pid}/pbis")).json()
+    story_sid = next(p["system_id"] for p in pbis if p["id"] == 201)
+    await client.post(_url(pid), json={"rows": [], "removals": [story_sid]})
+
+    assert (await client.get(f"/api/v1/groups/{group_sid}")).status_code == 200
+
+
+# ── Item type switches and State ──────────────────────────────────────────────
+
+@pytest.mark.asyncio
+async def test_switching_a_story_to_a_bug_without_a_state_column_clears_the_state(client, project):
+    """Stories and Bugs draw from separate State Lists, so the old State is stranded —
+    the same guard PATCH /pbis/{id} applies."""
+    pid = project["system_id"]
+    await client.post(_url(pid), json={
+        "rows": [
+            _row(1, "feature", "Auth", user_id=101),
+            _row(2, "story", "Login", user_id=201, parent_id=101, state="In Progress"),
+        ],
+        "has_state_column": True,
+    })
+    story = next(
+        p for p in (await client.get(f"/api/v1/projects/{pid}/pbis")).json() if p["id"] == 201
+    )
+    assert story["state"] == "In Progress"
+
+    # Same item re-imported as a Bug, from a file that carries no State column.
+    resp = await client.post(_url(pid), json={"rows": [
+        _row(1, "feature", "Auth", user_id=101),
+        _row(2, "bug", "Login", user_id=201, parent_id=101),
+    ]})
+    assert resp.status_code == 200
+
+    after = next(
+        p for p in (await client.get(f"/api/v1/projects/{pid}/pbis")).json() if p["id"] == 201
+    )
+    assert after["item_type"] == "bug"
+    assert after["state_id"] is None
+    assert after["state"] is None
+
+
+@pytest.mark.asyncio
+async def test_switching_type_with_a_state_column_takes_the_new_lists_state(client, project):
+    pid = project["system_id"]
+    await client.post(_url(pid), json={
+        "rows": [_row(1, "story", "Login", user_id=201, state="In Progress")],
+        "has_state_column": True,
+    })
+    resp = await client.post(_url(pid), json={
+        "rows": [_row(1, "bug", "Login", user_id=201, state="Triaged")],
+        "has_state_column": True,
+    })
+    assert resp.status_code == 200
+
+    after = next(
+        p for p in (await client.get(f"/api/v1/projects/{pid}/pbis")).json() if p["id"] == 201
+    )
+    assert after["item_type"] == "bug"
+    assert after["state"] == "Triaged"
+
+    states = (await client.get(f"/api/v1/projects/{pid}/states/")).json()
+    assert {(s["item_type"], s["value"]) for s in states} == {
+        ("story", "In Progress"), ("bug", "Triaged"),
+    }
+
+
+@pytest.mark.asyncio
+async def test_re_importing_the_same_type_keeps_the_state(client, project):
+    """The clear is scoped to a type switch — an ordinary update must not lose State."""
+    pid = project["system_id"]
+    await client.post(_url(pid), json={
+        "rows": [_row(1, "story", "Login", user_id=201, state="In Progress")],
+        "has_state_column": True,
+    })
+    await client.post(_url(pid), json={"rows": [_row(1, "story", "Login v2", user_id=201)]})
+
+    after = next(
+        p for p in (await client.get(f"/api/v1/projects/{pid}/pbis")).json() if p["id"] == 201
+    )
+    assert after["title"] == "Login v2"
+    assert after["state"] == "In Progress"

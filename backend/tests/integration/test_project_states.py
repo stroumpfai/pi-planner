@@ -522,6 +522,41 @@ async def test_reorder_rejects_an_id_from_another_project(client, project):
     assert resp.status_code == 422
 
 
+@pytest.mark.asyncio
+async def test_reorder_rejects_a_partial_order(client, project):
+    """Positions come from the index in `order`; omitting an entry would leave it on a
+    stale position that collides with the ones just assigned."""
+    pid = project["system_id"]
+    new = await _make_state(client, pid, "feature", "New")
+    await _make_state(client, pid, "feature", "Doing")
+    await _make_state(client, pid, "feature", "Done")
+
+    resp = await client.post(
+        f"{_states_url(pid)}reorder",
+        json={"item_type": "feature", "order": [new["system_id"]]},
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"] == "INCOMPLETE_ORDER"
+    assert resp.json()["detail"]["details"] == {"expected": 3, "received": 1}
+    # Nothing moved.
+    assert [s["value"] for s in await _states(client, pid, "feature")] == ["New", "Doing", "Done"]
+
+
+@pytest.mark.asyncio
+async def test_reorder_rejects_a_repeated_id(client, project):
+    pid = project["system_id"]
+    new = await _make_state(client, pid, "feature", "New")
+    await _make_state(client, pid, "feature", "Done")
+
+    resp = await client.post(
+        f"{_states_url(pid)}reorder",
+        json={"item_type": "feature", "order": [new["system_id"], new["system_id"]]},
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"] == "INCOMPLETE_ORDER"
+    assert [s["value"] for s in await _states(client, pid, "feature")] == ["New", "Done"]
+
+
 # ── SSE ───────────────────────────────────────────────────────────────────────
 
 @pytest.fixture
