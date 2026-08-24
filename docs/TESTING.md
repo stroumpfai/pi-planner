@@ -95,23 +95,18 @@ seeds `testuser` and `testuser2`, runs the suite and tears it all down.
 Ranked by risk, not by percentage. A low number on a file nobody edits matters
 less than an untested path through code that changes every week.
 
-### 1. Hooks that only exist behind components — `useAuth` 26%, `useEditLock` 31%, `useStates` 47%
-Not alarming on their own, since components and E2E exercise the happy paths. What
-is missing is the *failure* branches: a 409 from `acquire`, a session expiring
-mid-edit, a keepalive that fails. The single-writer model is the app's core
-constraint and its unhappy paths are the least tested part of it.
-
-### 2. `services/api.ts` — 12.5% branch coverage
-The axios instance and its interceptors. Almost every uncovered branch is error
-handling: 401 redirect, network failure, the error-envelope unwrapping that every
-component's error message depends on.
-
-### 3. Journeys with no E2E coverage
+### 1. Journeys with no E2E coverage
 Snapshot diffing and theme switching — what is left after the bulk-data journeys
 were covered. Neither moves data, so a silent break costs a reader a stale view
 rather than lost work. (PI events, sprint capacity editing and column resize are
 unit-tested instead of driven through a browser, which is where the guidance below
 would put them anyway.)
+
+### 2. Thin spots, none of them load-bearing
+`useSwimlinesAndGroups` and `useTheme` sit near 76%, and `services/states.ts` has
+most of its functions covered only through the hooks that call them. All three are
+small, stable and exercised end-to-end; none is worth a spec of its own until it
+starts changing.
 
 ## Adding coverage well
 
@@ -124,3 +119,15 @@ would put them anyway.)
 - **Match the existing style.** Backend tests use the fixtures in `conftest.py`;
   frontend specs declare local wrappers and factories; E2E specs select by
   accessible name, role and label rather than `data-testid`.
+- **Stub a hook with `mockImplementation`, not `mockReturnValue`.** A component
+  spec that does `vi.mock('@/hooks/useEditLock')` and hands back one frozen object
+  gives the component a referential stability React Query never provides — every
+  `useMutation` render returns a *new* result object (only `mutate` is stable). The
+  edit-lock heartbeat depended on that identity in an effect's dep array and so
+  never fired in production, for as long as the spec that stubbed it passed. If a
+  component reads a hook result across renders, hand it a fresh object per call.
+- **Test the interceptor by swapping the adapter, not the service.** Mocking
+  `@/services/*` skips `services/api.ts` entirely, where the 401 session clear, the
+  409 lock toast and the 5xx toast live. `src/services/__tests__/api.test.ts`
+  replaces `api.defaults.adapter` instead, so everything above the wire — services,
+  hooks, the stores the interceptor writes to — is the real thing.

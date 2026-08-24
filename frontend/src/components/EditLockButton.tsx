@@ -15,12 +15,17 @@ export function EditLockButton({ projectId }: Props) {
   const keepalive = useKeepaliveEditLock(projectId)
   const { user, isEditing } = useAuthStore()
 
-  // Heartbeat: send keepalive every minute while editing
+  // Heartbeat: send keepalive every minute while editing.
+  // Depend on `keepalive.mutate` (stable) rather than the mutation result object,
+  // which React Query rebuilds on every render — including the one `useEditLock`'s
+  // 30s refetch triggers. Depending on the object restarted the 60s interval
+  // before it could ever fire, so the lock silently expired mid-edit.
+  const keepaliveMutate = keepalive.mutate
   useEffect(() => {
     if (!isEditing) return
-    const id = setInterval(() => keepalive.mutate(), HEARTBEAT_MS)
+    const id = setInterval(() => keepaliveMutate(), HEARTBEAT_MS)
     return () => clearInterval(id)
-  }, [isEditing, keepalive])
+  }, [isEditing, keepaliveMutate])
 
   if (!user) return null
 

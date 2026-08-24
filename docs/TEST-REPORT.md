@@ -5,9 +5,9 @@
 | | |
 |---|---|
 | **Status** | ✅ all green |
-| **Generated** | 2026-08-23 18:34 UTC |
-| **Commit** | `41e6ffe` on `test/unit-specs-for-untested-components` |
-| **Total tests** | **1657** |
+| **Generated** | 2026-08-24 16:12 UTC |
+| **Commit** | `81c2202` on `test/unit-specs-for-untested-components` |
+| **Total tests** | **1697** |
 
 ## Suites
 
@@ -15,7 +15,7 @@
 |---|---|---|---|
 | Backend (pytest) | 601 | 95.62% | `cd backend && pytest tests/` |
 | MCP server (pytest) | 220 | 94.75% | `cd mcp_server && pytest tests/` |
-| Frontend unit (Vitest) | 761 | 95.48% | `npm run test` |
+| Frontend unit (Vitest) | 801 | 96.49% | `npm run test` |
 | End-to-end (Cypress) | 75 across 16 specs | n/a — journey coverage | `npm run e2e` |
 
 Coverage gates are enforced by the runners themselves: 75% for the backend

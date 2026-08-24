@@ -1,5 +1,5 @@
 import { vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { EditLockButton } from '../EditLockButton'
 import {
@@ -15,6 +15,7 @@ vi.mock('@/hooks/useEditLock')
 
 const acquireMutate = vi.fn()
 const releaseMutate = vi.fn()
+const keepaliveMutate = vi.fn()
 
 function setupHooks(lockData?: { is_locked: boolean; locked_by_username: string }) {
   vi.mocked(useEditLock).mockReturnValue({ data: lockData } as ReturnType<typeof useEditLock>)
@@ -26,9 +27,11 @@ function setupHooks(lockData?: { is_locked: boolean; locked_by_username: string 
     mutate: releaseMutate,
     isPending: false,
   } as ReturnType<typeof useReleaseEditLock>)
-  vi.mocked(useKeepaliveEditLock).mockReturnValue({
-    mutate: vi.fn(),
-  } as ReturnType<typeof useKeepaliveEditLock>)
+  // A fresh object per call, like the real useMutation result. mockReturnValue would
+  // hand back one frozen object and hide the identity churn the heartbeat depends on.
+  vi.mocked(useKeepaliveEditLock).mockImplementation(
+    () => ({ mutate: keepaliveMutate }) as ReturnType<typeof useKeepaliveEditLock>,
+  )
 }
 
 const stamps = { created_at: '2026-08-10T09:00:00+00:00', last_login_at: null, password_changed_at: null }
@@ -92,5 +95,56 @@ describe('EditLockButton', () => {
     render(<EditLockButton projectId="p-1" />)
     await userEvent.click(screen.getByRole('button', { name: /release/i }))
     expect(releaseMutate).toHaveBeenCalledOnce()
+  })
+})
+
+describe('EditLockButton heartbeat', () => {
+  beforeEach(() => vi.useFakeTimers())
+  afterEach(() => vi.useRealTimers())
+
+  it('does not send a keepalive when not editing', () => {
+    useAuthStore.setState({ user: admin, isEditing: false })
+    render(<EditLockButton projectId="p-1" />)
+    vi.advanceTimersByTime(5 * 60_000)
+    expect(keepaliveMutate).not.toHaveBeenCalled()
+  })
+
+  it('sends a keepalive every minute while editing', () => {
+    useAuthStore.setState({ user: admin, isEditing: true })
+    render(<EditLockButton projectId="p-1" />)
+
+    vi.advanceTimersByTime(59_000)
+    expect(keepaliveMutate).not.toHaveBeenCalled()
+    vi.advanceTimersByTime(1_000)
+    expect(keepaliveMutate).toHaveBeenCalledOnce()
+    vi.advanceTimersByTime(60_000)
+    expect(keepaliveMutate).toHaveBeenCalledTimes(2)
+  })
+
+  it('keeps beating across the re-renders useEditLock\'s 30s refetch causes', () => {
+    // Regression: the effect used to depend on the whole mutation result, which React
+    // Query rebuilds every render. A re-render more often than once a minute restarted
+    // the interval forever, so the lock expired under an actively editing user.
+    useAuthStore.setState({ user: admin, isEditing: true })
+    const { rerender } = render(<EditLockButton projectId="p-1" />)
+
+    for (let i = 0; i < 10; i++) {
+      vi.advanceTimersByTime(30_000)
+      rerender(<EditLockButton projectId="p-1" />)
+    }
+
+    expect(keepaliveMutate).toHaveBeenCalledTimes(5)
+  })
+
+  it('stops beating once editing ends', () => {
+    useAuthStore.setState({ user: admin, isEditing: true })
+    const { rerender } = render(<EditLockButton projectId="p-1" />)
+    vi.advanceTimersByTime(60_000)
+    expect(keepaliveMutate).toHaveBeenCalledOnce()
+
+    act(() => useAuthStore.setState({ isEditing: false }))
+    rerender(<EditLockButton projectId="p-1" />)
+    vi.advanceTimersByTime(5 * 60_000)
+    expect(keepaliveMutate).toHaveBeenCalledOnce()
   })
 })
