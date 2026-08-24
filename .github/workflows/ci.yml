@@ -26,3 +26,28 @@ jobs:
 
       - name: Run ESLint
         run: npm run lint
+
+  frontend-typecheck:
+    name: Frontend typecheck
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Covers the specs as well as src. `npm run build` only checks
+      # tsconfig.app.json, which excludes __tests__ — so without this a spec can
+      # drift from the API types (asserting payloads the backend would reject)
+      # while lint and the suite both stay green.
+      - name: Typecheck (including tests)
+        run: npm run typecheck

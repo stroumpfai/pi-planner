@@ -22,6 +22,15 @@ scripts/test-report.sh --check    # same, but exit non-zero if anything failed
 Each gate is enforced by the runner itself, so a suite fails on its own if coverage
 regresses. They are floors, not targets — the actual numbers sit well above them.
 
+Alongside them, `npm run typecheck` type-checks **the specs as well as `src`**.
+`npm run build` only checks `tsconfig.app.json`, which excludes `__tests__`, so
+without this a spec can drift from the generated API types unnoticed — and several
+had: specs were asserting payloads (`{ label }` for a PI event, `current_password`
+for a password change) that the backend would reject outright. They passed anyway,
+because a spec that mocks the service layer and asserts the call was forwarded is
+true for *any* payload. The type-check is the only thing that catches it, so CI
+runs it.
+
 Both pytest suites also run under `filterwarnings = ["error"]`, so a warning fails
 the suite rather than scrolling past — a dependency's new deprecation, an
 un-awaited coroutine left by a mock. When one fires, fix it at the source; add a
