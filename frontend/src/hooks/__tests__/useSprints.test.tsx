@@ -21,7 +21,9 @@ function makeWrapper() {
   }
 }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('useSprints', () => {
   it('fetches the sprint list for a PI', async () => {

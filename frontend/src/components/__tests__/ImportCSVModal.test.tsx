@@ -70,7 +70,7 @@ function makePBI(id: number, systemId: string, title: string, parent: string): P
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.mocked(useCsvImport).mockReturnValue({ mutateAsync } as ReturnType<typeof useCsvImport>)
+  vi.mocked(useCsvImport).mockReturnValue({ mutateAsync } as unknown as ReturnType<typeof useCsvImport>)
   vi.mocked(csvParser.parseImportCSV).mockReturnValue(fakeParseResult)
   vi.mocked(csvParser.buildPreview).mockReturnValue(fakePreview)
 })

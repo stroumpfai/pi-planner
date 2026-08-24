@@ -24,7 +24,9 @@ function mockProject(overrides: Partial<Project> = {}) {
 }
 
 describe('WorkItemLink', () => {
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
   it('renders an external link with the built href', () => {
     mockProject()

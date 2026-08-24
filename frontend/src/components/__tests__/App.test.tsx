@@ -31,8 +31,8 @@ function makeWrapper() {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  vi.mocked(useCurrentUser).mockReturnValue({ data: null, isLoading: false, isError: true } as ReturnType<typeof useCurrentUser>)
-  vi.mocked(useLogout).mockReturnValue({ mutate: vi.fn() } as ReturnType<typeof useLogout>)
+  vi.mocked(useCurrentUser).mockReturnValue({ data: null, isLoading: false, isError: true } as unknown as ReturnType<typeof useCurrentUser>)
+  vi.mocked(useLogout).mockReturnValue({ mutate: vi.fn() } as unknown as ReturnType<typeof useLogout>)
 })
 
 describe('App', () => {
@@ -42,7 +42,7 @@ describe('App', () => {
   })
 
   it('renders header with PI Planner when authenticated', async () => {
-    vi.mocked(useCurrentUser).mockReturnValue({ data: fakeUser, isLoading: false, isError: false } as ReturnType<typeof useCurrentUser>)
+    vi.mocked(useCurrentUser).mockReturnValue({ data: fakeUser, isLoading: false, isError: false } as unknown as ReturnType<typeof useCurrentUser>)
     render(<App />, { wrapper: makeWrapper() })
     await waitFor(() => expect(screen.getByText('PI Planner')).toBeInTheDocument())
     expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument()
@@ -50,8 +50,8 @@ describe('App', () => {
 
   it('clicking Sign out calls logout.mutate', async () => {
     const logoutMutate = vi.fn()
-    vi.mocked(useCurrentUser).mockReturnValue({ data: fakeUser, isLoading: false, isError: false } as ReturnType<typeof useCurrentUser>)
-    vi.mocked(useLogout).mockReturnValue({ mutate: logoutMutate } as ReturnType<typeof useLogout>)
+    vi.mocked(useCurrentUser).mockReturnValue({ data: fakeUser, isLoading: false, isError: false } as unknown as ReturnType<typeof useCurrentUser>)
+    vi.mocked(useLogout).mockReturnValue({ mutate: logoutMutate } as unknown as ReturnType<typeof useLogout>)
     render(<App />, { wrapper: makeWrapper() })
     await waitFor(() => screen.getByRole('button', { name: /sign out/i }))
     await userEvent.click(screen.getByRole('button', { name: /sign out/i }))
@@ -59,7 +59,7 @@ describe('App', () => {
   })
 
   it('clicking PI Planner home button calls setActiveProject(null)', async () => {
-    vi.mocked(useCurrentUser).mockReturnValue({ data: fakeUser, isLoading: false, isError: false } as ReturnType<typeof useCurrentUser>)
+    vi.mocked(useCurrentUser).mockReturnValue({ data: fakeUser, isLoading: false, isError: false } as unknown as ReturnType<typeof useCurrentUser>)
     render(<App />, { wrapper: makeWrapper() })
     await waitFor(() => screen.getByText('PI Planner'))
     await userEvent.click(screen.getByRole('button', { name: /pi planner/i }))

@@ -22,11 +22,11 @@ beforeEach(() => {
   vi.mocked(useFeatureHooks.useClearBacklog).mockReturnValue({
     mutateAsync: clearBacklogMutateAsync.mockResolvedValue({ deleted_features: 2 }),
     isPending: false,
-  } as ReturnType<typeof useFeatureHooks.useClearBacklog>)
+  } as unknown as ReturnType<typeof useFeatureHooks.useClearBacklog>)
   vi.mocked(useFeatureHooks.useClearAllFeatures).mockReturnValue({
     mutateAsync: clearAllMutateAsync.mockResolvedValue({ deleted_features: 5 }),
     isPending: false,
-  } as ReturnType<typeof useFeatureHooks.useClearAllFeatures>)
+  } as unknown as ReturnType<typeof useFeatureHooks.useClearAllFeatures>)
 })
 
 const defaultProps = {

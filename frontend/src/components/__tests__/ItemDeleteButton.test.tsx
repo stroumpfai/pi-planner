@@ -5,7 +5,9 @@ import { ItemDeleteButton } from '../ItemDeleteButton'
 
 const onActivate = vi.fn()
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('ItemDeleteButton', () => {
   it('is labelled "Delete" and renders the trash icon', () => {

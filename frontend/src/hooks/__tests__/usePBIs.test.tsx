@@ -1,9 +1,17 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest'
+import type { MockInstance } from 'vitest'
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createElement } from 'react'
 import { usePBIs, useCreatePBI, useUpdatePBI, useDeletePBI } from '../usePBIs'
 import * as pbisService from '@/services/pbis'
+
+// Bare ReturnType<typeof vi.spyOn> resolves to MockInstance<unknown[], unknown>, which no
+// real spy is assignable to; derive the shape from the method being spied on instead.
+type InvalidateSpy = MockInstance<
+  Parameters<QueryClient['invalidateQueries']>,
+  ReturnType<QueryClient['invalidateQueries']>
+>
 
 vi.mock('@/services/pbis')
 const mockApi = vi.mocked(pbisService.pbisApi)
@@ -17,7 +25,9 @@ function makeWrapper() {
   }
 }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('usePBIs query', () => {
   it('lists PBIs for a feature', async () => {
@@ -39,7 +49,7 @@ describe('usePBIs query', () => {
 describe('usePBIs mutations invalidate the effort-rollup queries', () => {
   // Effort sums shown in the sprint columns, swimlane totals and PI totals are
   // computed server-side, so a PBI change must refresh those queries too.
-  const expectBroadInvalidation = (invalidateSpy: ReturnType<typeof vi.spyOn>) => {
+  const expectBroadInvalidation = (invalidateSpy: InvalidateSpy) => {
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['pbis', 'p-1'] })
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['features', 'p-1'] })
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['groups'] })

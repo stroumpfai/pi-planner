@@ -29,7 +29,7 @@ beforeEach(() => {
   vi.mocked(useCreateGroup).mockReturnValue({
     mutateAsync,
     isPending: false,
-  } as ReturnType<typeof useCreateGroup>)
+  } as unknown as ReturnType<typeof useCreateGroup>)
 })
 
 describe('CreateGroupModal', () => {

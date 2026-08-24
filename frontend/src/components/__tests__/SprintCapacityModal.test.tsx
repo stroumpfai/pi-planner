@@ -41,7 +41,7 @@ beforeEach(() => {
   vi.mocked(useUpdateSprint).mockReturnValue({
     mutateAsync,
     isPending: false,
-  } as ReturnType<typeof useUpdateSprint>)
+  } as unknown as ReturnType<typeof useUpdateSprint>)
 })
 
 describe('SprintCapacityModal', () => {

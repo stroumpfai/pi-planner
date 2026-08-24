@@ -1,6 +1,14 @@
 import { useAuthStore } from '../authStore'
+import type { User } from '@/types'
 
-const mockUser = { username: 'alice', display_name: 'Alice', is_admin: false }
+const mockUser: User = {
+  username: 'alice',
+  display_name: 'Alice',
+  role: 'editor',
+  created_at: '2026-01-01T00:00:00Z',
+  last_login_at: null,
+  password_changed_at: null,
+}
 
 describe('authStore', () => {
   beforeEach(() => useAuthStore.setState({ user: null, isEditing: false }))

@@ -48,13 +48,13 @@ describe('ProjectStatesModal', () => {
     for (const fn of Object.values(mutations)) fn.mockResolvedValue(undefined)
     vi.mocked(useCreateState).mockReturnValue(mockMutation(mutations.create))
     vi.mocked(useRenameState).mockReturnValue(
-      mockMutation(mutations.rename) as ReturnType<typeof useRenameState>,
+      mockMutation(mutations.rename) as unknown as ReturnType<typeof useRenameState>,
     )
     vi.mocked(useReorderStates).mockReturnValue(
-      mockMutation(mutations.reorder) as ReturnType<typeof useReorderStates>,
+      mockMutation(mutations.reorder) as unknown as ReturnType<typeof useReorderStates>,
     )
     vi.mocked(useDeleteState).mockReturnValue(
-      mockMutation(mutations.remove) as ReturnType<typeof useDeleteState>,
+      mockMutation(mutations.remove) as unknown as ReturnType<typeof useDeleteState>,
     )
   })
 

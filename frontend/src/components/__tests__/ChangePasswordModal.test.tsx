@@ -7,6 +7,8 @@ import * as usersService from '@/services/users'
 import { useAuthStore } from '@/stores/authStore'
 import { useToastStore } from '@/stores/toastStore'
 
+const stamps = { created_at: '2026-01-01T00:00:00Z', last_login_at: null, password_changed_at: null }
+
 vi.mock('@/services/users')
 const mockApi = vi.mocked(usersService.usersApi)
 
@@ -34,7 +36,7 @@ const toastMessages = () => useToastStore.getState().toasts.map((t) => t.message
 beforeEach(() => {
   vi.clearAllMocks()
   mockApi.changePassword = vi.fn().mockResolvedValue(undefined)
-  useAuthStore.setState({ user: { username: 'alice', display_name: 'Alice', role: 'editor' } })
+  useAuthStore.setState({ user: { username: 'alice', display_name: 'Alice', role: 'editor', ...stamps } })
   useToastStore.setState({ toasts: [] })
 })
 

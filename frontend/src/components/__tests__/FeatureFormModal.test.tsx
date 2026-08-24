@@ -66,7 +66,9 @@ const baseFeature: Feature = {
 
 const defaultProps = { open: true, onClose, onSubmit }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('FeatureFormModal', () => {
   it('renders "New Feature" for a create modal', () => {

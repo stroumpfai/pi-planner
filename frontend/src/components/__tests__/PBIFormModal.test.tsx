@@ -67,7 +67,9 @@ const basePBI: PBI = {
 
 const defaultProps = { open: true, onClose, onSubmit }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('PBIFormModal', () => {
   it('renders "New story" title for a create modal', () => {

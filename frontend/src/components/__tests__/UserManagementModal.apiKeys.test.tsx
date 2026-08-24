@@ -90,7 +90,7 @@ function topDialog() {
 describe('UserManagementModal — API Keys tab', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    useAuthStore.setState({ user: { username: 'admin', display_name: 'Administrator', role: 'admin' } })
+    useAuthStore.setState({ user: makeUser() })
     useToastStore.setState({ toasts: [] })
     mockUsers.list = vi.fn().mockResolvedValue([makeUser()])
     mockKeys.listAll = vi.fn().mockResolvedValue([])
@@ -99,7 +99,7 @@ describe('UserManagementModal — API Keys tab', () => {
   // ── Tab gating ──────────────────────────────────────────────────────────────
 
   it('shows "Admin only" and never fetches keys for a non-admin', async () => {
-    useAuthStore.setState({ user: { username: 'alice', display_name: 'Alice', role: 'editor' } })
+    useAuthStore.setState({ user: editor })
     await openKeysTab()
 
     expect(await screen.findByText('Admin only')).toBeInTheDocument()

@@ -30,6 +30,8 @@ const makeGroup = (overrides: Partial<Group> = {}): Group => ({
   name: 'Auth Group',
   sprint_index: null,
   order_index: null,
+  is_implicit: false,
+  story_system_id: null,
   created_at: '2026-01-01T00:00:00Z',
   modified_at: '2026-01-01T00:00:00Z',
   ...overrides,

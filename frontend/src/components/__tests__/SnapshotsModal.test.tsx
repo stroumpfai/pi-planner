@@ -7,6 +7,8 @@ import * as snapshotsService from '@/services/snapshots'
 import { useAuthStore } from '@/stores/authStore'
 import type { Snapshot } from '@/types'
 
+const stamps = { created_at: '2026-01-01T00:00:00Z', last_login_at: null, password_changed_at: null }
+
 vi.mock('@/services/snapshots')
 const mockApi = vi.mocked(snapshotsService.snapshotsApi)
 
@@ -36,7 +38,7 @@ describe('SnapshotsModal', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    useAuthStore.setState({ user: { username: 'alice', display_name: 'Alice', role: 'editor' } })
+    useAuthStore.setState({ user: { username: 'alice', display_name: 'Alice', role: 'editor', ...stamps } })
   })
 
   // ── Rendering ───────────────────────────────────────────────────────────────
@@ -158,7 +160,7 @@ describe('SnapshotsModal', () => {
   // ── canEdit gating ───────────────────────────────────────────────────────────
 
   it('hides Restore/Delete buttons and the create form for readers', async () => {
-    useAuthStore.setState({ user: { username: 'bob', display_name: 'Bob', role: 'reader' } })
+    useAuthStore.setState({ user: { username: 'bob', display_name: 'Bob', role: 'reader', ...stamps } })
     mockApi.list = vi.fn().mockResolvedValue([fakeSnapshot])
     render(<SnapshotsModal projectId="p-1" open onClose={onClose} />, { wrapper: makeWrapper() })
 

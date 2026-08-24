@@ -14,7 +14,9 @@ const defaultProps = {
   onCancel,
 }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('ConfirmDialog', () => {
   it('renders the title and description', () => {

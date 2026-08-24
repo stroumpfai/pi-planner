@@ -80,7 +80,9 @@ const defaultProps = {
   swimlaneId: 'sw-1',
 }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('FeatureSubRow', () => {
   it('renders the feature card', () => {

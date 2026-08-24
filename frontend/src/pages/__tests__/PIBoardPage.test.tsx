@@ -9,6 +9,8 @@ import { useSettingsStore } from '@/stores/settingsStore'
 import { useToastStore } from '@/stores/toastStore'
 import * as pisService from '@/services/pis'
 
+const stamps = { created_at: '2026-01-01T00:00:00Z', last_login_at: null, password_changed_at: null }
+
 // ── Heavy hooks ──────────────────────────────────────────────────────────────
 vi.mock('@/hooks/usePIs', () => ({
   usePIs: () => ({ data: [{ ...fakePi, state: board.piState }] }),
@@ -128,7 +130,7 @@ describe('PIBoardPage export buttons', () => {
     useToastStore.setState({ toasts: [] })
     useSettingsStore.setState({ focusMode: false })
     useAuthStore.setState({
-      user: { username: 'testuser', role: 'admin', display_name: 'Test User' },
+      user: { username: 'testuser', role: 'admin', display_name: 'Test User', ...stamps },
       isEditing: false,
     })
   })
@@ -274,7 +276,7 @@ describe('PIBoardPage export buttons', () => {
 
   it('opens and closes the add-swimlane modal', async () => {
     useAuthStore.setState({
-      user: { username: 'testuser', role: 'admin', display_name: 'Test User' },
+      user: { username: 'testuser', role: 'admin', display_name: 'Test User', ...stamps },
       isEditing: true,
     })
     render(<PIBoardPage projectId="proj-1" piId="pi-1" />, { wrapper: makeWrapper() })
@@ -291,7 +293,7 @@ describe('PIBoardPage export buttons', () => {
   it('offers to add the first swimlane on an empty board', async () => {
     board.swimlines = []
     useAuthStore.setState({
-      user: { username: 'testuser', role: 'admin', display_name: 'Test User' },
+      user: { username: 'testuser', role: 'admin', display_name: 'Test User', ...stamps },
       isEditing: true,
     })
     render(<PIBoardPage projectId="proj-1" piId="pi-1" />, { wrapper: makeWrapper() })
@@ -313,7 +315,7 @@ describe('PIBoardPage export buttons', () => {
   it('opens and closes the capacity editor from a sprint column', async () => {
     board.sprints = [fakeSprint]
     useAuthStore.setState({
-      user: { username: 'testuser', role: 'admin', display_name: 'Test User' },
+      user: { username: 'testuser', role: 'admin', display_name: 'Test User', ...stamps },
       isEditing: true,
     })
     render(<PIBoardPage projectId="proj-1" piId="pi-1" />, { wrapper: makeWrapper() })
@@ -336,7 +338,7 @@ describe('PIBoardPage export buttons', () => {
 
   it('opens and closes the PI event editor', async () => {
     useAuthStore.setState({
-      user: { username: 'testuser', role: 'admin', display_name: 'Test User' },
+      user: { username: 'testuser', role: 'admin', display_name: 'Test User', ...stamps },
       isEditing: true,
     })
     render(<PIBoardPage projectId="proj-1" piId="pi-1" />, { wrapper: makeWrapper() })
@@ -389,7 +391,7 @@ describe('PIBoardPage export buttons', () => {
     board.sprints = [fakeSprint]
     board.events = [fakeEvent]
     useAuthStore.setState({
-      user: { username: 'testuser', role: 'admin', display_name: 'Test User' },
+      user: { username: 'testuser', role: 'admin', display_name: 'Test User', ...stamps },
       isEditing: true,
     })
     render(<PIBoardPage projectId="proj-1" piId="pi-1" />, { wrapper: makeWrapper() })

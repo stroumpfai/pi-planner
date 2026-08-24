@@ -7,6 +7,8 @@ import * as usersService from '@/services/users'
 import { useAuthStore } from '@/stores/authStore'
 import { useToastStore } from '@/stores/toastStore'
 
+const stamps = { created_at: '2026-01-01T00:00:00Z', last_login_at: null, password_changed_at: null }
+
 vi.mock('@/services/users')
 const mockApi = vi.mocked(usersService.usersApi)
 
@@ -44,11 +46,13 @@ describe('UserManagementModal', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    useAuthStore.setState({ user: { username: 'admin', display_name: 'Administrator', role: 'admin' } })
+    useAuthStore.setState({ user: { username: 'admin', display_name: 'Administrator', role: 'admin', ...stamps } })
     useToastStore.setState({ toasts: [] })
   })
 
-  afterEach(() => vi.unstubAllGlobals())
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
 
   // ── Rendering ───────────────────────────────────────────────────────────────
 

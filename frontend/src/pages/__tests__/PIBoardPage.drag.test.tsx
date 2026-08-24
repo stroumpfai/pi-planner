@@ -1,4 +1,5 @@
 import { vi } from 'vitest'
+import type { MockInstance } from 'vitest'
 import { act, render, screen, within } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { DragEndEvent, DragStartEvent } from '@dnd-kit/core'
@@ -7,6 +8,8 @@ import { PIBoardPage } from '../PIBoardPage'
 import { useAuthStore } from '@/stores/authStore'
 import { groupsApi } from '@/services/groups'
 import { pbisApi } from '@/services/pbis'
+
+const stamps = { created_at: '2026-01-01T00:00:00Z', last_login_at: null, password_changed_at: null }
 
 // dnd-kit produces the drag events; this spec is about what the board does with
 // them. Stubbing DndContext hands us the real handlers to call with synthetic
@@ -97,12 +100,17 @@ const featurezone = (swimlaneId: string) => ({ type: 'featurezone', swimlaneId, 
 const sprintcell = (swimlaneId: string, sprintIndex?: number) => ({ type: 'sprintcell', swimlaneId, sprintIndex })
 
 let queryClient: QueryClient
-let invalidate: ReturnType<typeof vi.spyOn>
+// Bare ReturnType<typeof vi.spyOn> resolves to MockInstance<unknown[], unknown>, which no
+// real spy is assignable to; derive the shape from the method being spied on instead.
+let invalidate: MockInstance<
+  Parameters<QueryClient['invalidateQueries']>,
+  ReturnType<QueryClient['invalidateQueries']>
+>
 
 function renderBoard({ editing = true, piStateValue = 'in_progress' } = {}) {
   piState.current = { ...fakePi, state: piStateValue }
   useAuthStore.setState({
-    user: { username: 'u', role: 'admin', display_name: 'U' },
+    user: { username: 'u', role: 'admin', display_name: 'U', ...stamps },
     isEditing: editing,
   })
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })

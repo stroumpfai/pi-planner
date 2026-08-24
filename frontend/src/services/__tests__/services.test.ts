@@ -31,7 +31,9 @@ const mockPut = vi.mocked(api.put)
 const mockPatch = vi.mocked(api.patch)
 const mockDelete = vi.mocked(api.delete)
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 // ── authApi ────────────────────────────────────────────────────────────────────
 
@@ -292,8 +294,8 @@ describe('sprintsApi', () => {
 
   it('create calls POST /pis/:id/sprints', async () => {
     mockPost.mockResolvedValue({ data: {} } as never)
-    await sprintsApi.create('pi-1', { index: 0 })
-    expect(mockPost).toHaveBeenCalledWith('/pis/pi-1/sprints', { index: 0 })
+    await sprintsApi.create('pi-1', { sprint_index: 0, capacity: 20 })
+    expect(mockPost).toHaveBeenCalledWith('/pis/pi-1/sprints', { sprint_index: 0, capacity: 20 })
   })
 
   it('update calls PATCH /sprints/:id', async () => {
@@ -366,9 +368,9 @@ describe('usersApi', () => {
 
   it('changePassword calls POST /auth/change-password', async () => {
     mockPost.mockResolvedValue({ data: {} } as never)
-    await usersApi.changePassword({ current_password: 'old', new_password: 'newpassword12' })
+    await usersApi.changePassword({ old_password: 'oldpassword12', new_password: 'newpassword12' })
     expect(mockPost).toHaveBeenCalledWith('/auth/change-password', {
-      current_password: 'old',
+      old_password: 'oldpassword12',
       new_password: 'newpassword12',
     })
   })
@@ -385,14 +387,15 @@ describe('piEventsApi', () => {
 
   it('create calls POST /pis/:id/events', async () => {
     mockPost.mockResolvedValue({ data: {} } as never)
-    await piEventsApi.create('pi-1', { label: 'Demo', sprint_index: 0 })
-    expect(mockPost).toHaveBeenCalledWith('/pis/pi-1/events', { label: 'Demo', sprint_index: 0 })
+    const body = { name: 'Demo', event_date: '2026-03-01', event_type: 'milestone' } as const
+    await piEventsApi.create('pi-1', body)
+    expect(mockPost).toHaveBeenCalledWith('/pis/pi-1/events', body)
   })
 
   it('update calls PATCH /pis/:id/events/:eventId', async () => {
     mockPatch.mockResolvedValue({ data: {} } as never)
-    await piEventsApi.update('pi-1', 'ev-1', { label: 'Renamed' })
-    expect(mockPatch).toHaveBeenCalledWith('/pis/pi-1/events/ev-1', { label: 'Renamed' })
+    await piEventsApi.update('pi-1', 'ev-1', { name: 'Renamed' })
+    expect(mockPatch).toHaveBeenCalledWith('/pis/pi-1/events/ev-1', { name: 'Renamed' })
   })
 
   it('delete calls DELETE /pis/:id/events/:eventId', async () => {

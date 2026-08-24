@@ -5,7 +5,9 @@ import { ItemEditButton } from '../ItemEditButton'
 
 const onActivate = vi.fn()
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('ItemEditButton', () => {
   it('is labelled "Edit" and shows a pencil when the user can edit', () => {

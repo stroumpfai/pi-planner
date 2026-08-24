@@ -29,7 +29,9 @@ const project: Project = {
 
 describe('EditProjectModal — Azure DevOps URL', () => {
   const onClose = vi.fn()
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
   it('sends a valid https URL on save', async () => {
     mockApi.update = vi.fn().mockResolvedValue(project)
@@ -74,7 +76,9 @@ describe('EditProjectModal — Azure DevOps URL', () => {
 
 describe('EditProjectModal — effort unit', () => {
   const onClose = vi.fn()
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
   it('shows the current effort unit in the input', async () => {
     mockApi.update = vi.fn().mockResolvedValue(project)
@@ -110,7 +114,9 @@ describe('EditProjectModal — effort unit', () => {
 
 describe('EditProjectModal — work-item links', () => {
   const onClose = vi.fn()
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
   it('sends the Azure DevOps template when that preset is selected', async () => {
     mockApi.update = vi.fn().mockResolvedValue(project)

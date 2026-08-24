@@ -30,7 +30,9 @@ const fakeSnapshot: Snapshot = {
   created_by: 'alice',
 }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('useSnapshots', () => {
   it('fetches the snapshot list for a project', async () => {

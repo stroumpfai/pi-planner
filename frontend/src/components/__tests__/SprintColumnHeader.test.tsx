@@ -8,6 +8,7 @@ const makeSprint = (overrides: Partial<Sprint> = {}): Sprint => ({
   pi_id: 'pi-1',
   sprint_index: 0,
   capacity: 0,
+  effort: 0,
   start_date: null,
   end_date: null,
   created_at: '2026-01-01T00:00:00Z',

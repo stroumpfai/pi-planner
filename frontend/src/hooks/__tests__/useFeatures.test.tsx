@@ -25,7 +25,9 @@ function makeWrapper() {
   }
 }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('useFeatures / useFeature queries', () => {
   it('lists features with the default sort', async () => {

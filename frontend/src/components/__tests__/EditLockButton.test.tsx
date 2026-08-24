@@ -22,15 +22,15 @@ function setupHooks(lockData?: { is_locked: boolean; locked_by_username: string 
   vi.mocked(useAcquireEditLock).mockReturnValue({
     mutate: acquireMutate,
     isPending: false,
-  } as ReturnType<typeof useAcquireEditLock>)
+  } as unknown as ReturnType<typeof useAcquireEditLock>)
   vi.mocked(useReleaseEditLock).mockReturnValue({
     mutate: releaseMutate,
     isPending: false,
-  } as ReturnType<typeof useReleaseEditLock>)
+  } as unknown as ReturnType<typeof useReleaseEditLock>)
   // A fresh object per call, like the real useMutation result. mockReturnValue would
   // hand back one frozen object and hide the identity churn the heartbeat depends on.
   vi.mocked(useKeepaliveEditLock).mockImplementation(
-    () => ({ mutate: keepaliveMutate }) as ReturnType<typeof useKeepaliveEditLock>,
+    () => ({ mutate: keepaliveMutate }) as unknown as ReturnType<typeof useKeepaliveEditLock>,
   )
 }
 

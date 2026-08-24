@@ -17,7 +17,9 @@ function makeWrapper() {
 
 describe('CreateProjectModal', () => {
   const onClose = vi.fn()
-  beforeEach(() => vi.clearAllMocks())
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
 
   it('renders when open', () => {
     mockApi.list = vi.fn().mockResolvedValue([])

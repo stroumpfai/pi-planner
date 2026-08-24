@@ -61,7 +61,7 @@ beforeEach(() => {
   vi.mocked(useUpdatePI).mockReturnValue({
     mutateAsync: updateMutateAsync,
     isPending: false,
-  } as ReturnType<typeof useUpdatePI>)
+  } as unknown as ReturnType<typeof useUpdatePI>)
   vi.mocked(useSprints).mockReturnValue({
     data: [fakeSprint],
     isLoading: false,

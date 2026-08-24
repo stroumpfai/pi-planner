@@ -62,12 +62,15 @@ describe('downloadPICSV', () => {
 
 describe('downloadPIPNG', () => {
   const allOn: ExportPNGOptions = {
+    layout: 'roadmap',
     showPiEffort: true,
     showSprintEffort: true,
     showSwimlaneEffort: true,
     showEvents: true,
     swimlaneTextCenter: true,
     showExportDate: true,
+    splitBySwimline: true,
+    showId: true,
   }
 
   it('encodes every option as a query param', async () => {
@@ -83,6 +86,8 @@ describe('downloadPIPNG', () => {
     expect(url.searchParams.get('show_events')).toBe('true')
     expect(url.searchParams.get('swimlane_text_center')).toBe('true')
     expect(url.searchParams.get('show_export_date')).toBe('true')
+    expect(url.searchParams.get('split_by_swimline')).toBe('true')
+    expect(url.searchParams.get('show_id')).toBe('true')
   })
 
   it('encodes the heatmap layout', async () => {

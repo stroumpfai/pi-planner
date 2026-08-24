@@ -21,7 +21,9 @@ function ControlledHost({ initial }: { initial: string }) {
 
 const field = () => screen.getByRole('textbox')
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('DateInput', () => {
   it('renders an ISO value as dd.mm.yyyy', () => {

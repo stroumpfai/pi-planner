@@ -22,7 +22,9 @@ function makeWrapper() {
   }
 }
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('usePIEvents', () => {
   it('fetches events for a PI', async () => {
@@ -49,10 +51,18 @@ describe('PI event mutations', () => {
     const { result } = renderHook(() => useCreatePIEvent('pi-1'), { wrapper })
 
     await act(async () => {
-      await result.current.mutateAsync({ label: 'Demo', sprint_index: 0 })
+      await result.current.mutateAsync({
+        name: 'Demo',
+        event_date: '2026-03-01',
+        event_type: 'milestone',
+      })
     })
 
-    expect(mockApi.create).toHaveBeenCalledWith('pi-1', { label: 'Demo', sprint_index: 0 })
+    expect(mockApi.create).toHaveBeenCalledWith('pi-1', {
+      name: 'Demo',
+      event_date: '2026-03-01',
+      event_type: 'milestone',
+    })
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['pi-events', 'pi-1'] })
   })
 
@@ -63,10 +73,10 @@ describe('PI event mutations', () => {
     const { result } = renderHook(() => useUpdatePIEvent('pi-1'), { wrapper })
 
     await act(async () => {
-      await result.current.mutateAsync({ eventId: 'ev-1', body: { label: 'Renamed' } })
+      await result.current.mutateAsync({ eventId: 'ev-1', body: { name: 'Renamed' } })
     })
 
-    expect(mockApi.update).toHaveBeenCalledWith('pi-1', 'ev-1', { label: 'Renamed' })
+    expect(mockApi.update).toHaveBeenCalledWith('pi-1', 'ev-1', { name: 'Renamed' })
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['pi-events', 'pi-1'] })
   })
 

@@ -22,7 +22,7 @@ beforeEach(() => {
     mutate,
     isPending: false,
     error: null,
-  } as ReturnType<typeof useLogin>)
+  } as unknown as ReturnType<typeof useLogin>)
 })
 
 describe('LoginPage', () => {
@@ -48,7 +48,7 @@ describe('LoginPage', () => {
       mutate,
       isPending: false,
       error: new Error('Unauthorized'),
-    } as ReturnType<typeof useLogin>)
+    } as unknown as ReturnType<typeof useLogin>)
     render(<LoginPage />, { wrapper: makeWrapper() })
     expect(screen.getByText(/invalid username or password/i)).toBeInTheDocument()
   })

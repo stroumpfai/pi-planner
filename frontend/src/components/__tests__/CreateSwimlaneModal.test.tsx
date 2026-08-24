@@ -27,7 +27,7 @@ beforeEach(() => {
   vi.mocked(useCreateSwimline).mockReturnValue({
     mutateAsync,
     isPending: false,
-  } as ReturnType<typeof useCreateSwimline>)
+  } as unknown as ReturnType<typeof useCreateSwimline>)
 })
 
 describe('CreateSwimlaneModal', () => {

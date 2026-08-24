@@ -3,7 +3,9 @@ import { renderHook } from '@testing-library/react'
 import { useMaxTextWidth } from '../useMaxTextWidth'
 import * as measure from '@/utils/measureText'
 
-beforeEach(() => vi.restoreAllMocks())
+beforeEach(() => {
+  vi.restoreAllMocks()
+})
 
 describe('useMaxTextWidth', () => {
   it('returns the widest measured text, capped at maxWidth', () => {

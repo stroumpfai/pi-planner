@@ -6,6 +6,8 @@ import { ProjectListPage } from '../ProjectListPage'
 import * as projectsService from '@/services/projects'
 import { useAuthStore } from '@/stores/authStore'
 
+const stamps = { created_at: '2026-01-01T00:00:00Z', last_login_at: null, password_changed_at: null }
+
 vi.mock('@/services/projects')
 const mockApi = vi.mocked(projectsService.projectsApi)
 
@@ -25,8 +27,12 @@ const fakeProject = {
 }
 
 describe('ProjectListPage', () => {
-  beforeEach(() => vi.clearAllMocks())
-  afterEach(() => vi.unstubAllGlobals())
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
 
   it('renders project names from API', async () => {
     mockApi.list = vi.fn().mockResolvedValue([fakeProject])
@@ -199,7 +205,7 @@ describe('ProjectListPage', () => {
   // ── Role-based visibility ────────────────────────────────────────────────────
 
   it('reader sees project names but no edit buttons', async () => {
-    useAuthStore.setState({ user: { username: 'bob', display_name: 'Bob', role: 'reader' } })
+    useAuthStore.setState({ user: { username: 'bob', display_name: 'Bob', role: 'reader', ...stamps } })
     mockApi.list = vi.fn().mockResolvedValue([fakeProject])
     render(<ProjectListPage />, { wrapper: makeWrapper() })
     await waitFor(() => expect(screen.getByText('My Project')).toBeInTheDocument())
@@ -211,7 +217,7 @@ describe('ProjectListPage', () => {
   })
 
   it('editor sees all action buttons', async () => {
-    useAuthStore.setState({ user: { username: 'alice', display_name: 'Alice', role: 'editor' } })
+    useAuthStore.setState({ user: { username: 'alice', display_name: 'Alice', role: 'editor', ...stamps } })
     mockApi.list = vi.fn().mockResolvedValue([fakeProject])
     render(<ProjectListPage />, { wrapper: makeWrapper() })
     await waitFor(() => expect(screen.getByRole('button', { name: /new project/i })).toBeInTheDocument())
@@ -222,7 +228,7 @@ describe('ProjectListPage', () => {
   })
 
   it('admin sees all action buttons', async () => {
-    useAuthStore.setState({ user: { username: 'admin', display_name: 'Admin', role: 'admin' } })
+    useAuthStore.setState({ user: { username: 'admin', display_name: 'Admin', role: 'admin', ...stamps } })
     mockApi.list = vi.fn().mockResolvedValue([fakeProject])
     render(<ProjectListPage />, { wrapper: makeWrapper() })
     await waitFor(() => expect(screen.getByRole('button', { name: /new project/i })).toBeInTheDocument())
