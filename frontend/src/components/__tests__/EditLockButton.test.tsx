@@ -99,8 +99,12 @@ describe('EditLockButton', () => {
 })
 
 describe('EditLockButton heartbeat', () => {
-  beforeEach(() => vi.useFakeTimers())
-  afterEach(() => vi.useRealTimers())
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
 
   it('does not send a keepalive when not editing', () => {
     useAuthStore.setState({ user: admin, isEditing: false })

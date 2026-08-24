@@ -43,7 +43,9 @@ const allThreeLists = [
   makeState('feature', 'Done'),
 ]
 
-beforeEach(() => vi.clearAllMocks())
+beforeEach(() => {
+  vi.clearAllMocks()
+})
 
 describe('useStates', () => {
   it('fetches every State List for the project', async () => {
@@ -88,7 +90,7 @@ describe('useStatesForType', () => {
   })
 
   it('reports an empty list before the fetch resolves', () => {
-    mockStates.list = vi.fn(() => new Promise(() => {}))
+    mockStates.list = vi.fn().mockReturnValue(new Promise<ProjectState[]>(() => {}))
     const { wrapper } = makeWrapper()
     const { result } = renderHook(() => useStatesForType('p-1', 'bug'), { wrapper })
 
