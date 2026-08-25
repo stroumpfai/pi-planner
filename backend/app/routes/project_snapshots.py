@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from typing import Annotated
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import HTMLResponse
@@ -128,7 +128,7 @@ async def _resolve_baseline(
 
 async def _build_diff(
     db: AsyncSession, project_id: str, snapshot_id: str | None, pi_id: str | None
-) -> dict:
+) -> dict[str, Any]:
     project = await _get_project_or_404(db, project_id)
     if pi_id is not None:
         pi = await db.get(PI, pi_id)

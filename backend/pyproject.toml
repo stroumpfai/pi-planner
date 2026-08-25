@@ -71,3 +71,7 @@ select = ["E", "F", "I"]
 python_version = "3.12"
 strict = true
 ignore_missing_imports = true
+# Without this, mypy reads `Field(None, ...)` as a required argument and reports
+# every partial model construction (e.g. FeatureUpdate(swimlane_id=...)) as a
+# missing-argument error.
+plugins = ["pydantic.mypy"]

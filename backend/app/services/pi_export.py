@@ -2,9 +2,12 @@
 
 import csv
 import io
-from dataclasses import dataclass, field
+from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import date
+from typing import TypedDict
 
+from matplotlib.axes import Axes
 from matplotlib.backends.backend_agg import FigureCanvasAgg
 from matplotlib.figure import Figure
 from matplotlib.gridspec import GridSpec
@@ -15,11 +18,11 @@ from sqlalchemy.orm import aliased
 
 from app.models.feature import Feature
 from app.models.group import Group
+from app.models.pbi import PBI
 from app.models.pi import PI
 from app.models.pi_event import PIEvent
 from app.models.project import Project
 from app.models.project_state import ProjectState
-from app.models.pbi import PBI
 from app.models.sprint import Sprint
 from app.models.swimline import Swimline
 from app.services.effort import (
@@ -179,16 +182,16 @@ def _capacity_bar_color(used: float, capacity: int) -> str:
 
 
 def _draw_sprint_header(
-    ax: object,
-    sprints: list[Sprint],
+    ax: Axes,
+    sprints: Sequence[Sprint],
     sprint_efforts: dict[int, float],
     effort_unit: str,
     num_sprints: int,
     show_effort: bool = False,
 ) -> None:
-    ax.set_xlim(0.0, float(num_sprints))  # type: ignore[union-attr]
-    ax.set_ylim(0.0, 1.0)  # type: ignore[union-attr]
-    ax.axis("off")  # type: ignore[union-attr]
+    ax.set_xlim(0.0, float(num_sprints))
+    ax.set_ylim(0.0, 1.0)
+    ax.axis("off")
 
     for i in range(num_sprints):
         matching = [s for s in sprints if s.sprint_index == i]
@@ -197,39 +200,39 @@ def _draw_sprint_header(
         used = sprint_efforts.get(i, 0.0)
         pct = used / cap if cap > 0 else 0.0
 
-        ax.add_patch(Rectangle(  # type: ignore[union-attr]
+        ax.add_patch(Rectangle(
             (i + 0.02, 0.02), 0.96, 0.96,
             facecolor="#f8fafc", edgecolor="#e2e8f0", linewidth=0.5,
         ))
 
         name_y = 0.88 if show_effort else 0.78
-        ax.text(i + 0.5, name_y, f"Sprint {i + 1}",  # type: ignore[union-attr]
+        ax.text(i + 0.5, name_y, f"Sprint {i + 1}",
                 ha="center", va="top", fontsize=8, fontweight="bold", color="#374151")
 
         if sprint and (sprint.start_date or sprint.end_date):
             date_y = 0.67 if show_effort else 0.52
             date_str = f"{_fmt_date(sprint.start_date)} – {_fmt_date(sprint.end_date)}"
-            ax.text(i + 0.5, date_y, date_str,  # type: ignore[union-attr]
+            ax.text(i + 0.5, date_y, date_str,
                     ha="center", va="top", fontsize=7, color="#6b7280")
 
         if show_effort:
             cap_text = f"{used:g}/{cap} {effort_unit} – {round(pct * 100)}%"
-            ax.text(i + 0.5, 0.47, cap_text,  # type: ignore[union-attr]
+            ax.text(i + 0.5, 0.47, cap_text,
                     ha="center", va="top", fontsize=7, color="#6b7280")
 
             bx, by, bw, bh = i + 0.08, 0.14, 0.84, 0.13
-            ax.add_patch(Rectangle((bx, by), bw, bh, facecolor="#e2e8f0", edgecolor="none"))  # type: ignore[union-attr]
+            ax.add_patch(Rectangle((bx, by), bw, bh, facecolor="#e2e8f0", edgecolor="none"))
             fill_w = min(pct, 1.0) * bw
             if fill_w > 0:
-                ax.add_patch(Rectangle(  # type: ignore[union-attr]
+                ax.add_patch(Rectangle(
                     (bx, by), fill_w, bh,
                     facecolor=_capacity_bar_color(used, cap), edgecolor="none",
                 ))
 
 
 def _draw_events(
-    ax: object,
-    events: list[PIEvent],
+    ax: Axes,
+    events: Sequence[PIEvent],
     dated_sprints: list[tuple[int, date, date]],
     num_sprints: int,
     bottom_y: float,
@@ -239,8 +242,8 @@ def _draw_events(
         if x is None:
             continue
         color = EVENT_COLORS.get(event.event_type, "#6b7280")
-        ax.axvline(x=x, color=color, linestyle="--", linewidth=0.8, zorder=3, alpha=0.8)  # type: ignore[union-attr]
-        ax.text(  # type: ignore[union-attr]
+        ax.axvline(x=x, color=color, linestyle="--", linewidth=0.8, zorder=3, alpha=0.8)
+        ax.text(
             x, bottom_y, event.name,
             rotation=-45, va="top", ha="left", fontsize=7, color=color,
             rotation_mode="anchor", clip_on=False,
@@ -257,16 +260,16 @@ def _apply_title(fig: Figure, pi: PI, opts: PNGExportOptions,
     fig.suptitle(title, fontsize=10, fontweight="bold")
 
 
-def _apply_footer(ax_footer: object) -> None:
+def _apply_footer(ax_footer: Axes) -> None:
     date_str = date.today().strftime("%Y-%m-%d")
-    ax_footer.text(  # type: ignore[union-attr]
-        1.0, 0.5, f"Exported {date_str}", transform=ax_footer.transAxes,  # type: ignore[union-attr]
+    ax_footer.text(
+        1.0, 0.5, f"Exported {date_str}", transform=ax_footer.transAxes,
         ha="right", va="center", fontsize=7, color="#9ca3af",
     )
 
 
 def _make_figure(fig_width: float, header_h: float, main_h: float,
-                 show_export_date: bool) -> tuple[Figure, object, object, object | None]:
+                 show_export_date: bool) -> tuple[Figure, Axes, Axes, Axes | None]:
     """Build the standard header / main (/ optional footer) figure scaffold."""
     footer_h = 0.25 if show_export_date else 0.0
     fig = Figure(figsize=(fig_width, header_h + main_h + footer_h), dpi=150, layout="constrained")
@@ -353,7 +356,7 @@ async def export_pi_png(db: AsyncSession, pi: PI, opts: PNGExportOptions | None 
     dated_sprints = [
         (s.sprint_index, s.start_date, s.end_date)
         for s in sprints
-        if s.start_date and s.end_date
+        if s.sprint_index is not None and s.start_date and s.end_date
     ]
 
     ctx = _RenderContext(
@@ -378,6 +381,14 @@ async def export_pi_png(db: AsyncSession, pi: PI, opts: PNGExportOptions | None 
     return await _build_roadmap_figure(db, ctx, sl_efforts)
 
 
+class _ListBand(TypedDict):
+    """One swimline band in the "list" layout: a header plus per-sprint columns."""
+
+    name: str
+    columns: list[list[str]]
+    height: int
+
+
 @dataclass
 class _RenderContext:
     pi: PI
@@ -385,10 +396,10 @@ class _RenderContext:
     effort: float
     capacity: int
     effort_unit: str
-    sprints: list[Sprint]
+    sprints: Sequence[Sprint]
     num_sprints: int
-    swimlines: list[Swimline]
-    events: list[PIEvent]
+    swimlines: Sequence[Swimline]
+    events: Sequence[PIEvent]
     dated_sprints: list[tuple[int, date, date]]
     sprint_efforts: dict[int, float]
 
@@ -559,7 +570,7 @@ def _list_flat_columns(
 
 def _list_bands_by_swimline(
     ctx: _RenderContext, placed: list[tuple[int | None, str, int, str]], max_chars: int
-) -> list[dict]:
+) -> list[_ListBand]:
     """Return one band per swimline that has placed PBIs, each with per-sprint label lists."""
     by_swimline: dict[str, list[list[str]]] = {}
     for user_id, title, sprint_index, swimline_id in placed:
@@ -570,40 +581,40 @@ def _list_bands_by_swimline(
             _truncate(_pbi_label(user_id, title, ctx.opts.show_id), max_chars)
         )
 
-    bands: list[dict] = []
+    bands: list[_ListBand] = []
     for swimline in ctx.swimlines:  # already ordered by order_index
-        cols = by_swimline.get(swimline.system_id)
-        if cols is None:
+        band_cols = by_swimline.get(swimline.system_id)
+        if band_cols is None:
             continue
-        max_lines = max((len(c) for c in cols), default=0)
+        max_lines = max((len(c) for c in band_cols), default=0)
         bands.append({
             "name": swimline.name,
-            "columns": cols,
+            "columns": band_cols,
             "height": 1 + max_lines,  # header line + tallest column
         })
     return bands
 
 
-def _draw_list_flat(ax: object, columns: list[list[str]]) -> None:
+def _draw_list_flat(ax: Axes, columns: list[list[str]]) -> None:
     max_lines = max((len(c) for c in columns), default=1)
     step = 0.9 / max(1, max_lines)
     for i, col in enumerate(columns):
         y = 0.95
         for label in col:
-            ax.text(  # type: ignore[union-attr]
+            ax.text(
                 i + 0.08, y, label, va="top", ha="left", fontsize=7.5,
                 color="#374151", clip_on=True,
             )
             y -= step
 
 
-def _draw_list_bands(ax: object, bands: list[dict]) -> None:
+def _draw_list_bands(ax: Axes, bands: list[_ListBand]) -> None:
     total_lines = sum(b["height"] for b in bands) or 1
     step = 1.0 / total_lines
     y = 1.0
     for b in bands:
         # swimline band header spanning the full width
-        ax.text(  # type: ignore[union-attr]
+        ax.text(
             0.06, y - step * 0.5, b["name"], va="center", ha="left",
             fontsize=8, fontweight="bold", color="#1f2937", clip_on=True,
         )
@@ -611,7 +622,7 @@ def _draw_list_bands(ax: object, bands: list[dict]) -> None:
         for sprint_index, col in enumerate(b["columns"]):
             cy = first_line_y
             for label in col:
-                ax.text(  # type: ignore[union-attr]
+                ax.text(
                     sprint_index + 0.08, cy, label, va="top", ha="left",
                     fontsize=7.5, color="#374151", clip_on=True,
                 )
@@ -619,7 +630,7 @@ def _draw_list_bands(ax: object, bands: list[dict]) -> None:
         y -= step * b["height"]
         # horizontal separator between bands
         if b is not bands[-1]:
-            ax.axhline(y=y, color="#e2e8f0", linewidth=0.8, zorder=0)  # type: ignore[union-attr]
+            ax.axhline(y=y, color="#e2e8f0", linewidth=0.8, zorder=0)
 
 
 # Text colour per capacity status, chosen for contrast against the _UTIL_COLORS fill.
@@ -632,21 +643,21 @@ _HEATMAP_TEXT_COLORS: dict[str, str] = {
 
 
 def _draw_grid_header(
-    ax_header: object, sprints: list[Sprint], num_sprints: int, x_lo: float, x_hi: float
+    ax_header: Axes, sprints: Sequence[Sprint], num_sprints: int, x_lo: float, x_hi: float
 ) -> None:
     """Sprint-name column headers (+ dates) and the right "Total" header for a grid layout."""
-    ax_header.set_xlim(x_lo, x_hi)  # type: ignore[union-attr]
-    ax_header.set_ylim(0.0, 1.0)  # type: ignore[union-attr]
-    ax_header.axis("off")  # type: ignore[union-attr]
+    ax_header.set_xlim(x_lo, x_hi)
+    ax_header.set_ylim(0.0, 1.0)
+    ax_header.axis("off")
     for j in range(num_sprints):
-        ax_header.text(j + 0.5, 0.62, f"Sprint {j + 1}", ha="center", va="center",  # type: ignore[union-attr]
+        ax_header.text(j + 0.5, 0.62, f"Sprint {j + 1}", ha="center", va="center",
                        fontsize=8, fontweight="bold", color="#374151")
         sprint = next((s for s in sprints if s.sprint_index == j), None)
         if sprint and (sprint.start_date or sprint.end_date):
-            ax_header.text(j + 0.5, 0.26,  # type: ignore[union-attr]
+            ax_header.text(j + 0.5, 0.26,
                            f"{_fmt_date(sprint.start_date)} – {_fmt_date(sprint.end_date)}",
                            ha="center", va="center", fontsize=6.5, color="#6b7280")
-    ax_header.text(num_sprints + 0.5, 0.62, "Total", ha="center", va="center",  # type: ignore[union-attr]
+    ax_header.text(num_sprints + 0.5, 0.62, "Total", ha="center", va="center",
                    fontsize=8, fontweight="bold", color="#374151")
 
 
@@ -687,24 +698,24 @@ def _build_heatmap_figure(
     _draw_grid_header(ax_header, ctx.sprints, num_sprints, x_lo, x_hi)
 
     # main grid
-    ax.set_xlim(x_lo, x_hi)  # type: ignore[union-attr]
-    ax.set_ylim(0.0, float(n_rows))  # type: ignore[union-attr]
-    ax.axis("off")  # type: ignore[union-attr]
+    ax.set_xlim(x_lo, x_hi)
+    ax.set_ylim(0.0, float(n_rows))
+    ax.axis("off")
 
     def draw_cell(col: int, row_top: int, facecolor: str, text: str, text_color: str,
                   bold: bool = False, edgecolor: str = "white") -> None:
         # row_top counts from the top (0 = first lane); each row band spans one unit
         y0 = n_rows - 1 - row_top
-        ax.add_patch(Rectangle(  # type: ignore[union-attr]
+        ax.add_patch(Rectangle(
             (col + 0.03, y0 + 0.06), 0.94, 0.88,
             facecolor=facecolor, edgecolor=edgecolor, linewidth=1.0,
         ))
         if text:
-            ax.text(col + 0.5, y0 + 0.5, text, ha="center", va="center",  # type: ignore[union-attr]
+            ax.text(col + 0.5, y0 + 0.5, text, ha="center", va="center",
                     fontsize=7.5, color=text_color, fontweight="bold" if bold else "normal")
 
     for row, swimline in enumerate(swimlines):
-        ax.text(-0.12, n_rows - 1 - row + 0.5, _truncate(swimline.name, 22),  # type: ignore[union-attr]
+        ax.text(-0.12, n_rows - 1 - row + 0.5, _truncate(swimline.name, 22),
                 ha="right", va="center", fontsize=8, fontweight="bold",
                 color="#1f2937", clip_on=False)
         team_total = 0.0
@@ -724,7 +735,7 @@ def _build_heatmap_figure(
         draw_cell(num_sprints, row, "#f1f5f9", f"{team_total:g}", "#1f2937", bold=True)
 
     # bottom totals row: per-sprint load vs capacity (the real over-commit check)
-    ax.text(-0.12, 0.5, "Total", ha="right", va="center", fontsize=8,  # type: ignore[union-attr]
+    ax.text(-0.12, 0.5, "Total", ha="right", va="center", fontsize=8,
             fontweight="bold", color="#1f2937", clip_on=False)
     for j in range(num_sprints):
         sprint_total = sum(cell_efforts.get((j, s.system_id), 0.0) for s in swimlines)
@@ -750,14 +761,14 @@ _COMPOSITION_PBI_COLOR = "#1f2937"  # slate-800
 _COMPOSITION_BUG_COLOR = "#ef4444"  # red-500 — matches the app's bug accent
 
 
-def _draw_count_pair(ax: object, cx: float, cy: float, pbi: int, bug: int,
+def _draw_count_pair(ax: Axes, cx: float, cy: float, pbi: int, bug: int,
                      bold: bool = False) -> None:
     """Draw ``pbi · bug`` centred at (cx, cy): PBI count dark, Bug count red."""
     weight = "bold" if bold else "normal"
-    ax.text(cx - 0.11, cy, f"{pbi}", ha="right", va="center", fontsize=7.5,  # type: ignore[union-attr]
+    ax.text(cx - 0.11, cy, f"{pbi}", ha="right", va="center", fontsize=7.5,
             color=_COMPOSITION_PBI_COLOR, fontweight=weight)
-    ax.text(cx, cy, "·", ha="center", va="center", fontsize=7.5, color="#9ca3af")  # type: ignore[union-attr]
-    ax.text(cx + 0.11, cy, f"{bug}", ha="left", va="center", fontsize=7.5,  # type: ignore[union-attr]
+    ax.text(cx, cy, "·", ha="center", va="center", fontsize=7.5, color="#9ca3af")
+    ax.text(cx + 0.11, cy, f"{bug}", ha="left", va="center", fontsize=7.5,
             color=_COMPOSITION_BUG_COLOR, fontweight=weight)
 
 
@@ -793,19 +804,19 @@ def _build_composition_figure(
 
     _draw_grid_header(ax_header, ctx.sprints, num_sprints, x_lo, x_hi)
     # colour legend in the top-left gutter
-    ax_header.text(x_lo + 0.05, 0.62, "PBIs", ha="left", va="center", fontsize=7,  # type: ignore[union-attr]
+    ax_header.text(x_lo + 0.05, 0.62, "PBIs", ha="left", va="center", fontsize=7,
                    fontweight="bold", color=_COMPOSITION_PBI_COLOR)
-    ax_header.text(x_lo + 0.05, 0.26, "Bugs", ha="left", va="center", fontsize=7,  # type: ignore[union-attr]
+    ax_header.text(x_lo + 0.05, 0.26, "Bugs", ha="left", va="center", fontsize=7,
                    fontweight="bold", color=_COMPOSITION_BUG_COLOR)
 
-    ax.set_xlim(x_lo, x_hi)  # type: ignore[union-attr]
-    ax.set_ylim(0.0, float(n_rows))  # type: ignore[union-attr]
-    ax.axis("off")  # type: ignore[union-attr]
+    ax.set_xlim(x_lo, x_hi)
+    ax.set_ylim(0.0, float(n_rows))
+    ax.axis("off")
 
     def draw_box(col: int, row_top: int, facecolor: str, edgecolor: str) -> float:
         """Draw a cell rectangle; return its centre y."""
         y0 = n_rows - 1 - row_top
-        ax.add_patch(Rectangle(  # type: ignore[union-attr]
+        ax.add_patch(Rectangle(
             (col + 0.03, y0 + 0.06), 0.94, 0.88,
             facecolor=facecolor, edgecolor=edgecolor, linewidth=1.0,
         ))
@@ -822,7 +833,7 @@ def _build_composition_figure(
 
     grand_pbi = grand_bug = 0
     for row, swimline in enumerate(swimlines):
-        ax.text(-0.12, n_rows - 1 - row + 0.5, _truncate(swimline.name, 22),  # type: ignore[union-attr]
+        ax.text(-0.12, n_rows - 1 - row + 0.5, _truncate(swimline.name, 22),
                 ha="right", va="center", fontsize=8, fontweight="bold",
                 color="#1f2937", clip_on=False)
         team_pbi = team_bug = 0
@@ -836,7 +847,7 @@ def _build_composition_figure(
         grand_bug += team_bug
 
     # bottom totals row: per-sprint PBI/Bug counts
-    ax.text(-0.12, 0.5, "Total", ha="right", va="center", fontsize=8,  # type: ignore[union-attr]
+    ax.text(-0.12, 0.5, "Total", ha="right", va="center", fontsize=8,
             fontweight="bold", color="#1f2937", clip_on=False)
     for j in range(num_sprints):
         col_pbi = sum(cell_counts.get((j, s.system_id), (0, 0))[0] for s in swimlines)

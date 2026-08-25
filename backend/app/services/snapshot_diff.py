@@ -92,11 +92,15 @@ def _pi_of(entity_type: str, entity: dict[str, Any] | None) -> str | None:
     if entity is None:
         return None
     if entity_type == "pis":
-        return entity["system_id"]
-    return entity.get("pi_id")
+        system_id: str = entity["system_id"]
+        return system_id
+    pi_id: str | None = entity.get("pi_id")
+    return pi_id
 
 
-def _in_scope(entity_type: str, base: dict | None, cur: dict | None, pi_id: str | None) -> bool:
+def _in_scope(
+    entity_type: str, base: dict[str, Any] | None, cur: dict[str, Any] | None, pi_id: str | None
+) -> bool:
     """True if the entity belongs to ``pi_id`` in the baseline OR current state.
 
     Including both sides is what makes items pulled *into* or pushed *out of* the
@@ -134,10 +138,10 @@ def _label(entity_type: str, entity: dict[str, Any]) -> dict[str, Any]:
 
 def _diff_collection(
     entity_type: str,
-    base_map: dict[str, dict],
-    cur_map: dict[str, dict],
+    base_map: dict[str, dict[str, Any]],
+    cur_map: dict[str, dict[str, Any]],
     pi_id: str | None,
-) -> dict[str, list]:
+) -> dict[str, list[Any]]:
     tracked = TRACKED_FIELDS[entity_type]
     base_ids, cur_ids = set(base_map), set(cur_map)
     added, removed, changed = [], [], []
@@ -169,7 +173,7 @@ def _diff_collection(
     return {"added": added, "removed": removed, "changed": changed}
 
 
-def _total_effort(pbis_map: dict[str, dict], pi_id: str | None) -> float:
+def _total_effort(pbis_map: dict[str, dict[str, Any]], pi_id: str | None) -> float:
     total = 0.0
     for e in pbis_map.values():
         if pi_id is not None and e.get("pi_id") != pi_id:
@@ -249,7 +253,7 @@ _ENTITY_SINGULAR = {
 }
 
 
-def _fmt_ref(field: str, value: Any, lookups: dict[str, dict]) -> str:
+def _fmt_ref(field: str, value: Any, lookups: dict[str, dict[str, Any]]) -> str:
     """Render a field value for the narrative, resolving id references to names."""
     if value is None:
         if field in ("pi_id", "swimlane_id", "location"):
@@ -276,8 +280,8 @@ def _entity_name(entity_type: str, item: dict[str, Any]) -> str:
     return f'"{item.get("name", "")}"'
 
 
-def _narrative_entity_lines(entity_type: str, changes: dict, summary: dict,
-                            lookups: dict[str, dict]) -> list[str]:
+def _narrative_entity_lines(entity_type: str, changes: dict[str, Any], summary: dict[str, Any],
+                            lookups: dict[str, dict[str, Any]]) -> list[str]:
     singular = _ENTITY_SINGULAR[entity_type]
     lines = [
         "",

@@ -42,7 +42,7 @@ def _entity_title(entity_type: str, item: dict[str, Any]) -> str:
     return item.get("name") or "(unnamed)"
 
 
-def _render_field_deltas(fields: dict[str, dict], lookups: dict[str, dict]) -> str:
+def _render_field_deltas(fields: dict[str, dict[str, Any]], lookups: dict[str, dict[str, Any]]) -> str:
     rows = []
     for field, d in fields.items():
         rows.append(
@@ -54,7 +54,9 @@ def _render_field_deltas(fields: dict[str, dict], lookups: dict[str, dict]) -> s
     return "".join(rows)
 
 
-def _render_entity_section(entity_type: str, changes: dict, lookups: dict[str, dict]) -> str:
+def _render_entity_section(
+    entity_type: str, changes: dict[str, Any], lookups: dict[str, dict[str, Any]]
+) -> str:
     added, removed, changed = changes["added"], changes["removed"], changes["changed"]
     if not (added or removed or changed):
         return ""
