@@ -4,16 +4,25 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
+# Both jobs build the same local layout a developer has — backend/venv,
+# mcp_server/.venv, frontend/node_modules — so they run the very same
+# scripts/check.sh and scripts/e2e.sh, with no CI-only variant to drift.
 jobs:
-  frontend-lint:
-    name: Frontend ESLint
+  checks:
+    name: Lint, types and tests
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            backend/pyproject.toml
+            mcp_server/pyproject.toml
 
       - uses: actions/setup-node@v4
         with:
@@ -21,20 +30,38 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies
+      - name: Install backend
+        run: |
+          python -m venv backend/venv
+          backend/venv/bin/pip install --quiet --upgrade pip
+          backend/venv/bin/pip install --quiet -e "backend/.[dev]"
+
+      - name: Install MCP server
+        run: |
+          python -m venv mcp_server/.venv
+          mcp_server/.venv/bin/pip install --quiet --upgrade pip
+          mcp_server/.venv/bin/pip install --quiet -e "mcp_server/.[dev]"
+
+      - name: Install frontend
+        working-directory: frontend
         run: npm ci
 
-      - name: Run ESLint
-        run: npm run lint
+      # ruff, mypy --strict, the openapi contract check, eslint, tsc over src
+      # and every spec, then the three test suites with their coverage gates.
+      - name: Run checks
+        run: scripts/check.sh
 
-  frontend-typecheck:
-    name: Frontend typecheck
+  e2e:
+    name: End-to-end (Cypress)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: frontend
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/pyproject.toml
 
       - uses: actions/setup-node@v4
         with:
@@ -42,14 +69,37 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
-      - name: Install dependencies
+      - name: Install backend
+        run: |
+          python -m venv backend/venv
+          backend/venv/bin/pip install --quiet --upgrade pip
+          backend/venv/bin/pip install --quiet -e "backend/.[dev]"
+
+      - name: Install frontend
+        working-directory: frontend
         run: npm ci
 
-      # Covers every spec as well as src — two tsc runs, since the Cypress
-      # specs need their own project (its globals and Vitest's cannot share one
-      # program). `npm run build` only checks tsconfig.app.json, which excludes
-      # __tests__, and Cypress strips types rather than checking them — so
-      # without this a spec can drift from the API types (asserting payloads the
-      # backend would reject) while lint and the suite both stay green.
-      - name: Typecheck (including tests)
-        run: npm run typecheck
+      - name: Cache Cypress binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/Cypress
+          key: cypress-${{ runner.os }}-${{ hashFiles('frontend/package-lock.json') }}
+
+      - name: Install Cypress binary
+        working-directory: frontend
+        run: npx cypress install
+
+      # Starts its own backend on :8901 with a throwaway SQLite file and a vite
+      # dev server on :5901. Never touches a real database — see scripts/e2e.sh.
+      - name: Run E2E suite
+        run: scripts/e2e.sh
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-artifacts
+          path: |
+            frontend/cypress/screenshots
+            frontend/cypress/videos
+          if-no-files-found: ignore

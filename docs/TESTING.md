@@ -5,10 +5,56 @@ For the current pass/fail and coverage numbers see **[TEST-REPORT.md](TEST-REPOR
 which is generated — never edit it by hand.
 
 ```bash
+scripts/check.sh                  # is this clean? — everything but the browser suite (~95s)
+scripts/check.sh --with-e2e       # add Cypress (~3 min)
+scripts/check.sh --quick          # static checks only, no test suites (~10s)
+```
+
+`check.sh` is the single definition of "clean": ruff, mypy `--strict`, the OpenAPI
+contract check, ESLint, `tsc` over `src` *and* every spec, then the three test
+suites with their coverage gates. It stops at the first failure and runs
+cheapest-first, so a stale import costs you a second rather than a full test run.
+The pre-push hook and CI both call it, so there is one place to change what
+"clean" means — see [Gates](#gates) below.
+
+For a release, `test-report.sh` runs the same suites but *records* the result:
+
+```bash
 scripts/test-report.sh            # run everything, rewrite TEST-REPORT.md
 scripts/test-report.sh --no-e2e   # skip the browser suite (~90s faster)
 scripts/test-report.sh --check    # same, but exit non-zero if anything failed
 ```
+
+Use `check.sh` while working and before pushing; use `test-report.sh` when cutting
+a release. The difference that matters day to day: `test-report.sh` rewrites
+`docs/TEST-REPORT.md` every run, so it dirties the tree, and it does not run lint,
+the type-checkers or the OpenAPI check.
+
+## Gates
+
+Nothing here is advisory — three things enforce it.
+
+**The coverage floors**, enforced by each runner itself (see the table below).
+
+**The `pre-push` hook** (`scripts/hooks/pre-push`), which runs `check.sh --with-e2e`
+when — and only when — you push `main`. Feature-branch pushes are not gated; work
+in progress is allowed to be broken. Install it once per clone:
+
+```bash
+git config core.hooksPath scripts/hooks
+```
+
+`.git/hooks/` is not versioned, which is why the hook lives in `scripts/hooks/` and
+is wired up with `core.hooksPath` instead. Bypass a single push with
+`git push --no-verify`.
+
+**CI** (`.github/workflows/ci.yml`), on every push to `main`, every PR, and on
+demand via *Run workflow*. It builds the same `backend/venv`, `mcp_server/.venv`
+and `frontend/node_modules` layout a developer has and then runs the very same
+`check.sh` and `e2e.sh` — there is no CI-only variant that can drift from what you
+run locally. It is a genuine backstop rather than a duplicate of the hook: it runs
+on a clean checkout, so it catches the missing migration or the uncommitted file
+that a local venv papers over, and it still fires when someone uses `--no-verify`.
 
 ## The four layers
 

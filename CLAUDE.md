@@ -402,6 +402,15 @@ Full picture — layers, how to run each, and the current gaps — in
 commit in [`docs/TEST-REPORT.md`](docs/TEST-REPORT.md), rewritten by
 `scripts/test-report.sh` (run it before cutting a release).
 
+**Before you call a change done, run `scripts/check.sh`** (~95s). It is the single
+definition of "clean" — ruff, mypy `--strict`, the OpenAPI contract check, ESLint,
+`tsc` over `src` and every spec, then all three test suites. Add `--with-e2e` for
+Cypress, or `--quick` for the static checks alone. The `pre-push` hook and CI both
+call this same script, so if it passes locally it passes there.
+
+The hook gates pushes of `main` only, and needs wiring up once per clone:
+`git config core.hooksPath scripts/hooks`.
+
 ### Frontend (Vitest)
 
 ```typescript
