@@ -81,7 +81,7 @@ describe('Backlog search in the PI view', () => {
     // dnd-kit's PointerSensor needs >5px of movement to activate, and the drop zone's
     // label changes once it is hovered, so resolve its coordinates up front and drive
     // the pointer over <body> in viewport space.
-    cy.contains('Drop features here').then(($zone) => {
+    cy.contains<HTMLElement>('Drop features here').then(($zone) => {
       const rect = $zone[0].getBoundingClientRect()
       const x = Math.round(rect.left + rect.width / 2)
       const y = Math.round(rect.top + rect.height / 2)

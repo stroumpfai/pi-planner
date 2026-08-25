@@ -45,9 +45,11 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Covers the specs as well as src. `npm run build` only checks
-      # tsconfig.app.json, which excludes __tests__ — so without this a spec can
-      # drift from the API types (asserting payloads the backend would reject)
-      # while lint and the suite both stay green.
+      # Covers every spec as well as src — two tsc runs, since the Cypress
+      # specs need their own project (its globals and Vitest's cannot share one
+      # program). `npm run build` only checks tsconfig.app.json, which excludes
+      # __tests__, and Cypress strips types rather than checking them — so
+      # without this a spec can drift from the API types (asserting payloads the
+      # backend would reject) while lint and the suite both stay green.
       - name: Typecheck (including tests)
         run: npm run typecheck

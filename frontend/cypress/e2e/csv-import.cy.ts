@@ -1,12 +1,8 @@
 describe('CSV import', () => {
-  let projectId: string
-
   beforeEach(() => {
     cy.resetDb()
     cy.login()
-    cy.request('POST', '/api/v1/projects/', { name: 'CSV Test' }).then((res) => {
-      projectId = res.body.system_id
-    })
+    cy.request('POST', '/api/v1/projects/', { name: 'CSV Test' })
     cy.openProject('CSV Test')
     // "Import CSV" is disabled={!isEditing}, and isEditing is only set by the
     // acquire mutation's onSuccess — the lock has to be taken through the UI.

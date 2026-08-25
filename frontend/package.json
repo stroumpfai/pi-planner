@@ -12,7 +12,7 @@
     "test:coverage": "vitest run --coverage",
     "e2e": "../scripts/e2e.sh",
     "e2e:open": "../scripts/e2e.sh --open",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p cypress/tsconfig.json --noEmit",
     "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "format": "prettier --write src",
     "cypress:open": "../scripts/e2e.sh --open",

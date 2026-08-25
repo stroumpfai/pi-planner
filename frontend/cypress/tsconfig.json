@@ -1,0 +1,10 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    // Cypress's globals (cy, Cypress, describe/it/expect) replace Vitest's —
+    // the two sets are mutually exclusive in one program, which is why the E2E
+    // specs need their own project rather than a wider `include` on the root.
+    "types": ["cypress"]
+  },
+  "include": ["**/*.ts"]
+}

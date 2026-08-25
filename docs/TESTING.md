@@ -22,7 +22,7 @@ scripts/test-report.sh --check    # same, but exit non-zero if anything failed
 Each gate is enforced by the runner itself, so a suite fails on its own if coverage
 regresses. They are floors, not targets — the actual numbers sit well above them.
 
-Alongside them, `npm run typecheck` type-checks **the specs as well as `src`**.
+Alongside them, `npm run typecheck` type-checks **every spec as well as `src`**.
 `npm run build` only checks `tsconfig.app.json`, which excludes `__tests__`, so
 without this a spec can drift from the generated API types unnoticed — and several
 had: specs were asserting payloads (`{ label }` for a PI event, `current_password`
@@ -30,6 +30,18 @@ for a password change) that the backend would reject outright. They passed anywa
 because a spec that mocks the service layer and asserts the call was forwarded is
 true for *any* payload. The type-check is the only thing that catches it, so CI
 runs it.
+
+It is two `tsc` invocations, not one. The E2E specs live in their own project
+(`cypress/tsconfig.json`) because Cypress's ambient globals and Vitest's are
+mutually exclusive within a single program — merged into one `include`, `tsc`
+reports 724 errors and finds no `cy` at all. Cypress transpiles specs with types
+stripped, so until this was wired up nothing checked them, and four errors had
+accumulated unseen behind a green suite. Note one Cypress typing trap that turned
+up there: its first `contains` overload is `(content, options?) => Chainable<Subject>`
+and `cy` is `Chainable<undefined>`, so a bare `cy.contains('x').then(($el) => …)`
+types `$el` as `undefined` however well it works at runtime. Pass the element type
+(`cy.contains<HTMLElement>('x')`) to select the overload that says what actually
+gets yielded.
 
 Both pytest suites also run under `filterwarnings = ["error"]`, so a warning fails
 the suite rather than scrolling past — a dependency's new deprecation, an

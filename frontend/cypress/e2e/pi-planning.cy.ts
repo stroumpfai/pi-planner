@@ -62,7 +62,7 @@ describe('PI planning journey', () => {
     // dnd-kit's PointerSensor needs >5px of movement to activate, and the drop
     // zone's label changes once hovered, so resolve its coordinates up front and
     // drive the pointer over <body> in viewport space.
-    cy.contains('Drop features here').then(($zone) => {
+    cy.contains<HTMLElement>('Drop features here').then(($zone) => {
       const rect = $zone[0].getBoundingClientRect()
       const x = Math.round(rect.left + rect.width / 2)
       const y = Math.round(rect.top + rect.height / 2)
@@ -204,7 +204,7 @@ describe('PI planning journey', () => {
       cy.openPI('Q1-2026')
       cell(0).should('contain', 'Payment Group')
 
-      dragTo(() => cy.contains('Payment Group'), 2)
+      dragTo(() => cy.contains<HTMLElement>('Payment Group'), 2)
 
       cell(2).should('contain', 'Payment Group')
       cell(0).should('not.contain', 'Payment Group')
