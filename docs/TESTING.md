@@ -93,10 +93,12 @@ seeds `testuser` and `testuser2`, runs the suite and tears it all down.
 | `swimlanes` | Swimlane CRUD, collapse/expand all, focus mode |
 | `pi-planning` | PI create, state transitions, single-in-progress rule, feature drag, grouping, group and PBI drops onto sprint cells |
 | `snapshots-and-states` | Snapshot create and restore; State lists add, separation, guarded delete |
+| `snapshot-diff` | The server-rendered diff page in a browser, and its auto-refresh |
 | `admin-users` | User management, password policy, reader and editor RBAC |
 | `api-keys` | Issue, reveal, cycle and revoke an API key |
 | `export-png` / `export-report` | Modal options mapped to export query params |
 | `sse-updates` | A second session's writes arriving over the event stream |
+| `theme` | Light/dark/system switching, repaint and persistence |
 | `smoke` | The app boots |
 
 ## Where the gaps are
@@ -104,18 +106,25 @@ seeds `testuser` and `testuser2`, runs the suite and tears it all down.
 Ranked by risk, not by percentage. A low number on a file nobody edits matters
 less than an untested path through code that changes every week.
 
-### 1. Journeys with no E2E coverage
-Snapshot diffing and theme switching — what is left after the bulk-data journeys
-were covered. Neither moves data, so a silent break costs a reader a stale view
-rather than lost work. (PI events, sprint capacity editing and column resize are
-unit-tested instead of driven through a browser, which is where the guidance below
-would put them anyway.)
+### 1. Journeys deliberately left to the cheaper layers
+Every journey that has a browser surface now has an E2E spec. What is left out is
+left out on purpose: PI events, sprint capacity editing and column resize are
+unit-tested rather than driven through a browser, which is where the guidance
+below would put them anyway.
+
+The one journey without a browser surface is the **snapshot diff** — it is an API
+consumed by the MCP server, rendered server-side, with no in-app UI. Its semantics
+live in `backend/tests/integration/test_snapshot_diff.py`; `snapshot-diff.cy.ts`
+covers only the two things pytest structurally cannot see, namely that the page
+loads in a browser under session-cookie auth and that its auto-refresh script —
+inert unless actually served over http — really re-fetches and swaps content. If
+a diff UI is ever added to the app, that is when the spec grows a real journey.
 
 ### 2. Thin spots, none of them load-bearing
-`useSwimlinesAndGroups` and `useTheme` sit near 76%, and `services/states.ts` has
-most of its functions covered only through the hooks that call them. All three are
-small, stable and exercised end-to-end; none is worth a spec of its own until it
-starts changing.
+`useSwimlinesAndGroups` sits near 76%, and `services/states.ts` has most of its
+functions covered only through the hooks that call them. Both are small, stable
+and exercised end-to-end; neither is worth a spec of its own until it starts
+changing.
 
 ## Adding coverage well
 
