@@ -24,6 +24,7 @@ from app.schemas import (
 )
 from app.services.effort import feature_efforts
 from app.services.events import broadcaster
+from app.services.feature_delete import delete_features
 from app.services.project_state import resolve_state_assignment, validate_state_id
 from app.services.validation import is_user_id_available
 
@@ -404,6 +405,11 @@ async def delete_feature(
 ) -> None:
     feature = await _get_feature_or_404(db, feature_id)
     project_id = feature.project_id
-    await db.delete(feature)
+    # Takes the feature's continuations with it, and unpicks the PBI↔Group cycle
+    # first so a feature with placed stories can be deleted at all.
+    deletion = await delete_features(db, [feature_id])
     await db.commit()
-    await broadcaster.broadcast(project_id, "feature:deleted", {"system_id": feature_id})
+    for deleted_id in deletion.feature_ids:
+        await broadcaster.broadcast(project_id, "feature:deleted", {"system_id": deleted_id})
+    for group_id in deletion.group_ids:
+        await broadcaster.broadcast(project_id, "group:deleted", {"system_id": group_id})

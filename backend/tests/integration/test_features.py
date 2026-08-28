@@ -867,3 +867,72 @@ async def test_cancel_continuation_reader_forbidden(client, reader_client, proje
 
     resp = await reader_client.post(f"/api/v1/features/{continuation['system_id']}/cancel-continuation")
     assert resp.status_code == 403
+
+
+# ── Deleting a feature: the PBI↔Group cycle and the continuation lineage ──────
+
+@pytest.mark.asyncio
+async def test_delete_feature_with_a_placed_story(client, project, pi, swimline, feature):
+    """PBI.group_id ↔ Group.story_system_id used to deadlock the unit-of-work."""
+    pid, fid = project["system_id"], feature["system_id"]
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": swimline["system_id"]})
+    pbi = await _create_pbi(client, pid, fid, "Placed PBI")
+    assert (await client.post(
+        f"/api/v1/pbis/{pbi['system_id']}/place", json={"sprint_index": 0}
+    )).status_code == 200
+
+    assert (await client.delete(f"/api/v1/features/{fid}")).status_code == 204
+    assert (await client.get(f"/api/v1/projects/{pid}/features")).json() == []
+    assert (await client.get(f"/api/v1/projects/{pid}/pbis")).json() == []
+    assert (await client.get(f"/api/v1/swimlines/{swimline['system_id']}/groups")).json() == []
+
+
+@pytest.mark.asyncio
+async def test_delete_feature_takes_its_continuations(client, project, pi, swimline, pi2, swimline2, feature):
+    """A continuation is the same feature in a later PI — it cannot outlive its origin."""
+    pid, fid = project["system_id"], feature["system_id"]
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": swimline["system_id"]})
+    carried = await _create_pbi(client, pid, fid, "Carried")
+    await _create_pbi(client, pid, fid, "Stays")
+    continuation = await _split(client, fid, pi2, swimline2, [carried["system_id"]])
+
+    assert (await client.delete(f"/api/v1/features/{fid}")).status_code == 204
+    assert (await client.get(f"/api/v1/features/{continuation['system_id']}")).status_code == 404
+    assert (await client.get(f"/api/v1/projects/{pid}/features")).json() == []
+    assert (await client.get(f"/api/v1/projects/{pid}/pbis")).json() == []
+
+
+@pytest.mark.asyncio
+async def test_delete_feature_takes_a_three_deep_chain(client, project, pi, swimline, pi2, swimline2, feature):
+    pid, fid = project["system_id"], feature["system_id"]
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": swimline["system_id"]})
+    a = await _create_pbi(client, pid, fid, "A")
+    b = await _create_pbi(client, pid, fid, "B")
+    await _create_pbi(client, pid, fid, "C")
+    second = await _split(client, fid, pi2, swimline2, [a["system_id"], b["system_id"]])
+
+    pi3 = (await client.post(f"/api/v1/projects/{pid}/pis", json={"name": "Q3-2026"})).json()
+    swimline3 = (await client.post(
+        f"/api/v1/pis/{pi3['system_id']}/swimlines", json={"name": "Team Alpha"}
+    )).json()
+    third = await _split(client, second["system_id"], pi3, swimline3, [b["system_id"]])
+
+    assert (await client.delete(f"/api/v1/features/{fid}")).status_code == 204
+    for gone in (second, third):
+        assert (await client.get(f"/api/v1/features/{gone['system_id']}")).status_code == 404
+    assert (await client.get(f"/api/v1/projects/{pid}/pbis")).json() == []
+
+
+@pytest.mark.asyncio
+async def test_deleting_a_continuation_leaves_its_origin_alone(client, project, pi, swimline, pi2, swimline2, feature):
+    """Deletion runs down the lineage, never up it."""
+    pid, fid = project["system_id"], feature["system_id"]
+    await client.patch(f"/api/v1/features/{fid}", json={"swimlane_id": swimline["system_id"]})
+    carried = await _create_pbi(client, pid, fid, "Carried")
+    stays = await _create_pbi(client, pid, fid, "Stays")
+    continuation = await _split(client, fid, pi2, swimline2, [carried["system_id"]])
+
+    assert (await client.delete(f"/api/v1/features/{continuation['system_id']}")).status_code == 204
+    assert (await client.get(f"/api/v1/features/{fid}")).status_code == 200
+    remaining = (await client.get(f"/api/v1/projects/{pid}/pbis")).json()
+    assert [p["system_id"] for p in remaining] == [stays["system_id"]]

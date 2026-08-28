@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useFeatures, useCreateFeature } from '@/hooks/useFeatures'
 import { usePBIs } from '@/hooks/usePBIs'
+import { usePIs } from '@/hooks/usePIs'
 import { useEffortUnit } from '@/hooks/useProjects'
 import { useAuthStore } from '@/stores/authStore'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -28,6 +29,8 @@ export function BacklogPage({ projectId }: Props) {
 
   const { data: features, isLoading } = useFeatures(projectId, sort)
   const { data: pbis } = usePBIs(projectId)
+  // Removed features may span several PIs; the reconcile step names them.
+  const { data: pis } = usePIs(projectId)
   const createFeature = useCreateFeature(projectId)
   const effortUnit = useEffortUnit(projectId)
   const showEffortUnit = useSettingsStore((s) => s.showEffortUnit)
@@ -172,6 +175,7 @@ export function BacklogPage({ projectId }: Props) {
         file={selectedFile}
         features={features ?? []}
         pbis={pbis ?? []}
+        pis={pis ?? []}
         onClose={handleImportClose}
       />
 

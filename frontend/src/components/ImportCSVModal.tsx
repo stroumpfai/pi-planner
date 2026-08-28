@@ -4,7 +4,7 @@ import type { AxiosError } from 'axios'
 import { parseImportCSV, buildPreview, selectImportRows } from '@/utils/csvParser'
 import type { ImportPreview, ParsedRow, ParseResult } from '@/utils/csvParser'
 import { useCsvImport } from '@/hooks/useCsvImport'
-import type { CsvImportResult, Feature, PBI } from '@/types'
+import type { CsvImportResult, Feature, PBI, PI } from '@/types'
 
 interface Props {
   readonly open: boolean
@@ -12,6 +12,7 @@ interface Props {
   readonly file: File | null
   readonly features: readonly Feature[]
   readonly pbis: readonly PBI[]
+  readonly pis: readonly PI[]
   readonly onClose: () => void
 }
 
@@ -29,6 +30,37 @@ interface RemovalCandidate {
   systemId: string
   isFeature: boolean
   parentSystemId: string | null  // for stories: the existing parent feature's system_id
+  /** Where it lives, so a board item is never mistaken for a backlog stub. */
+  piNames: string[]
+  /** Stories deleted with it — its own, plus those of its continuations. */
+  storyCount: number
+  /** Continuations in later PIs, which are deleted with their origin. */
+  continuationCount: number
+}
+
+/**
+ * Every feature deleted along with this one: its continuations, transitively.
+ *
+ * A continuation is the same feature carried into a later PI, so it cannot
+ * outlive its origin — the backend deletes the whole lineage. Counting it here is
+ * what stops the confirmation understating the damage.
+ */
+function lineageOf(systemId: string, features: readonly Feature[]): Feature[] {
+  const found: Feature[] = []
+  const seen = new Set<string>([systemId])
+  let frontier = [systemId]
+
+  while (frontier.length > 0) {
+    const next = features.filter(
+      (f) => f.continued_from_feature_id !== null
+        && frontier.includes(f.continued_from_feature_id)
+        && !seen.has(f.system_id),
+    )
+    for (const f of next) seen.add(f.system_id)
+    found.push(...next)
+    frontier = next.map((f) => f.system_id)
+  }
+  return found
 }
 
 function parsedRowToCsvRow(r: ParsedRow) {
@@ -43,35 +75,85 @@ function parsedRowToCsvRow(r: ParsedRow) {
   }
 }
 
+function featureCandidate(
+  userId: number,
+  feature: Feature,
+  features: readonly Feature[],
+  pbis: readonly PBI[],
+  piName: (piId: string | null) => string,
+): RemovalCandidate {
+  const lineage = [feature, ...lineageOf(feature.system_id, features)]
+  const doomed = new Set(lineage.map((f) => f.system_id))
+  return {
+    userId,
+    title: feature.title,
+    systemId: feature.system_id,
+    isFeature: true,
+    parentSystemId: null,
+    piNames: lineage.filter((f) => f.location === 'pi').map((f) => piName(f.pi_id)),
+    storyCount: pbis.filter((p) => doomed.has(p.parent_feature_system_id)).length,
+    continuationCount: lineage.length - 1,
+  }
+}
+
+function storyCandidate(
+  userId: number,
+  pbi: PBI,
+  features: readonly Feature[],
+  piName: (piId: string | null) => string,
+): RemovalCandidate {
+  const parent = features.find((f) => f.system_id === pbi.parent_feature_system_id)
+  return {
+    userId,
+    title: pbi.title,
+    systemId: pbi.system_id,
+    isFeature: false,
+    parentSystemId: pbi.parent_feature_system_id,
+    piNames: parent?.location === 'pi' ? [piName(parent.pi_id)] : [],
+    storyCount: 0,
+    continuationCount: 0,
+  }
+}
+
 /** Match Removed rows (by ID) against items already in the project. */
 function computeCandidates(
   removedItems: ParsedRow[],
   features: readonly Feature[],
   pbis: readonly PBI[],
+  pis: readonly PI[],
 ): RemovalCandidate[] {
   const featureById = new Map<number, Feature>()
   for (const f of features) if (f.id != null) featureById.set(f.id, f)
   const pbiById = new Map<number, PBI>()
   for (const p of pbis) if (p.id != null) pbiById.set(p.id, p)
+  const piName = (piId: string | null) =>
+    pis.find((p) => p.system_id === piId)?.name ?? 'a PI'
 
   const candidates: RemovalCandidate[] = []
   const seen = new Set<number>()
   for (const item of removedItems) {
     if (item.userId === null || seen.has(item.userId)) continue
+
     const feature = featureById.get(item.userId)
+    const pbi = feature ? undefined : pbiById.get(item.userId)
     if (feature) {
-      candidates.push({ userId: item.userId, title: feature.title, systemId: feature.system_id, isFeature: true, parentSystemId: null })
-      seen.add(item.userId)
+      candidates.push(featureCandidate(item.userId, feature, features, pbis, piName))
+    } else if (pbi) {
+      candidates.push(storyCandidate(item.userId, pbi, features, piName))
+    } else {
       continue
     }
-    const pbi = pbiById.get(item.userId)
-    if (pbi) {
-      candidates.push({ userId: item.userId, title: pbi.title, systemId: pbi.system_id, isFeature: false, parentSystemId: pbi.parent_feature_system_id })
-      seen.add(item.userId)
-    }
+    seen.add(item.userId)
   }
   // Features first, then stories
   return candidates.sort((a, b) => Number(b.isFeature) - Number(a.isFeature))
+}
+
+/** Items that will actually be destroyed, which is more than the rows ticked. */
+function totalDeleted(candidates: RemovalCandidate[], selected: ReadonlySet<string>): number {
+  return candidates
+    .filter((c) => selected.has(c.systemId))
+    .reduce((n, c) => n + 1 + c.continuationCount + c.storyCount, 0)
 }
 
 // ── Sub-views ─────────────────────────────────────────────────────────────────
@@ -192,8 +274,19 @@ function ReconcileList({
               </p>
               <p className="text-xs text-gray-400">
                 {c.isFeature ? 'Feature' : 'Story'}
+                {c.piNames.length > 0 && ` on ${[...new Set(c.piNames)].join(', ')}`}
+                {c.piNames.length === 0 && ' in the backlog'}
                 {isForced && ' — removed with its parent feature'}
               </p>
+              {(c.storyCount > 0 || c.continuationCount > 0) && (
+                <p className={`text-xs ${willRemove ? 'text-red-600' : 'text-gray-400'}`}>
+                  takes {c.continuationCount > 0 && (
+                    <>{c.continuationCount} later-PI {c.continuationCount === 1 ? 'part' : 'parts'}
+                      {c.storyCount > 0 && ' and '}</>
+                  )}
+                  {c.storyCount > 0 && `${c.storyCount} ${c.storyCount === 1 ? 'story' : 'stories'}`}
+                </p>
+              )}
             </div>
             <label className="flex items-center gap-1.5 shrink-0 text-xs text-gray-600">
               <input
@@ -214,7 +307,7 @@ function ReconcileList({
 
 // ── Main modal ────────────────────────────────────────────────────────────────
 
-export function ImportCSVModal({ open, projectId, file, features, pbis, onClose }: Props) {
+export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onClose }: Props) {
   const [step, setStep] = useState<Step>('preview')
   const [preview, setPreview] = useState<ImportPreview | null>(null)
   const [parsed, setParsed] = useState<ParseResult | null>(null)
@@ -231,6 +324,8 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, onClose 
   // preview step and hide the "Import complete" summary.
   const projectItems = useRef({ features, pbis })
   projectItems.current = { features, pbis }
+  const projectPIs = useRef(pis)
+  projectPIs.current = pis
 
   // Parse the file whenever a new one is selected and the modal opens
   useEffect(() => {
@@ -248,7 +343,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, onClose 
       setParsed(parseResult)
       setPreview(buildPreview(parseResult))
       const { features: f, pbis: p } = projectItems.current
-      setCandidates(computeCandidates(parseResult.removedItems, f, p))
+      setCandidates(computeCandidates(parseResult.removedItems, f, p, projectPIs.current))
     })
   }, [open, file])
 
@@ -341,7 +436,10 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, onClose 
     onClose()
   }
 
-  const removeCount = new Set([...removeSelection, ...forced]).size
+  const allRemoved = new Set([...removeSelection, ...forced])
+  const removeCount = allRemoved.size
+  // Ticking one feature can destroy dozens of items; the row count alone hides that.
+  const deleteTotal = totalDeleted(candidates, allRemoved)
 
   // 'importing' has no screen of its own — it keeps whichever step launched it on
   // display, with a spinner in the Confirm button. Reconcile is reached only when
@@ -439,7 +537,10 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, onClose 
 
               {removeCount > 0 && (
                 <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-md px-3 py-2 mt-4">
-                  {removeCount} {removeCount === 1 ? 'item' : 'items'} will be deleted permanently — this cannot be undone. Removing a feature also deletes its stories.
+                  {removeCount} ticked {removeCount === 1 ? 'item' : 'items'} will delete{' '}
+                  <strong>{deleteTotal} {deleteTotal === 1 ? 'item' : 'items'} in total</strong> — a
+                  feature takes its stories, and the parts of it carried into later PIs. This cannot
+                  be undone.
                 </p>
               )}
 

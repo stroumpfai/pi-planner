@@ -436,7 +436,7 @@ async def test_removal_deletes_feature_and_child_pbis(client, project):
     assert resp.status_code == 200
     data = resp.json()
     assert data["removed_features"] == 1
-    assert data["removed_stories"] == 0  # child removed via cascade, not counted separately
+    assert data["removed_stories"] == 1  # the child counts: it really was deleted
 
     assert (await client.get(f"/api/v1/projects/{pid}/features")).json() == []
     assert (await client.get(f"/api/v1/projects/{pid}/pbis")).json() == []
@@ -474,7 +474,7 @@ async def test_removal_unknown_system_id_is_ignored(client, project):
 
 @pytest.mark.asyncio
 async def test_removal_feature_and_its_child_both_listed(client, project):
-    """A child PBI whose id is also in removals is already cascade-deleted — no error."""
+    """A child PBI whose id is also in removals is already gone with its feature — no error."""
     pid = project["system_id"]
     await client.post(_url(pid), json={"rows": [
         _row(1, "feature", "Auth Feature", user_id=101),
@@ -489,7 +489,7 @@ async def test_removal_feature_and_its_child_both_listed(client, project):
     assert resp.status_code == 200
     data = resp.json()
     assert data["removed_features"] == 1
-    assert data["removed_stories"] == 0  # child gone via cascade before its own removal
+    assert data["removed_stories"] == 1  # counted once, not twice for being listed twice
     assert (await client.get(f"/api/v1/projects/{pid}/pbis")).json() == []
 
 
@@ -663,3 +663,173 @@ async def test_re_importing_the_same_type_keeps_the_state(client, project):
     )
     assert after["title"] == "Login v2"
     assert after["state"] == "In Progress"
+
+
+# ── Split features (work carried across several PIs) ──────────────────────────
+
+@pytest.fixture
+async def split_feature(client, project):
+    """Feature 101 planned onto PI-1, then split so story 203 carries into PI-2.
+
+    Returns the ids the continuation tests need: the origin, the continuation, and
+    the stories either side of the split.
+    """
+    pid = project["system_id"]
+    pi1 = (await client.post(f"/api/v1/projects/{pid}/pis", json={"name": "PI-1"})).json()
+    sw1 = (await client.post(f"/api/v1/pis/{pi1['system_id']}/swimlines", json={"name": "A"})).json()
+    pi2 = (await client.post(f"/api/v1/projects/{pid}/pis", json={"name": "PI-2"})).json()
+    sw2 = (await client.post(f"/api/v1/pis/{pi2['system_id']}/swimlines", json={"name": "A"})).json()
+
+    await client.post(_url(pid), json={"rows": [
+        _row(2, "feature", "Auth", user_id=101, state="Active"),
+        _row(3, "story", "S1", user_id=201, parent_id=101),
+        _row(4, "story", "S3", user_id=203, parent_id=101),
+    ], "has_state_column": True})
+
+    features = (await client.get(f"/api/v1/projects/{pid}/features")).json()
+    origin = next(f for f in features if f["id"] == 101)
+    pbis = {p["id"]: p for p in (await client.get(f"/api/v1/projects/{pid}/pbis")).json()}
+
+    await client.patch(f"/api/v1/features/{origin['system_id']}", json={"swimlane_id": sw1["system_id"]})
+    await client.post(f"/api/v1/pbis/{pbis[201]['system_id']}/place", json={"sprint_index": 0})
+    continuation = (await client.post(f"/api/v1/features/{origin['system_id']}/split", json={
+        "target_pi_id": pi2["system_id"],
+        "target_swimline_id": sw2["system_id"],
+        "pbi_ids": [pbis[203]["system_id"]],
+    })).json()
+
+    return {"project_id": pid, "origin": origin, "continuation": continuation, "pbis": pbis}
+
+
+@pytest.mark.asyncio
+async def test_reimport_updates_every_member_of_a_split_feature(client, split_feature):
+    """Only the origin carries the user_id, but the whole lineage is the same work item."""
+    pid = split_feature["project_id"]
+    resp = await client.post(_url(pid), json={
+        "rows": [_row(2, "feature", "Auth & SSO", user_id=101, state="Resolved")],
+        "has_state_column": True,
+    })
+    assert resp.status_code == 200
+    assert resp.json()["updated_features"] == 1  # one CSV row, however many members
+
+    features = {f["system_id"]: f for f in (await client.get(f"/api/v1/projects/{pid}/features")).json()}
+    for member in (split_feature["origin"], split_feature["continuation"]):
+        updated = features[member["system_id"]]
+        assert updated["title"] == "Auth & SSO"
+        assert updated["state"] == "Resolved"
+
+
+@pytest.mark.asyncio
+async def test_reimport_clears_the_state_across_a_split_feature(client, split_feature):
+    pid = split_feature["project_id"]
+    await client.post(_url(pid), json={
+        "rows": [_row(2, "feature", "Auth", user_id=101, state="")],
+        "has_state_column": True,
+    })
+    features = {f["system_id"]: f for f in (await client.get(f"/api/v1/projects/{pid}/features")).json()}
+    assert features[split_feature["continuation"]["system_id"]]["state"] is None
+
+
+@pytest.mark.asyncio
+async def test_a_file_with_no_state_column_leaves_a_split_features_state_alone(client, split_feature):
+    pid = split_feature["project_id"]
+    await client.post(_url(pid), json={"rows": [_row(2, "feature", "Renamed", user_id=101)]})
+    features = {f["system_id"]: f for f in (await client.get(f"/api/v1/projects/{pid}/features")).json()}
+    continuation = features[split_feature["continuation"]["system_id"]]
+    assert continuation["title"] == "Renamed"
+    assert continuation["state"] == "Active"
+
+
+@pytest.mark.asyncio
+async def test_new_stories_join_the_latest_pi_of_a_split_feature(client, split_feature):
+    """Work discovered mid-PI belongs where the feature has got to, not where it began."""
+    pid = split_feature["project_id"]
+    await client.post(_url(pid), json={"rows": [
+        _row(2, "feature", "Auth", user_id=101),
+        _row(3, "story", "Newly found", user_id=204, parent_id=101),
+    ]})
+    pbis = {p["id"]: p for p in (await client.get(f"/api/v1/projects/{pid}/pbis")).json()}
+    assert pbis[204]["parent_feature_system_id"] == split_feature["continuation"]["system_id"]
+
+
+@pytest.mark.asyncio
+async def test_existing_stories_of_a_split_feature_are_never_re_parented(client, split_feature):
+    pid = split_feature["project_id"]
+    await client.post(_url(pid), json={"rows": [
+        _row(2, "feature", "Auth", user_id=101),
+        _row(3, "story", "S1 revised", user_id=201, parent_id=101),
+    ]})
+    pbis = {p["id"]: p for p in (await client.get(f"/api/v1/projects/{pid}/pbis")).json()}
+    assert pbis[201]["title"] == "S1 revised"
+    assert pbis[201]["parent_feature_system_id"] == split_feature["origin"]["system_id"]
+
+
+@pytest.mark.asyncio
+async def test_new_stories_of_an_unsplit_feature_stay_with_it(client, project):
+    pid = project["system_id"]
+    await client.post(_url(pid), json={"rows": [_row(2, "feature", "Plain", user_id=101)]})
+    origin = (await client.get(f"/api/v1/projects/{pid}/features")).json()[0]
+    await client.post(_url(pid), json={"rows": [
+        _row(2, "feature", "Plain", user_id=101),
+        _row(3, "story", "Child", user_id=201, parent_id=101),
+    ]})
+    pbis = (await client.get(f"/api/v1/projects/{pid}/pbis")).json()
+    assert pbis[0]["parent_feature_system_id"] == origin["system_id"]
+
+
+@pytest.mark.asyncio
+async def test_removing_a_split_feature_takes_its_continuations(client, split_feature):
+    pid = split_feature["project_id"]
+    resp = await client.post(_url(pid), json={
+        "rows": [], "removals": [split_feature["origin"]["system_id"]],
+    })
+    assert resp.status_code == 200
+    assert resp.json()["removed_features"] == 2   # origin + continuation
+    assert resp.json()["removed_stories"] == 2
+    assert (await client.get(f"/api/v1/projects/{pid}/features")).json() == []
+    assert (await client.get(f"/api/v1/projects/{pid}/pbis")).json() == []
+
+
+@pytest.mark.asyncio
+async def test_removing_a_feature_holding_a_placed_story_succeeds(client, split_feature):
+    """The PBI↔Group cycle used to make this a 500 that aborted the whole import."""
+    pid = split_feature["project_id"]
+    resp = await client.post(_url(pid), json={
+        "rows": [_row(2, "feature", "Survivor", user_id=301)],
+        "removals": [split_feature["origin"]["system_id"]],
+    })
+    assert resp.status_code == 200
+    assert resp.json()["created_features"] == 1
+    titles = {f["title"] for f in (await client.get(f"/api/v1/projects/{pid}/features")).json()}
+    assert titles == {"Survivor"}
+
+
+@pytest.mark.asyncio
+async def test_removing_a_feature_broadcasts_its_continuations_too(client, split_feature, captured_events):
+    pid = split_feature["project_id"]
+    await client.post(_url(pid), json={
+        "rows": [], "removals": [split_feature["origin"]["system_id"]],
+    })
+    deleted = {data["system_id"] for _, event, data in captured_events if event == "feature:deleted"}
+    assert deleted == {
+        split_feature["origin"]["system_id"],
+        split_feature["continuation"]["system_id"],
+    }
+
+
+@pytest.mark.asyncio
+async def test_removing_a_feature_broadcasts_its_stories_as_deleted(client, project, captured_events):
+    """Readers hold stories in their own cache — a silent cascade leaves them stale."""
+    pid = project["system_id"]
+    await client.post(_url(pid), json={"rows": [
+        _row(1, "feature", "Auth Feature", user_id=101),
+        _row(2, "story", "Login UI", user_id=201, parent_id=101),
+    ]})
+    features = (await client.get(f"/api/v1/projects/{pid}/features")).json()
+    pbis = (await client.get(f"/api/v1/projects/{pid}/pbis")).json()
+    feature_sid = next(f["system_id"] for f in features if f["id"] == 101)
+    story_sid = next(p["system_id"] for p in pbis if p["id"] == 201)
+
+    captured_events.clear()
+    await client.post(_url(pid), json={"rows": [], "removals": [feature_sid]})
+    assert (pid, "pbi:deleted", {"system_id": story_sid, "feature_id": feature_sid}) in captured_events

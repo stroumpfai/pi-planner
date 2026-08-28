@@ -13,7 +13,9 @@ from app.schemas.csv_import import (
     CsvRow,
     OrphanLocation,
 )
+from app.services.continuation import lineage_members, newest_leaf
 from app.services.events import broadcaster
+from app.services.feature_delete import delete_features
 from app.services.pbi_delete import delete_pbi_and_empty_group
 from app.services.project_state import get_or_create_state, state_item_type_for_pbi
 
@@ -141,9 +143,14 @@ async def _upsert_one_feature(
         feature = await db.get(Feature, sysid)
         if feature is None:
             return sysid, 0, 0
-        feature.title = row.title
-        if state_changed:
-            feature.state_id = state_id
+        # A split feature is one work item spread over several PIs, and only its
+        # root carries the user_id this row matched. Applying the change to that
+        # member alone would leave every later PI showing the title and State the
+        # feature had on the day it was split.
+        for member in await lineage_members(db, feature):
+            member.title = row.title
+            if state_changed:
+                member.state_id = state_id
         return sysid, 0, 1
 
     sysid = str(uuid4())
@@ -223,6 +230,32 @@ async def _upsert_one_story(
     return 1, 0
 
 
+async def _leaf_parents(db: AsyncSession, feature_sysids: list[str]) -> dict[str, str]:
+    """Map a matched feature to the lineage member that should adopt new stories.
+
+    Only split features get an entry, so an import of unsplit work costs one extra
+    query for the whole file rather than a lineage walk per row.
+    """
+    if not feature_sysids:
+        return {}
+    split_roots = {
+        sysid
+        for sysid in (await db.execute(
+            select(Feature.continued_from_feature_id).where(
+                Feature.continued_from_feature_id.in_(feature_sysids)
+            )
+        )).scalars().all()
+        if sysid is not None
+    }
+
+    leaves: dict[str, str] = {}
+    for sysid in split_roots:
+        feature = await db.get(Feature, sysid)
+        if feature is not None:
+            leaves[sysid] = (await newest_leaf(db, feature)).system_id
+    return leaves
+
+
 async def _upsert_stories(
     db: AsyncSession,
     project_id: str,
@@ -232,14 +265,22 @@ async def _upsert_stories(
     unassigned_sysid: str | None,
     has_state_column: bool,
 ) -> tuple[int, int]:
+    # A story new to a split feature belongs where the work has got to, not where
+    # it started: filing it against the root would put newly discovered work in
+    # the PI the feature has already carried over out of. Stories that already
+    # exist are updated in place and never re-parented, so this only steers
+    # creates.
+    leaves = await _leaf_parents(db, list(csv_feature_sysid.values()))
+
     created = 0
     updated = 0
     for row in story_rows:
-        parent_sysid: str = (
+        matched_sysid: str = (
             csv_feature_sysid[row.parent_id]
             if row.parent_id is not None and row.parent_id in csv_feature_sysid
             else unassigned_sysid  # type: ignore[assignment]
         )
+        parent_sysid = leaves.get(matched_sysid, matched_sysid)
         was_created, was_updated = await _upsert_one_story(
             db, project_id, row, parent_sysid, pbi_map, has_state_column
         )
@@ -255,9 +296,9 @@ async def _apply_removals(
 ) -> tuple[list[str], list[tuple[str, str]], list[str]]:
     """Delete the given features/PBIs (by system_id) belonging to this project.
 
-    Features are deleted first — this cascades to their child PBIs and groups
-    (see Feature.pbis/groups delete-orphan + PBI FK ON DELETE CASCADE), so a child
-    PBI whose id also appears in the list is already gone and is skipped.
+    Features are deleted first, through ``delete_features``, which takes their
+    continuations and their stories and groups with them. A child PBI whose id
+    also appears in the list is therefore already gone and is skipped.
 
     A story deleted on its own goes through ``delete_pbi_and_empty_group`` so it
     cannot strand the group holding it on the PI board — the same cleanup
@@ -267,24 +308,24 @@ async def _apply_removals(
     deleted_pbis is a list of (pbi_system_id, parent_feature_system_id) for SSE
     broadcasting.
     """
-    deleted_feature_ids: list[str] = []
-    deleted_pbis: list[tuple[str, str]] = []
-    deleted_group_ids: list[str] = []
+    feature_ids: list[str] = []
     remaining: list[str] = []
 
     for sid in system_ids:
         feature = await db.get(Feature, sid)
         if feature is not None and feature.project_id == project_id:
-            await db.delete(feature)
-            deleted_feature_ids.append(sid)
+            feature_ids.append(sid)
         else:
             remaining.append(sid)
 
-    # Flush so feature cascades run before we probe for surviving PBIs.
-    if deleted_feature_ids:
-        await db.flush()
+    deletion = await delete_features(db, feature_ids)
+    deleted_pbis: list[tuple[str, str]] = list(deletion.pbis)
+    deleted_group_ids: list[str] = list(deletion.group_ids)
+    already_deleted = {pbi_id for pbi_id, _ in deletion.pbis}
 
     for sid in remaining:
+        if sid in already_deleted:
+            continue
         pbi = await db.get(PBI, sid)
         if pbi is not None and pbi.project_id == project_id:
             parent_id = pbi.parent_feature_system_id
@@ -293,7 +334,7 @@ async def _apply_removals(
             if group_id:
                 deleted_group_ids.append(group_id)
 
-    return deleted_feature_ids, deleted_pbis, deleted_group_ids
+    return deletion.feature_ids, deleted_pbis, deleted_group_ids
 
 
 _UNASSIGNED_TITLE = "Unassigned"

@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ImportCSVModal } from '../ImportCSVModal'
 import { useCsvImport } from '@/hooks/useCsvImport'
 import * as csvParser from '@/utils/csvParser'
-import type { Feature, PBI } from '@/types'
+import type { Feature, PBI, PI } from '@/types'
 
 vi.mock('@/hooks/useCsvImport')
 // Only the file-reading entry points are faked; selectImportRows stays real so the
@@ -90,6 +90,7 @@ const defaultProps = {
   projectId: 'p-1',
   features: [] as Feature[],
   pbis: [] as PBI[],
+  pis: [] as PI[],
   onClose: vi.fn(),
 }
 
@@ -335,5 +336,85 @@ describe('ImportCSVModal', () => {
     await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
     await waitFor(() => expect(screen.getByText(/features removed/i)).toBeInTheDocument())
     expect(screen.getByText(/stories removed/i)).toBeInTheDocument()
+  })
+
+  // ── Reconcile: the true weight of a removal ────────────────────────────────
+
+  function makeBoardFeature(
+    id: number | null, systemId: string, title: string,
+    opts: { piId?: string; continuedFrom?: string } = {},
+  ): Feature {
+    return {
+      id, system_id: systemId, title,
+      location: opts.piId ? 'pi' : 'backlog',
+      pi_id: opts.piId ?? null,
+      continued_from_feature_id: opts.continuedFrom ?? null,
+    } as unknown as Feature
+  }
+
+  const removedFeature101 = {
+    ...fakeParseResult,
+    removedItems: [{ rowNumber: 2, itemType: 'feature' as const, userId: 101, title: 'Gone', effort: null, parentId: null, state: '' }],
+    removedFeatureIds: [101],
+  }
+
+  const twoPIs = [
+    { system_id: 'pi-1', name: 'PI-1' },
+    { system_id: 'pi-2', name: 'PI-2' },
+  ] as unknown as PI[]
+
+  /** Feature 101 on PI-1, carried into PI-2, with 3 stories then 2. */
+  const splitLineage = [
+    makeBoardFeature(101, 'feat-1', 'Auth', { piId: 'pi-1' }),
+    makeBoardFeature(null, 'feat-2', 'Auth', { piId: 'pi-2', continuedFrom: 'feat-1' }),
+  ]
+  const splitStories = [
+    makePBI(201, 'pbi-1', 'S1', 'feat-1'),
+    makePBI(202, 'pbi-2', 'S2', 'feat-1'),
+    makePBI(203, 'pbi-3', 'S3', 'feat-1'),
+    makePBI(204, 'pbi-4', 'S4', 'feat-2'),
+    makePBI(205, 'pbi-5', 'S5', 'feat-2'),
+  ]
+
+  async function openReconcile(props: Partial<typeof defaultProps>) {
+    render(
+      <ImportCSVModal {...defaultProps} {...props} open file={makeFile()} />,
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => screen.getByRole('button', { name: /next/i }))
+    await userEvent.click(screen.getByRole('button', { name: /next/i }))
+  }
+
+  it('names the PIs a removed feature spans', async () => {
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue(removedFeature101)
+    await openReconcile({ features: splitLineage, pbis: splitStories, pis: twoPIs })
+    expect(screen.getByText(/Feature on PI-1, PI-2/)).toBeInTheDocument()
+  })
+
+  it('says a backlog feature is in the backlog', async () => {
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue(removedFeature101)
+    await openReconcile({ features: [makeBoardFeature(101, 'feat-1', 'Auth')], pis: twoPIs })
+    expect(screen.getByText(/Feature in the backlog/)).toBeInTheDocument()
+  })
+
+  it('warns that a removal takes continuations and stories with it', async () => {
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue(removedFeature101)
+    await openReconcile({ features: splitLineage, pbis: splitStories, pis: twoPIs })
+    expect(screen.getByText(/takes.*1 later-PI part.*and.*5 stories/s)).toBeInTheDocument()
+  })
+
+  it('counts every item a ticked feature destroys, not the ticked rows', async () => {
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue(removedFeature101)
+    await openReconcile({ features: splitLineage, pbis: splitStories, pis: twoPIs })
+    await userEvent.click(screen.getByRole('checkbox'))
+    // 1 feature + 1 continuation + 5 stories
+    expect(screen.getByText(/7 items in total/)).toBeInTheDocument()
+  })
+
+  it('counts an unsplit backlog feature as just itself', async () => {
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue(removedFeature101)
+    await openReconcile({ features: [makeBoardFeature(101, 'feat-1', 'Auth')], pis: twoPIs })
+    await userEvent.click(screen.getByRole('checkbox'))
+    expect(screen.getByText(/1 items? in total/)).toBeInTheDocument()
   })
 })
