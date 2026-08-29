@@ -1,0 +1,9 @@
+ID,Work Item Type,Title 1,Title 2,Effort,Parent,State
+601,Feature,,,,,New
+abc,Feature,ID is not a number,,,,New
+1000001,Feature,ID is out of range,,,,New
+602,Product Backlog Item,,Effort is not an allowed value,4,101,New
+603,Product Backlog Item,,Parent names no ID,3,Authentication,New
+604,Product Backlog Item,,Duplicate ID,3,101,New
+604,Product Backlog Item,,Duplicate ID again,3,101,New
+605,Epic,Unknown work item type,,,,New

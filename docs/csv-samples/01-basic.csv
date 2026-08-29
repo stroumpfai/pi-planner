@@ -1,0 +1,8 @@
+ID,Work Item Type,Title 1,Title 2,Effort,Parent,State
+101,Feature,Authentication,,,,New
+201,Product Backlog Item,,Login form,3,101,New
+202,Product Backlog Item,,Password reset,5,101,Active
+301,Bug,,Session expires too early,0.5,101,Active
+102,Feature,Reporting,,,,New
+203,Product Backlog Item,,CSV export of a PI,8,102,New
+204,Product Backlog Item,,Dashboard tiles,0,102,New
