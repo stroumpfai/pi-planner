@@ -211,6 +211,31 @@ describe('CSV refresh of a project that already has data', () => {
     cy.contains('Brand new').should('not.exist')
   })
 
+  // The list has to survive a real refresh: mostly rows that match, with the few
+  // that act hidden among them unless the unchanged ones are folded away.
+  it('folds the unchanged rows away and leaves the ones that act in view', () => {
+    seedFeature('Auth', 101).then((f) => {
+      seedStory('Login form', 201, f.body.system_id)
+      seedStory('Password reset', 202, f.body.system_id)
+    })
+    seedFeature('Payments', 102)
+    openBacklogAsEditor()
+
+    upload([
+      'Product Backlog Item,Login form,201,,101,',
+      'Product Backlog Item,Password reset,202,,101,',
+      'Feature,Auth renamed,101,,,',
+    ].join('\n'))
+    cy.contains('button', /^Review changes$/).click()
+
+    cy.contains(/2 unchanged/).should('be.visible')
+    cy.contains('Auth renamed').should('be.visible')
+    cy.contains('Login form').should('not.exist')
+
+    cy.contains('button', /2 rows unchanged/i).click()
+    cy.contains('Login form').should('be.visible')
+  })
+
   // ── C1: a Parent the file does not list ────────────────────────────────────
 
   it('links a partial file to a parent that exists only in the project', () => {

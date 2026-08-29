@@ -175,9 +175,10 @@ is what will happen:
 | **Unassigned** | An orphan going to the placeholder feature |
 | **Left alone** | A change the import found and is not applying, with the reason |
 
-A refresh where most rows are unchanged says so, row by row. That is usually the
-point: it is how you tell "this file is a no-op" from "this file is about to
-rewrite forty titles".
+Rows that change nothing are folded away behind **N rows unchanged**, which
+expands. A refresh is mostly those — a file of 180 rows where two stories moved
+would otherwise bury them — so the list shows what acts and counts the rest. If
+nothing in the file changes anything, it says so instead of listing it.
 
 **Back** returns to the previous screen and writes nothing — the trial run has
 already been rolled back by then. Confirming sends the same request again for

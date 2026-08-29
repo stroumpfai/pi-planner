@@ -307,8 +307,48 @@ describe('ImportCSVModal', () => {
     // Count and label are separate text nodes, so match on the whole chip.
     expect(screen.getByText((_, el) => el?.textContent === '1 new')).toBeInTheDocument()
     expect(screen.getByText((_, el) => el?.textContent === '1 deleted')).toBeInTheDocument()
-    // The reassurance the file-only preview could never give.
-    expect(screen.getByText(/no change/i)).toBeInTheDocument()
+    expect(screen.getByText('with its feature')).toBeInTheDocument()
+  })
+
+  // A refresh is mostly rows that match; listing each one buries the few that act.
+  it('keeps rows that change nothing out of the way, but counted and reachable', async () => {
+    dryRun.mockResolvedValue({
+      ...okResult,
+      plan: [
+        { action: 'moved', item_type: 'story', user_id: 301, title: 'Carried', row: 4, changes: [], detail: 'Auth → Payments' },
+        { action: 'updated', item_type: 'story', user_id: 201, title: 'Untouched one', row: 2, changes: [], detail: null },
+        { action: 'updated', item_type: 'story', user_id: 202, title: 'Untouched two', row: 3, changes: [], detail: null },
+      ],
+      plan_truncated: false,
+    })
+    render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByRole('button', { name: /review changes/i }))
+    await userEvent.click(screen.getByRole('button', { name: /review changes/i }))
+
+    await waitFor(() => expect(screen.getByText('Carried')).toBeInTheDocument())
+    expect(screen.getByText((_, el) => el?.textContent === '2 unchanged')).toBeInTheDocument()
+    expect(screen.queryByText('Untouched one')).not.toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: /2 rows unchanged/i }))
+    expect(screen.getByText('Untouched one')).toBeInTheDocument()
+    expect(screen.getAllByText('no change')).toHaveLength(2)
+  })
+
+  it('says so plainly when the whole file is a no-op', async () => {
+    dryRun.mockResolvedValue({
+      ...okResult,
+      plan: [
+        { action: 'updated', item_type: 'story', user_id: 201, title: 'Untouched', row: 2, changes: [], detail: null },
+      ],
+      plan_truncated: false,
+    })
+    render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByRole('button', { name: /review changes/i }))
+    await userEvent.click(screen.getByRole('button', { name: /review changes/i }))
+
+    await waitFor(() =>
+      expect(screen.getByText(/every row in this file matches/i)).toBeInTheDocument(),
+    )
   })
 
   it('sends the reviewed body unchanged when the import is confirmed', async () => {

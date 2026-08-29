@@ -541,9 +541,19 @@ const ACTION_ORDER = ['deleted', 'retyped', 'moved', 'created', 'orphaned', 'upd
  * reassurance this screen exists to give.
  */
 function ReviewList({ plan, truncated }: { readonly plan: PlannedChange[]; readonly truncated: boolean }) {
+  const [showUnchanged, setShowUnchanged] = useState(false)
+
+  // A refresh is mostly rows that match what the project already holds. Listing
+  // each one buries the handful that do something — in a real file, two moves
+  // among a hundred and eighty "no change" lines.
+  const isUnchanged = (c: PlannedChange) =>
+    c.action === 'updated' && (c.changes ?? []).length === 0
+  const changed = plan.filter((c) => !isUnchanged(c))
+  const unchanged = plan.filter(isUnchanged)
+
   const counts = new Map<string, number>()
-  for (const c of plan) counts.set(c.action, (counts.get(c.action) ?? 0) + 1)
-  const ordered = [...plan].sort(
+  for (const c of changed) counts.set(c.action, (counts.get(c.action) ?? 0) + 1)
+  const ordered = [...changed].sort(
     (a, b) => ACTION_ORDER.indexOf(a.action) - ACTION_ORDER.indexOf(b.action),
   )
 
@@ -559,27 +569,44 @@ function ReviewList({ plan, truncated }: { readonly plan: PlannedChange[]; reado
             {counts.get(action)} {ACTION_LABEL[action].toLowerCase()}
           </span>
         ))}
+        {unchanged.length > 0 && (
+          <span className="text-xs rounded-full px-2 py-0.5 text-gray-600 bg-gray-100">
+            {unchanged.length} unchanged
+          </span>
+        )}
       </div>
 
-      <ul className="divide-y divide-gray-100 max-h-72 overflow-y-auto border border-gray-200 rounded-md">
-        {ordered.map((c, i) => (
-          <li key={`${c.action}-${c.user_id ?? 'x'}-${i}`} className="flex items-baseline gap-2 px-2.5 py-1.5">
-            <span className={`text-[10px] uppercase tracking-wide rounded px-1 py-0.5 shrink-0 ${ACTION_TONE[c.action]}`}>
-              {ACTION_LABEL[c.action]}
-            </span>
-            <span className="text-xs text-gray-800 min-w-0 flex-1 truncate">
-              {c.user_id != null && <span className="font-mono text-gray-400">[{c.user_id}] </span>}
-              {c.title}
-              {c.detail != null && <span className="text-gray-500"> — {c.detail}</span>}
-              {c.action === 'updated' && (
-                <span className="text-gray-500">
-                  {' '}— {(c.changes ?? []).length === 0 ? 'no change' : (c.changes ?? []).join(', ')}
-                </span>
-              )}
-            </span>
-          </li>
-        ))}
-      </ul>
+      {ordered.length === 0 ? (
+        <p className="text-sm text-gray-500">
+          Every row in this file matches what the project already holds.
+        </p>
+      ) : (
+        <ul className="divide-y divide-gray-100 max-h-[26rem] overflow-y-auto border border-gray-200 rounded-md">
+          {ordered.map((c, i) => (
+            <ChangeRow key={`${c.action}-${c.user_id ?? 'x'}-${i}`} change={c} />
+          ))}
+        </ul>
+      )}
+
+      {unchanged.length > 0 && (
+        <>
+          <button
+            type="button"
+            onClick={() => setShowUnchanged((v) => !v)}
+            className="mt-2 text-xs text-gray-500 hover:text-gray-700"
+          >
+            {showUnchanged ? '▾' : '▸'} {unchanged.length}{' '}
+            {unchanged.length === 1 ? 'row' : 'rows'} unchanged
+          </button>
+          {showUnchanged && (
+            <ul className="mt-1 divide-y divide-gray-100 max-h-56 overflow-y-auto border border-gray-200 rounded-md">
+              {unchanged.map((c, i) => (
+                <ChangeRow key={`unchanged-${c.user_id ?? 'x'}-${i}`} change={c} />
+              ))}
+            </ul>
+          )}
+        </>
+      )}
 
       {truncated && (
         <p className="text-xs text-gray-400 mt-2">
@@ -587,6 +614,36 @@ function ReviewList({ plan, truncated }: { readonly plan: PlannedChange[]; reado
         </p>
       )}
     </>
+  )
+}
+
+/**
+ * One planned change, over two lines.
+ *
+ * The outcome goes underneath rather than after the title: these titles are long
+ * and differ from each other at the end, so a single truncated line loses both the
+ * part that identifies the item and the part that says what happens to it.
+ */
+function ChangeRow({ change: c }: { readonly change: PlannedChange }) {
+  const outcome = c.action === 'updated'
+    ? ((c.changes ?? []).length === 0 ? 'no change' : (c.changes ?? []).join(', '))
+    : c.detail
+
+  return (
+    <li className="flex items-start gap-2 px-2.5 py-2">
+      <span className={`text-[10px] uppercase tracking-wide rounded px-1 py-0.5 shrink-0 mt-0.5 w-[4.75rem] text-center ${ACTION_TONE[c.action]}`}>
+        {ACTION_LABEL[c.action]}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-xs text-gray-800 line-clamp-2 break-words">
+          {c.user_id != null && <span className="font-mono text-gray-400">[{c.user_id}] </span>}
+          {c.title}
+        </span>
+        {outcome != null && outcome !== '' && (
+          <span className="block text-xs text-gray-500 mt-0.5">{outcome}</span>
+        )}
+      </span>
+    </li>
   )
 }
 
@@ -784,7 +841,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-40" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl p-6 w-full max-w-md"
+          className={`fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white rounded-lg shadow-xl p-6 w-full ${showReview ? 'max-w-2xl' : 'max-w-md'}`}
         >
 
           {/* ── Preview ────────────────────────────────────────────────────── */}
