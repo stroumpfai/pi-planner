@@ -189,7 +189,7 @@ function PreviewTable({ preview }: { readonly preview: ImportPreview }) {
         {preview.orphanCount > 0 && (
           <tr>
             <td className="py-1.5 text-amber-600 text-xs">
-              ↳ {preview.orphanCount} orphan {preview.orphanCount === 1 ? 'story' : 'stories'} (no parent in this file) — new ones go to &quot;Unassigned&quot;, ones already in the project stay where they are
+              ↳ {preview.orphanCount} orphan {preview.orphanCount === 1 ? 'story' : 'stories'} (no parent in this file or the project) — new ones go to &quot;Unassigned&quot;, ones already in the project stay where they are
             </td>
             <td />
           </tr>
@@ -341,8 +341,13 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
     file.text().then((text) => {
       const parseResult: ParseResult = parseImportCSV(text)
       setParsed(parseResult)
-      setPreview(buildPreview(parseResult))
       const { features: f, pbis: p } = projectItems.current
+      // A Parent resolves against the project as well as the file, so the preview
+      // has to know what the project holds or it over-reports orphans.
+      setPreview(buildPreview(
+        parseResult,
+        new Set(f.map((feat) => feat.id).filter((id): id is number => id != null)),
+      ))
       setCandidates(computeCandidates(parseResult.removedItems, f, p, projectPIs.current))
     })
   }, [open, file])
@@ -597,6 +602,14 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
                   )}
                 </tbody>
               </table>
+
+              {(result.stories_parented_from_project ?? 0) > 0 && (
+                <p className="text-xs text-gray-500 mt-2">
+                  {result.stories_parented_from_project}{' '}
+                  {result.stories_parented_from_project === 1 ? 'story' : 'stories'} linked to a
+                  feature already in the project, not listed in this file
+                </p>
+              )}
 
               {(result.orphan_stories_placed ?? 0) > 0 && (
                 <p className="text-xs text-amber-600 mt-2">

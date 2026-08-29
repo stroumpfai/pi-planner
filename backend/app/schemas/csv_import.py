@@ -64,4 +64,9 @@ class CsvImportResult(BaseModel):
     # may be under a feature on the PI board rather than in the backlog.
     orphan_stories_placed: int = 0
     orphan_stories_existing: list[OrphanLocation] = []
+    # Stories created under a feature the project already held but the file did not
+    # list. These would have become orphans before Parent resolved against the
+    # project, so naming them explains why the orphan count came out below the
+    # preview's estimate.
+    stories_parented_from_project: int = 0
     created_states: int = 0  # State List entries discovered by this import

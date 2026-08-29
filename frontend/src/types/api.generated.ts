@@ -481,6 +481,11 @@ export interface components {
        */
       orphan_stories_existing?: components["schemas"]["OrphanLocation"][];
       /**
+       * Stories Parented From Project
+       * @default 0
+       */
+      stories_parented_from_project?: number;
+      /**
        * Created States
        * @default 0
        */

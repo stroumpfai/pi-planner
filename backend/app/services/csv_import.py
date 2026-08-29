@@ -260,7 +260,7 @@ async def _upsert_stories(
     db: AsyncSession,
     project_id: str,
     story_rows: list[CsvRow],
-    csv_feature_sysid: dict[int, str],
+    parent_lookup: dict[int, str],
     pbi_map: dict[int, str],
     unassigned_sysid: str | None,
     has_state_column: bool,
@@ -270,14 +270,22 @@ async def _upsert_stories(
     # the PI the feature has already carried over out of. Stories that already
     # exist are updated in place and never re-parented, so this only steers
     # creates.
-    leaves = await _leaf_parents(db, list(csv_feature_sysid.values()))
+    #
+    # Only the parents these rows actually name are worth checking — parent_lookup
+    # spans every feature in the project once a Parent can resolve against it.
+    referenced = {
+        parent_lookup[r.parent_id]
+        for r in story_rows
+        if r.parent_id is not None and r.parent_id in parent_lookup
+    }
+    leaves = await _leaf_parents(db, list(referenced))
 
     created = 0
     updated = 0
     for row in story_rows:
         matched_sysid: str = (
-            csv_feature_sysid[row.parent_id]
-            if row.parent_id is not None and row.parent_id in csv_feature_sysid
+            parent_lookup[row.parent_id]
+            if row.parent_id is not None and row.parent_id in parent_lookup
             else unassigned_sysid  # type: ignore[assignment]
         )
         parent_sysid = leaves.get(matched_sysid, matched_sysid)
@@ -453,11 +461,28 @@ async def execute_import(
     )
     await db.flush()
 
+    # A Parent naming a feature the project already holds resolves to it, even when
+    # that feature is not a row in this file. Without this an incremental export —
+    # this sprint's new stories, nothing else — orphans every one of them into
+    # "Unassigned", and the whole tree has to be re-sent every time.
+    parent_lookup = {**feature_map, **csv_feature_sysid}
+
     orphan_rows = [
         r for r in story_rows
-        if r.parent_id is None or r.parent_id not in csv_feature_sysid
+        if r.parent_id is None or r.parent_id not in parent_lookup
     ]
     orphan_count = len(orphan_rows)
+
+    # Rows the file could not have placed on its own — worth reporting, since the
+    # preview counted them against the file alone and the user is owed the reason
+    # their orphan count came out lower than the preview promised.
+    parented_from_project = sum(
+        1 for r in story_rows
+        if r.parent_id is not None
+        and r.parent_id not in csv_feature_sysid
+        and r.parent_id in feature_map
+        and (r.user_id is None or r.user_id not in pbi_map)
+    )
 
     # Only rows that will be *created* need the placeholder as their parent; an
     # orphan row matching an existing story is updated in place and keeps its
@@ -473,7 +498,7 @@ async def execute_import(
         await db.flush()
 
     created_stories, updated_stories = await _upsert_stories(
-        db, project_id, story_rows, csv_feature_sysid, pbi_map, unassigned_sysid,
+        db, project_id, story_rows, parent_lookup, pbi_map, unassigned_sysid,
         has_state_column,
     )
     created_states = await _count_states(db, project_id) - states_before
@@ -501,5 +526,6 @@ async def execute_import(
         orphan_stories=orphan_count,
         orphan_stories_placed=len(new_orphan_rows),
         orphan_stories_existing=orphan_locations,
+        stories_parented_from_project=parented_from_project,
         created_states=created_states,
     )

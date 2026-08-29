@@ -382,7 +382,11 @@ Expected columns (any order): `State`, `ID`, `Work Item Type`, `Title 1`, `Title
 - **Row filtering**: Rows where `State = Removed` are silently discarded
 - **Title resolution**: Features use `Title 1`; PBIs/Bugs use `Title 2` with fallback to `Title 1`
 - **Effort**: Blank or `0` → null; positive integer → stored as-is; non-numeric → validation error
-- **Orphan stories** (no matching parent Feature in CSV): placed under auto-created "Unassigned" Feature
+- **Parent resolution**: a story's `Parent` is matched first against the Feature rows in the
+  file, then against Features already in the project. A partial export — this sprint's new
+  stories, with no Feature rows at all — therefore links correctly instead of orphaning
+- **Orphan stories** (`Parent` matches no Feature in the file *or* the project): placed under
+  auto-created "Unassigned" Feature
 - **Duplicate IDs** (user_id already exists in project): existing item is **updated** (title overwritten; parent link not changed)
 
 ### 9.4 Validation (All-or-Nothing)

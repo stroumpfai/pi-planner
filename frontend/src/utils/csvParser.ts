@@ -42,7 +42,7 @@ export interface ImportPreview {
   childrenRemovedWithParent: number
   featureCount: number
   storyCount: number
-  orphanCount: number     // stories with no resolvable parent feature in the file
+  orphanCount: number     // stories whose Parent names no feature in the file or the project
   hasStateColumn: boolean
   stateValues: string[]   // distinct States found, first-seen spelling, in discovery order
   errors: ParseError[]
@@ -272,7 +272,18 @@ export function selectImportRows(
 
 // ── Preview builder ───────────────────────────────────────────────────────────
 
-export function buildPreview(result: ParseResult): ImportPreview {
+/**
+ * Summarise what an import would do.
+ *
+ * `knownFeatureIds` are the feature IDs the project already holds. The backend
+ * resolves a story's Parent against those as well as against the file, so a
+ * preview that ignored them would report orphans the import is not going to
+ * create — the exact overstatement that made partial files look broken.
+ */
+export function buildPreview(
+  result: ParseResult,
+  knownFeatureIds: ReadonlySet<number> = new Set(),
+): ImportPreview {
   // Reconcile has not happened yet, so preview the default: every Removed feature
   // goes, taking its children with it.
   const rows = selectImportRows(result)
@@ -291,7 +302,8 @@ export function buildPreview(result: ParseResult): ImportPreview {
 
   const orphanCount = rows
     .filter((r) => r.itemType === 'story' || r.itemType === 'bug')
-    .filter((r) => r.parentId === null || !featureIds.has(r.parentId))
+    .filter((r) => r.parentId === null
+      || !(featureIds.has(r.parentId) || knownFeatureIds.has(r.parentId)))
     .length
 
   // Distinct States across all three lists, deduped the same way the backend does.

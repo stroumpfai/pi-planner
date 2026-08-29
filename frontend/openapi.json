@@ -5635,6 +5635,11 @@
             "title": "Orphan Stories Existing",
             "default": []
           },
+          "stories_parented_from_project": {
+            "type": "integer",
+            "title": "Stories Parented From Project",
+            "default": 0
+          },
           "created_states": {
             "type": "integer",
             "title": "Created States",

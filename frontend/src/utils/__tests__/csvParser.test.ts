@@ -232,6 +232,23 @@ describe('buildPreview', () => {
     expect(preview.orphanCount).toBe(1)
   })
 
+  // The backend resolves a Parent against the project as well as the file, so a
+  // preview that only looked at the file would promise orphans it will not create.
+  it('does not count a story whose parent is a feature the project already holds', () => {
+    const result = parseImportCSV(csv('Product Backlog Item,Login,,3,101,'))
+    expect(buildPreview(result, new Set([101])).orphanCount).toBe(0)
+  })
+
+  it('still counts a story whose parent is in neither the file nor the project', () => {
+    const result = parseImportCSV(csv('Product Backlog Item,Login,,3,999,'))
+    expect(buildPreview(result, new Set([101])).orphanCount).toBe(1)
+  })
+
+  it('treats an absent Parent as an orphan whatever the project holds', () => {
+    const result = parseImportCSV(csv('Product Backlog Item,Login,,3,,'))
+    expect(buildPreview(result, new Set([101])).orphanCount).toBe(1)
+  })
+
   it('reflects removedRows from the parse result', () => {
     const result = parseImportCSV(
       csv('Feature,Removed,,,, Removed', 'Feature,Active,,,,'),

@@ -833,3 +833,118 @@ async def test_removing_a_feature_broadcasts_its_stories_as_deleted(client, proj
     captured_events.clear()
     await client.post(_url(pid), json={"rows": [], "removals": [feature_sid]})
     assert (pid, "pbi:deleted", {"system_id": story_sid, "feature_id": feature_sid}) in captured_events
+
+
+# ── Partial files: Parent resolved against the project ────────────────────────
+
+@pytest.mark.asyncio
+async def test_a_story_finds_its_parent_already_in_the_project(client, project):
+    """An incremental export lists new stories only — their Parent is not in the file."""
+    pid = project["system_id"]
+    await client.post(_url(pid), json={"rows": [_row(2, "feature", "Auth", user_id=101)]})
+    origin = (await client.get(f"/api/v1/projects/{pid}/features")).json()[0]
+
+    resp = await client.post(_url(pid), json={
+        "rows": [_row(2, "story", "New story", user_id=301, parent_id=101)],
+    })
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["orphan_stories"] == 0
+    assert data["stories_parented_from_project"] == 1
+
+    pbis = (await client.get(f"/api/v1/projects/{pid}/pbis")).json()
+    assert pbis[0]["parent_feature_system_id"] == origin["system_id"]
+    titles = {f["title"] for f in (await client.get(f"/api/v1/projects/{pid}/features")).json()}
+    assert "Unassigned" not in titles
+
+
+@pytest.mark.asyncio
+async def test_a_parent_in_neither_file_nor_project_is_still_an_orphan(client, project):
+    pid = project["system_id"]
+    resp = await client.post(_url(pid), json={
+        "rows": [_row(2, "story", "Lost", user_id=301, parent_id=999)],
+    })
+    data = resp.json()
+    assert data["orphan_stories"] == 1
+    assert data["stories_parented_from_project"] == 0
+    titles = {f["title"] for f in (await client.get(f"/api/v1/projects/{pid}/features")).json()}
+    assert "Unassigned" in titles
+
+
+@pytest.mark.asyncio
+async def test_a_parent_naming_a_story_is_not_a_parent(client, project):
+    """Only features can be parents — an ID that names a story stays an orphan."""
+    pid = project["system_id"]
+    await client.post(_url(pid), json={"rows": [
+        _row(2, "feature", "Auth", user_id=101),
+        _row(3, "story", "Existing", user_id=201, parent_id=101),
+    ]})
+    resp = await client.post(_url(pid), json={
+        "rows": [_row(2, "story", "Child of a story", user_id=301, parent_id=201)],
+    })
+    assert resp.json()["orphan_stories"] == 1
+    assert resp.json()["stories_parented_from_project"] == 0
+
+
+@pytest.mark.asyncio
+async def test_an_existing_story_is_not_counted_as_newly_parented(client, project):
+    """The count names stories the file could not have placed — updates are not that."""
+    pid = project["system_id"]
+    await client.post(_url(pid), json={"rows": [
+        _row(2, "feature", "Auth", user_id=101),
+        _row(3, "story", "Existing", user_id=201, parent_id=101),
+    ]})
+    resp = await client.post(_url(pid), json={
+        "rows": [_row(2, "story", "Existing revised", user_id=201, parent_id=101)],
+    })
+    data = resp.json()
+    assert data["updated_stories"] == 1
+    assert data["orphan_stories"] == 0
+    assert data["stories_parented_from_project"] == 0
+
+
+@pytest.mark.asyncio
+async def test_a_row_in_the_file_still_wins_over_the_project(client, project):
+    """The file's own feature row is authoritative; the project is only a fallback."""
+    pid = project["system_id"]
+    await client.post(_url(pid), json={"rows": [_row(2, "feature", "Auth", user_id=101)]})
+    origin = (await client.get(f"/api/v1/projects/{pid}/features")).json()[0]
+
+    resp = await client.post(_url(pid), json={
+        "rows": [
+            _row(2, "feature", "Auth renamed", user_id=101),
+            _row(3, "story", "Child", user_id=301, parent_id=101),
+        ],
+    })
+    data = resp.json()
+    assert data["stories_parented_from_project"] == 0  # the file listed the parent
+    pbis = (await client.get(f"/api/v1/projects/{pid}/pbis")).json()
+    assert pbis[0]["parent_feature_system_id"] == origin["system_id"]
+
+
+@pytest.mark.asyncio
+async def test_a_partial_file_reaches_the_newest_pi_of_a_split_feature(client, split_feature):
+    """Project-resolved parents follow the lineage too, exactly as file-resolved ones do."""
+    pid = split_feature["project_id"]
+    resp = await client.post(_url(pid), json={
+        "rows": [_row(2, "story", "Found mid-PI", user_id=301, parent_id=101)],
+    })
+    assert resp.json()["stories_parented_from_project"] == 1
+    pbis = {p["id"]: p for p in (await client.get(f"/api/v1/projects/{pid}/pbis")).json()}
+    assert pbis[301]["parent_feature_system_id"] == split_feature["continuation"]["system_id"]
+
+
+@pytest.mark.asyncio
+async def test_a_parent_removed_in_this_import_does_not_resolve(client, project):
+    """Removals run first, so a Parent pointing at a deleted feature is an orphan."""
+    pid = project["system_id"]
+    await client.post(_url(pid), json={"rows": [_row(2, "feature", "Auth", user_id=101)]})
+    origin = (await client.get(f"/api/v1/projects/{pid}/features")).json()[0]
+
+    resp = await client.post(_url(pid), json={
+        "rows": [_row(2, "story", "Orphaned by the removal", user_id=301, parent_id=101)],
+        "removals": [origin["system_id"]],
+    })
+    assert resp.json()["orphan_stories"] == 1
+    titles = {f["title"] for f in (await client.get(f"/api/v1/projects/{pid}/features")).json()}
+    assert titles == {"Unassigned"}
