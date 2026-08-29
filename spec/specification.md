@@ -387,7 +387,13 @@ Expected columns (any order): `State`, `ID`, `Work Item Type`, `Title 1`, `Title
   stories, with no Feature rows at all — therefore links correctly instead of orphaning
 - **Orphan stories** (`Parent` matches no Feature in the file *or* the project): placed under
   auto-created "Unassigned" Feature
-- **Duplicate IDs** (user_id already exists in project): existing item is **updated** (title overwritten; parent link not changed)
+- **Duplicate IDs** (user_id already exists in project): existing item is **updated** (title,
+  effort and type overwritten)
+- **Changed Parent**: a story whose `Parent` names a different Feature than the one holding it
+  is reported in the preview and moved only if the user opts in. A Feature in the same
+  continuation lineage is not a change — that split was made on the board and the CSV cannot
+  express it. Applying a move takes the story out of its group and onto the new parent's PI
+  and swimlane; declining leaves it where planning put it and reports the divergence
 
 ### 9.4 Validation (All-or-Nothing)
 

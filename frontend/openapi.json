@@ -5584,6 +5584,11 @@
             "type": "boolean",
             "title": "Has State Column",
             "default": false
+          },
+          "apply_reparenting": {
+            "type": "boolean",
+            "title": "Apply Reparenting",
+            "default": false
           }
         },
         "type": "object",
@@ -5638,6 +5643,16 @@
           "stories_parented_from_project": {
             "type": "integer",
             "title": "Stories Parented From Project",
+            "default": 0
+          },
+          "stories_reparented": {
+            "type": "integer",
+            "title": "Stories Reparented",
+            "default": 0
+          },
+          "stories_reparent_skipped": {
+            "type": "integer",
+            "title": "Stories Reparent Skipped",
             "default": 0
           },
           "created_states": {

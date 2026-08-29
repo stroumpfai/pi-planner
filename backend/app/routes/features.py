@@ -25,6 +25,7 @@ from app.schemas import (
 from app.services.effort import feature_efforts
 from app.services.events import broadcaster
 from app.services.feature_delete import delete_features
+from app.services.pbi_delete import detach_pbi_from_group
 from app.services.project_state import resolve_state_assignment, validate_state_id
 from app.services.validation import is_user_id_available
 
@@ -105,21 +106,6 @@ async def _apply_move_to_backlog(db: AsyncSession, feature: Feature) -> None:
     feature.location = "backlog"
     feature.pi_id = None
     feature.swimlane_id = None
-
-
-async def _detach_pbi_from_group(db: AsyncSession, pbi: PBI) -> None:
-    old_group_id = pbi.group_id
-    if not old_group_id:
-        return
-    pbi.group_id = None
-    await db.flush()
-    remaining = (await db.execute(
-        select(func.count()).where(PBI.group_id == old_group_id)
-    )).scalar_one()
-    if remaining == 0:
-        old_group = await db.get(Group, old_group_id)
-        if old_group and old_group.is_implicit:
-            await db.delete(old_group)
 
 
 def _apply_generic_location_fields(feature: Feature, body: FeatureUpdate, fields: set[str]) -> None:
@@ -278,8 +264,11 @@ async def split_feature(
     await db.flush()
 
     pbis = (await db.execute(select(PBI).where(PBI.system_id.in_(selected_ids)))).scalars().all()
+    freed_group_ids: list[str] = []
     for pbi in pbis:
-        await _detach_pbi_from_group(db, pbi)
+        freed = await detach_pbi_from_group(db, pbi)
+        if freed:
+            freed_group_ids.append(freed)
         pbi.parent_feature_system_id = new_feature.system_id
         pbi.pi_id = body.target_pi_id
         pbi.swimlane_id = body.target_swimline_id
@@ -292,6 +281,8 @@ async def split_feature(
     await broadcaster.broadcast(feature.project_id, "feature:updated", {"system_id": feature.system_id})
     for pbi_id in selected_ids:
         await broadcaster.broadcast(feature.project_id, "pbi:updated", {"system_id": pbi_id})
+    for group_id in freed_group_ids:
+        await broadcaster.broadcast(feature.project_id, "group:deleted", {"system_id": group_id})
 
     return await _enrich(db, new_feature)
 
@@ -326,8 +317,11 @@ async def cancel_continuation(
         select(PBI).where(PBI.parent_feature_system_id == feature.system_id)
     )).scalars().all()
     moved_ids = [pbi.system_id for pbi in pbis]
+    freed_group_ids: list[str] = []
     for pbi in pbis:
-        await _detach_pbi_from_group(db, pbi)
+        freed = await detach_pbi_from_group(db, pbi)
+        if freed:
+            freed_group_ids.append(freed)
         pbi.parent_feature_system_id = origin.system_id
         pbi.pi_id = origin.pi_id
         pbi.swimlane_id = origin.swimlane_id
@@ -346,6 +340,8 @@ async def cancel_continuation(
     await broadcaster.broadcast(origin.project_id, "feature:updated", {"system_id": origin.system_id})
     for pbi_id in moved_ids:
         await broadcaster.broadcast(origin.project_id, "pbi:updated", {"system_id": pbi_id})
+    for group_id in freed_group_ids:
+        await broadcaster.broadcast(origin.project_id, "group:deleted", {"system_id": group_id})
 
     return await _enrich(db, origin)
 

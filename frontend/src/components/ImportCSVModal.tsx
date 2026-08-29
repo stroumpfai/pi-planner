@@ -63,6 +63,65 @@ function lineageOf(systemId: string, features: readonly Feature[]): Feature[] {
   return found
 }
 
+/** An existing story whose Parent names a different feature in this file. */
+interface Reparent {
+  storyId: number
+  systemId: string
+  title: string
+  fromTitle: string
+  toTitle: string
+  /** Sitting in a group — the move takes it out of its sprint. */
+  isPlaced: boolean
+}
+
+/**
+ * Stories the file wants to move to a different feature.
+ *
+ * A member of the same continuation lineage does not count: that is a split
+ * someone made on the board, and the CSV has no way to express it, so reading it
+ * as a move would undo the split on every refresh. The backend applies the same
+ * rule — this is here so the preview can offer the choice before it happens.
+ */
+function computeReparents(
+  rows: readonly ParsedRow[],
+  features: readonly Feature[],
+  pbis: readonly PBI[],
+): Reparent[] {
+  const featureById = new Map<number, Feature>()
+  for (const f of features) if (f.id != null) featureById.set(f.id, f)
+  const featureBySysId = new Map(features.map((f) => [f.system_id, f]))
+  const pbiById = new Map<number, PBI>()
+  for (const p of pbis) if (p.id != null) pbiById.set(p.id, p)
+  const fileFeatureTitles = new Map<number, string>()
+  for (const r of rows) if (r.itemType === 'feature' && r.userId != null) fileFeatureTitles.set(r.userId, r.title)
+
+  const moves: Reparent[] = []
+  for (const row of rows) {
+    if (row.itemType === 'feature' || row.userId === null || row.parentId === null) continue
+    const pbi = pbiById.get(row.userId)
+    if (!pbi) continue  // a new story, not a move
+
+    const target = featureById.get(row.parentId)
+    if (target) {
+      // Already somewhere in the target's lineage? Then nothing has moved.
+      const members = new Set([target.system_id, ...lineageOf(target.system_id, features).map((f) => f.system_id)])
+      if (members.has(pbi.parent_feature_system_id)) continue
+    } else if (!fileFeatureTitles.has(row.parentId)) {
+      continue  // Parent resolves to nothing — the story stays where it is
+    }
+
+    moves.push({
+      storyId: row.userId,
+      systemId: pbi.system_id,
+      title: pbi.title,
+      fromTitle: featureBySysId.get(pbi.parent_feature_system_id)?.title ?? 'another feature',
+      toTitle: target?.title ?? fileFeatureTitles.get(row.parentId) ?? 'a new feature',
+      isPlaced: pbi.group_id != null,
+    })
+  }
+  return moves
+}
+
 function parsedRowToCsvRow(r: ParsedRow) {
   return {
     row_number: r.rowNumber,
@@ -217,6 +276,58 @@ function PreviewTable({ preview }: { readonly preview: ImportPreview }) {
   )
 }
 
+/** The Parent-changed opt-in. Off by default: a move can pull a story off a board. */
+function ReparentPanel({
+  moves, apply, onToggle,
+}: {
+  readonly moves: Reparent[]
+  readonly apply: boolean
+  readonly onToggle: (v: boolean) => void
+}) {
+  const placed = moves.filter((m) => m.isPlaced).length
+  return (
+    <div className="mt-4 border border-gray-200 rounded-md p-3">
+      <label className="flex items-start gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          className="mt-0.5 accent-blue-600"
+          checked={apply}
+          onChange={(e) => onToggle(e.target.checked)}
+        />
+        <span className="text-xs text-gray-700">
+          <span className="font-medium">
+            {moves.length} {moves.length === 1 ? 'story has' : 'stories have'} moved to a different
+            feature in this file
+          </span>
+          <span className="block text-gray-500 mt-0.5">
+            Tick to apply the moves. Left unticked they stay where they are, and the planner keeps
+            a hierarchy the source no longer has.
+          </span>
+        </span>
+      </label>
+
+      <ul className="mt-2 space-y-0.5 max-h-28 overflow-y-auto">
+        {moves.slice(0, 8).map((m) => (
+          <li key={m.systemId} className="text-xs text-gray-500">
+            <span className="font-mono text-gray-400">[{m.storyId}]</span> {m.title}:{' '}
+            {m.fromTitle} → <span className="text-gray-700">{m.toTitle}</span>
+          </li>
+        ))}
+        {moves.length > 8 && (
+          <li className="text-xs text-gray-400">…and {moves.length - 8} more</li>
+        )}
+      </ul>
+
+      {apply && placed > 0 && (
+        <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1">
+          {placed} of {moves.length === 1 ? 'these' : 'them'} {placed === 1 ? 'is' : 'are'} placed in
+          a sprint and will lose that placement.
+        </p>
+      )}
+    </div>
+  )
+}
+
 function ErrorList({ errors }: { readonly errors: { row: number; message: string }[] }) {
   return (
     <ul className="space-y-1 mt-3 max-h-48 overflow-y-auto">
@@ -313,6 +424,8 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
   const [parsed, setParsed] = useState<ParseResult | null>(null)
   const [candidates, setCandidates] = useState<RemovalCandidate[]>([])
   const [removeSelection, setRemoveSelection] = useState<Set<string>>(new Set())
+  const [reparents, setReparents] = useState<Reparent[]>([])
+  const [applyReparenting, setApplyReparenting] = useState(false)
   const [result, setResult] = useState<CsvImportResult | null>(null)
   const [serverErrors, setServerErrors] = useState<ServerError[]>([])
 
@@ -335,6 +448,8 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
     setParsed(null)
     setCandidates([])
     setRemoveSelection(new Set())
+    setReparents([])
+    setApplyReparenting(false)
     setResult(null)
     setServerErrors([])
 
@@ -349,6 +464,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
         new Set(f.map((feat) => feat.id).filter((id): id is number => id != null)),
       ))
       setCandidates(computeCandidates(parseResult.removedItems, f, p, projectPIs.current))
+      setReparents(computeReparents(selectImportRows(parseResult), f, p))
     })
   }, [open, file])
 
@@ -410,6 +526,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
         removals,
         // A file with no State column must leave every State untouched.
         has_state_column: preview?.hasStateColumn ?? false,
+        apply_reparenting: applyReparenting,
       })
       setResult(res)
       setStep('done')
@@ -436,6 +553,8 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
     setParsed(null)
     setCandidates([])
     setRemoveSelection(new Set())
+    setReparents([])
+    setApplyReparenting(false)
     setResult(null)
     setServerErrors([])
     onClose()
@@ -474,6 +593,14 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
               ) : (
                 <>
                   <PreviewTable preview={preview} />
+
+                  {reparents.length > 0 && !preview.hasErrors && (
+                    <ReparentPanel
+                      moves={reparents}
+                      apply={applyReparenting}
+                      onToggle={setApplyReparenting}
+                    />
+                  )}
 
                   {candidates.length > 0 && !preview.hasErrors && (
                     <p className="mt-4 text-xs text-gray-600 bg-amber-50 border border-amber-100 rounded px-2 py-1.5">
@@ -602,6 +729,22 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
                   )}
                 </tbody>
               </table>
+
+              {(result.stories_reparented ?? 0) > 0 && (
+                <p className="text-xs text-gray-500 mt-2">
+                  {result.stories_reparented}{' '}
+                  {result.stories_reparented === 1 ? 'story' : 'stories'} moved to the feature the
+                  file names
+                </p>
+              )}
+
+              {(result.stories_reparent_skipped ?? 0) > 0 && (
+                <p className="text-xs text-amber-600 mt-2">
+                  {result.stories_reparent_skipped}{' '}
+                  {result.stories_reparent_skipped === 1 ? 'story sits' : 'stories sit'} under a
+                  different feature than the file says — left as {result.stories_reparent_skipped === 1 ? 'it is' : 'they are'}
+                </p>
+              )}
 
               {(result.stories_parented_from_project ?? 0) > 0 && (
                 <p className="text-xs text-gray-500 mt-2">

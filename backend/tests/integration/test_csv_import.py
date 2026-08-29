@@ -948,3 +948,173 @@ async def test_a_parent_removed_in_this_import_does_not_resolve(client, project)
     assert resp.json()["orphan_stories"] == 1
     titles = {f["title"] for f in (await client.get(f"/api/v1/projects/{pid}/features")).json()}
     assert titles == {"Unassigned"}
+
+
+# ── Re-parenting: opt-in, and never silent ────────────────────────────────────
+
+@pytest.fixture
+async def two_features(client, project):
+    """Features 101 and 102; story 201 sits under 101."""
+    pid = project["system_id"]
+    await client.post(_url(pid), json={"rows": [
+        _row(2, "feature", "Auth", user_id=101),
+        _row(3, "feature", "Payments", user_id=102),
+        _row(4, "story", "Login form", user_id=201, parent_id=101),
+    ]})
+    features = {f["id"]: f for f in (await client.get(f"/api/v1/projects/{pid}/features")).json()}
+    pbis = {p["id"]: p for p in (await client.get(f"/api/v1/projects/{pid}/pbis")).json()}
+    return {"project_id": pid, "features": features, "pbis": pbis}
+
+
+def _moved_rows():
+    return [
+        _row(2, "feature", "Auth", user_id=101),
+        _row(3, "feature", "Payments", user_id=102),
+        _row(4, "story", "Login form", user_id=201, parent_id=102),  # moved
+    ]
+
+
+@pytest.mark.asyncio
+async def test_a_moved_parent_is_reported_but_not_applied_by_default(client, two_features):
+    pid = two_features["project_id"]
+    resp = await client.post(_url(pid), json={"rows": _moved_rows()})
+    data = resp.json()
+    assert data["stories_reparent_skipped"] == 1
+    assert data["stories_reparented"] == 0
+
+    pbis = {p["id"]: p for p in (await client.get(f"/api/v1/projects/{pid}/pbis")).json()}
+    assert pbis[201]["parent_feature_system_id"] == two_features["features"][101]["system_id"]
+
+
+@pytest.mark.asyncio
+async def test_a_moved_parent_is_applied_when_asked_for(client, two_features):
+    pid = two_features["project_id"]
+    resp = await client.post(_url(pid), json={
+        "rows": _moved_rows(), "apply_reparenting": True,
+    })
+    data = resp.json()
+    assert data["stories_reparented"] == 1
+    assert data["stories_reparent_skipped"] == 0
+
+    pbis = {p["id"]: p for p in (await client.get(f"/api/v1/projects/{pid}/pbis")).json()}
+    assert pbis[201]["parent_feature_system_id"] == two_features["features"][102]["system_id"]
+
+
+@pytest.mark.asyncio
+async def test_an_unchanged_parent_is_not_a_move(client, two_features):
+    pid = two_features["project_id"]
+    resp = await client.post(_url(pid), json={"rows": [
+        _row(2, "feature", "Auth", user_id=101),
+        _row(3, "story", "Login form", user_id=201, parent_id=101),
+    ], "apply_reparenting": True})
+    data = resp.json()
+    assert data["stories_reparented"] == 0
+    assert data["stories_reparent_skipped"] == 0
+
+
+@pytest.mark.asyncio
+async def test_a_story_row_with_no_parent_is_never_a_move(client, two_features):
+    """An unresolvable Parent leaves an existing story where it sits, as before."""
+    pid = two_features["project_id"]
+    resp = await client.post(_url(pid), json={
+        "rows": [_row(2, "story", "Login form", user_id=201)],
+        "apply_reparenting": True,
+    })
+    data = resp.json()
+    assert data["stories_reparented"] == 0
+    assert data["orphan_stories"] == 1
+    pbis = {p["id"]: p for p in (await client.get(f"/api/v1/projects/{pid}/pbis")).json()}
+    assert pbis[201]["parent_feature_system_id"] == two_features["features"][101]["system_id"]
+
+
+@pytest.mark.asyncio
+async def test_reparenting_onto_a_board_feature_carries_pi_and_swimlane(client, two_features):
+    pid = two_features["project_id"]
+    pi = (await client.post(f"/api/v1/projects/{pid}/pis", json={"name": "PI-1"})).json()
+    sw = (await client.post(f"/api/v1/pis/{pi['system_id']}/swimlines", json={"name": "A"})).json()
+    await client.patch(
+        f"/api/v1/features/{two_features['features'][102]['system_id']}",
+        json={"swimlane_id": sw["system_id"]},
+    )
+
+    await client.post(_url(pid), json={"rows": _moved_rows(), "apply_reparenting": True})
+    pbis = {p["id"]: p for p in (await client.get(f"/api/v1/projects/{pid}/pbis")).json()}
+    assert pbis[201]["pi_id"] == pi["system_id"]
+    assert pbis[201]["swimlane_id"] == sw["system_id"]
+
+
+@pytest.mark.asyncio
+async def test_reparenting_a_placed_story_takes_its_implicit_group(client, two_features):
+    """Moving a story out of a sprint must not leave the group it was placed in."""
+    pid = two_features["project_id"]
+    pi = (await client.post(f"/api/v1/projects/{pid}/pis", json={"name": "PI-1"})).json()
+    sw = (await client.post(f"/api/v1/pis/{pi['system_id']}/swimlines", json={"name": "A"})).json()
+    await client.patch(
+        f"/api/v1/features/{two_features['features'][101]['system_id']}",
+        json={"swimlane_id": sw["system_id"]},
+    )
+    place = await client.post(
+        f"/api/v1/pbis/{two_features['pbis'][201]['system_id']}/place", json={"sprint_index": 0}
+    )
+    assert place.status_code == 200
+
+    await client.post(_url(pid), json={"rows": _moved_rows(), "apply_reparenting": True})
+    pbis = {p["id"]: p for p in (await client.get(f"/api/v1/projects/{pid}/pbis")).json()}
+    assert pbis[201]["group_id"] is None
+    assert (await client.get(f"/api/v1/swimlines/{sw['system_id']}/groups")).json() == []
+
+
+@pytest.mark.asyncio
+async def test_reparenting_broadcasts_the_group_it_freed(client, two_features, captured_events):
+    pid = two_features["project_id"]
+    pi = (await client.post(f"/api/v1/projects/{pid}/pis", json={"name": "PI-1"})).json()
+    sw = (await client.post(f"/api/v1/pis/{pi['system_id']}/swimlines", json={"name": "A"})).json()
+    await client.patch(
+        f"/api/v1/features/{two_features['features'][101]['system_id']}",
+        json={"swimlane_id": sw["system_id"]},
+    )
+    await client.post(
+        f"/api/v1/pbis/{two_features['pbis'][201]['system_id']}/place", json={"sprint_index": 0}
+    )
+    captured_events.clear()
+    await client.post(_url(pid), json={"rows": _moved_rows(), "apply_reparenting": True})
+    assert any(event == "group:deleted" for _, event, _ in captured_events)
+
+
+@pytest.mark.asyncio
+async def test_a_split_is_never_undone_by_a_re_import(client, split_feature):
+    """Story 201 stayed on PI-1 and 203 carried to PI-2; the file says both are 101."""
+    pid = split_feature["project_id"]
+    resp = await client.post(_url(pid), json={"rows": [
+        _row(2, "feature", "Auth", user_id=101),
+        _row(3, "story", "S1", user_id=201, parent_id=101),
+        _row(4, "story", "S3", user_id=203, parent_id=101),
+    ], "apply_reparenting": True})
+    data = resp.json()
+    assert data["stories_reparented"] == 0
+    assert data["stories_reparent_skipped"] == 0
+
+    pbis = {p["id"]: p for p in (await client.get(f"/api/v1/projects/{pid}/pbis")).json()}
+    assert pbis[201]["parent_feature_system_id"] == split_feature["origin"]["system_id"]
+    assert pbis[203]["parent_feature_system_id"] == split_feature["continuation"]["system_id"]
+
+
+@pytest.mark.asyncio
+async def test_moving_a_story_into_a_split_feature_targets_its_newest_pi(client, split_feature):
+    pid = split_feature["project_id"]
+    await client.post(_url(pid), json={"rows": [_row(2, "feature", "Other", user_id=102)]})
+    other = next(
+        f for f in (await client.get(f"/api/v1/projects/{pid}/features")).json() if f["id"] == 102
+    )
+    await client.post(_url(pid), json={
+        "rows": [_row(2, "story", "Stray", user_id=401, parent_id=102)],
+    })
+
+    resp = await client.post(_url(pid), json={
+        "rows": [_row(2, "story", "Stray", user_id=401, parent_id=101)],
+        "apply_reparenting": True,
+    })
+    assert resp.json()["stories_reparented"] == 1
+    pbis = {p["id"]: p for p in (await client.get(f"/api/v1/projects/{pid}/pbis")).json()}
+    assert pbis[401]["parent_feature_system_id"] == split_feature["continuation"]["system_id"]
+    assert other["system_id"] != split_feature["continuation"]["system_id"]

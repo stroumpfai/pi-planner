@@ -37,6 +37,10 @@ class CsvImportRequest(BaseModel):
     # False when the file had no State column at all, in which case State is left
     # untouched on every row rather than cleared.
     has_state_column: bool = False
+    # Off by default: a story whose Parent has changed in the source is left where
+    # planning put it unless the user opts in, because moving it can pull it off a
+    # board and out of its sprint.
+    apply_reparenting: bool = False
 
 
 class CsvImportError(BaseModel):
@@ -69,4 +73,9 @@ class CsvImportResult(BaseModel):
     # project, so naming them explains why the orphan count came out below the
     # preview's estimate.
     stories_parented_from_project: int = 0
+    # Existing stories whose Parent names a different feature than the one holding
+    # them. Moved when the import was asked to; counted as skipped when it was not,
+    # so a divergence between the two systems is reported either way.
+    stories_reparented: int = 0
+    stories_reparent_skipped: int = 0
     created_states: int = 0  # State List entries discovered by this import

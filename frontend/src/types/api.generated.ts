@@ -453,6 +453,11 @@ export interface components {
        * @default false
        */
       has_state_column?: boolean;
+      /**
+       * Apply Reparenting
+       * @default false
+       */
+      apply_reparenting?: boolean;
     };
     /** CsvImportResult */
     CsvImportResult: {
@@ -485,6 +490,16 @@ export interface components {
        * @default 0
        */
       stories_parented_from_project?: number;
+      /**
+       * Stories Reparented
+       * @default 0
+       */
+      stories_reparented?: number;
+      /**
+       * Stories Reparent Skipped
+       * @default 0
+       */
+      stories_reparent_skipped?: number;
       /**
        * Created States
        * @default 0

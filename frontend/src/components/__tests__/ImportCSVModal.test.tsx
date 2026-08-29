@@ -134,7 +134,7 @@ describe('ImportCSVModal', () => {
     render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
     await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
     await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
-    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: [], has_state_column: true })
+    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: [], has_state_column: true, apply_reparenting: false })
   })
 
   it('shows "Import complete" after successful import', async () => {
@@ -237,7 +237,7 @@ describe('ImportCSVModal', () => {
     await waitFor(() => screen.getByRole('button', { name: /next/i }))
     await userEvent.click(screen.getByRole('button', { name: /next/i }))
     await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
-    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: [], has_state_column: true })
+    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: [], has_state_column: true, apply_reparenting: false })
   })
 
   it('includes the system_id in removals when an item is toggled to Remove', async () => {
@@ -254,7 +254,7 @@ describe('ImportCSVModal', () => {
     await userEvent.click(screen.getByRole('button', { name: /next/i }))
     await userEvent.click(screen.getByRole('checkbox'))
     await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
-    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: ['feat-1'], has_state_column: true })
+    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: ['feat-1'], has_state_column: true, apply_reparenting: false })
   })
 
   it('stays on the preview screen while importing when there is nothing to reconcile', async () => {
@@ -316,7 +316,7 @@ describe('ImportCSVModal', () => {
     expect(mutateAsync).toHaveBeenCalledWith(
       expect.objectContaining({
         rows: [expect.objectContaining({ user_id: 201, title: 'Child' })],
-        removals: [],
+        removals: [], apply_reparenting: false,
       }),
     )
   })
@@ -416,5 +416,105 @@ describe('ImportCSVModal', () => {
     await openReconcile({ features: [makeBoardFeature(101, 'feat-1', 'Auth')], pis: twoPIs })
     await userEvent.click(screen.getByRole('checkbox'))
     expect(screen.getByText(/1 items? in total/)).toBeInTheDocument()
+  })
+
+  // ── Re-parenting: offered, never silent ────────────────────────────────────
+
+  const movedStory = {
+    ...fakeParseResult,
+    rows: [
+      { rowNumber: 2, itemType: 'feature' as const, userId: 102, title: 'Payments', effort: null, parentId: null, state: '' },
+      { rowNumber: 3, itemType: 'story' as const, userId: 201, title: 'Login form', effort: 3, parentId: 102, state: 'New' },
+    ],
+  }
+
+  function movedStoryProject(opts: { placed?: boolean } = {}) {
+    return {
+      features: [
+        makeBoardFeature(101, 'feat-1', 'Auth'),
+        makeBoardFeature(102, 'feat-2', 'Payments'),
+      ],
+      pbis: [{
+        id: 201, system_id: 'pbi-1', title: 'Login form',
+        parent_feature_system_id: 'feat-1',
+        group_id: opts.placed === true ? 'grp-1' : null,
+      } as unknown as PBI],
+    }
+  }
+
+  it('offers the move when a story names a different parent, unticked', async () => {
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue(movedStory)
+    render(
+      <ImportCSVModal {...defaultProps} {...movedStoryProject()} open file={makeFile()} />,
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => screen.getByText(/1 story has moved to a different feature/i))
+    // The target feature is emphasised in its own span, so the line is split.
+    expect(screen.getByText((_, el) =>
+      el?.tagName === 'LI' && /\[201\].+Login form.+Auth.+→.+Payments/.test(el.textContent ?? ''),
+    )).toBeInTheDocument()
+    expect(screen.getByRole('checkbox')).not.toBeChecked()
+  })
+
+  it('sends apply_reparenting only once the move is ticked', async () => {
+    mutateAsync.mockResolvedValue(okResult)
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue(movedStory)
+    render(
+      <ImportCSVModal {...defaultProps} {...movedStoryProject()} open file={makeFile()} />,
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => screen.getByRole('checkbox'))
+    await userEvent.click(screen.getByRole('checkbox'))
+    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    expect(mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ apply_reparenting: true }),
+    )
+  })
+
+  it('warns that ticked moves cost a sprint placement', async () => {
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue(movedStory)
+    render(
+      <ImportCSVModal {...defaultProps} {...movedStoryProject({ placed: true })} open file={makeFile()} />,
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => screen.getByRole('checkbox'))
+    expect(screen.queryByText(/lose that placement/i)).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('checkbox'))
+    expect(screen.getByText(/1 of.*placed in\s+a sprint and will lose that placement/is)).toBeInTheDocument()
+  })
+
+  it('offers nothing when the story is already under the named feature', async () => {
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue({
+      ...movedStory,
+      rows: [{ rowNumber: 3, itemType: 'story' as const, userId: 201, title: 'Login form', effort: 3, parentId: 101, state: 'New' }],
+    })
+    render(
+      <ImportCSVModal {...defaultProps} {...movedStoryProject()} open file={makeFile()} />,
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
+    expect(screen.queryByText(/moved to a different feature/i)).not.toBeInTheDocument()
+  })
+
+  it('treats a continuation of the named feature as no move at all', async () => {
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue({
+      ...movedStory,
+      rows: [{ rowNumber: 3, itemType: 'story' as const, userId: 201, title: 'Carried', effort: 3, parentId: 101, state: 'New' }],
+    })
+    render(
+      <ImportCSVModal
+        {...defaultProps}
+        open
+        file={makeFile()}
+        features={[
+          makeBoardFeature(101, 'feat-1', 'Auth', { piId: 'pi-1' }),
+          makeBoardFeature(null, 'feat-1b', 'Auth', { piId: 'pi-2', continuedFrom: 'feat-1' }),
+        ]}
+        pbis={[{ id: 201, system_id: 'pbi-1', title: 'Carried', parent_feature_system_id: 'feat-1b', group_id: null } as unknown as PBI]}
+      />,
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
+    expect(screen.queryByText(/moved to a different feature/i)).not.toBeInTheDocument()
   })
 })

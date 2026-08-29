@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+from typing import NamedTuple
 from uuid import uuid4
 
 from fastapi import HTTPException, status
@@ -13,10 +15,10 @@ from app.schemas.csv_import import (
     CsvRow,
     OrphanLocation,
 )
-from app.services.continuation import lineage_members, newest_leaf
+from app.services.continuation import descendant_ids, lineage_members, newest_leaf
 from app.services.events import broadcaster
 from app.services.feature_delete import delete_features
-from app.services.pbi_delete import delete_pbi_and_empty_group
+from app.services.pbi_delete import delete_pbi_and_empty_group, detach_pbi_from_group
 from app.services.project_state import get_or_create_state, state_item_type_for_pbi
 
 _VALID_ITEM_TYPES = {"feature", "story", "bug"}
@@ -186,15 +188,88 @@ async def _upsert_features(
     return csv_feature_sysid, created, updated
 
 
+class _ParentTarget(NamedTuple):
+    """Where a CSV Parent points, once continuations are taken into account."""
+
+    leaf: str
+    """The member a newly created story joins — the PI the work has reached."""
+    members: frozenset[str]
+    """Every member of the lineage. A story already under one of these has not
+    moved: the split that put it there is a planning decision the CSV cannot see,
+    and reading it as a re-parent would undo the split on every refresh."""
+
+
+async def _parent_targets(
+    db: AsyncSession, feature_sysids: list[str]
+) -> dict[str, _ParentTarget]:
+    """Resolve each matched feature to its lineage.
+
+    Only split features need a walk, so an import of unsplit work costs one extra
+    query for the whole file rather than a lineage walk per row.
+    """
+    targets = {
+        sysid: _ParentTarget(leaf=sysid, members=frozenset((sysid,)))
+        for sysid in feature_sysids
+    }
+    if not feature_sysids:
+        return targets
+
+    split_roots = {
+        sysid
+        for sysid in (await db.execute(
+            select(Feature.continued_from_feature_id).where(
+                Feature.continued_from_feature_id.in_(feature_sysids)
+            )
+        )).scalars().all()
+        if sysid is not None
+    }
+
+    for sysid in split_roots:
+        feature = await db.get(Feature, sysid)
+        if feature is None:
+            continue
+        members = {sysid, *await descendant_ids(db, [sysid])}
+        targets[sysid] = _ParentTarget(
+            leaf=(await newest_leaf(db, feature)).system_id,
+            members=frozenset(members),
+        )
+    return targets
+
+
+class _StoryOutcome(NamedTuple):
+    created: int = 0
+    updated: int = 0
+    reparented: int = 0
+    reparent_skipped: int = 0
+    freed_group_id: str | None = None
+
+
+async def _reparent(db: AsyncSession, pbi: PBI, new_parent: Feature) -> str | None:
+    """Move ``pbi`` under ``new_parent``, following it onto or off the board.
+
+    Mirrors what ``split_feature`` does when it moves a story between features: the
+    story leaves its group and takes the new parent's PI and swimlane, so it never
+    ends up grouped under one feature while parented to another.
+    """
+    freed_group_id = await detach_pbi_from_group(db, pbi)
+    pbi.parent_feature_system_id = new_parent.system_id
+    pbi.pi_id = new_parent.pi_id
+    pbi.swimlane_id = new_parent.swimlane_id
+    pbi.modified_at = datetime.now(timezone.utc)
+    return freed_group_id
+
+
 async def _upsert_one_story(
     db: AsyncSession,
     project_id: str,
     row: CsvRow,
-    parent_sysid: str,
+    target: _ParentTarget | None,
+    unassigned_sysid: str | None,
     pbi_map: dict[int, str],
     has_state_column: bool,
-) -> tuple[int, int]:
-    """Create or update a single Story/Bug. Returns (created, updated)."""
+    apply_reparenting: bool,
+) -> _StoryOutcome:
+    """Create or update a single Story/Bug."""
     # Stories and Bugs draw from separate State Lists.
     state_changed, state_id = await _resolve_row_state(
         db, project_id, state_item_type_for_pbi(row.item_type), row, has_state_column
@@ -203,7 +278,7 @@ async def _upsert_one_story(
     if row.user_id is not None and row.user_id in pbi_map:
         pbi = await db.get(PBI, pbi_map[row.user_id])
         if pbi is None:
-            return 0, 0
+            return _StoryOutcome()
         previous_item_type = pbi.item_type
         pbi.title = row.title
         pbi.effort = row.effort
@@ -215,8 +290,26 @@ async def _upsert_one_story(
             # Story to a Bug still strands the old State in the other list — clear it,
             # exactly as PATCH /pbis/{id} does.
             pbi.state_id = None
-        return 0, 1
 
+        # The file names a different feature than the one holding this story. A
+        # member of the same lineage does not count: that is a split someone made
+        # on the board, and the CSV has no way to express it.
+        moved = (
+            target is not None
+            and pbi.parent_feature_system_id not in target.members
+        )
+        if not moved:
+            return _StoryOutcome(updated=1)
+        if not apply_reparenting:
+            return _StoryOutcome(updated=1, reparent_skipped=1)
+
+        new_parent = await db.get(Feature, target.leaf) if target else None
+        if new_parent is None:
+            return _StoryOutcome(updated=1, reparent_skipped=1)
+        freed = await _reparent(db, pbi, new_parent)
+        return _StoryOutcome(updated=1, reparented=1, freed_group_id=freed)
+
+    parent_sysid = target.leaf if target is not None else unassigned_sysid
     db.add(PBI(
         project_id=project_id,
         parent_feature_system_id=parent_sysid,
@@ -227,33 +320,7 @@ async def _upsert_one_story(
         location="backlog",
         state_id=state_id if state_changed else None,
     ))
-    return 1, 0
-
-
-async def _leaf_parents(db: AsyncSession, feature_sysids: list[str]) -> dict[str, str]:
-    """Map a matched feature to the lineage member that should adopt new stories.
-
-    Only split features get an entry, so an import of unsplit work costs one extra
-    query for the whole file rather than a lineage walk per row.
-    """
-    if not feature_sysids:
-        return {}
-    split_roots = {
-        sysid
-        for sysid in (await db.execute(
-            select(Feature.continued_from_feature_id).where(
-                Feature.continued_from_feature_id.in_(feature_sysids)
-            )
-        )).scalars().all()
-        if sysid is not None
-    }
-
-    leaves: dict[str, str] = {}
-    for sysid in split_roots:
-        feature = await db.get(Feature, sysid)
-        if feature is not None:
-            leaves[sysid] = (await newest_leaf(db, feature)).system_id
-    return leaves
+    return _StoryOutcome(created=1)
 
 
 async def _upsert_stories(
@@ -264,37 +331,44 @@ async def _upsert_stories(
     pbi_map: dict[int, str],
     unassigned_sysid: str | None,
     has_state_column: bool,
-) -> tuple[int, int]:
+    apply_reparenting: bool,
+) -> tuple[_StoryOutcome, list[str]]:
+    """Create or update every story row. Returns the totals and any freed groups."""
     # A story new to a split feature belongs where the work has got to, not where
     # it started: filing it against the root would put newly discovered work in
-    # the PI the feature has already carried over out of. Stories that already
-    # exist are updated in place and never re-parented, so this only steers
-    # creates.
+    # the PI the feature has already carried over out of.
     #
-    # Only the parents these rows actually name are worth checking — parent_lookup
+    # Only the parents these rows actually name are worth resolving — parent_lookup
     # spans every feature in the project once a Parent can resolve against it.
     referenced = {
         parent_lookup[r.parent_id]
         for r in story_rows
         if r.parent_id is not None and r.parent_id in parent_lookup
     }
-    leaves = await _leaf_parents(db, list(referenced))
+    targets = await _parent_targets(db, list(referenced))
 
-    created = 0
-    updated = 0
+    totals = _StoryOutcome()
+    freed_group_ids: list[str] = []
     for row in story_rows:
-        matched_sysid: str = (
+        matched_sysid = (
             parent_lookup[row.parent_id]
             if row.parent_id is not None and row.parent_id in parent_lookup
-            else unassigned_sysid  # type: ignore[assignment]
+            else None
         )
-        parent_sysid = leaves.get(matched_sysid, matched_sysid)
-        was_created, was_updated = await _upsert_one_story(
-            db, project_id, row, parent_sysid, pbi_map, has_state_column
+        outcome = await _upsert_one_story(
+            db, project_id, row,
+            targets.get(matched_sysid) if matched_sysid is not None else None,
+            unassigned_sysid, pbi_map, has_state_column, apply_reparenting,
         )
-        created += was_created
-        updated += was_updated
-    return created, updated
+        totals = _StoryOutcome(
+            created=totals.created + outcome.created,
+            updated=totals.updated + outcome.updated,
+            reparented=totals.reparented + outcome.reparented,
+            reparent_skipped=totals.reparent_skipped + outcome.reparent_skipped,
+        )
+        if outcome.freed_group_id:
+            freed_group_ids.append(outcome.freed_group_id)
+    return totals, freed_group_ids
 
 
 async def _apply_removals(
@@ -427,6 +501,7 @@ async def execute_import(
     rows: list[CsvRow],
     removals: list[str] | None = None,
     has_state_column: bool = False,
+    apply_reparenting: bool = False,
 ) -> CsvImportResult:
     errors = _validate_rows(rows)
     if errors:
@@ -497,10 +572,11 @@ async def execute_import(
         unassigned_sysid = await _get_or_create_unassigned(db, project_id)
         await db.flush()
 
-    created_stories, updated_stories = await _upsert_stories(
+    stories, freed_group_ids = await _upsert_stories(
         db, project_id, story_rows, parent_lookup, pbi_map, unassigned_sysid,
-        has_state_column,
+        has_state_column, apply_reparenting,
     )
+    deleted_group_ids += freed_group_ids
     created_states = await _count_states(db, project_id) - states_before
     await db.commit()
 
@@ -518,14 +594,16 @@ async def execute_import(
 
     return CsvImportResult(
         created_features=created_features,
-        created_stories=created_stories,
+        created_stories=stories.created,
         updated_features=updated_features,
-        updated_stories=updated_stories,
+        updated_stories=stories.updated,
         removed_features=len(deleted_feature_ids),
         removed_stories=len(deleted_pbis),
         orphan_stories=orphan_count,
         orphan_stories_placed=len(new_orphan_rows),
         orphan_stories_existing=orphan_locations,
         stories_parented_from_project=parented_from_project,
+        stories_reparented=stories.reparented,
+        stories_reparent_skipped=stories.reparent_skipped,
         created_states=created_states,
     )
