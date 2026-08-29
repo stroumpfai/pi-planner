@@ -24,5 +24,5 @@ async def import_csv(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     return await execute_import(
         db, project_id, body.rows, body.removals, body.has_state_column,
-        body.apply_reparenting,
+        body.apply_reparenting, body.apply_type_changes,
     )

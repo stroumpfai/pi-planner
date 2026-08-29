@@ -122,6 +122,38 @@ function computeReparents(
   return moves
 }
 
+/** An ID the project holds under the other entity type. */
+interface TypeChange {
+  userId: number
+  title: string
+  /** story/bug → Feature. The reverse is reported but never applied. */
+  promotion: boolean
+  /** Sitting in a group — promoting it takes the sprint placement too. */
+  isPlaced: boolean
+}
+
+function computeTypeChanges(
+  rows: readonly ParsedRow[],
+  features: readonly Feature[],
+  pbis: readonly PBI[],
+): TypeChange[] {
+  const featureIds = new Set(features.map((f) => f.id).filter((id): id is number => id != null))
+  const pbiById = new Map<number, PBI>()
+  for (const p of pbis) if (p.id != null) pbiById.set(p.id, p)
+
+  const changes: TypeChange[] = []
+  for (const row of rows) {
+    if (row.userId === null) continue
+    const asStory = pbiById.get(row.userId)
+    if (row.itemType === 'feature' && asStory) {
+      changes.push({ userId: row.userId, title: row.title, promotion: true, isPlaced: asStory.group_id != null })
+    } else if (row.itemType !== 'feature' && featureIds.has(row.userId)) {
+      changes.push({ userId: row.userId, title: row.title, promotion: false, isPlaced: false })
+    }
+  }
+  return changes
+}
+
 function parsedRowToCsvRow(r: ParsedRow) {
   return {
     row_number: r.rowNumber,
@@ -328,6 +360,68 @@ function ReparentPanel({
   )
 }
 
+/** Type-change opt-in. Promotions are applicable; demotions are only reported. */
+function TypeChangePanel({
+  changes, apply, onToggle,
+}: {
+  readonly changes: TypeChange[]
+  readonly apply: boolean
+  readonly onToggle: (v: boolean) => void
+}) {
+  const promotions = changes.filter((c) => c.promotion)
+  const demotions = changes.filter((c) => !c.promotion)
+  const placed = promotions.filter((c) => c.isPlaced).length
+
+  return (
+    <div className="mt-4 border border-gray-200 rounded-md p-3">
+      {promotions.length > 0 && (
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            className="mt-0.5 accent-blue-600"
+            checked={apply}
+            onChange={(e) => onToggle(e.target.checked)}
+          />
+          <span className="text-xs text-gray-700">
+            <span className="font-medium">
+              {promotions.length} {promotions.length === 1 ? 'story is' : 'stories are'} a feature in
+              this file
+            </span>
+            <span className="block text-gray-500 mt-0.5">
+              Tick to convert {promotions.length === 1 ? 'it' : 'them'}. Left unticked
+              {promotions.length === 1 ? ' it stays' : ' they stay'} a story and the row is skipped.
+            </span>
+          </span>
+        </label>
+      )}
+
+      <ul className={`space-y-0.5 max-h-24 overflow-y-auto ${promotions.length > 0 ? 'mt-2' : ''}`}>
+        {promotions.slice(0, 6).map((c) => (
+          <li key={`p-${c.userId}`} className="text-xs text-gray-500">
+            <span className="font-mono text-gray-400">[{c.userId}]</span> {c.title}: story → feature
+          </li>
+        ))}
+      </ul>
+
+      {apply && placed > 0 && (
+        <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1">
+          {placed} of {promotions.length === 1 ? 'these' : 'them'} {placed === 1 ? 'is' : 'are'}{' '}
+          placed in a sprint. A feature is not placed in a sprint, so that placement goes.
+        </p>
+      )}
+
+      {demotions.length > 0 && (
+        <p className={`text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded px-2 py-1 ${promotions.length > 0 ? 'mt-2' : ''}`}>
+          {demotions.length} {demotions.length === 1 ? 'feature is' : 'features are'} a story in this
+          file ({demotions.map((c) => c.userId).join(', ')}). Not converted — a feature can hold
+          stories, groups and later-PI parts with nowhere to go. Change it in the app first if you
+          want the move.
+        </p>
+      )}
+    </div>
+  )
+}
+
 function ErrorList({ errors }: { readonly errors: { row: number; message: string }[] }) {
   return (
     <ul className="space-y-1 mt-3 max-h-48 overflow-y-auto">
@@ -426,6 +520,8 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
   const [removeSelection, setRemoveSelection] = useState<Set<string>>(new Set())
   const [reparents, setReparents] = useState<Reparent[]>([])
   const [applyReparenting, setApplyReparenting] = useState(false)
+  const [typeChanges, setTypeChanges] = useState<TypeChange[]>([])
+  const [applyTypeChanges, setApplyTypeChanges] = useState(false)
   const [result, setResult] = useState<CsvImportResult | null>(null)
   const [serverErrors, setServerErrors] = useState<ServerError[]>([])
 
@@ -450,6 +546,8 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
     setRemoveSelection(new Set())
     setReparents([])
     setApplyReparenting(false)
+    setTypeChanges([])
+    setApplyTypeChanges(false)
     setResult(null)
     setServerErrors([])
 
@@ -465,6 +563,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
       ))
       setCandidates(computeCandidates(parseResult.removedItems, f, p, projectPIs.current))
       setReparents(computeReparents(selectImportRows(parseResult), f, p))
+      setTypeChanges(computeTypeChanges(selectImportRows(parseResult), f, p))
     })
   }, [open, file])
 
@@ -527,6 +626,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
         // A file with no State column must leave every State untouched.
         has_state_column: preview?.hasStateColumn ?? false,
         apply_reparenting: applyReparenting,
+        apply_type_changes: applyTypeChanges,
       })
       setResult(res)
       setStep('done')
@@ -555,6 +655,8 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
     setRemoveSelection(new Set())
     setReparents([])
     setApplyReparenting(false)
+    setTypeChanges([])
+    setApplyTypeChanges(false)
     setResult(null)
     setServerErrors([])
     onClose()
@@ -593,6 +695,14 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
               ) : (
                 <>
                   <PreviewTable preview={preview} />
+
+                  {typeChanges.length > 0 && !preview.hasErrors && (
+                    <TypeChangePanel
+                      changes={typeChanges}
+                      apply={applyTypeChanges}
+                      onToggle={setApplyTypeChanges}
+                    />
+                  )}
 
                   {reparents.length > 0 && !preview.hasErrors && (
                     <ReparentPanel
@@ -729,6 +839,29 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
                   )}
                 </tbody>
               </table>
+
+              {(result.items_retyped ?? 0) > 0 && (
+                <p className="text-xs text-gray-500 mt-2">
+                  {result.items_retyped} {result.items_retyped === 1 ? 'story' : 'stories'} converted
+                  to {result.items_retyped === 1 ? 'a feature' : 'features'}
+                </p>
+              )}
+
+              {(result.items_retype_skipped ?? 0) > 0 && (
+                <p className="text-xs text-amber-600 mt-2">
+                  {result.items_retype_skipped}{' '}
+                  {result.items_retype_skipped === 1 ? 'story is' : 'stories are'} a feature in the
+                  file — left as {result.items_retype_skipped === 1 ? 'a story' : 'stories'}
+                </p>
+              )}
+
+              {(result.items_retype_blocked ?? 0) > 0 && (
+                <p className="text-xs text-amber-600 mt-2">
+                  {result.items_retype_blocked}{' '}
+                  {result.items_retype_blocked === 1 ? 'feature is' : 'features are'} a story in the
+                  file — features are never converted automatically
+                </p>
+              )}
 
               {(result.stories_reparented ?? 0) > 0 && (
                 <p className="text-xs text-gray-500 mt-2">

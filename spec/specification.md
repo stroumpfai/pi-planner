@@ -389,6 +389,15 @@ Expected columns (any order): `State`, `ID`, `Work Item Type`, `Title 1`, `Title
   auto-created "Unassigned" Feature
 - **Duplicate IDs** (user_id already exists in project): existing item is **updated** (title,
   effort and type overwritten)
+- **Changed type**: an ID the project holds as a story arriving as a `Feature` is a
+  *promotion* — reported in the preview and applied only if the user opts in, which deletes
+  the story (taking any sprint placement) and creates a Feature carrying its ID, title and
+  description. State does not carry across: Features draw from a different State List, so
+  the new Feature takes whatever the file's `State` column says, or none. The reverse — a
+  Feature arriving as a story — is reported but **never** applied automatically, because a
+  Feature can hold stories, groups and continuations with nowhere to go. A type change that
+  is not applied leaves the item untouched and skips the row, so it can never put one
+  business ID on two items
 - **Changed Parent**: a story whose `Parent` names a different Feature than the one holding it
   is reported in the preview and moved only if the user opts in. A Feature in the same
   continuation lineage is not a change — that split was made on the board and the CSV cannot
@@ -406,6 +415,9 @@ Import is atomic: any validation error cancels the entire import. User sees all 
 | Non-numeric Effort | Row {n}: effort must be a number |
 | Duplicate ID within file | Row {n}: ID {id} appears more than once in this file |
 | ID outside 1–999,999 | Row {n}: ID out of allowed range |
+
+An ID the project holds under the *other* entity type is **not** a validation error.
+It is a type change, reported in the preview and decided there — see 9.3.
 
 ### 9.5 Import Flow
 

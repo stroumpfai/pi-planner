@@ -134,7 +134,7 @@ describe('ImportCSVModal', () => {
     render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
     await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
     await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
-    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: [], has_state_column: true, apply_reparenting: false })
+    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: [], has_state_column: true, apply_reparenting: false, apply_type_changes: false })
   })
 
   it('shows "Import complete" after successful import', async () => {
@@ -237,7 +237,7 @@ describe('ImportCSVModal', () => {
     await waitFor(() => screen.getByRole('button', { name: /next/i }))
     await userEvent.click(screen.getByRole('button', { name: /next/i }))
     await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
-    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: [], has_state_column: true, apply_reparenting: false })
+    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: [], has_state_column: true, apply_reparenting: false, apply_type_changes: false })
   })
 
   it('includes the system_id in removals when an item is toggled to Remove', async () => {
@@ -254,7 +254,7 @@ describe('ImportCSVModal', () => {
     await userEvent.click(screen.getByRole('button', { name: /next/i }))
     await userEvent.click(screen.getByRole('checkbox'))
     await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
-    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: ['feat-1'], has_state_column: true, apply_reparenting: false })
+    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: ['feat-1'], has_state_column: true, apply_reparenting: false, apply_type_changes: false })
   })
 
   it('stays on the preview screen while importing when there is nothing to reconcile', async () => {
@@ -316,7 +316,7 @@ describe('ImportCSVModal', () => {
     expect(mutateAsync).toHaveBeenCalledWith(
       expect.objectContaining({
         rows: [expect.objectContaining({ user_id: 201, title: 'Child' })],
-        removals: [], apply_reparenting: false,
+        removals: [], apply_reparenting: false, apply_type_changes: false,
       }),
     )
   })
@@ -516,5 +516,88 @@ describe('ImportCSVModal', () => {
     )
     await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
     expect(screen.queryByText(/moved to a different feature/i)).not.toBeInTheDocument()
+  })
+
+  // ── Type changes: promote on request, never demote ─────────────────────────
+
+  const asFeatureRow = {
+    ...fakeParseResult,
+    rows: [{ rowNumber: 2, itemType: 'feature' as const, userId: 201, title: 'Login form', effort: null, parentId: null, state: '' }],
+  }
+  const asStoryRow = {
+    ...fakeParseResult,
+    rows: [{ rowNumber: 2, itemType: 'story' as const, userId: 101, title: 'Auth', effort: 3, parentId: null, state: '' }],
+  }
+
+  function typedProject(opts: { placed?: boolean } = {}) {
+    return {
+      features: [makeBoardFeature(101, 'feat-1', 'Auth')],
+      pbis: [{
+        id: 201, system_id: 'pbi-1', title: 'Login form',
+        parent_feature_system_id: 'feat-1',
+        group_id: opts.placed === true ? 'grp-1' : null,
+      } as unknown as PBI],
+    }
+  }
+
+  it('offers a promotion, unticked, when a story arrives as a feature', async () => {
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue(asFeatureRow)
+    render(
+      <ImportCSVModal {...defaultProps} {...typedProject()} open file={makeFile()} />,
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => screen.getByText(/1 story is a feature in this file/i))
+    expect(screen.getByRole('checkbox')).not.toBeChecked()
+    expect(screen.getByText(/Login form: story → feature/)).toBeInTheDocument()
+  })
+
+  it('sends apply_type_changes only once the promotion is ticked', async () => {
+    mutateAsync.mockResolvedValue(okResult)
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue(asFeatureRow)
+    render(
+      <ImportCSVModal {...defaultProps} {...typedProject()} open file={makeFile()} />,
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => screen.getByRole('checkbox'))
+    await userEvent.click(screen.getByRole('checkbox'))
+    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    expect(mutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({ apply_type_changes: true }),
+    )
+  })
+
+  it('warns that promoting a placed story costs its sprint', async () => {
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue(asFeatureRow)
+    render(
+      <ImportCSVModal {...defaultProps} {...typedProject({ placed: true })} open file={makeFile()} />,
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => screen.getByRole('checkbox'))
+    await userEvent.click(screen.getByRole('checkbox'))
+    expect(screen.getByText(/A feature is not placed in a sprint, so that placement goes/i)).toBeInTheDocument()
+  })
+
+  it('reports a demotion without offering it, and shows no checkbox', async () => {
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue(asStoryRow)
+    render(
+      <ImportCSVModal {...defaultProps} {...typedProject()} open file={makeFile()} />,
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => screen.getByText(/1 feature is a story in this file/i))
+    expect(screen.getByText(/Not converted/i)).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+  })
+
+  it('offers nothing when the type is unchanged', async () => {
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue({
+      ...fakeParseResult,
+      rows: [{ rowNumber: 2, itemType: 'story' as const, userId: 201, title: 'Login form', effort: 3, parentId: null, state: '' }],
+    })
+    render(
+      <ImportCSVModal {...defaultProps} {...typedProject()} open file={makeFile()} />,
+      { wrapper: makeWrapper() },
+    )
+    await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
+    expect(screen.queryByText(/in this file/i)).not.toBeInTheDocument()
   })
 })

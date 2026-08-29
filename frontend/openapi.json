@@ -5589,6 +5589,11 @@
             "type": "boolean",
             "title": "Apply Reparenting",
             "default": false
+          },
+          "apply_type_changes": {
+            "type": "boolean",
+            "title": "Apply Type Changes",
+            "default": false
           }
         },
         "type": "object",
@@ -5653,6 +5658,21 @@
           "stories_reparent_skipped": {
             "type": "integer",
             "title": "Stories Reparent Skipped",
+            "default": 0
+          },
+          "items_retyped": {
+            "type": "integer",
+            "title": "Items Retyped",
+            "default": 0
+          },
+          "items_retype_skipped": {
+            "type": "integer",
+            "title": "Items Retype Skipped",
+            "default": 0
+          },
+          "items_retype_blocked": {
+            "type": "integer",
+            "title": "Items Retype Blocked",
             "default": 0
           },
           "created_states": {

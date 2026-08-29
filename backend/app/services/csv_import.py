@@ -84,12 +84,59 @@ async def _fetch_existing(
     return feature_map, pbi_map
 
 
+class _TypeChange(NamedTuple):
+    """A row whose Work Item Type no longer matches what the project holds."""
+
+    row_index: int
+    """Position in the row list, so the row can be dropped when not applied."""
+    user_id: int
+    system_id: str
+    """The existing item — a PBI for a promotion, a Feature for a demotion."""
+    promotion: bool
+    """story/bug → Feature. The reverse is never applied automatically: a Feature
+    can hold stories, groups and continuations, and there is no sensible place to
+    put them when it becomes a story."""
+
+
+def _detect_type_changes(
+    rows: list[CsvRow],
+    feature_map: dict[int, str],
+    pbi_map: dict[int, str],
+) -> list[_TypeChange]:
+    """Find IDs the project holds under the other entity type.
+
+    These used to abort the whole file with a 422 and no way forward, which made a
+    routine Azure DevOps edit — promoting a backlog item to a feature — impossible
+    to import without hand-editing the CSV.
+    """
+    changes: list[_TypeChange] = []
+    for index, row in enumerate(rows):
+        if row.user_id is None:
+            continue
+        if row.item_type == "feature" and row.user_id in pbi_map:
+            changes.append(_TypeChange(
+                row_index=index, user_id=row.user_id,
+                system_id=pbi_map[row.user_id], promotion=True,
+            ))
+        elif row.item_type in ("story", "bug") and row.user_id in feature_map:
+            changes.append(_TypeChange(
+                row_index=index, user_id=row.user_id,
+                system_id=feature_map[row.user_id], promotion=False,
+            ))
+    return changes
+
+
 def _cross_entity_errors(
     rows: list[CsvRow],
     feature_map: dict[int, str],
     pbi_map: dict[int, str],
 ) -> list[CsvImportError]:
-    """Catch IDs that exist in the DB under the wrong entity type."""
+    """Catch IDs that exist in the DB under the wrong entity type.
+
+    A backstop rather than the main path: ``_detect_type_changes`` has already
+    pulled these rows out, either by converting the item or by dropping the row.
+    Anything reaching here would create a duplicate business ID.
+    """
     errors: list[CsvImportError] = []
     for row in rows:
         if row.user_id is None:
@@ -165,6 +212,47 @@ async def _upsert_one_feature(
         state_id=state_id if state_changed else None,
     ))
     return sysid, 1, 0
+
+
+class _PromotionResult(NamedTuple):
+    deleted_pbis: list[tuple[str, str]]
+    freed_group_ids: list[str]
+    descriptions: dict[int, str | None]
+    """Carried across by user_id: the CSV has no description column, so without
+    this a promotion would silently drop the one the story already had."""
+
+
+async def _apply_promotions(
+    db: AsyncSession, promotions: list[_TypeChange], pbi_map: dict[int, str]
+) -> _PromotionResult:
+    """Delete the stories being promoted so their IDs are free for a Feature.
+
+    Features and PBIs each have their own ``UniqueConstraint(project_id, user_id)``,
+    so the database would happily hold both — the business ID is only unique across
+    the two by application rule. Deleting here is what keeps that rule true.
+
+    The story's sprint placement goes with it. That is unavoidable: it is a
+    different kind of thing now, and a Feature is not placed in a sprint.
+    """
+    deleted_pbis: list[tuple[str, str]] = []
+    freed_group_ids: list[str] = []
+    descriptions: dict[int, str | None] = {}
+
+    for change in promotions:
+        pbi = await db.get(PBI, change.system_id)
+        if pbi is None:
+            continue
+        descriptions[change.user_id] = pbi.description
+        parent_id = pbi.parent_feature_system_id
+        group_id = await delete_pbi_and_empty_group(db, pbi)
+        deleted_pbis.append((change.system_id, parent_id))
+        if group_id:
+            freed_group_ids.append(group_id)
+        pbi_map.pop(change.user_id, None)
+
+    if promotions:
+        await db.flush()
+    return _PromotionResult(deleted_pbis, freed_group_ids, descriptions)
 
 
 async def _upsert_features(
@@ -502,6 +590,7 @@ async def execute_import(
     removals: list[str] | None = None,
     has_state_column: bool = False,
     apply_reparenting: bool = False,
+    apply_type_changes: bool = False,
 ) -> CsvImportResult:
     errors = _validate_rows(rows)
     if errors:
@@ -517,6 +606,27 @@ async def execute_import(
         await db.flush()
 
     feature_map, pbi_map = await _fetch_existing(db, project_id)
+
+    # An ID the project holds under the other entity type used to abort the file.
+    # Now it is a decision: promote the story, or leave the item alone and drop the
+    # row. Either way the import runs.
+    type_changes = _detect_type_changes(rows, feature_map, pbi_map)
+    promotions = [c for c in type_changes if c.promotion and apply_type_changes]
+    retype_skipped = sum(1 for c in type_changes if c.promotion) - len(promotions)
+    retype_blocked = sum(1 for c in type_changes if not c.promotion)
+
+    promoted = await _apply_promotions(db, promotions, pbi_map)
+    deleted_pbis += promoted.deleted_pbis
+    deleted_group_ids += promoted.freed_group_ids
+
+    # A row whose type change was not applied must not be imported: creating the
+    # other kind of item would put the same business ID on two things at once.
+    applied_indexes = {c.row_index for c in promotions}
+    rows = [
+        r for i, r in enumerate(rows)
+        if i in applied_indexes or i not in {c.row_index for c in type_changes}
+    ]
+
     cross_errors = _cross_entity_errors(rows, feature_map, pbi_map)
     if cross_errors:
         raise HTTPException(
@@ -535,6 +645,13 @@ async def execute_import(
         db, project_id, feature_rows, feature_map, has_state_column
     )
     await db.flush()
+
+    for user_id, description in promoted.descriptions.items():
+        sysid = csv_feature_sysid.get(user_id)
+        if sysid is not None and description:
+            promoted_feature = await db.get(Feature, sysid)
+            if promoted_feature is not None:
+                promoted_feature.description = description
 
     # A Parent naming a feature the project already holds resolves to it, even when
     # that feature is not a row in this file. Without this an incremental export —
@@ -605,5 +722,8 @@ async def execute_import(
         stories_parented_from_project=parented_from_project,
         stories_reparented=stories.reparented,
         stories_reparent_skipped=stories.reparent_skipped,
+        items_retyped=len(promotions),
+        items_retype_skipped=retype_skipped,
+        items_retype_blocked=retype_blocked,
         created_states=created_states,
     )

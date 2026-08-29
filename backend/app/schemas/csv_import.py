@@ -41,6 +41,9 @@ class CsvImportRequest(BaseModel):
     # planning put it unless the user opts in, because moving it can pull it off a
     # board and out of its sprint.
     apply_reparenting: bool = False
+    # Off by default: promoting a story to a Feature deletes the story, taking its
+    # sprint placement with it.
+    apply_type_changes: bool = False
 
 
 class CsvImportError(BaseModel):
@@ -78,4 +81,10 @@ class CsvImportResult(BaseModel):
     # so a divergence between the two systems is reported either way.
     stories_reparented: int = 0
     stories_reparent_skipped: int = 0
+    # IDs the project holds under the other entity type. Promotions (story → Feature)
+    # are applied on request; demotions are only ever reported, because a Feature can
+    # hold stories, groups and continuations with nowhere to go.
+    items_retyped: int = 0
+    items_retype_skipped: int = 0
+    items_retype_blocked: int = 0
     created_states: int = 0  # State List entries discovered by this import

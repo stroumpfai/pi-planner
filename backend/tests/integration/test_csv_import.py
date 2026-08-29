@@ -390,26 +390,35 @@ async def test_import_feature_id_conflicts_with_existing_pbi(client, project):
         json={"title": "Existing PBI", "id": 201, "parent_feature_system_id": feature["system_id"]},
     )
 
-    # Try to import a feature with the same ID
+    # The same ID arriving as a Feature is a type change, not an error. Left alone
+    # by default, so the story keeps its place and the row is dropped.
     rows = [_row(1, "feature", "New Feature", user_id=201)]
     resp = await client.post(_url(pid), json={"rows": rows})
-    assert resp.status_code == 422
-    detail = resp.json()["detail"]
-    assert any("story" in e["message"] for e in detail["errors"])
+    assert resp.status_code == 200
+    assert resp.json()["items_retype_skipped"] == 1
+    assert resp.json()["created_features"] == 0
+
+    pbis = (await client.get(f"/api/v1/projects/{pid}/pbis")).json()
+    assert [p["title"] for p in pbis] == ["Existing PBI"]
 
 
 @pytest.mark.asyncio
 async def test_import_bug_id_conflicts_with_existing_feature(client, project):
+    """A Feature arriving as a story is reported, never converted automatically."""
     pid = project["system_id"]
-    # Create a feature with user_id=101
-    await client.post(f"/api/v1/projects/{pid}/features", json={"title": "Existing Feature", "id": 101})
+    await client.post(_url(pid), json={"rows": [_row(1, "feature", "Auth", user_id=101)]})
 
-    # Try to import a bug with the same ID — "bug" type is checked against feature_map
-    rows = [_row(1, "bug", "New Bug", user_id=101)]
-    resp = await client.post(_url(pid), json={"rows": rows})
-    assert resp.status_code == 422
-    detail = resp.json()["detail"]
-    assert any("feature" in e["message"] for e in detail["errors"])
+    resp = await client.post(_url(pid), json={
+        "rows": [_row(1, "bug", "Now a bug", user_id=101)],
+        "apply_type_changes": True,
+    })
+    assert resp.status_code == 200
+    assert resp.json()["items_retype_blocked"] == 1
+    assert resp.json()["items_retyped"] == 0
+
+    features = (await client.get(f"/api/v1/projects/{pid}/features")).json()
+    assert [f["title"] for f in features] == ["Auth"]
+    assert (await client.get(f"/api/v1/projects/{pid}/pbis")).json() == []
 
 
 @pytest.mark.asyncio
@@ -1118,3 +1127,148 @@ async def test_moving_a_story_into_a_split_feature_targets_its_newest_pi(client,
     pbis = {p["id"]: p for p in (await client.get(f"/api/v1/projects/{pid}/pbis")).json()}
     assert pbis[401]["parent_feature_system_id"] == split_feature["continuation"]["system_id"]
     assert other["system_id"] != split_feature["continuation"]["system_id"]
+
+
+# ── Type changes: promote on request, never demote ────────────────────────────
+
+@pytest.fixture
+async def story_to_promote(client, project):
+    """Story 201 under feature 101, with a description and a sprint placement."""
+    pid = project["system_id"]
+    pi = (await client.post(f"/api/v1/projects/{pid}/pis", json={"name": "PI-1"})).json()
+    sw = (await client.post(f"/api/v1/pis/{pi['system_id']}/swimlines", json={"name": "A"})).json()
+    feature = (await client.post(
+        f"/api/v1/projects/{pid}/features", json={"title": "Auth", "id": 101}
+    )).json()
+    await client.patch(f"/api/v1/features/{feature['system_id']}", json={"swimlane_id": sw["system_id"]})
+    story = (await client.post(f"/api/v1/projects/{pid}/pbis", json={
+        "title": "Login form", "id": 201, "description": "Carried over",
+        "parent_feature_system_id": feature["system_id"],
+    })).json()
+    await client.post(f"/api/v1/pbis/{story['system_id']}/place", json={"sprint_index": 0})
+    return {"project_id": pid, "feature": feature, "story": story, "swimlane": sw}
+
+
+@pytest.mark.asyncio
+async def test_a_promotion_is_reported_but_not_applied_by_default(client, story_to_promote):
+    pid = story_to_promote["project_id"]
+    resp = await client.post(_url(pid), json={
+        "rows": [_row(2, "feature", "Login", user_id=201)],
+    })
+    data = resp.json()
+    assert data["items_retype_skipped"] == 1
+    assert data["items_retyped"] == 0
+    assert data["created_features"] == 0
+
+    pbis = (await client.get(f"/api/v1/projects/{pid}/pbis")).json()
+    assert [p["id"] for p in pbis] == [201]
+
+
+@pytest.mark.asyncio
+async def test_a_promotion_turns_the_story_into_a_feature_when_asked(client, story_to_promote):
+    pid = story_to_promote["project_id"]
+    resp = await client.post(_url(pid), json={
+        "rows": [_row(2, "feature", "Login", user_id=201)],
+        "apply_type_changes": True,
+    })
+    data = resp.json()
+    assert data["items_retyped"] == 1
+    assert data["created_features"] == 1
+
+    assert (await client.get(f"/api/v1/projects/{pid}/pbis")).json() == []
+    features = {f["id"]: f for f in (await client.get(f"/api/v1/projects/{pid}/features")).json()}
+    assert features[201]["title"] == "Login"
+    assert features[201]["location"] == "backlog"
+    # The CSV has no description column — losing the story's would be silent data loss.
+    assert features[201]["description"] == "Carried over"
+
+
+@pytest.mark.asyncio
+async def test_a_promotion_takes_the_sprint_placement_with_it(client, story_to_promote):
+    pid = story_to_promote["project_id"]
+    await client.post(_url(pid), json={
+        "rows": [_row(2, "feature", "Login", user_id=201)],
+        "apply_type_changes": True,
+    })
+    sw = story_to_promote["swimlane"]["system_id"]
+    assert (await client.get(f"/api/v1/swimlines/{sw}/groups")).json() == []
+
+
+@pytest.mark.asyncio
+async def test_a_promotion_broadcasts_the_story_it_deleted(client, story_to_promote, captured_events):
+    pid = story_to_promote["project_id"]
+    captured_events.clear()
+    await client.post(_url(pid), json={
+        "rows": [_row(2, "feature", "Login", user_id=201)],
+        "apply_type_changes": True,
+    })
+    deleted = {data["system_id"] for _, ev, data in captured_events if ev == "pbi:deleted"}
+    assert story_to_promote["story"]["system_id"] in deleted
+    assert any(ev == "group:deleted" for _, ev, _ in captured_events)
+
+
+@pytest.mark.asyncio
+async def test_a_promoted_feature_can_take_children_in_the_same_file(client, story_to_promote):
+    """The promoted ID is a Feature by the time story rows resolve their Parent."""
+    pid = story_to_promote["project_id"]
+    resp = await client.post(_url(pid), json={
+        "rows": [
+            _row(2, "feature", "Login", user_id=201),
+            _row(3, "story", "Password field", user_id=301, parent_id=201),
+        ],
+        "apply_type_changes": True,
+    })
+    assert resp.json()["orphan_stories"] == 0
+
+    features = {f["id"]: f for f in (await client.get(f"/api/v1/projects/{pid}/features")).json()}
+    pbis = {p["id"]: p for p in (await client.get(f"/api/v1/projects/{pid}/pbis")).json()}
+    assert pbis[301]["parent_feature_system_id"] == features[201]["system_id"]
+
+
+@pytest.mark.asyncio
+async def test_a_promotion_takes_its_state_from_the_feature_list(client, story_to_promote):
+    """Stories and Features draw from separate State Lists, so the value re-resolves."""
+    pid = story_to_promote["project_id"]
+    await client.post(_url(pid), json={
+        "rows": [_row(2, "feature", "Login", user_id=201, state="Active")],
+        "apply_type_changes": True, "has_state_column": True,
+    })
+    states = (await client.get(f"/api/v1/projects/{pid}/states/")).json()
+    feature_states = [s for s in states if s["item_type"] == "feature"]
+    assert [s["value"] for s in feature_states] == ["Active"]
+
+    features = {f["id"]: f for f in (await client.get(f"/api/v1/projects/{pid}/features")).json()}
+    assert features[201]["state"] == "Active"
+
+
+@pytest.mark.asyncio
+async def test_a_declined_type_change_does_not_block_the_rest_of_the_file(client, story_to_promote):
+    """The whole point: one retyped row used to abort the import."""
+    pid = story_to_promote["project_id"]
+    resp = await client.post(_url(pid), json={"rows": [
+        _row(2, "feature", "Login", user_id=201),
+        _row(3, "feature", "Payments", user_id=102),
+        _row(4, "story", "Checkout", user_id=301, parent_id=102),
+    ]})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["items_retype_skipped"] == 1
+    assert data["created_features"] == 1
+    assert data["created_stories"] == 1
+
+
+@pytest.mark.asyncio
+async def test_a_demotion_never_takes_a_feature_with_children(client, story_to_promote):
+    pid = story_to_promote["project_id"]
+    resp = await client.post(_url(pid), json={
+        "rows": [_row(2, "story", "Auth is now a story", user_id=101)],
+        "apply_type_changes": True,
+    })
+    data = resp.json()
+    assert data["items_retype_blocked"] == 1
+    assert data["items_retyped"] == 0
+
+    features = {f["id"]: f for f in (await client.get(f"/api/v1/projects/{pid}/features")).json()}
+    assert features[101]["title"] == "Auth"
+    pbis = (await client.get(f"/api/v1/projects/{pid}/pbis")).json()
+    assert [p["id"] for p in pbis] == [201]

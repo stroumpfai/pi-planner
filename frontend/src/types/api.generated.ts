@@ -458,6 +458,11 @@ export interface components {
        * @default false
        */
       apply_reparenting?: boolean;
+      /**
+       * Apply Type Changes
+       * @default false
+       */
+      apply_type_changes?: boolean;
     };
     /** CsvImportResult */
     CsvImportResult: {
@@ -500,6 +505,21 @@ export interface components {
        * @default 0
        */
       stories_reparent_skipped?: number;
+      /**
+       * Items Retyped
+       * @default 0
+       */
+      items_retyped?: number;
+      /**
+       * Items Retype Skipped
+       * @default 0
+       */
+      items_retype_skipped?: number;
+      /**
+       * Items Retype Blocked
+       * @default 0
+       */
+      items_retype_blocked?: number;
       /**
        * Created States
        * @default 0
