@@ -201,6 +201,24 @@ describe('CSV refresh of a project that already has data', () => {
     cy.contains('Found mid-sprint').should('exist')
   })
 
+  // A Parent column holding titles rather than IDs used to import cleanly and pile
+  // every story into "Unassigned". The file is now rejected instead.
+  it('rejects a Parent that names no ID rather than orphaning the story', () => {
+    seedFeature('Auth', 101)
+    openBacklogAsEditor()
+
+    cy.get('input[type="file"]').selectFile(
+      {
+        contents: Cypress.Buffer.from(`${HEADER}\nProduct Backlog Item,Login form,201,3,Auth,`),
+        fileName: 'refresh.csv',
+        mimeType: 'text/csv',
+      },
+      { force: true },
+    )
+    cy.contains(/Parent "Auth" does not name an ID/).should('be.visible')
+    cy.contains('button', /^Confirm Import$/).should('be.disabled')
+  })
+
   // ── C2: a Parent that has changed ──────────────────────────────────────────
 
   it('leaves a changed parent alone unless the move is ticked', () => {

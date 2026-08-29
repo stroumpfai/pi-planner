@@ -382,6 +382,11 @@ Expected columns (any order): `State`, `ID`, `Work Item Type`, `Title 1`, `Title
 - **Row filtering**: Rows where `State = Removed` are silently discarded
 - **Title resolution**: Features use `Title 1`; PBIs/Bugs use `Title 2` with fallback to `Title 1`
 - **Effort**: Blank or `0` → null; positive integer → stored as-is; non-numeric → validation error
+- **Parent format**: the cell must start with the parent's ID, optionally `#`-prefixed and
+  optionally followed by its title (`101`, `#101`, `101: Auth`, `101 - Auth` all read as 101).
+  A blank cell is a deliberate orphan. Anything else — a cell holding only a title, or an ID
+  out of the 1–999,999 range — is a validation error, because importing it would silently
+  pile the file's stories into "Unassigned"
 - **Parent resolution**: a story's `Parent` is matched first against the Feature rows in the
   file, then against Features already in the project. A partial export — this sprint's new
   stories, with no Feature rows at all — therefore links correctly instead of orphaning
@@ -415,6 +420,8 @@ Import is atomic: any validation error cancels the entire import. User sees all 
 | Non-numeric Effort | Row {n}: effort must be a number |
 | Duplicate ID within file | Row {n}: ID {id} appears more than once in this file |
 | ID outside 1–999,999 | Row {n}: ID out of allowed range |
+| Parent naming no ID | Row {n}: Parent "{value}" does not name an ID |
+| Parent outside 1–999,999 | Row {n}: Parent ID {id} is out of range |
 
 An ID the project holds under the *other* entity type is **not** a validation error.
 It is a type change, reported in the preview and decided there — see 9.3.

@@ -40,6 +40,16 @@ def _validate_rows(rows: list[CsvRow]) -> list[CsvImportError]:
                 message=f'unknown type "{row.item_type}"',
             ))
 
+        # The client parses Parent out of a free-text cell, so the range is checked
+        # again here for anything that reaches the API another way.
+        if row.parent_id is not None and not (
+            _USER_ID_MIN <= row.parent_id <= _USER_ID_MAX
+        ):
+            errors.append(CsvImportError(
+                row=row.row_number,
+                message=f"Parent ID {row.parent_id} is out of range (1–999 999)",
+            ))
+
         if row.user_id is not None:
             if not (_USER_ID_MIN <= row.user_id <= _USER_ID_MAX):
                 errors.append(CsvImportError(

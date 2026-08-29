@@ -119,11 +119,52 @@ function parseEffort(
   return n
 }
 
-function parseParentId(raw: string): number | null {
+/**
+ * The forms Azure DevOps writes into a Parent cell.
+ *
+ * Exports differ by query and by tenant: a bare ID, an ID with the parent's title
+ * after it, sometimes with a `#`. All of those identify a parent. A cell holding
+ * only a title identifies nothing, and is the case this pattern exists to reject
+ * — `Number.parseInt` returned null for it, which read as "no parent" and sent the
+ * story to "Unassigned" without a word.
+ *
+ * The trailing `\b` is what separates `101: Auth` (a parent) from `101abc` (a
+ * typo): digits have to end at a boundary, not run into other word characters.
+ */
+const PARENT_ID = /^#?(\d+)\b/
+
+/** Extract a parent ID without judgement — for Removed rows, which are not imported. */
+function parseParentIdLenient(raw: string): number | null {
+  const match = PARENT_ID.exec(raw.trim())
+  return match ? Number.parseInt(match[1], 10) : null
+}
+
+/**
+ * A blank Parent is a deliberate orphan and always allowed. Anything else is held
+ * to the same rule as the ID column: it must name an ID in range, or the file is
+ * wrong in a way that would otherwise show up as work silently piling into
+ * "Unassigned".
+ */
+function parseParentId(
+  raw: string,
+  rowNumber: number,
+  errors: ParseError[],
+): number | null {
   const s = raw.trim()
   if (s === '') return null
-  const n = Number.parseInt(s, 10)
-  return Number.isNaN(n) ? null : n
+
+  const match = PARENT_ID.exec(s)
+  if (!match) {
+    errors.push({ row: rowNumber, message: `Parent "${s}" does not name an ID` })
+    return null
+  }
+
+  const n = Number.parseInt(match[1], 10)
+  if (n < USER_ID_MIN || n > USER_ID_MAX) {
+    errors.push({ row: rowNumber, message: `Parent ID ${n} is out of range (1–999 999)` })
+    return null
+  }
+  return n
 }
 
 /** Parse an ID without surfacing errors — used for Removed rows, which aren't imported. */
@@ -176,7 +217,7 @@ export function parseImportCSV(text: string): ParseResult {
           userId,
           title: resolveTitle(raw, itemType),
           effort: null,
-          parentId: parseParentId(raw[COL_PARENT] ?? ''),
+          parentId: parseParentIdLenient(raw[COL_PARENT] ?? ''),
           state: '',
         })
       }
@@ -198,7 +239,7 @@ export function parseImportCSV(text: string): ParseResult {
 
     const userId = parseUserId(raw[COL_ID] ?? '', rowNumber, errors)
     const effort = parseEffort(raw[COL_EFFORT] ?? '', rowNumber, errors)
-    const parentId = parseParentId(raw[COL_PARENT] ?? '')
+    const parentId = parseParentId(raw[COL_PARENT] ?? '', rowNumber, errors)
 
     rows.push({
       rowNumber,

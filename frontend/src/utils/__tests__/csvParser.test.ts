@@ -8,6 +8,55 @@ function csv(...rows: string[]) {
   return [HEADER, ...rows].join('\n')
 }
 
+// ── Parent column ──────────────────────────────────────────────────────────────
+
+describe('the Parent column', () => {
+  const parentOf = (cell: string) => parseImportCSV(csv(`Product Backlog Item,Login,201,3,${cell},`))
+
+  it.each([
+    ['a bare ID', '101'],
+    ['an ID with the parent title after it', '101: Auth Feature'],
+    ['a dash separator', '101 - Auth Feature'],
+    ['a space separator', '101 Auth Feature'],
+    ['a leading hash', '#101'],
+  ])('reads %s', (_label, cell) => {
+    const result = parentOf(cell)
+    expect(result.errors).toHaveLength(0)
+    expect(result.rows[0].parentId).toBe(101)
+  })
+
+  it('treats a blank Parent as a deliberate orphan, not an error', () => {
+    const result = parentOf('')
+    expect(result.errors).toHaveLength(0)
+    expect(result.rows[0].parentId).toBeNull()
+  })
+
+  // The finding: this used to yield null and send the story to "Unassigned"
+  // without a word, so a whole export in the wrong format looked like it worked.
+  it('rejects a cell that names no ID rather than orphaning the story', () => {
+    const result = parentOf('Auth Feature')
+    expect(result.errors).toEqual([
+      { row: 2, message: 'Parent "Auth Feature" does not name an ID' },
+    ])
+  })
+
+  it('rejects digits that run into other characters', () => {
+    expect(parentOf('101abc').errors).toHaveLength(1)
+  })
+
+  it('rejects a Parent ID outside the allowed range', () => {
+    expect(parentOf('1000000').errors).toEqual([
+      { row: 2, message: 'Parent ID 1000000 is out of range (1–999 999)' },
+    ])
+  })
+
+  it('says nothing about the Parent of a Removed row, which is not imported', () => {
+    const result = parseImportCSV(csv('Product Backlog Item,Login,201,3,Auth Feature,Removed'))
+    expect(result.errors).toHaveLength(0)
+    expect(result.removedCount).toBe(1)
+  })
+})
+
 // ── parseImportCSV ─────────────────────────────────────────────────────────────
 
 describe('parseImportCSV', () => {

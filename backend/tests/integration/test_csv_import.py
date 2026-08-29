@@ -1206,6 +1206,26 @@ async def test_a_demotion_never_takes_a_feature_with_children(client, story_to_p
     assert [p["id"] for p in pbis] == [201]
 
 
+@pytest.mark.asyncio
+async def test_import_out_of_range_parent_id_error(client, project):
+    """The client parses Parent out of a free-text cell; the range is checked here too."""
+    resp = await client.post(_url(project["system_id"]), json={
+        "rows": [_row(2, "story", "Login", user_id=201, parent_id=1_000_000)],
+    })
+    assert resp.status_code == 422
+    detail = resp.json()["detail"]
+    assert any("Parent ID 1000000" in e["message"] for e in detail["errors"])
+
+
+@pytest.mark.asyncio
+async def test_a_blank_parent_is_not_a_range_error(client, project):
+    resp = await client.post(_url(project["system_id"]), json={
+        "rows": [_row(2, "story", "Login", user_id=201)],
+    })
+    assert resp.status_code == 200
+    assert resp.json()["orphan_stories"] == 1
+
+
 # ── What the rest of the room is told ─────────────────────────────────────────
 
 @pytest.mark.asyncio
