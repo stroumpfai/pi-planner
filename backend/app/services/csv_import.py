@@ -591,6 +591,7 @@ async def execute_import(
     has_state_column: bool = False,
     apply_reparenting: bool = False,
     apply_type_changes: bool = False,
+    actor: str = "",
 ) -> CsvImportResult:
     errors = _validate_rows(rows)
     if errors:
@@ -697,17 +698,23 @@ async def execute_import(
     created_states = await _count_states(db, project_id) - states_before
     await db.commit()
 
-    if created_states:
-        await broadcaster.broadcast(project_id, "state:created", {"count": created_states})
-    for feature_id in deleted_feature_ids:
-        await broadcaster.broadcast(project_id, "feature:deleted", {"system_id": feature_id})
-    for pbi_id, parent_id in deleted_pbis:
-        await broadcaster.broadcast(
-            project_id, "pbi:deleted",
-            {"system_id": pbi_id, "feature_id": parent_id},
-        )
-    for group_id in deleted_group_ids:
-        await broadcaster.broadcast(project_id, "group:deleted", {"system_id": group_id})
+    # One event for one transaction.
+    #
+    # Per-item events would be proportional to the file: a thousand-row refresh is
+    # a thousand messages to every connected reader, each triggering its own
+    # refetch, to describe a change that happened all at once. Deletions are no
+    # smaller — one feature can cascade to fifty stories.
+    #
+    # The client answers this by invalidating everything, which is a superset of
+    # what any per-item event could have told it, so nothing is lost by not
+    # sending them. ``project:restored`` already works this way for the same
+    # reason.
+    await broadcaster.broadcast(project_id, "import:completed", {
+        "actor": actor,
+        "created": created_features + stories.created,
+        "updated": updated_features + stories.updated,
+        "removed": len(deleted_feature_ids) + len(deleted_pbis),
+    })
 
     return CsvImportResult(
         created_features=created_features,

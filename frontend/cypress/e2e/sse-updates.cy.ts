@@ -48,4 +48,25 @@ describe('Real-time SSE updates', () => {
 
     cy.contains('button', /request edit mode/i).should('be.visible')
   })
+
+  // An import is one transaction and arrives as one event, so this is the only
+  // thing telling a reader their board just moved under them.
+  it('Session A imports a CSV → Session B sees the items and is told who did it', () => {
+    cy.openProject('SSE Test')
+    cy.contains('No features in the backlog').should('be.visible')
+
+    asSessionA(() => {
+      cy.request('POST', `/api/v1/projects/${projectId}/edit-lock/acquire`)
+      cy.request('POST', `/api/v1/projects/${projectId}/import/csv`, {
+        rows: [
+          { row_number: 2, item_type: 'feature', title: 'Imported Feature', user_id: 101 },
+          { row_number: 3, item_type: 'story', title: 'Imported Story', user_id: 201, parent_id: 101 },
+        ],
+      })
+    })
+
+    // Session B never reloads: the feature and the notice both arrive over SSE.
+    cy.contains('Imported Feature').should('be.visible')
+    cy.contains(/testuser2 imported a CSV/i).should('be.visible')
+  })
 })

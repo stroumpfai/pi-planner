@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { invalidateAllProjectData } from './useSnapshots'
 import { toast } from '@/stores/toastStore'
+import { useAuthStore } from '@/stores/authStore'
 
 type SSEEvent = {
   type: string
@@ -123,6 +124,19 @@ function handleSSEEvent(
       invalidateAllProjectData(qc, projectId)
       toast.info('Project restored from a snapshot')
       break
+
+    // An import is one transaction and arrives as one event, so everything it
+    // could have touched is refetched rather than reasoned about per item.
+    case 'import:completed': {
+      invalidateAllProjectData(qc, projectId)
+      const actor = typeof event.data?.actor === 'string' ? event.data.actor : ''
+      // The importer's own client already refetched on the mutation succeeding;
+      // telling them what they just did would be noise.
+      if (actor !== '' && actor !== useAuthStore.getState().user?.username) {
+        toast.info(`${actor} imported a CSV — the board has been refreshed`)
+      }
+      break
+    }
 
     // ── States ────────────────────────────────────────────────────────────
     case 'state:created':

@@ -156,7 +156,7 @@ seeds `testuser` and `testuser2`, runs the suite and tears it all down.
 | `admin-users` | User management, password policy, reader and editor RBAC |
 | `api-keys` | Issue, reveal, cycle and revoke an API key |
 | `export-png` / `export-report` | Modal options mapped to export query params |
-| `sse-updates` | A second session's writes arriving over the event stream |
+| `sse-updates` | A second session's writes arriving over the event stream, including a CSV import and who ran it |
 | `theme` | Light/dark/system switching, repaint and persistence |
 | `smoke` | The app boots |
 

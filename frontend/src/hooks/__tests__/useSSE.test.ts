@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createElement } from 'react'
 import { useSSE } from '../useSSE'
 import { useToastStore } from '@/stores/toastStore'
+import { useAuthStore } from '@/stores/authStore'
 
 // ── Mock EventSource ───────────────────────────────────────────────────────────
 
@@ -178,5 +179,40 @@ describe('useSSE', () => {
     )
 
     expect(useToastStore.getState().toasts.some((t) => t.message === 'Project restored from a snapshot')).toBe(true)
+  })
+
+  // ── Import ───────────────────────────────────────────────────────────────────
+
+  it('import:completed refetches everything an import could have touched', () => {
+    const { qc, wrapper } = makeWrapper()
+    vi.spyOn(qc, 'invalidateQueries')
+    renderHook(() => useSSE('p-1'), { wrapper })
+    MockEventSource.instance!.emit('import:completed', { actor: 'someone-else', created: 3, updated: 1, removed: 0 })
+
+    for (const queryKey of [['projects'], ['features', 'p-1'], ['pbis', 'p-1'], ['pis', 'p-1'], ['states', 'p-1']]) {
+      expect(qc.invalidateQueries).toHaveBeenCalledWith({ queryKey })
+    }
+    expect(qc.invalidateQueries).toHaveBeenCalledWith(
+      expect.objectContaining({ predicate: expect.any(Function) }),
+    )
+  })
+
+  it('import:completed tells a reader who changed the board under them', () => {
+    useAuthStore.setState({ user: { username: 'watcher' } as never })
+    const { wrapper } = makeWrapper()
+    renderHook(() => useSSE('p-1'), { wrapper })
+    MockEventSource.instance!.emit('import:completed', { actor: 'importer', created: 3, updated: 0, removed: 0 })
+
+    expect(useToastStore.getState().toasts.some((t) => t.message.includes('importer'))).toBe(true)
+  })
+
+  it('import:completed says nothing to the person who ran the import', () => {
+    useAuthStore.setState({ user: { username: 'importer' } as never })
+    useToastStore.setState({ toasts: [] })
+    const { wrapper } = makeWrapper()
+    renderHook(() => useSSE('p-1'), { wrapper })
+    MockEventSource.instance!.emit('import:completed', { actor: 'importer', created: 3, updated: 0, removed: 0 })
+
+    expect(useToastStore.getState().toasts).toHaveLength(0)
   })
 })
