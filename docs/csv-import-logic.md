@@ -4,8 +4,10 @@ Backlog → **Import CSV**. The file is meant to be an Azure DevOps query export
 (*Features*, *Product Backlog Items*, *Bugs*), but any CSV with the right column
 names works.
 
-Nothing is written until you press **Confirm Import**. The whole file is applied
-as one change: either all of it lands, or none of it does.
+Nothing is written until you press **Confirm Import**, and before that you are
+shown exactly what pressing it will do — see [the review step](#the-review-step).
+The whole file is applied as one change: either all of it lands, or none of it
+does.
 
 Ready-made files to try this out with are in [`csv-samples/`](csv-samples/) — see
 the table at the end.
@@ -155,6 +157,31 @@ When an ID exists in the project under the other kind of item:
 | Feature in the project → `Product Backlog Item`/`Bug` in the file | **Never applied**, only reported. A feature can hold stories, groups and later-PI parts with nowhere to go. Change it in the app first. |
 
 ---
+
+## The review step
+
+**Review changes** is the last screen before anything is written. It is not a
+summary of the file — it is the outcome of the import, worked out by running it
+against the project inside a transaction that is then thrown away. What it lists
+is what will happen:
+
+| It says | Meaning |
+|---|---|
+| **New** | Created. Stories say which feature they land under |
+| **Updated** | Matched an existing item. Names the fields that differ, or says *no change* |
+| **Moved** | Re-parented, as `old feature → new feature` |
+| **Converted** | A story becoming a feature, and whether that costs a sprint placement |
+| **Deleted** | Including the continuations and stories a removal reaches, which no row in your file mentions |
+| **Unassigned** | An orphan going to the placeholder feature |
+| **Left alone** | A change the import found and is not applying, with the reason |
+
+A refresh where most rows are unchanged says so, row by row. That is usually the
+point: it is how you tell "this file is a no-op" from "this file is about to
+rewrite forty titles".
+
+**Back** returns to the previous screen and writes nothing — the trial run has
+already been rolled back by then. Confirming sends the same request again for
+real, so what you reviewed is what runs.
 
 ## What stops the import
 

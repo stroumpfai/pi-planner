@@ -20,4 +20,4 @@ leaves behind (features `101` Authentication and `102` Reporting, stories
 | `06-parent-formats.csv` | Import after 01 | All four stories land under Authentication — no orphans |
 | `07-type-change.csv` | Import after 01 | Story 202 offered as a promotion to a feature (unticked = row skipped); feature 101 reported as blocked and never demoted |
 | `08-reparent.csv` | Import after 01 | Story 201 reported as moved to Reporting. Unticked it stays put; ticked it moves and loses any sprint placement |
-| `09-errors.csv` | Import any time | 7 validation errors listed by line number, Confirm disabled, nothing written |
+| `09-errors.csv` | Import any time | 7 validation errors listed by line number, **Review changes** disabled, nothing written |
