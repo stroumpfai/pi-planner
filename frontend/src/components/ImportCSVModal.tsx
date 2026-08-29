@@ -3,8 +3,8 @@ import * as Dialog from '@radix-ui/react-dialog'
 import type { AxiosError } from 'axios'
 import { parseImportCSV, buildPreview, selectImportRows } from '@/utils/csvParser'
 import type { ImportPreview, ParsedRow, ParseResult } from '@/utils/csvParser'
-import { useCsvImport } from '@/hooks/useCsvImport'
-import type { CsvImportResult, Feature, PBI, PI } from '@/types'
+import { useCsvImport, useCsvDryRun } from '@/hooks/useCsvImport'
+import type { CsvImportResult, CsvImportRequest, Feature, PBI, PI, PlannedChange } from '@/types'
 
 interface Props {
   readonly open: boolean
@@ -16,7 +16,7 @@ interface Props {
   readonly onClose: () => void
 }
 
-type Step = 'preview' | 'reconcile' | 'importing' | 'done' | 'error'
+type Step = 'preview' | 'reconcile' | 'review' | 'importing' | 'done' | 'error'
 
 interface ServerError {
   row: number
@@ -510,6 +510,86 @@ function ReconcileList({
   )
 }
 
+
+const ACTION_LABEL: Record<string, string> = {
+  created: 'New',
+  updated: 'Updated',
+  moved: 'Moved',
+  retyped: 'Converted',
+  deleted: 'Deleted',
+  orphaned: 'Unassigned',
+  skipped: 'Left alone',
+}
+
+const ACTION_TONE: Record<string, string> = {
+  created: 'text-green-700 bg-green-50',
+  updated: 'text-blue-700 bg-blue-50',
+  moved: 'text-blue-700 bg-blue-50',
+  retyped: 'text-blue-700 bg-blue-50',
+  deleted: 'text-red-700 bg-red-50',
+  orphaned: 'text-amber-700 bg-amber-50',
+  skipped: 'text-gray-600 bg-gray-100',
+}
+
+const ACTION_ORDER = ['deleted', 'retyped', 'moved', 'created', 'orphaned', 'updated', 'skipped']
+
+/**
+ * What the import will do, from having done it and rolled back.
+ *
+ * An update that changes no field is still listed, as "no change" — a refresh
+ * where most rows are untouched is the common case, and saying so is most of the
+ * reassurance this screen exists to give.
+ */
+function ReviewList({ plan, truncated }: { readonly plan: PlannedChange[]; readonly truncated: boolean }) {
+  const counts = new Map<string, number>()
+  for (const c of plan) counts.set(c.action, (counts.get(c.action) ?? 0) + 1)
+  const ordered = [...plan].sort(
+    (a, b) => ACTION_ORDER.indexOf(a.action) - ACTION_ORDER.indexOf(b.action),
+  )
+
+  if (plan.length === 0) {
+    return <p className="text-sm text-gray-500">This file changes nothing.</p>
+  }
+
+  return (
+    <>
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {ACTION_ORDER.filter((a) => counts.has(a)).map((action) => (
+          <span key={action} className={`text-xs rounded-full px-2 py-0.5 ${ACTION_TONE[action]}`}>
+            {counts.get(action)} {ACTION_LABEL[action].toLowerCase()}
+          </span>
+        ))}
+      </div>
+
+      <ul className="divide-y divide-gray-100 max-h-72 overflow-y-auto border border-gray-200 rounded-md">
+        {ordered.map((c, i) => (
+          <li key={`${c.action}-${c.user_id ?? 'x'}-${i}`} className="flex items-baseline gap-2 px-2.5 py-1.5">
+            <span className={`text-[10px] uppercase tracking-wide rounded px-1 py-0.5 shrink-0 ${ACTION_TONE[c.action]}`}>
+              {ACTION_LABEL[c.action]}
+            </span>
+            <span className="text-xs text-gray-800 min-w-0 flex-1 truncate">
+              {c.user_id != null && <span className="font-mono text-gray-400">[{c.user_id}] </span>}
+              {c.title}
+              {c.detail != null && <span className="text-gray-500"> — {c.detail}</span>}
+              {c.action === 'updated' && (
+                <span className="text-gray-500">
+                  {' '}— {(c.changes ?? []).length === 0 ? 'no change' : (c.changes ?? []).join(', ')}
+                </span>
+              )}
+            </span>
+          </li>
+        ))}
+      </ul>
+
+      {truncated && (
+        <p className="text-xs text-gray-400 mt-2">
+          Showing the first {plan.length}. The counts above cover the whole file.
+        </p>
+      )}
+    </>
+  )
+}
+
 // ── Main modal ────────────────────────────────────────────────────────────────
 
 export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onClose }: Props) {
@@ -525,7 +605,10 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
   const [result, setResult] = useState<CsvImportResult | null>(null)
   const [serverErrors, setServerErrors] = useState<ServerError[]>([])
 
+  const [plan, setPlan] = useState<CsvImportResult | null>(null)
+
   const importMutation = useCsvImport(projectId)
+  const dryRunMutation = useCsvDryRun(projectId)
 
   // Project data is read when the file is parsed, but must not re-trigger the
   // parse: a successful import invalidates the features/pbis queries, and the
@@ -548,6 +631,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
     setApplyReparenting(false)
     setTypeChanges([])
     setApplyTypeChanges(false)
+    setPlan(null)
     setResult(null)
     setServerErrors([])
 
@@ -615,26 +699,44 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
     setRemoveSelection(new Set(candidates.map((c) => c.systemId)))
   }
 
+  /** The exact body both the dry run and the import are given, so what was
+   *  reviewed is what runs. */
+  function buildRequest(): CsvImportRequest {
+    return {
+      rows: rowsToImport.map(parsedRowToCsvRow),
+      // Forced children are handled by cascade, but including them is harmless and explicit.
+      removals: Array.from(new Set([...removeSelection, ...forced])),
+      // A file with no State column must leave every State untouched.
+      has_state_column: preview?.hasStateColumn ?? false,
+      apply_reparenting: applyReparenting,
+      apply_type_changes: applyTypeChanges,
+    }
+  }
+
+  function reportFailure(err: unknown) {
+    const detail = (err as AxiosError<{ detail?: { errors?: ServerError[] } }>)
+      ?.response?.data?.detail
+    setServerErrors(detail?.errors ?? [])
+    setStep('error')
+  }
+
+  async function showPlan() {
+    setStep('review')
+    setPlan(null)
+    try {
+      setPlan(await dryRunMutation.mutateAsync(buildRequest()))
+    } catch (err) {
+      reportFailure(err)
+    }
+  }
+
   async function runImport() {
     setStep('importing')
     try {
-      // Forced children are handled by cascade, but including them is harmless and explicit.
-      const removals = Array.from(new Set([...removeSelection, ...forced]))
-      const res = await importMutation.mutateAsync({
-        rows: rowsToImport.map(parsedRowToCsvRow),
-        removals,
-        // A file with no State column must leave every State untouched.
-        has_state_column: preview?.hasStateColumn ?? false,
-        apply_reparenting: applyReparenting,
-        apply_type_changes: applyTypeChanges,
-      })
-      setResult(res)
+      setResult(await importMutation.mutateAsync(buildRequest()))
       setStep('done')
     } catch (err) {
-      const detail = (err as AxiosError<{ detail?: { errors?: ServerError[] } }>)
-        ?.response?.data?.detail
-      setServerErrors(detail?.errors ?? [])
-      setStep('error')
+      reportFailure(err)
     }
   }
 
@@ -644,7 +746,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
       setStep('reconcile')
       return
     }
-    void runImport()
+    void showPlan()
   }
 
   function handleClose() {
@@ -657,6 +759,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
     setApplyReparenting(false)
     setTypeChanges([])
     setApplyTypeChanges(false)
+    setPlan(null)
     setResult(null)
     setServerErrors([])
     onClose()
@@ -671,8 +774,9 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
   // display, with a spinner in the Confirm button. Reconcile is reached only when
   // there are candidates, so that alone says which screen to hold.
   const importing = step === 'importing'
-  const showReconcile = step === 'reconcile' || (importing && candidates.length > 0)
-  const showPreview = step === 'preview' || (importing && candidates.length === 0)
+  const showReconcile = step === 'reconcile'
+  const showPreview = step === 'preview'
+  const showReview = step === 'review' || importing
 
   return (
     <Dialog.Root open={open} onOpenChange={(o) => { if (!o) handleClose() }}>
@@ -741,10 +845,10 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
                 <button
                   type="button"
                   onClick={handleConfirm}
-                  disabled={preview === null || preview.hasErrors || importing}
+                  disabled={preview === null || preview.hasErrors}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {importing ? <ImportingLabel /> : candidates.length > 0 ? 'Next' : 'Confirm Import'}
+                  {candidates.length > 0 ? 'Next' : 'Review changes'}
                 </button>
               </div>
             </>
@@ -804,8 +908,45 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
                 </button>
                 <button
                   type="button"
-                  onClick={runImport}
+                  onClick={showPlan}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
+                >
+                  Review changes
+                </button>
+              </div>
+            </>
+          )}
+
+          {/* ── Review ─────────────────────────────────────────────────────── */}
+          {showReview && (
+            <>
+              <Dialog.Title className="text-base font-semibold text-gray-900 mb-1">
+                What this import will do
+              </Dialog.Title>
+              <p className="text-xs text-gray-500 mb-3">
+                Worked out by running the import against the project and rolling it back —
+                this is the outcome, not an estimate.
+              </p>
+
+              {plan === null ? (
+                <p className="text-sm text-gray-400">Working it out…</p>
+              ) : (
+                <ReviewList plan={plan.plan ?? []} truncated={plan.plan_truncated ?? false} />
+              )}
+
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setStep(candidates.length > 0 ? 'reconcile' : 'preview')}
                   disabled={importing}
+                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 disabled:opacity-50"
+                >
+                  Back
+                </button>
+                <button
+                  type="button"
+                  onClick={runImport}
+                  disabled={plan === null || importing}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {importing ? <ImportingLabel /> : 'Confirm Import'}

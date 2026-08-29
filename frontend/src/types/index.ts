@@ -67,6 +67,7 @@ export type TokenResponse = components['schemas']['TokenResponse']
 export type CsvRow = components['schemas']['CsvRow']
 export type CsvImportRequest = components['schemas']['CsvImportRequest']
 export type CsvImportResult = components['schemas']['CsvImportResult']
+export type PlannedChange = components['schemas']['PlannedChange']
 
 export interface ApiError {
   error: string

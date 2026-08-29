@@ -36,6 +36,8 @@ describe('CSV refresh of a project that already has data', () => {
       cy.contains('button', /^Next$/).click()
       cy.contains(/removed items already in the project/i).should('be.visible')
     }
+    cy.contains('button', /^Review changes$/).click()
+    cy.contains(/what this import will do/i).should('be.visible')
     cy.contains('button', /^Confirm Import$/).click()
     cy.contains(/import complete/i).should('be.visible')
     cy.get('[role="dialog"]').contains('button', /^Close$/).click()
@@ -105,6 +107,8 @@ describe('CSV refresh of a project that already has data', () => {
     cy.contains('button', /^Next$/).click()
     cy.contains('label', /^Remove$/).find('input[type="checkbox"]').check()
     cy.contains(/will delete/i).should('be.visible')
+    cy.contains('button', /^Review changes$/).click()
+    cy.contains(/what this import will do/i).should('be.visible')
     cy.contains('button', /^Confirm Import$/).click()
     cy.contains(/import complete/i).should('be.visible')
     cy.get('[role="dialog"]').contains('button', /^Close$/).click()
@@ -136,6 +140,10 @@ describe('CSV refresh of a project that already has data', () => {
     cy.contains(/Feature on PI-One/).should('be.visible')
     cy.contains(/takes.*1 story/).should('be.visible')
     cy.contains('label', /^Remove$/).find('input[type="checkbox"]').check()
+    cy.contains('button', /^Review changes$/).click()
+    // The plan names the cascade the reconcile row warned about.
+    cy.contains(/what this import will do/i).should('be.visible')
+    cy.contains(/with its feature/i).should('be.visible')
     cy.contains('button', /^Confirm Import$/).click()
 
     cy.contains(/import failed/i).should('not.exist')
@@ -183,6 +191,26 @@ describe('CSV refresh of a project that already has data', () => {
     cy.contains('Auth').should('not.contain.text', 'Auth,')
   })
 
+  // The review runs the import for real and rolls it back. If the rollback ever
+  // stopped working, backing out of the review would leave the change behind.
+  it('backing out of the review leaves the project untouched', () => {
+    seedFeature('Auth', 101)
+    openBacklogAsEditor()
+
+    upload('Feature,Auth & SSO,101,,,\nFeature,Brand new,102,,,')
+    cy.contains('button', /^Review changes$/).click()
+    cy.contains(/what this import will do/i).should('be.visible')
+    cy.contains('Brand new').should('be.visible')
+
+    cy.get('[role="dialog"]').contains('button', /^Back$/).click()
+    cy.contains('Rows in file').should('be.visible')
+    cy.get('[role="dialog"]').contains('button', /^Cancel$/).click()
+
+    cy.contains('Auth').should('be.visible')
+    cy.contains('Auth & SSO').should('not.exist')
+    cy.contains('Brand new').should('not.exist')
+  })
+
   // ── C1: a Parent the file does not list ────────────────────────────────────
 
   it('links a partial file to a parent that exists only in the project', () => {
@@ -191,6 +219,8 @@ describe('CSV refresh of a project that already has data', () => {
 
     // No Feature row at all — the incremental export ADO produces mid-sprint.
     upload('Product Backlog Item,Found mid-sprint,301,3,101,')
+    cy.contains('button', /^Review changes$/).click()
+    cy.contains(/what this import will do/i).should('be.visible')
     cy.contains('button', /^Confirm Import$/).click()
     cy.contains(/import complete/i).should('be.visible')
     cy.contains(/linked to a feature already in the project/i).should('be.visible')
@@ -216,7 +246,7 @@ describe('CSV refresh of a project that already has data', () => {
       { force: true },
     )
     cy.contains(/Parent "Auth" does not name an ID/).should('be.visible')
-    cy.contains('button', /^Confirm Import$/).should('be.disabled')
+    cy.contains('button', /^Review changes$/).should('be.disabled')
   })
 
   // ── C2: a Parent that has changed ──────────────────────────────────────────

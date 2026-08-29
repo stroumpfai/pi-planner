@@ -14,6 +14,7 @@ from app.schemas.csv_import import (
     CsvImportResult,
     CsvRow,
     OrphanLocation,
+    PlannedChange,
 )
 from app.services.continuation import descendant_ids, lineage_members, newest_leaf
 from app.services.events import broadcaster
@@ -22,6 +23,9 @@ from app.services.pbi_delete import delete_pbi_and_empty_group, detach_pbi_from_
 from app.services.project_state import get_or_create_state, state_item_type_for_pbi
 
 _VALID_ITEM_TYPES = {"feature", "story", "bug"}
+_PLAN_CAP = 500
+"""A plan longer than this is not something anyone reads item by item; the counts
+in the result still describe the whole file."""
 _USER_ID_MIN = 1
 _USER_ID_MAX = 999_999
 
@@ -164,6 +168,43 @@ def _cross_entity_errors(
     return errors
 
 
+class ImportPlan:
+    """What the import is doing, recorded as it does it.
+
+    Always built, returned only for a dry run. Keeping one accumulator threaded
+    through the real code path is the point: a plan assembled by a separate
+    read-only pass would be a second implementation, free to disagree with the one
+    that runs, which is exactly the gap this closes.
+    """
+
+    def __init__(self) -> None:
+        self.changes: list[PlannedChange] = []
+        self.total = 0
+
+    def add(
+        self,
+        action: str,
+        item_type: str,
+        title: str,
+        *,
+        user_id: int | None = None,
+        row: int | None = None,
+        changes: list[str] | None = None,
+        detail: str | None = None,
+    ) -> None:
+        self.total += 1
+        if len(self.changes) >= _PLAN_CAP:
+            return
+        self.changes.append(PlannedChange(
+            action=action, item_type=item_type, title=title, user_id=user_id,
+            row=row, changes=changes or [], detail=detail,
+        ))
+
+    @property
+    def truncated(self) -> bool:
+        return self.total > len(self.changes)
+
+
 async def _resolve_row_state(
     db: AsyncSession,
     project_id: str,
@@ -191,6 +232,7 @@ async def _upsert_one_feature(
     row: CsvRow,
     feature_map: dict[int, str],
     has_state_column: bool,
+    plan: ImportPlan,
 ) -> tuple[str, int, int]:
     """Create or update a single Feature. Returns (system_id, created, updated)."""
     state_changed, state_id = await _resolve_row_state(
@@ -202,14 +244,33 @@ async def _upsert_one_feature(
         feature = await db.get(Feature, sysid)
         if feature is None:
             return sysid, 0, 0
+
+        # Recorded before the write, so "updated" means something actually differs.
+        changed: list[str] = []
+        if feature.title != row.title:
+            changed.append("title")
+        if state_changed and feature.state_id != state_id:
+            changed.append("state")
+
         # A split feature is one work item spread over several PIs, and only its
         # root carries the user_id this row matched. Applying the change to that
         # member alone would leave every later PI showing the title and State the
         # feature had on the day it was split.
-        for member in await lineage_members(db, feature):
+        members = await lineage_members(db, feature)
+        for member in members:
             member.title = row.title
             if state_changed:
                 member.state_id = state_id
+
+        carried = len(members) - 1
+        plan.add(
+            "updated", "feature", row.title, user_id=row.user_id, row=row.row_number,
+            changes=changed,
+            detail=(
+                f"also applied to {carried} later-PI "
+                f"{'part' if carried == 1 else 'parts'}" if carried else None
+            ),
+        )
         return sysid, 0, 1
 
     sysid = str(uuid4())
@@ -221,6 +282,7 @@ async def _upsert_one_feature(
         location="backlog",
         state_id=state_id if state_changed else None,
     ))
+    plan.add("created", "feature", row.title, user_id=row.user_id, row=row.row_number)
     return sysid, 1, 0
 
 
@@ -233,7 +295,10 @@ class _PromotionResult(NamedTuple):
 
 
 async def _apply_promotions(
-    db: AsyncSession, promotions: list[_TypeChange], pbi_map: dict[int, str]
+    db: AsyncSession,
+    promotions: list[_TypeChange],
+    pbi_map: dict[int, str],
+    plan: ImportPlan,
 ) -> _PromotionResult:
     """Delete the stories being promoted so their IDs are free for a Feature.
 
@@ -253,6 +318,11 @@ async def _apply_promotions(
         if pbi is None:
             continue
         descriptions[change.user_id] = pbi.description
+        plan.add(
+            "retyped", "feature", pbi.title, user_id=change.user_id,
+            detail="story becomes a feature"
+            + (", losing its sprint placement" if pbi.group_id else ""),
+        )
         parent_id = pbi.parent_feature_system_id
         group_id = await delete_pbi_and_empty_group(db, pbi)
         deleted_pbis.append((change.system_id, parent_id))
@@ -271,13 +341,14 @@ async def _upsert_features(
     feature_rows: list[CsvRow],
     feature_map: dict[int, str],
     has_state_column: bool,
+    plan: ImportPlan,
 ) -> tuple[dict[int, str], int, int]:
     csv_feature_sysid: dict[int, str] = {}
     created = 0
     updated = 0
     for row in feature_rows:
         sysid, was_created, was_updated = await _upsert_one_feature(
-            db, project_id, row, feature_map, has_state_column
+            db, project_id, row, feature_map, has_state_column, plan
         )
         created += was_created
         updated += was_updated
@@ -366,6 +437,8 @@ async def _upsert_one_story(
     pbi_map: dict[int, str],
     has_state_column: bool,
     apply_reparenting: bool,
+    plan: ImportPlan,
+    parent_titles: dict[str, str],
 ) -> _StoryOutcome:
     """Create or update a single Story/Bug."""
     # Stories and Bugs draw from separate State Lists.
@@ -378,6 +451,17 @@ async def _upsert_one_story(
         if pbi is None:
             return _StoryOutcome()
         previous_item_type = pbi.item_type
+        previous_parent = pbi.parent_feature_system_id
+        changed: list[str] = []
+        if pbi.title != row.title:
+            changed.append("title")
+        if pbi.effort != row.effort:
+            changed.append("effort")
+        if pbi.item_type != row.item_type:
+            changed.append("type")
+        if state_changed and pbi.state_id != state_id:
+            changed.append("state")
+
         pbi.title = row.title
         pbi.effort = row.effort
         pbi.item_type = row.item_type
@@ -396,15 +480,40 @@ async def _upsert_one_story(
             target is not None
             and pbi.parent_feature_system_id not in target.members
         )
+        def _from_to(to_sysid: str) -> str:
+            return (
+                f"{parent_titles.get(previous_parent, 'another feature')}"
+                f" → {parent_titles.get(to_sysid, 'another feature')}"
+            )
+
         if not moved:
+            plan.add(
+                "updated", row.item_type, row.title,
+                user_id=row.user_id, row=row.row_number, changes=changed,
+            )
             return _StoryOutcome(updated=1)
         if not apply_reparenting:
+            plan.add(
+                "skipped", row.item_type, row.title,
+                user_id=row.user_id, row=row.row_number,
+                detail=f"stays under {parent_titles.get(previous_parent, 'its feature')}",
+            )
             return _StoryOutcome(updated=1, reparent_skipped=1)
 
         new_parent = await db.get(Feature, target.leaf) if target else None
         if new_parent is None:
+            plan.add(
+                "skipped", row.item_type, row.title,
+                user_id=row.user_id, row=row.row_number,
+                detail="its new feature could not be resolved",
+            )
             return _StoryOutcome(updated=1, reparent_skipped=1)
         freed = await _reparent(db, pbi, new_parent)
+        plan.add(
+            "moved", row.item_type, row.title,
+            user_id=row.user_id, row=row.row_number, changes=changed,
+            detail=_from_to(new_parent.system_id),
+        )
         return _StoryOutcome(updated=1, reparented=1, freed_group_id=freed)
 
     parent_sysid = target.leaf if target is not None else unassigned_sysid
@@ -418,6 +527,15 @@ async def _upsert_one_story(
         location="backlog",
         state_id=state_id if state_changed else None,
     ))
+    plan.add(
+        "created" if target is not None else "orphaned",
+        row.item_type, row.title, user_id=row.user_id, row=row.row_number,
+        detail=(
+            f"under {parent_titles[parent_sysid]}"
+            if target is not None and parent_sysid in parent_titles
+            else 'under "Unassigned"'
+        ),
+    )
     return _StoryOutcome(created=1)
 
 
@@ -430,6 +548,8 @@ async def _upsert_stories(
     unassigned_sysid: str | None,
     has_state_column: bool,
     apply_reparenting: bool,
+    plan: ImportPlan,
+    parent_titles: dict[str, str],
 ) -> tuple[_StoryOutcome, list[str]]:
     """Create or update every story row. Returns the totals and any freed groups."""
     # A story new to a split feature belongs where the work has got to, not where
@@ -457,6 +577,7 @@ async def _upsert_stories(
             db, project_id, row,
             targets.get(matched_sysid) if matched_sysid is not None else None,
             unassigned_sysid, pbi_map, has_state_column, apply_reparenting,
+            plan, parent_titles,
         )
         totals = _StoryOutcome(
             created=totals.created + outcome.created,
@@ -473,6 +594,7 @@ async def _apply_removals(
     db: AsyncSession,
     project_id: str,
     system_ids: list[str],
+    plan: ImportPlan,
 ) -> tuple[list[str], list[tuple[str, str]], list[str]]:
     """Delete the given features/PBIs (by system_id) belonging to this project.
 
@@ -498,7 +620,17 @@ async def _apply_removals(
         else:
             remaining.append(sid)
 
+    for sid in feature_ids:
+        doomed = await db.get(Feature, sid)
+        if doomed is not None:
+            plan.add("deleted", "feature", doomed.title, user_id=doomed.user_id)
     deletion = await delete_features(db, feature_ids)
+    # Continuations and stories nobody listed still disappear; a plan that showed
+    # only the ticked row would understate the damage exactly as the old summary did.
+    for extra_id in deletion.feature_ids[len(feature_ids):]:
+        plan.add("deleted", "feature", "(carried into a later PI)", detail="with its origin")
+    for _pbi_id, _parent in deletion.pbis:
+        plan.add("deleted", "story", "(story of a deleted feature)", detail="with its feature")
     deleted_pbis: list[tuple[str, str]] = list(deletion.pbis)
     deleted_group_ids: list[str] = list(deletion.group_ids)
     already_deleted = {pbi_id for pbi_id, _ in deletion.pbis}
@@ -509,6 +641,7 @@ async def _apply_removals(
         pbi = await db.get(PBI, sid)
         if pbi is not None and pbi.project_id == project_id:
             parent_id = pbi.parent_feature_system_id
+            plan.add("deleted", pbi.item_type, pbi.title, user_id=pbi.user_id)
             group_id = await delete_pbi_and_empty_group(db, pbi)
             deleted_pbis.append((sid, parent_id))
             if group_id:
@@ -602,6 +735,7 @@ async def execute_import(
     apply_reparenting: bool = False,
     apply_type_changes: bool = False,
     actor: str = "",
+    dry_run: bool = False,
 ) -> CsvImportResult:
     errors = _validate_rows(rows)
     if errors:
@@ -610,8 +744,9 @@ async def execute_import(
             detail={"errors": [e.model_dump() for e in errors]},
         )
 
+    plan = ImportPlan()
     deleted_feature_ids, deleted_pbis, deleted_group_ids = await _apply_removals(
-        db, project_id, removals or []
+        db, project_id, removals or [], plan
     )
     if deleted_feature_ids or deleted_pbis:
         await db.flush()
@@ -626,7 +761,7 @@ async def execute_import(
     retype_skipped = sum(1 for c in type_changes if c.promotion) - len(promotions)
     retype_blocked = sum(1 for c in type_changes if not c.promotion)
 
-    promoted = await _apply_promotions(db, promotions, pbi_map)
+    promoted = await _apply_promotions(db, promotions, pbi_map, plan)
     deleted_pbis += promoted.deleted_pbis
     deleted_group_ids += promoted.freed_group_ids
 
@@ -653,7 +788,7 @@ async def execute_import(
     states_before = await _count_states(db, project_id)
 
     csv_feature_sysid, created_features, updated_features = await _upsert_features(
-        db, project_id, feature_rows, feature_map, has_state_column
+        db, project_id, feature_rows, feature_map, has_state_column, plan
     )
     await db.flush()
 
@@ -700,12 +835,49 @@ async def execute_import(
         unassigned_sysid = await _get_or_create_unassigned(db, project_id)
         await db.flush()
 
+    # Titles for anything a story might be filed under, so the plan can say
+    # "Auth → Payments" rather than name two UUIDs.
+    parent_titles = {
+        sysid: title
+        for sysid, title in (await db.execute(
+            select(Feature.system_id, Feature.title).where(Feature.project_id == project_id)
+        )).all()
+    }
+
     stories, freed_group_ids = await _upsert_stories(
         db, project_id, story_rows, parent_lookup, pbi_map, unassigned_sysid,
-        has_state_column, apply_reparenting,
+        has_state_column, apply_reparenting, plan, parent_titles,
     )
     deleted_group_ids += freed_group_ids
     created_states = await _count_states(db, project_id) - states_before
+
+    result = CsvImportResult(
+        created_features=created_features,
+        created_stories=stories.created,
+        updated_features=updated_features,
+        updated_stories=stories.updated,
+        removed_features=len(deleted_feature_ids),
+        removed_stories=len(deleted_pbis),
+        orphan_stories=orphan_count,
+        orphan_stories_placed=len(new_orphan_rows),
+        orphan_stories_existing=orphan_locations,
+        stories_parented_from_project=parented_from_project,
+        stories_reparented=stories.reparented,
+        stories_reparent_skipped=stories.reparent_skipped,
+        items_retyped=len(promotions),
+        items_retype_skipped=retype_skipped,
+        items_retype_blocked=retype_blocked,
+        created_states=created_states,
+    )
+
+    if dry_run:
+        # Everything above ran for real; none of it survives. That is what makes the
+        # plan trustworthy — it is the outcome of the import, not a prediction of it.
+        await db.rollback()
+        return result.model_copy(update={
+            "plan": plan.changes, "plan_truncated": plan.truncated,
+        })
+
     await db.commit()
 
     # One event for one transaction.
@@ -726,21 +898,4 @@ async def execute_import(
         "removed": len(deleted_feature_ids) + len(deleted_pbis),
     })
 
-    return CsvImportResult(
-        created_features=created_features,
-        created_stories=stories.created,
-        updated_features=updated_features,
-        updated_stories=stories.updated,
-        removed_features=len(deleted_feature_ids),
-        removed_stories=len(deleted_pbis),
-        orphan_stories=orphan_count,
-        orphan_stories_placed=len(new_orphan_rows),
-        orphan_stories_existing=orphan_locations,
-        stories_parented_from_project=parented_from_project,
-        stories_reparented=stories.reparented,
-        stories_reparent_skipped=stories.reparent_skipped,
-        items_retyped=len(promotions),
-        items_retype_skipped=retype_skipped,
-        items_retype_blocked=retype_blocked,
-        created_states=created_states,
-    )
+    return result

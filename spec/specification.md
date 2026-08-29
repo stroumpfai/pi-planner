@@ -430,9 +430,15 @@ It is a type change, reported in the preview and decided there — see 9.3.
 
 1. User selects `.csv` file
 2. Client-side parse + preview summary (total rows, removed, features, stories, orphans, errors)
-3. If no errors: user confirms
-4. Backend re-validates and executes in a single transaction
-5. Post-import report: created/updated counts, orphan count
+3. If Removed rows match items in the project, the user decides which to delete
+4. **Review**: the backend runs the import and rolls it back, returning the plan it would
+   carry out — created, updated with the fields that change, deleted (including the
+   continuations and stories a cascade reaches), moved, orphaned, left alone. This is the
+   outcome of the import rather than an estimate of it, because it is the same code path
+5. If the user confirms, the identical request is sent again without `dry_run`, so what was
+   reviewed is what runs
+6. Backend re-validates and executes in a single transaction
+7. Post-import report: created/updated counts, orphan count
 
 ### 9.6 Limitations
 

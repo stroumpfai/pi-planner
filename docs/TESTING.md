@@ -147,7 +147,7 @@ seeds `testuser` and `testuser2`, runs the suite and tears it all down.
 | `feature-split` | Split PBIs into another PI, continuation lineage, cancel continuation |
 | `backlog-search` | Filter by ID and title, clear, drag while filtered |
 | `csv-import` | Preview, validation errors, confirmed import, empty file |
-| `csv-refresh` | Re-import into a project that already has data: rename and new story, reconcile keep vs remove, removing a feature planned on a board, a rename reaching a split feature's later PI, a partial file's Parent, a changed Parent, a changed work item type |
+| `csv-refresh` | Re-import into a project that already has data, including the dry-run review and its rollback: rename and new story, reconcile keep vs remove, removing a feature planned on a board, a rename reaching a split feature's later PI, a partial file's Parent, a changed Parent, a changed work item type |
 | `edit-lock` | Acquire, release, heartbeat, lock held by another user |
 | `swimlanes` | Swimlane CRUD, collapse/expand all, focus mode |
 | `pi-planning` | PI create, state transitions, single-in-progress rule, feature drag, grouping, group and PBI drops onto sprint cells |

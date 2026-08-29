@@ -46,6 +46,30 @@ class CsvImportRequest(BaseModel):
     apply_type_changes: bool = False
 
 
+class PlannedChange(BaseModel):
+    """One thing an import would do, as worked out by actually doing it.
+
+    Produced by the same code path that performs the import, run inside a
+    transaction that is then rolled back — so this is what will happen, not a
+    second implementation's opinion of what should.
+    """
+
+    action: str
+    """created | updated | deleted | moved | retyped | skipped"""
+    item_type: str          # feature | story | bug
+    user_id: int | None
+    title: str
+    row: int | None = None
+    """CSV row this came from. None for items pulled in by a cascade, which no row
+    mentions — the continuations and stories that go with a deleted feature."""
+    changes: list[str] = []
+    """Field names an update touches, so a re-import that changes nothing reads as
+    changing nothing."""
+    detail: str | None = None
+    """Where the change lands, when that is the point of it: "Auth → Payments" for
+    a move, the PIs a deletion reaches."""
+
+
 class CsvImportError(BaseModel):
     row: int
     message: str
@@ -87,4 +111,8 @@ class CsvImportResult(BaseModel):
     items_retyped: int = 0
     items_retype_skipped: int = 0
     items_retype_blocked: int = 0
+    # Only populated for a dry run, where seeing the changes is the whole point.
+    plan: list[PlannedChange] = []
+    plan_truncated: bool = False
+    """True when the plan was capped — the counts above still cover everything."""
     created_states: int = 0  # State List entries discovered by this import

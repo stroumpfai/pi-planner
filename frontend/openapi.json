@@ -4696,6 +4696,18 @@
             }
           },
           {
+            "name": "dry_run",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Run the import and roll it back, returning the plan it would carry out.",
+              "default": false,
+              "title": "Dry Run"
+            },
+            "description": "Run the import and roll it back, returning the plan it would carry out."
+          },
+          {
             "name": "pi_session",
             "in": "cookie",
             "required": false,
@@ -5674,6 +5686,19 @@
             "type": "integer",
             "title": "Items Retype Blocked",
             "default": 0
+          },
+          "plan": {
+            "items": {
+              "$ref": "#/components/schemas/PlannedChange"
+            },
+            "type": "array",
+            "title": "Plan",
+            "default": []
+          },
+          "plan_truncated": {
+            "type": "boolean",
+            "title": "Plan Truncated",
+            "default": false
           },
           "created_states": {
             "type": "integer",
@@ -7107,6 +7132,72 @@
           "group"
         ],
         "title": "PlaceStoryResponse"
+      },
+      "PlannedChange": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "item_type": {
+            "type": "string",
+            "title": "Item Type"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "row": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Row"
+          },
+          "changes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Changes",
+            "default": []
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action",
+          "item_type",
+          "user_id",
+          "title"
+        ],
+        "title": "PlannedChange",
+        "description": "One thing an import would do, as worked out by actually doing it.\n\nProduced by the same code path that performs the import, run inside a\ntransaction that is then rolled back \u2014 so this is what will happen, not a\nsecond implementation's opinion of what should."
       },
       "ProjectCreate": {
         "properties": {

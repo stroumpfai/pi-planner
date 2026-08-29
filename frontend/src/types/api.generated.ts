@@ -521,6 +521,16 @@ export interface components {
        */
       items_retype_blocked?: number;
       /**
+       * Plan
+       * @default []
+       */
+      plan?: components["schemas"]["PlannedChange"][];
+      /**
+       * Plan Truncated
+       * @default false
+       */
+      plan_truncated?: boolean;
+      /**
        * Created States
        * @default 0
        */
@@ -942,6 +952,33 @@ export interface components {
     PlaceStoryResponse: {
       story: components["schemas"]["PBIResponse"];
       group: components["schemas"]["GroupResponse"];
+    };
+    /**
+     * PlannedChange
+     * @description One thing an import would do, as worked out by actually doing it.
+     *
+     * Produced by the same code path that performs the import, run inside a
+     * transaction that is then rolled back — so this is what will happen, not a
+     * second implementation's opinion of what should.
+     */
+    PlannedChange: {
+      /** Action */
+      action: string;
+      /** Item Type */
+      item_type: string;
+      /** User Id */
+      user_id: number | null;
+      /** Title */
+      title: string;
+      /** Row */
+      row?: number | null;
+      /**
+       * Changes
+       * @default []
+       */
+      changes?: string[];
+      /** Detail */
+      detail?: string | null;
     };
     /** ProjectCreate */
     ProjectCreate: {
@@ -3266,6 +3303,10 @@ export interface operations {
   /** Import Csv */
   import_csv_api_v1_projects__project_id__import_csv_post: {
     parameters: {
+      query?: {
+        /** @description Run the import and roll it back, returning the plan it would carry out. */
+        dry_run?: boolean;
+      };
       path: {
         project_id: string;
       };

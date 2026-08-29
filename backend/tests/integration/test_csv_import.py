@@ -1274,3 +1274,191 @@ async def test_a_cascade_is_covered_by_the_one_event(client, split_feature, capt
     assert event == "import:completed"
     # origin + continuation + both stories
     assert data["removed"] == 4
+
+
+# ── Dry run ───────────────────────────────────────────────────────────────────
+
+def _dry(pid: str) -> str:
+    return f"{_url(pid)}?dry_run=true"
+
+
+@pytest.mark.asyncio
+async def test_a_dry_run_changes_nothing(client, project):
+    """The whole contract: it runs the import, then leaves no trace of it."""
+    pid = project["system_id"]
+    resp = await client.post(_dry(pid), json={"rows": [
+        _row(2, "feature", "Auth", user_id=101, state="Active"),
+        _row(3, "story", "Login", user_id=201, parent_id=101),
+    ], "has_state_column": True})
+    assert resp.status_code == 200
+    assert resp.json()["created_features"] == 1
+    assert resp.json()["created_stories"] == 1
+
+    assert (await client.get(f"/api/v1/projects/{pid}/features")).json() == []
+    assert (await client.get(f"/api/v1/projects/{pid}/pbis")).json() == []
+    # State vocabulary is discovered during the import, so it has to roll back too.
+    assert (await client.get(f"/api/v1/projects/{pid}/states/")).json() == []
+
+
+@pytest.mark.asyncio
+async def test_a_dry_run_does_not_delete(client, split_feature):
+    pid = split_feature["project_id"]
+    resp = await client.post(_dry(pid), json={
+        "rows": [], "removals": [split_feature["origin"]["system_id"]],
+    })
+    assert resp.json()["removed_features"] == 2
+    assert len((await client.get(f"/api/v1/projects/{pid}/features")).json()) == 2
+    assert len((await client.get(f"/api/v1/projects/{pid}/pbis")).json()) == 2
+
+
+@pytest.mark.asyncio
+async def test_a_dry_run_says_nothing_to_anyone(client, project, captured_events):
+    pid = project["system_id"]
+    captured_events.clear()
+    await client.post(_dry(pid), json={"rows": [_row(2, "feature", "Auth", user_id=101)]})
+    assert captured_events == []
+
+
+@pytest.mark.asyncio
+async def test_the_plan_names_what_would_be_created(client, project):
+    pid = project["system_id"]
+    plan = (await client.post(_dry(pid), json={"rows": [
+        _row(2, "feature", "Auth", user_id=101),
+        _row(3, "story", "Login", user_id=201, parent_id=101),
+    ]})).json()["plan"]
+
+    assert [(c["action"], c["item_type"], c["title"]) for c in plan] == [
+        ("created", "feature", "Auth"),
+        ("created", "story", "Login"),
+    ]
+    assert plan[0]["row"] == 2
+    assert plan[1]["detail"] == "under Auth"
+
+
+@pytest.mark.asyncio
+async def test_the_plan_names_the_fields_an_update_changes(client, project):
+    pid = project["system_id"]
+    await client.post(_url(pid), json={"rows": [
+        _row(2, "feature", "Auth", user_id=101),
+        _row(3, "story", "Login", user_id=201, parent_id=101, effort=3),
+    ]})
+
+    plan = (await client.post(_dry(pid), json={"rows": [
+        _row(2, "feature", "Auth & SSO", user_id=101),
+        _row(3, "story", "Login", user_id=201, parent_id=101, effort=8),
+    ]})).json()["plan"]
+
+    by_title = {c["title"]: c for c in plan}
+    assert by_title["Auth & SSO"]["changes"] == ["title"]
+    assert by_title["Login"]["changes"] == ["effort"]
+
+
+@pytest.mark.asyncio
+async def test_a_re_import_that_changes_nothing_says_so(client, project):
+    """The reassurance the old preview could never give: this file is a no-op."""
+    pid = project["system_id"]
+    rows = [
+        _row(2, "feature", "Auth", user_id=101),
+        _row(3, "story", "Login", user_id=201, parent_id=101, effort=3),
+    ]
+    await client.post(_url(pid), json={"rows": rows})
+
+    plan = (await client.post(_dry(pid), json={"rows": rows})).json()["plan"]
+    assert all(c["action"] == "updated" for c in plan)
+    assert all(c["changes"] == [] for c in plan)
+
+
+@pytest.mark.asyncio
+async def test_the_plan_shows_a_move_from_and_to(client, two_features):
+    pid = two_features["project_id"]
+    plan = (await client.post(_dry(pid), json={
+        "rows": [_row(2, "story", "Login form", user_id=201, parent_id=102)],
+        "apply_reparenting": True,
+    })).json()["plan"]
+
+    moved = [c for c in plan if c["action"] == "moved"]
+    assert len(moved) == 1
+    assert moved[0]["detail"] == "Auth → Payments"
+
+
+@pytest.mark.asyncio
+async def test_the_plan_shows_a_declined_move_as_staying_put(client, two_features):
+    pid = two_features["project_id"]
+    plan = (await client.post(_dry(pid), json={
+        "rows": [_row(2, "story", "Login form", user_id=201, parent_id=102)],
+    })).json()["plan"]
+
+    skipped = [c for c in plan if c["action"] == "skipped"]
+    assert skipped[0]["detail"] == "stays under Auth"
+
+
+@pytest.mark.asyncio
+async def test_the_plan_marks_an_orphan_as_one(client, project):
+    pid = project["system_id"]
+    plan = (await client.post(_dry(pid), json={
+        "rows": [_row(2, "story", "Nobody's child", user_id=201)],
+    })).json()["plan"]
+    assert plan[0]["action"] == "orphaned"
+    assert plan[0]["detail"] == 'under "Unassigned"'
+
+
+@pytest.mark.asyncio
+async def test_the_plan_counts_a_cascade_nobody_listed(client, split_feature):
+    """A ticked feature drags its continuations and stories; the plan has to show them."""
+    pid = split_feature["project_id"]
+    plan = (await client.post(_dry(pid), json={
+        "rows": [], "removals": [split_feature["origin"]["system_id"]],
+    })).json()["plan"]
+
+    deleted = [c for c in plan if c["action"] == "deleted"]
+    assert len(deleted) == 4  # origin + continuation + two stories
+    assert sum(1 for c in deleted if c["detail"] == "with its feature") == 2
+
+
+@pytest.mark.asyncio
+async def test_the_plan_says_a_promotion_costs_a_placement(client, story_to_promote):
+    pid = story_to_promote["project_id"]
+    plan = (await client.post(_dry(pid), json={
+        "rows": [_row(2, "feature", "Account recovery", user_id=201)],
+        "apply_type_changes": True,
+    })).json()["plan"]
+
+    retyped = [c for c in plan if c["action"] == "retyped"]
+    assert retyped[0]["detail"] == "story becomes a feature, losing its sprint placement"
+
+
+@pytest.mark.asyncio
+async def test_the_plan_notes_a_rename_reaching_a_later_pi(client, split_feature):
+    pid = split_feature["project_id"]
+    plan = (await client.post(_dry(pid), json={
+        "rows": [_row(2, "feature", "Auth & SSO", user_id=101)],
+    })).json()["plan"]
+    assert plan[0]["detail"] == "also applied to 1 later-PI part"
+
+
+@pytest.mark.asyncio
+async def test_a_real_import_carries_no_plan(client, project):
+    """The plan is for deciding, not for reporting — it would be dead weight here."""
+    resp = await client.post(_url(project["system_id"]), json={
+        "rows": [_row(2, "feature", "Auth", user_id=101)],
+    })
+    assert resp.json()["plan"] == []
+    assert resp.json()["plan_truncated"] is False
+
+
+@pytest.mark.asyncio
+async def test_a_very_long_plan_is_capped_but_the_counts_are_not(client, project):
+    pid = project["system_id"]
+    rows = [_row(i + 2, "feature", f"Feature {i}", user_id=i + 1) for i in range(520)]
+    data = (await client.post(_dry(pid), json={"rows": rows})).json()
+    assert data["created_features"] == 520
+    assert len(data["plan"]) == 500
+    assert data["plan_truncated"] is True
+
+
+@pytest.mark.asyncio
+async def test_a_dry_run_still_refuses_an_invalid_file(client, project):
+    resp = await client.post(_dry(project["system_id"]), json={
+        "rows": [_row(2, "feature", "", user_id=101)],
+    })
+    assert resp.status_code == 422

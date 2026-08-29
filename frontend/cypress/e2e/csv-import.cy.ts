@@ -38,7 +38,7 @@ Product Backlog Item,Login form,,3,101
       { force: true },
     )
     cy.contains(/validation error|error/i).should('be.visible')
-    cy.get('button').contains(/confirm import/i).should('be.disabled')
+    cy.get('button').contains(/review changes/i).should('be.disabled')
   })
 
   it('confirms valid import and features appear in backlog', () => {
@@ -46,6 +46,8 @@ Product Backlog Item,Login form,,3,101
       { contents: Cypress.Buffer.from(validCsv), fileName: 'test.csv', mimeType: 'text/csv' },
       { force: true },
     )
+    cy.contains('button', /review changes/i).click()
+    cy.contains(/what this import will do/i).should('be.visible')
     cy.contains('button', /confirm import/i).click()
     cy.contains(/import complete/i).should('be.visible')
     cy.contains('button', /close/i).click()
@@ -59,6 +61,6 @@ Product Backlog Item,Login form,,3,101
     )
     // Preview shows 0 rows — confirm button disabled or "no rows" message
     cy.contains('Import CSV').should('be.visible')
-    cy.get('button').contains(/confirm import/i).should('be.disabled')
+    cy.get('button').contains(/review changes/i).should('be.disabled')
   })
 })

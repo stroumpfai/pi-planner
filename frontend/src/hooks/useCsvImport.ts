@@ -2,6 +2,16 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { csvImportApi } from '@/services/csvImport'
 import type { CsvImportRequest } from '@/types'
 
+/**
+ * The plan an import would carry out, from the server actually carrying it out and
+ * rolling back. Invalidates nothing: by the time it answers, the database is
+ * exactly as it was.
+ */
+export const useCsvDryRun = (projectId: string) =>
+  useMutation({
+    mutationFn: (body: CsvImportRequest) => csvImportApi.dryRun(projectId, body),
+  })
+
 export const useCsvImport = (projectId: string) => {
   const qc = useQueryClient()
   return useMutation({

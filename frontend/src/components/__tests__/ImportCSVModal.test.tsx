@@ -3,7 +3,7 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ImportCSVModal } from '../ImportCSVModal'
-import { useCsvImport } from '@/hooks/useCsvImport'
+import { useCsvImport, useCsvDryRun } from '@/hooks/useCsvImport'
 import * as csvParser from '@/utils/csvParser'
 import type { Feature, PBI, PI } from '@/types'
 
@@ -24,6 +24,7 @@ const makeWrapper = () => {
 }
 
 const mutateAsync = vi.fn()
+const dryRun = vi.fn()
 
 const fakeParseResult: csvParser.ParseResult = {
   rows: [{ rowNumber: 2, itemType: 'story', userId: null, title: 'Auth', effort: null, parentId: null, state: 'New' }],
@@ -71,6 +72,11 @@ function makePBI(id: number, systemId: string, title: string, parent: string): P
 beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(useCsvImport).mockReturnValue({ mutateAsync } as unknown as ReturnType<typeof useCsvImport>)
+  // The review step asks the server what the import would do before it does it.
+  dryRun.mockResolvedValue({ ...okResult, plan: [], plan_truncated: false })
+  vi.mocked(useCsvDryRun).mockReturnValue(
+    { mutateAsync: dryRun } as unknown as ReturnType<typeof useCsvDryRun>,
+  )
   vi.mocked(csvParser.parseImportCSV).mockReturnValue(fakeParseResult)
   vi.mocked(csvParser.buildPreview).mockReturnValue(fakePreview)
 })
@@ -94,6 +100,16 @@ const defaultProps = {
   onClose: vi.fn(),
 }
 
+/** Preview/reconcile now lead to a review of the server's plan before the import. */
+async function reviewAndConfirm() {
+  await userEvent.click(screen.getByRole('button', { name: /review changes/i }))
+  // Confirm is disabled until the server's plan lands, so wait for it to enable.
+  await waitFor(() =>
+    expect(screen.getByRole('button', { name: /confirm import/i })).toBeEnabled(),
+  )
+  await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+}
+
 describe('ImportCSVModal', () => {
   it('shows "Import CSV" title when open', async () => {
     render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
@@ -115,8 +131,8 @@ describe('ImportCSVModal', () => {
       errors: [{ row: 1, message: 'Bad row' }],
     })
     render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
-    await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
-    expect(screen.getByRole('button', { name: /confirm import/i })).toBeDisabled()
+    await waitFor(() => screen.getByRole('button', { name: /review changes/i }))
+    expect(screen.getByRole('button', { name: /review changes/i })).toBeDisabled()
   })
 
   it('shows validation error messages when preview has errors', async () => {
@@ -132,16 +148,16 @@ describe('ImportCSVModal', () => {
   it('calls mutateAsync with parsed rows and empty removals when no matches exist', async () => {
     mutateAsync.mockResolvedValue(okResult)
     render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
-    await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
-    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    await waitFor(() => screen.getByRole('button', { name: /review changes/i }))
+    await reviewAndConfirm()
     expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: [], has_state_column: true, apply_reparenting: false, apply_type_changes: false })
   })
 
   it('shows "Import complete" after successful import', async () => {
     mutateAsync.mockResolvedValue(okResult)
     render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
-    await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
-    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    await waitFor(() => screen.getByRole('button', { name: /review changes/i }))
+    await reviewAndConfirm()
     await waitFor(() => expect(screen.getByText(/import complete/i)).toBeInTheDocument())
   })
 
@@ -152,8 +168,8 @@ describe('ImportCSVModal', () => {
       <ImportCSVModal {...defaultProps} open file={file} features={[]} pbis={[]} />,
       { wrapper: makeWrapper() },
     )
-    await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
-    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    await waitFor(() => screen.getByRole('button', { name: /review changes/i }))
+    await reviewAndConfirm()
     await waitFor(() => expect(screen.getByText(/import complete/i)).toBeInTheDocument())
 
     // The import invalidates the features/pbis queries — the refetch hands the
@@ -173,8 +189,8 @@ describe('ImportCSVModal', () => {
       orphan_stories_existing: [{ feature_title: 'Unassigned', location: 'pi', count: 3 }],
     })
     render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
-    await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
-    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    await waitFor(() => screen.getByRole('button', { name: /review changes/i }))
+    await reviewAndConfirm()
     await waitFor(() => expect(screen.getByText(/import complete/i)).toBeInTheDocument())
     expect(screen.getByText(/already exist under "Unassigned"/i)).toBeInTheDocument()
     expect(screen.getByText(/on the PI board, not the backlog/i)).toBeInTheDocument()
@@ -190,8 +206,8 @@ describe('ImportCSVModal', () => {
       orphan_stories_existing: [{ feature_title: 'Auth Feature', location: 'backlog', count: 1 }],
     })
     render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
-    await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
-    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    await waitFor(() => screen.getByRole('button', { name: /review changes/i }))
+    await reviewAndConfirm()
     await waitFor(() => expect(screen.getByText(/import complete/i)).toBeInTheDocument())
     expect(screen.getByText(/1 orphan story placed in "Unassigned" feature/i)).toBeInTheDocument()
     expect(screen.getByText(/already exists under "Auth Feature" — left in the backlog/i)).toBeInTheDocument()
@@ -202,8 +218,8 @@ describe('ImportCSVModal', () => {
       response: { data: { detail: { errors: [{ row: 1, message: 'Server error' }] } } },
     })
     render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
-    await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
-    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    await waitFor(() => screen.getByRole('button', { name: /review changes/i }))
+    await reviewAndConfirm()
     await waitFor(() => expect(screen.getByText(/import failed/i)).toBeInTheDocument())
     expect(screen.getByText(/server error/i)).toBeInTheDocument()
   })
@@ -236,7 +252,7 @@ describe('ImportCSVModal', () => {
     )
     await waitFor(() => screen.getByRole('button', { name: /next/i }))
     await userEvent.click(screen.getByRole('button', { name: /next/i }))
-    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    await reviewAndConfirm()
     expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: [], has_state_column: true, apply_reparenting: false, apply_type_changes: false })
   })
 
@@ -253,24 +269,56 @@ describe('ImportCSVModal', () => {
     await waitFor(() => screen.getByRole('button', { name: /next/i }))
     await userEvent.click(screen.getByRole('button', { name: /next/i }))
     await userEvent.click(screen.getByRole('checkbox'))
-    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    await reviewAndConfirm()
     expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: ['feat-1'], has_state_column: true, apply_reparenting: false, apply_type_changes: false })
   })
 
-  it('stays on the preview screen while importing when there is nothing to reconcile', async () => {
+  it('holds the plan on screen while the import runs', async () => {
     let release: (v: unknown) => void = () => {}
     mutateAsync.mockReturnValue(new Promise((resolve) => { release = resolve }))
     render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
-    await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
-    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    await waitFor(() => screen.getByRole('button', { name: /review changes/i }))
+    await reviewAndConfirm()
 
-    // The reconcile heading has no list to show here — it must not flash up.
-    expect(screen.queryByText(/removed items already in the project/i)).not.toBeInTheDocument()
-    expect(screen.getByText(/import csv/i)).toBeInTheDocument()
+    // What was approved stays visible until it has actually happened.
+    expect(screen.getByText(/what this import will do/i)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: /importing/i })).toBeDisabled()
+    expect(screen.queryByText(/removed items already in the project/i)).not.toBeInTheDocument()
 
     release(okResult)
     await waitFor(() => expect(screen.getByText(/import complete/i)).toBeInTheDocument())
+  })
+
+  it('shows the plan the server returns, and the reason a row is unchanged', async () => {
+    dryRun.mockResolvedValue({
+      ...okResult,
+      plan: [
+        { action: 'created', item_type: 'feature', user_id: 101, title: 'Auth', row: 2, changes: [], detail: null },
+        { action: 'updated', item_type: 'story', user_id: 201, title: 'Login', row: 3, changes: [], detail: null },
+        { action: 'deleted', item_type: 'story', user_id: 202, title: 'Gone', row: null, changes: [], detail: 'with its feature' },
+      ],
+      plan_truncated: false,
+    })
+    render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByRole('button', { name: /review changes/i }))
+    await userEvent.click(screen.getByRole('button', { name: /review changes/i }))
+
+    await waitFor(() => expect(screen.getByText('Auth')).toBeInTheDocument())
+    // Count and label are separate text nodes, so match on the whole chip.
+    expect(screen.getByText((_, el) => el?.textContent === '1 new')).toBeInTheDocument()
+    expect(screen.getByText((_, el) => el?.textContent === '1 deleted')).toBeInTheDocument()
+    // The reassurance the file-only preview could never give.
+    expect(screen.getByText(/no change/i)).toBeInTheDocument()
+  })
+
+  it('sends the reviewed body unchanged when the import is confirmed', async () => {
+    mutateAsync.mockResolvedValue(okResult)
+    render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByRole('button', { name: /review changes/i }))
+    await reviewAndConfirm()
+
+    // What was reviewed is what runs — otherwise the plan describes something else.
+    expect(mutateAsync).toHaveBeenCalledWith(dryRun.mock.calls[0][0])
   })
 
   // ── Remove-with-parent ─────────────────────────────────────────────────────
@@ -295,7 +343,7 @@ describe('ImportCSVModal', () => {
     await waitFor(() => screen.getByRole('button', { name: /next/i }))
     await userEvent.click(screen.getByRole('button', { name: /next/i }))
     await userEvent.click(screen.getByRole('checkbox'))
-    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    await reviewAndConfirm()
     expect(mutateAsync).toHaveBeenCalledWith(
       expect.objectContaining({ rows: [], removals: ['feat-1'] }),
     )
@@ -312,7 +360,7 @@ describe('ImportCSVModal', () => {
     await userEvent.click(screen.getByRole('button', { name: /next/i }))
     // Kept by default — the child row must come along rather than vanish silently.
     expect(screen.getByText(/1 child row from this file/i)).toBeInTheDocument()
-    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    await reviewAndConfirm()
     expect(mutateAsync).toHaveBeenCalledWith(
       expect.objectContaining({
         rows: [expect.objectContaining({ user_id: 201, title: 'Child' })],
@@ -333,7 +381,7 @@ describe('ImportCSVModal', () => {
     )
     await waitFor(() => screen.getByRole('button', { name: /next/i }))
     await userEvent.click(screen.getByRole('button', { name: /next/i }))
-    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    await reviewAndConfirm()
     await waitFor(() => expect(screen.getByText(/features removed/i)).toBeInTheDocument())
     expect(screen.getByText(/stories removed/i)).toBeInTheDocument()
   })
@@ -465,7 +513,7 @@ describe('ImportCSVModal', () => {
     )
     await waitFor(() => screen.getByRole('checkbox'))
     await userEvent.click(screen.getByRole('checkbox'))
-    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    await reviewAndConfirm()
     expect(mutateAsync).toHaveBeenCalledWith(
       expect.objectContaining({ apply_reparenting: true }),
     )
@@ -492,7 +540,7 @@ describe('ImportCSVModal', () => {
       <ImportCSVModal {...defaultProps} {...movedStoryProject()} open file={makeFile()} />,
       { wrapper: makeWrapper() },
     )
-    await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
+    await waitFor(() => screen.getByRole('button', { name: /review changes/i }))
     expect(screen.queryByText(/moved to a different feature/i)).not.toBeInTheDocument()
   })
 
@@ -514,7 +562,7 @@ describe('ImportCSVModal', () => {
       />,
       { wrapper: makeWrapper() },
     )
-    await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
+    await waitFor(() => screen.getByRole('button', { name: /review changes/i }))
     expect(screen.queryByText(/moved to a different feature/i)).not.toBeInTheDocument()
   })
 
@@ -560,7 +608,7 @@ describe('ImportCSVModal', () => {
     )
     await waitFor(() => screen.getByRole('checkbox'))
     await userEvent.click(screen.getByRole('checkbox'))
-    await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+    await reviewAndConfirm()
     expect(mutateAsync).toHaveBeenCalledWith(
       expect.objectContaining({ apply_type_changes: true }),
     )
@@ -597,7 +645,7 @@ describe('ImportCSVModal', () => {
       <ImportCSVModal {...defaultProps} {...typedProject()} open file={makeFile()} />,
       { wrapper: makeWrapper() },
     )
-    await waitFor(() => screen.getByRole('button', { name: /confirm import/i }))
+    await waitFor(() => screen.getByRole('button', { name: /review changes/i }))
     expect(screen.queryByText(/in this file/i)).not.toBeInTheDocument()
   })
 })
