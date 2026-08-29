@@ -147,6 +147,7 @@ seeds `testuser` and `testuser2`, runs the suite and tears it all down.
 | `feature-split` | Split PBIs into another PI, continuation lineage, cancel continuation |
 | `backlog-search` | Filter by ID and title, clear, drag while filtered |
 | `csv-import` | Preview, validation errors, confirmed import, empty file |
+| `csv-refresh` | Re-import into a project that already has data: rename and new story, reconcile keep vs remove, removing a feature planned on a board, a rename reaching a split feature's later PI, a partial file's Parent, a changed Parent, a changed work item type |
 | `edit-lock` | Acquire, release, heartbeat, lock held by another user |
 | `swimlanes` | Swimlane CRUD, collapse/expand all, focus mode |
 | `pi-planning` | PI create, state transitions, single-in-progress rule, feature drag, grouping, group and PBI drops onto sprint cells |
@@ -165,10 +166,20 @@ Ranked by risk, not by percentage. A low number on a file nobody edits matters
 less than an untested path through code that changes every week.
 
 ### 1. Journeys deliberately left to the cheaper layers
-Every journey that has a browser surface now has an E2E spec. What is left out is
-left out on purpose: PI events, sprint capacity editing and column resize are
+Every journey that has a browser surface has an E2E spec. What is left out is left
+out on purpose: PI events, sprint capacity editing and column resize are
 unit-tested rather than driven through a browser, which is where the guidance
 below would put them anyway.
+
+⚠️ **Read that per-journey claim narrowly.** It says nothing about *sub-journeys*
+or about what happens where two journeys meet, and that is where a whole class of
+defects lived undetected: `csv-import.cy.ts` only ever imported into an empty
+project, `feature-split.cy.ts` only ever planned on a board, and no spec did both.
+Every bug found in the CSV-refresh review — a 500 deleting a planned feature,
+continuations drifting from the source, partial files orphaning, silent parent
+changes — sat in that gap, with the backend and unit layers green on either side
+of it. `csv-refresh.cy.ts` exists to hold that crossing; when adding a spec, ask
+what it does *not* cross into rather than whether the journey has a spec at all.
 
 The one journey without a browser surface is the **snapshot diff** — it is an API
 consumed by the MCP server, rendered server-side, with no in-app UI. Its semantics
@@ -190,6 +201,11 @@ changing.
   from a drag handler beats an E2E test that simulates a drag.
 - **E2E is for wiring, not for logic.** If a case can fail in a unit test, put it
   there; the browser suite should stay a thin layer over the journeys that matter.
+- **Check a new spec fails for the right reason.** A passing test proves nothing
+  until you have seen it go red. Revert the fix it guards — in the source, not the
+  spec — run it, confirm exactly the expected tests fail, then restore. The
+  `csv-refresh` specs were written this way, and it caught that one of them
+  depended on a different fix than the one it was written for.
 - **Test the error branch.** Most of the remaining gap in this codebase is failure
   handling, not happy paths.
 - **Match the existing style.** Backend tests use the fixtures in `conftest.py`;
