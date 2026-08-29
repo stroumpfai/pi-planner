@@ -43,7 +43,12 @@ export function BacklogPage({ projectId }: Props) {
   const backlogFeatures = features?.filter((f) => f.location === 'backlog') ?? []
   const totalEffort = backlogFeatures.reduce((sum, f) => sum + (f.effort ?? 0), 0)
 
-  const backlogPBIs = pbis?.filter((p) => p.location === 'backlog') ?? []
+  // Counted by which feature holds them, not by PBI.location — that column stays
+  // "backlog" for every story in the project, even one placed in a sprint, so
+  // reading it made these chips count work this page does not list. A project with
+  // everything on boards reported "0 features, 40 PBIs".
+  const backlogFeatureIds = new Set(backlogFeatures.map((f) => f.system_id))
+  const backlogPBIs = pbis?.filter((p) => backlogFeatureIds.has(p.parent_feature_system_id)) ?? []
   const pbiCount = backlogPBIs.filter((p) => p.item_type === 'story').length
   const bugCount = backlogPBIs.filter((p) => p.item_type === 'bug').length
 

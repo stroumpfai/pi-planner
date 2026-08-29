@@ -31,6 +31,12 @@ class PBI(Base):
     description: Mapped[str | None] = mapped_column(Text)
     effort: Mapped[float | None] = mapped_column(Float)
     item_type: Mapped[str] = mapped_column(Text, nullable=False, default="story")
+    # Vestigial: nothing reads this to decide anything. It stays "backlog" for every
+    # story in the project — moving a feature onto a board does not touch its
+    # stories, and neither does placing one in a sprint. Where a story actually sits
+    # is ``group_id`` (in a sprint) and its parent feature's ``location`` (on a
+    # board at all). Reading this column instead is how the backlog page came to
+    # count work it does not list; don't reintroduce that.
     location: Mapped[str] = mapped_column(Text, nullable=False, default="backlog")
     pi_id: Mapped[str | None] = mapped_column(Text, ForeignKey("pis.system_id"))
     swimlane_id: Mapped[str | None] = mapped_column(Text, ForeignKey("swimlines.system_id"))

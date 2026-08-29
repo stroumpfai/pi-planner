@@ -130,11 +130,39 @@ describe('BacklogPage', () => {
     expect(screen.getByText('15 pts total')).toBeInTheDocument()
   })
 
-  it('only counts backlog-located PBIs in the summary', async () => {
-    mockApi.list = vi.fn().mockResolvedValue([fakeFeature])
-    mockPbiApi.list = vi.fn().mockResolvedValue([fakePBI, { ...fakePBI, system_id: 'pbi-2', location: 'pi' }])
+  // PBI.location stays "backlog" for every story in the project, even one placed in
+  // a sprint, so the chips have to go by the feature holding the story instead —
+  // otherwise they count work this page does not list.
+  it('does not count a story whose feature is on a board', async () => {
+    const boardFeature = { ...fakeFeature, system_id: 'f-2', id: 102, location: 'pi' as const, pi_id: 'pi-1' }
+    mockApi.list = vi.fn().mockResolvedValue([fakeFeature, boardFeature])
+    mockPbiApi.list = vi.fn().mockResolvedValue([
+      fakePBI,
+      { ...fakePBI, system_id: 'pbi-2', parent_feature_system_id: 'f-2' },
+    ])
     render(<BacklogPage projectId="p-1" />, { wrapper: makeWrapper() })
     await waitFor(() => expect(screen.getByText('1 PBI')).toBeInTheDocument())
+  })
+
+  it('counts a story of a backlog feature even when it has been placed', async () => {
+    // Placement lives in group_id, and never touches the story's own location.
+    mockApi.list = vi.fn().mockResolvedValue([fakeFeature])
+    mockPbiApi.list = vi.fn().mockResolvedValue([
+      fakePBI,
+      { ...fakePBI, system_id: 'pbi-2', location: 'pi' as const },
+    ])
+    render(<BacklogPage projectId="p-1" />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('2 PBIs')).toBeInTheDocument())
+  })
+
+  it('reports an empty backlog when every feature is on a board', async () => {
+    const boardFeature = { ...fakeFeature, location: 'pi' as const, pi_id: 'pi-1' }
+    mockApi.list = vi.fn().mockResolvedValue([boardFeature])
+    mockPbiApi.list = vi.fn().mockResolvedValue([fakePBI, { ...fakePBI, system_id: 'pbi-2', item_type: 'bug' as const }])
+    render(<BacklogPage projectId="p-1" />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('0 features')).toBeInTheDocument())
+    expect(screen.getByText('0 PBIs')).toBeInTheDocument()
+    expect(screen.getByText('0 bugs')).toBeInTheDocument()
   })
 
   it('omits total effort from the summary when it is zero', async () => {
