@@ -12,15 +12,17 @@ vi.mock('@/hooks/useAuth', () => ({
   useLogout: vi.fn(),
   useLogin: vi.fn(),
 }))
-vi.mock('@/hooks/useSSE', () => ({ useSSE: vi.fn() }))
+vi.mock('@/hooks/useSSE', () => ({ useSSE: vi.fn(), useTeamSSE: vi.fn() }))
 vi.mock('@/pages/ProjectListPage', () => ({ ProjectListPage: () => <div>project list</div> }))
 vi.mock('@/pages/BacklogPage', () => ({ BacklogPage: () => <div>backlog</div> }))
 vi.mock('@/pages/PIBoardPage', () => ({ PIBoardPage: () => <div>pi board</div> }))
 vi.mock('@/pages/LoginPage', () => ({ LoginPage: () => <div>login page</div> }))
 vi.mock('@/components/PIListPanel', () => ({ PIListPanel: () => null }))
-vi.mock('@/components/EditLockButton', () => ({ EditLockButton: () => null }))
+vi.mock('@/components/EditLockButton', () => ({ EditLockButton: () => <div>edit lock</div> }))
+vi.mock('@/pages/TeamPage', () => ({ TeamPage: () => <div>team page</div> }))
 
 import { useCurrentUser, useLogout } from '@/hooks/useAuth'
+import { useUiStore } from '@/stores/uiStore'
 
 function makeWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -33,7 +35,14 @@ beforeEach(() => {
   vi.clearAllMocks()
   vi.mocked(useCurrentUser).mockReturnValue({ data: null, isLoading: false, isError: true } as unknown as ReturnType<typeof useCurrentUser>)
   vi.mocked(useLogout).mockReturnValue({ mutate: vi.fn() } as unknown as ReturnType<typeof useLogout>)
+  useUiStore.setState({ activeProjectId: null, activePIId: null, activeTeamId: null })
 })
+
+function signedIn() {
+  vi.mocked(useCurrentUser).mockReturnValue(
+    { data: fakeUser, isLoading: false, isError: false } as unknown as ReturnType<typeof useCurrentUser>,
+  )
+}
 
 describe('App', () => {
   it('shows login page when unauthenticated', async () => {
@@ -64,5 +73,37 @@ describe('App', () => {
     await waitFor(() => screen.getByText('PI Planner'))
     await userEvent.click(screen.getByRole('button', { name: /pi planner/i }))
     // No error thrown; setActiveProject(null) called on uiStore
+  })
+
+  it('routes three ways: home, a project, a team', async () => {
+    signedIn()
+    const { rerender } = render(<App />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('project list')).toBeInTheDocument())
+
+    useUiStore.setState({ activeProjectId: 'p-1', activeTeamId: null })
+    rerender(<App />)
+    expect(screen.getByText('backlog')).toBeInTheDocument()
+
+    useUiStore.setState({ activeProjectId: null, activeTeamId: 't-1' })
+    rerender(<App />)
+    expect(screen.getByText('team page')).toBeInTheDocument()
+    expect(screen.queryByText('project list')).not.toBeInTheDocument()
+  })
+
+  it('offers no edit lock in a team view', async () => {
+    /* Team data is edited without the project lock (teams.md §4.1), so the button
+       stays gated on activeProjectId — "any active thing" would be wrong. */
+    signedIn()
+    useUiStore.setState({ activeTeamId: 't-1' })
+    render(<App />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('team page')).toBeInTheDocument())
+    expect(screen.queryByText('edit lock')).not.toBeInTheDocument()
+  })
+
+  it('offers the edit lock in a project view', async () => {
+    signedIn()
+    useUiStore.setState({ activeProjectId: 'p-1' })
+    render(<App />, { wrapper: makeWrapper() })
+    await waitFor(() => expect(screen.getByText('edit lock')).toBeInTheDocument())
   })
 })

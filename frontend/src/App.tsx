@@ -3,7 +3,7 @@ import { useTheme } from '@/hooks/useTheme'
 import { useCurrentUser, useLogout } from '@/hooks/useAuth'
 import { useProject } from '@/hooks/useProjects'
 import { useUiStore } from '@/stores/uiStore'
-import { useSSE } from '@/hooks/useSSE'
+import { useSSE, useTeamSSE } from '@/hooks/useSSE'
 import { useAuthStore } from '@/stores/authStore'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { EditLockButton } from '@/components/EditLockButton'
@@ -15,18 +15,20 @@ import { LoginPage } from '@/pages/LoginPage'
 import { ProjectListPage } from '@/pages/ProjectListPage'
 import { BacklogPage } from '@/pages/BacklogPage'
 import { PIBoardPage } from '@/pages/PIBoardPage'
+import { TeamPage } from '@/pages/TeamPage'
 
 export default function App() {
   useTheme()
   const { data: user, isLoading, isError } = useCurrentUser()
   const logout = useLogout()
-  const { activeProjectId, activePIId, setActiveProject } = useUiStore()
+  const { activeProjectId, activePIId, activeTeamId, setActiveProject } = useUiStore()
   const { data: activeProject } = useProject(activeProjectId ?? '')
   const isAdmin = useAuthStore((s) => s.isAdmin())
   const focusMode = useSettingsStore((s) => s.focusMode)
   const [userMgmtOpen, setUserMgmtOpen] = useState(false)
 
   useSSE(activeProjectId)
+  useTeamSSE(activeTeamId)
 
   if (isLoading) {
     return (
@@ -100,6 +102,8 @@ export default function App() {
               )}
             </div>
           </>
+        ) : activeTeamId ? (
+          <TeamPage teamId={activeTeamId} />
         ) : (
           <ProjectListPage />
         )}

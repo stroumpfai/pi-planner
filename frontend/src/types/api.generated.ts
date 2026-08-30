@@ -272,6 +272,16 @@ export interface paths {
     /** Project Events */
     get: operations["project_events_api_v1_projects__project_id__events_get"];
   };
+  "/api/v1/teams/{team_id}/events": {
+    /**
+     * Team Events
+     * @description Live team updates.
+     *
+     * Team data is its own aggregate, edited without the project lock, so readers
+     * watch it on its own channel rather than on any project's (teams.md §4).
+     */
+    get: operations["team_events_api_v1_teams__team_id__events_get"];
+  };
   "/api/v1/projects/{project_id}/import/csv": {
     /** Import Csv */
     post: operations["import_csv_api_v1_projects__project_id__import_csv_post"];
@@ -3280,6 +3290,37 @@ export interface operations {
     parameters: {
       path: {
         project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Team Events
+   * @description Live team updates.
+   *
+   * Team data is its own aggregate, edited without the project lock, so readers
+   * watch it on its own channel rather than on any project's (teams.md §4).
+   */
+  team_events_api_v1_teams__team_id__events_get: {
+    parameters: {
+      path: {
+        team_id: string;
       };
       cookie?: {
         pi_session?: string | null;

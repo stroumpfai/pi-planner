@@ -48,6 +48,41 @@ async def test_409_without_detail_uses_fallback(mock_backend, mock_ctx, patch_ge
     assert "Try again" in exc_info.value.message
 
 
+async def test_412_raises_stale_not_locked(mock_backend, mock_ctx, patch_get_http_request):
+    """A team row that moved under the caller is STALE, not LOCKED (teams.md §4.2)."""
+    mock_backend.patch("/api/v1/teams/t1").mock(
+        return_value=httpx.Response(
+            412,
+            json={"detail": {"error": "STALE", "message": "This row changed since you read it.",
+                             "current": {"system_id": "t1", "name": "Theirs"}}},
+        )
+    )
+    with pytest.raises(MCPBackendError) as exc_info:
+        await call_backend("PATCH", "/api/v1/teams/t1")
+    err = exc_info.value
+    assert err.status == 412
+    assert err.code == "STALE"
+    assert "Re-read it" in err.message
+
+
+async def test_412_without_detail_uses_fallback(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.patch("/api/v1/teams/t1").mock(return_value=httpx.Response(412, json={}))
+    with pytest.raises(MCPBackendError) as exc_info:
+        await call_backend("PATCH", "/api/v1/teams/t1")
+    assert exc_info.value.code == "STALE"
+
+
+async def test_428_raises_if_match_required(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.patch("/api/v1/teams/t1").mock(
+        return_value=httpx.Response(428, json={"detail": {"error": "IF_MATCH_REQUIRED"}})
+    )
+    with pytest.raises(MCPBackendError) as exc_info:
+        await call_backend("PATCH", "/api/v1/teams/t1")
+    err = exc_info.value
+    assert err.status == 428
+    assert err.code == "IF_MATCH_REQUIRED"
+
+
 async def test_403_raises_forbidden(mock_backend, mock_ctx, patch_get_http_request):
     mock_backend.post("/api/v1/projects/").mock(
         return_value=httpx.Response(403, json={"detail": "Forbidden"})
