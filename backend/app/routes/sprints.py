@@ -60,8 +60,8 @@ async def update_sprint(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Closed PIs are read-only")
 
     fields = body.model_fields_set
-    if "capacity" in fields and body.capacity is not None:
-        sprint.capacity = body.capacity
+    if "available" in fields and body.available is not None:
+        sprint.available = body.available
     if "start_date" in fields:
         sprint.start_date = body.start_date
     if "end_date" in fields:

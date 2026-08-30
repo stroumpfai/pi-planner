@@ -18,7 +18,7 @@ type PIFormValues = {
 type SprintRow = {
   system_id: string
   sprint_index: number
-  capacity: string
+  available: string
   start_date: string
   end_date: string
 }
@@ -34,7 +34,7 @@ function toSprintRow(s: Sprint): SprintRow {
   return {
     system_id: s.system_id,
     sprint_index: s.sprint_index ?? 0,
-    capacity: String(s.capacity ?? 0),
+    available: String(s.available ?? 0),
     start_date: s.start_date ?? '',
     end_date: s.end_date ?? '',
   }
@@ -81,7 +81,7 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
     await Promise.all(
       sprintRows.map((row) =>
         sprintsApi.update(row.system_id, {
-          capacity: Number.parseInt(row.capacity, 10) || 1,
+          available: Number.parseInt(row.available, 10) || 0,
           start_date: row.start_date || null,
           end_date: row.end_date || null,
         })
@@ -170,7 +170,7 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
                     <thead className="bg-gray-50 dark:bg-gray-700 text-xs text-gray-500 dark:text-gray-400 uppercase">
                       <tr>
                         <th className="px-3 py-2 text-left w-20">Sprint</th>
-                        <th className="px-3 py-2 text-left w-24">Capacity</th>
+                        <th className="px-3 py-2 text-left w-24">Available</th>
                         <th className="px-3 py-2 text-left">Start date</th>
                         <th className="px-3 py-2 text-left">End date</th>
                       </tr>
@@ -185,8 +185,8 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
                             <input
                               type="number"
                               min="0"
-                              value={row.capacity}
-                              onChange={(e) => updateSprintRow(i, 'capacity', e.target.value)}
+                              value={row.available}
+                              onChange={(e) => updateSprintRow(i, 'available', e.target.value)}
                               className="w-20 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                             />
                           </td>

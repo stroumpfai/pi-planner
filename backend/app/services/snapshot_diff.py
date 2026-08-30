@@ -41,7 +41,7 @@ TRACKED_FIELDS: dict[str, list[str]] = {
     ],
     "pis": ["name", "description", "state", "start_date", "end_date"],
     "swimlines": ["name", "order_index"],
-    "sprints": ["sprint_index", "capacity", "start_date", "end_date"],
+    "sprints": ["sprint_index", "available", "start_date", "end_date"],
     "groups": [
         "name", "feature_system_id", "sprint_index", "order_index",
         "is_implicit", "story_system_id",
@@ -80,7 +80,13 @@ def _flatten(project: dict[str, Any]) -> dict[str, dict[str, dict[str, Any]]]:
                     **g, "pi_id": pi_id, "swimline_id": sl["system_id"]
                 }
         for s in pi.get("sprints", []):
-            out["sprints"][s["system_id"]] = {**s, "pi_id": pi_id}
+            sprint = {**s, "pi_id": pi_id}
+            # Snapshots predating the capacity -> available rename carry the old key;
+            # normalise so an old baseline diffs against live data on one field
+            # instead of reporting every sprint as changed.
+            if "available" not in sprint and "capacity" in sprint:
+                sprint["available"] = sprint["capacity"]
+            out["sprints"][s["system_id"]] = sprint
         for e in pi.get("events", []):
             out["events"][e["system_id"]] = {**e, "pi_id": pi_id}
 

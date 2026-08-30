@@ -274,10 +274,17 @@ async def test_create_pi_name_max_length():
 
 
 @pytest.mark.asyncio
-async def test_update_sprint_capacity_gt_zero():
+async def test_update_sprint_available_ge_zero():
     schema = await _get_tool_schema(projects_mcp, "update_sprint")
     props = schema.get("properties", {})
-    cap_schema = props.get("capacity", {})
-    schema_str = str(cap_schema)
-    # Pydantic emits gt=0 as exclusiveMinimum: 0
-    assert "0" in schema_str, f"capacity gt=0 constraint missing: {cap_schema}"
+    avail_schema = props.get("available", {})
+    schema_str = str(avail_schema)
+    # Pydantic emits ge=0 as minimum: 0 — Available of 0 is legitimate (teams.md 6.2)
+    assert "0" in schema_str, f"available ge=0 constraint missing: {avail_schema}"
+
+
+@pytest.mark.asyncio
+async def test_update_sprint_keeps_deprecated_capacity_alias():
+    """Agent calls written before the rename must keep working for one release."""
+    schema = await _get_tool_schema(projects_mcp, "update_sprint")
+    assert "capacity" in schema.get("properties", {})

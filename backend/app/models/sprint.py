@@ -19,7 +19,7 @@ class Sprint(Base):
     system_id: Mapped[str] = mapped_column(Text, primary_key=True, default=lambda: str(uuid4()))
     pi_id: Mapped[str] = mapped_column(Text, ForeignKey("pis.system_id"), nullable=False)
     sprint_index: Mapped[int | None] = mapped_column(Integer)
-    capacity: Mapped[int] = mapped_column(Integer, nullable=False)
+    available: Mapped[int] = mapped_column(Integer, nullable=False)
     start_date: Mapped[date | None] = mapped_column(Date)
     end_date: Mapped[date | None] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(default=func.now())

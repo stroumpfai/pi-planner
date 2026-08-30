@@ -36,7 +36,7 @@ export const useUpdateFeature = (projectId: string) => {
       featuresApi.update(featureId, body),
     onSuccess: (_data, { body }) => {
       qc.invalidateQueries({ queryKey: prefix(projectId) })
-      // Feature move operations may delete groups and affect capacity
+      // Feature move operations may delete groups and affect the Available bars
       if ('location' in body || 'swimlane_id' in body) {
         qc.invalidateQueries({ queryKey: ['pbis', projectId] })
         qc.invalidateQueries({ queryKey: ['groups'] })

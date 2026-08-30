@@ -179,19 +179,19 @@ async def test_diff_ignores_an_unchanged_state(client, project):
 
 
 @pytest.mark.asyncio
-async def test_diff_reports_sprint_capacity_change(client, project):
+async def test_diff_reports_sprint_available_change(client, project):
     pid = project["system_id"]
     pi_id, _ = await _pi_with_swimline(client, pid)
     sprints = (await client.get(f"/api/v1/pis/{pi_id}/sprints")).json()
     sprint_id = sprints[0]["system_id"]
     await _snapshot(client, pid)
 
-    await client.patch(f"/api/v1/sprints/{sprint_id}", json={"capacity": 25})
+    await client.patch(f"/api/v1/sprints/{sprint_id}", json={"available": 25})
 
     diff = (await client.get(_diff_url(pid))).json()
     changed = diff["changes"]["sprints"]["changed"]
     assert len(changed) == 1
-    assert changed[0]["fields"]["capacity"]["to"] == 25
+    assert changed[0]["fields"]["available"]["to"] == 25
 
 
 # ── PI-scoped diffs (moves in / out) ────────────────────────────────────────
@@ -239,7 +239,7 @@ async def test_pi_scope_excludes_other_pi_changes(client, project):
 
     # change a sprint in PI B only
     sprint_b = (await client.get(f"/api/v1/pis/{pi_b}/sprints")).json()[0]["system_id"]
-    await client.patch(f"/api/v1/sprints/{sprint_b}", json={"capacity": 30})
+    await client.patch(f"/api/v1/sprints/{sprint_b}", json={"available": 30})
 
     diff = (await client.get(_diff_url(pid), params={"pi_id": pi_a})).json()
     assert diff["summary"]["sprints"]["changed"] == 0

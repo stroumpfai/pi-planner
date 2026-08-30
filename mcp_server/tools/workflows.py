@@ -153,19 +153,20 @@ async def set_sprint_capacities(
     project_id: Annotated[str, Field(pattern=_UUID_RE, description="Project system_id (UUID)")],
     pi_id: Annotated[str, Field(pattern=_UUID_RE, description="PI system_id (UUID)")],
     capacities: Annotated[
-        list[Annotated[int, Field(gt=0)]],
+        list[Annotated[int, Field(ge=0)]],
         Field(
             min_length=5,
             max_length=5,
-            description="Exactly 5 capacity values > 0 (one per sprint, index 0–4).",
+            description="Exactly 5 Available values, 0 or more (one per sprint, index 0–4).",
         ),
     ],
     ctx: Context,
 ) -> dict:
     """
-    Set capacity on all 5 sprints of a PI in one call.
+    Set the Available budget on all 5 sprints of a PI in one call.
 
-    Pass a list of exactly 5 positive integers — one per sprint in order (sprint 0 first).
+    Pass a list of exactly 5 whole numbers — one per sprint in order (sprint 0 first).
+    A value may be 0: a sprint spanning a shutdown genuinely has no budget.
     Fetches sprint IDs from the backend, then acquires the lock once and updates all sprints.
     More efficient than calling update_sprint 5 times separately.
     Returns {"sprints": [list of SprintResponse]}.
@@ -177,16 +178,16 @@ async def set_sprint_capacities(
 
     if len(sprints_sorted) != len(capacities):
         raise ValueError(
-            f"PI has {len(sprints_sorted)} sprint(s) but {len(capacities)} capacity value(s) were provided."
+            f"PI has {len(sprints_sorted)} sprint(s) but {len(capacities)} Available value(s) were provided."
         )
 
     updated = []
     async with edit_lock(project_id):
-        for sprint, capacity in zip(sprints_sorted, capacities):
+        for sprint, available in zip(sprints_sorted, capacities):
             result = await call_backend(
                 "PATCH",
                 f"/api/v1/sprints/{sprint['system_id']}",
-                json={"capacity": capacity},
+                json={"available": available},
             )
             updated.append(result)
     return {"sprints": updated}
@@ -199,7 +200,7 @@ async def propose_pbi_sprint_plan(
     ctx: Context,
 ) -> dict:
     """
-    Read-only: propose a PBI-to-sprint assignment plan based on effort and capacity.
+    Read-only: propose a PBI-to-sprint assignment plan based on effort and Available.
 
     Reads sprint capacities and all unassigned PBIs in the PI, then uses a greedy
     first-fit algorithm to propose which PBIs should go into which sprints.
@@ -210,8 +211,8 @@ async def propose_pbi_sprint_plan(
     Returns:
     {
       "assignments": [{"pbi_id": "...", "sprint_index": 0, "title": "...", "effort": 5}],
-      "unassigned": [{"pbi_id": "...", "title": "...", "effort": 13, "reason": "no sprint has enough remaining capacity"}],
-      "sprint_summary": [{"sprint_index": 0, "capacity": 50, "planned_effort": 45, "remaining": 5}]
+      "unassigned": [{"pbi_id": "...", "title": "...", "effort": 13, "reason": "no sprint has enough remaining Available"}],
+      "sprint_summary": [{"sprint_index": 0, "available": 50, "planned_effort": 45, "remaining": 5}]
     }
     """
     # Gather all data — no lock, all reads
@@ -234,8 +235,8 @@ async def propose_pbi_sprint_plan(
     ]
     unassigned_pbis.sort(key=lambda p: -(p.get("effort") or 0))  # largest effort first
 
-    # Track remaining capacity per sprint
-    remaining: dict[int, int] = {s["sprint_index"]: (s.get("capacity") or 0) for s in sprints_sorted}
+    # Track remaining Available per sprint
+    remaining: dict[int, int] = {s["sprint_index"]: (s.get("available") or 0) for s in sprints_sorted}
 
     assignments = []
     unassigned_out = []
@@ -260,14 +261,14 @@ async def propose_pbi_sprint_plan(
                 "pbi_id": pbi["system_id"],
                 "title": pbi["title"],
                 "effort": effort,
-                "reason": "no sprint has enough remaining capacity",
+                "reason": "no sprint has enough remaining Available",
             })
 
     sprint_summary = [
         {
             "sprint_index": s["sprint_index"],
-            "capacity": s.get("capacity") or 0,
-            "planned_effort": (s.get("capacity") or 0) - remaining[s["sprint_index"]],
+            "available": s.get("available") or 0,
+            "planned_effort": (s.get("available") or 0) - remaining[s["sprint_index"]],
             "remaining": remaining[s["sprint_index"]],
         }
         for s in sprints_sorted
@@ -333,7 +334,7 @@ async def summarize_project(
     {
       "project": {name, effort_unit, ...},
       "active_pi": {name, state, start_date, end_date} | null,
-      "sprints": [{"sprint_index": 0, "capacity": 50, "effort": 30, "utilisation_pct": 60}],
+      "sprints": [{"sprint_index": 0, "available": 50, "effort": 30, "utilisation_pct": 60}],
       "features": {"total": 12, "in_backlog": 4, "in_pi": 8},
       "pbis": {"total": 45, "assigned_to_sprint": 30, "unassigned": 15, "total_effort": 120}
     }
@@ -349,11 +350,11 @@ async def summarize_project(
         sprints_data = await call_backend("GET", f"/api/v1/pis/{active_pi['system_id']}/sprints")
         sprints = sprints_data.get("items", [])
         for s in sorted(sprints, key=lambda x: x["sprint_index"]):
-            cap = s.get("capacity") or 0
+            cap = s.get("available") or 0
             eff = s.get("effort") or 0
             sprints_summary.append({
                 "sprint_index": s["sprint_index"],
-                "capacity": cap,
+                "available": cap,
                 "effort": eff,
                 "utilisation_pct": round(eff / cap * 100) if cap else 0,
             })

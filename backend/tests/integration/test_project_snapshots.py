@@ -1,9 +1,12 @@
 """Integration tests for project snapshot routes (create, list, delete, restore)."""
+import copy
+
 import pytest
 from sqlalchemy import select
 
 from app.models.activity_log import ActivityLog
 from app.models.edit_lock import EditLock
+from app.models.project_snapshot import ProjectSnapshot
 
 
 @pytest.fixture
@@ -429,3 +432,36 @@ async def test_reader_cannot_restore_snapshot(reader_client, client, project):
     snap = (await client.post(_snapshots_url(pid), json={"name": "S"})).json()
     resp = await reader_client.post(f"{_snapshots_url(pid)}{snap['system_id']}/restore")
     assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_restore_reads_legacy_capacity_key(client, project, db):
+    """A snapshot taken before the capacity -> available rename still restores.
+
+    Snapshot payloads are stored JSON and are never rewritten, so the old key
+    survives forever; the fallback in ``sprint_available`` is permanent.
+    """
+    pid = project["system_id"]
+    pi_id = (await client.post(f"/api/v1/projects/{pid}/pis", json={"name": "Legacy"})).json()["system_id"]
+    sprints = (await client.get(f"/api/v1/pis/{pi_id}/sprints")).json()
+    await client.patch(f"/api/v1/sprints/{sprints[0]['system_id']}", json={"available": 17})
+
+    snap = (await client.post(_snapshots_url(pid), json={"name": "Baseline"})).json()
+
+    # Rewrite the stored payload into the pre-rename shape.
+    row = await db.get(ProjectSnapshot, snap["system_id"])
+    data = copy.deepcopy(row.snapshot_data)
+    for pi in data["project"]["pis"]:
+        for s in pi["sprints"]:
+            s["capacity"] = s.pop("available")
+    row.snapshot_data = data
+    await db.commit()
+
+    # Move the live value away so the restore has to put it back.
+    await client.patch(f"/api/v1/sprints/{sprints[0]['system_id']}", json={"available": 3})
+
+    resp = await client.post(f"{_snapshots_url(pid)}{snap['system_id']}/restore")
+    assert resp.status_code == 200
+
+    restored = (await client.get(f"/api/v1/pis/{pi_id}/sprints")).json()
+    assert next(s for s in restored if s["sprint_index"] == 0)["available"] == 17

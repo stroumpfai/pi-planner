@@ -45,7 +45,7 @@ async def test_full_pi_planning_flow(client):
     pi_id = pi["system_id"]
     assert pi["state"] == "draft"
     assert pi["total_effort"] == 0
-    assert pi["total_capacity"] == 0
+    assert pi["total_available"] == 0
 
     # 5. Create swimlane
     swimlane = (await client.post(
@@ -63,10 +63,10 @@ async def test_full_pi_planning_flow(client):
     assert moved["swimlane_id"] == sl_id
     assert moved["pi_id"] == pi_id
 
-    # 7. Set sprint capacity
+    # 7. Set sprint Available
     sprints = (await client.get(f"/api/v1/pis/{pi_id}/sprints")).json()
     s0 = next(s for s in sprints if s["sprint_index"] == 0)
-    await client.patch(f"/api/v1/sprints/{s0['system_id']}", json={"capacity": 20})
+    await client.patch(f"/api/v1/sprints/{s0['system_id']}", json={"available": 20})
 
     # 8. Create group with PBIs in Sprint 1
     group = (await client.post(
@@ -84,17 +84,17 @@ async def test_full_pi_planning_flow(client):
     # 9. Verify effort propagates to PI level
     pi_after = (await client.get(f"/api/v1/pis/{pi_id}")).json()
     assert pi_after["total_effort"] == 8
-    assert pi_after["total_capacity"] == 20
+    assert pi_after["total_available"] == 20
 
     sprints_after = (await client.get(f"/api/v1/pis/{pi_id}/sprints")).json()
     s0_after = next(s for s in sprints_after if s["sprint_index"] == 0)
     assert s0_after["effort"] == 8
-    assert s0_after["capacity"] == 20
+    assert s0_after["available"] == 20
 
     swimlanes_after = (await client.get(f"/api/v1/pis/{pi_id}/swimlines")).json()
     sl_after = next(s for s in swimlanes_after if s["system_id"] == sl_id)
     assert sl_after["effort"] == 8
-    assert sl_after["capacity"] == 20
+    assert sl_after["available"] == 20
 
     # 10. Start PI — state machine
     await client.patch(f"/api/v1/pis/{pi_id}", json={"state": "in_progress"})
@@ -110,8 +110,8 @@ async def test_full_pi_planning_flow(client):
     resp = await client.patch(f"/api/v1/pis/{pi_id}", json={"name": "Renamed"})
     assert resp.status_code == 403
 
-    # Closed PI rejects sprint capacity changes
-    resp = await client.patch(f"/api/v1/sprints/{s0['system_id']}", json={"capacity": 99})
+    # Closed PI rejects sprint Available changes
+    resp = await client.patch(f"/api/v1/sprints/{s0['system_id']}", json={"available": 99})
     assert resp.status_code == 403
 
     # 12. Export — verify complete structure

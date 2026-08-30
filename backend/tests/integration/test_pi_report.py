@@ -23,7 +23,7 @@ async def planned_pi(client: AsyncClient) -> dict:
 
     sprints = (await client.get(f"/api/v1/pis/{pi_id}/sprints")).json()
     sprint_0 = next(s for s in sprints if s["sprint_index"] == 0)
-    await client.patch(f"/api/v1/sprints/{sprint_0['system_id']}", json={"capacity": 20})
+    await client.patch(f"/api/v1/sprints/{sprint_0['system_id']}", json={"available": 20})
 
     sl = (await client.post(
         f"/api/v1/pis/{pi_id}/swimlines", json={"name": "Team Alpha"},
@@ -75,7 +75,7 @@ async def test_readiness_markdown_flags_issues(client: AsyncClient, planned_pi: 
         json={"title": "No estimate story", "id": 202, "parent_feature_system_id": feat_id},
     )
     # Over-capacity: shrink sprint 0 capacity below the placed load (3)
-    await client.patch(f"/api/v1/sprints/{planned_pi['sprint_0_id']}", json={"capacity": 1})
+    await client.patch(f"/api/v1/sprints/{planned_pi['sprint_0_id']}", json={"available": 1})
     # Feature with no PBIs
     empty_feat = (await client.post(
         f"/api/v1/projects/{pid}/features", json={"title": "Empty Feature", "id": 150},
@@ -246,9 +246,9 @@ async def breakdown_pi(client: AsyncClient) -> dict:
     sprints = {s["sprint_index"]: s for s in (await client.get(f"/api/v1/pis/{pi_id}/sprints")).json()}
     await client.patch(
         f"/api/v1/sprints/{sprints[0]['system_id']}",
-        json={"capacity": 20, "start_date": "2026-01-06", "end_date": "2026-01-19"},
+        json={"available": 20, "start_date": "2026-01-06", "end_date": "2026-01-19"},
     )
-    await client.patch(f"/api/v1/sprints/{sprints[1]['system_id']}", json={"capacity": 20})
+    await client.patch(f"/api/v1/sprints/{sprints[1]['system_id']}", json={"available": 20})
 
     sl_id = (await client.post(
         f"/api/v1/pis/{pi_id}/swimlines", json={"name": "Team Alpha"},

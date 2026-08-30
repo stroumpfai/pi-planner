@@ -3,8 +3,8 @@ one PI, served from the same live data as the PNG/CSV/report exports.
 
 The page bundles the glanceable views:
 
-- capacity gauges (per-sprint load vs. capacity + a PI total),
-- the capacity-vs-load heatmap (A1) as an HTML table,
+- Available gauges (per-sprint load vs. Available + a PI total),
+- the Available-vs-load heatmap (A1) as an HTML table,
 - the backlog-composition grid (A2, PBI/bug counts) as an HTML table,
 - a milestone timeline positioned along the sprint axis.
 
@@ -35,7 +35,7 @@ from app.models.project import Project
 from app.models.sprint import Sprint
 from app.models.swimline import Swimline
 from app.services.effort import (
-    pi_effort_and_capacity,
+    pi_effort_and_available,
     sprint_efforts_for_pi,
     sprint_swimline_efforts,
     sprint_swimline_item_counts,
@@ -61,7 +61,7 @@ class DashboardOptions:
 @dataclass
 class _SprintCell:
     index: int
-    capacity: int
+    available: int
     effort: float
     ratio: float
     status: str
@@ -92,7 +92,7 @@ class DashboardModel:
     end_date: date | None
     effort_unit: str
     total_effort: float
-    total_capacity: int
+    total_available: int
     total_ratio: float
     total_status: str
     num_sprints: int
@@ -107,8 +107,8 @@ class DashboardModel:
 
 
 async def build_dashboard_model(db: AsyncSession, pi: PI) -> DashboardModel:
-    total_effort, total_capacity = await pi_effort_and_capacity(db, pi.system_id)
-    total_ratio, total_status = sprint_utilization(total_effort, total_capacity)
+    total_effort, total_available = await pi_effort_and_available(db, pi.system_id)
+    total_ratio, total_status = sprint_utilization(total_effort, total_available)
 
     project = await db.get(Project, pi.project_id)
     effort_unit = project.effort_unit if project and project.effort_unit else "pts"
@@ -123,11 +123,11 @@ async def build_dashboard_model(db: AsyncSession, pi: PI) -> DashboardModel:
     for pos, s in enumerate(sprints):
         idx = s.sprint_index if s.sprint_index is not None else pos
         effort = sprint_efforts.get(idx, 0.0)
-        ratio, status = sprint_utilization(effort, s.capacity or 0)
+        ratio, status = sprint_utilization(effort, s.available or 0)
         sprint_cells.append(
             _SprintCell(
                 index=idx,
-                capacity=s.capacity or 0,
+                available=s.available or 0,
                 effort=effort,
                 ratio=ratio,
                 status=status,
@@ -171,7 +171,7 @@ async def build_dashboard_model(db: AsyncSession, pi: PI) -> DashboardModel:
         end_date=pi.end_date,
         effort_unit=effort_unit,
         total_effort=total_effort,
-        total_capacity=total_capacity,
+        total_available=total_available,
         total_ratio=total_ratio,
         total_status=total_status,
         num_sprints=num_sprints,
@@ -203,7 +203,7 @@ def _esc(text: str) -> str:
     return html.escape(text, quote=True)
 
 
-# Text colour per capacity status, chosen for contrast against the _UTIL_COLORS fill.
+# Text colour per utilization status, chosen for contrast against the _UTIL_COLORS fill.
 # Mirrors _HEATMAP_TEXT_COLORS in pi_export.py.
 _STATUS_TEXT: dict[str, str] = {
     "no_capacity": "#1f2937",
@@ -251,7 +251,7 @@ def _render_header(m: DashboardModel) -> str:
   <div class="meta">
     {dates}
     <span class="total" style="--c:{color}">
-      {_num(m.total_effort)} / {m.total_capacity} {_esc(m.effort_unit)} · {pct}%
+      {_num(m.total_effort)} / {m.total_available} {_esc(m.effort_unit)} · {pct}%
     </span>
   </div>
   {desc}
@@ -271,17 +271,17 @@ def _render_gauges(m: DashboardModel) -> str:
         <span class="g-dates">{_fmt_date_short(c.start_date)}–{_fmt_date_short(c.end_date)}</span>
       </div>
       <div class="g-bar"><span style="width:{fill:.1f}%;background:{color}"></span></div>
-      <div class="g-foot" style="color:{color}">{_num(c.effort)} / {c.capacity} · {pct}%</div>
+      <div class="g-foot" style="color:{color}">{_num(c.effort)} / {c.available} · {pct}%</div>
     </div>""")
     return f"""
 <section>
-  <h2>Capacity by sprint</h2>
+  <h2>Load vs Available by sprint</h2>
   <div class="gauges">{"".join(cards)}</div>
 </section>"""
 
 
 def _render_heatmap(m: DashboardModel) -> str:
-    """Swimlane × sprint grid coloured by capacity utilization (A1)."""
+    """Swimlane × sprint grid coloured by Available utilization (A1)."""
     head = "".join(f"<th>S{c.index + 1}</th>" for c in m.sprints)
     rows = []
     for lane in m.lanes:
@@ -291,7 +291,7 @@ def _render_heatmap(m: DashboardModel) -> str:
             load = m.heat.get((c.index, lane.system_id), 0.0)
             team_total += load
             if load > 0:
-                _, status = sprint_utilization(load, c.capacity)
+                _, status = sprint_utilization(load, c.available)
                 bg, fg = _UTIL_COLORS[status], _STATUS_TEXT[status]
                 cells.append(f'<td style="background:{bg};color:{fg}">{_num(load)}</td>')
             else:
@@ -300,23 +300,23 @@ def _render_heatmap(m: DashboardModel) -> str:
             f'<tr><th class="lane">{_esc(lane.name)}</th>{"".join(cells)}'
             f'<td class="tot">{_num(team_total)}</td></tr>'
         )
-    # bottom totals row: per-sprint load vs capacity — the real over-commit check
+    # bottom totals row: per-sprint load vs Available — the real over-commit check
     foot_cells = []
     for c in m.sprints:
         col_total = sum(m.heat.get((c.index, lane.system_id), 0.0) for lane in m.lanes)
-        _, status = sprint_utilization(col_total, c.capacity)
+        _, status = sprint_utilization(col_total, c.available)
         bg, fg = _UTIL_COLORS[status], _STATUS_TEXT[status]
         foot_cells.append(
-            f'<td style="background:{bg};color:{fg}">{_num(col_total)}/{c.capacity}</td>'
+            f'<td style="background:{bg};color:{fg}">{_num(col_total)}/{c.available}</td>'
         )
     gbg, gfg = _UTIL_COLORS[m.total_status], _STATUS_TEXT[m.total_status]
-    grand = f'<td style="background:{gbg};color:{gfg}">{_num(m.total_effort)}/{m.total_capacity}</td>'
+    grand = f'<td style="background:{gbg};color:{gfg}">{_num(m.total_effort)}/{m.total_available}</td>'
     body = "".join(rows) if rows else (
         f'<tr><td class="empty" colspan="{m.num_sprints + 2}">No swimlanes</td></tr>'
     )
     return f"""
 <section>
-  <h2>Capacity vs. load</h2>
+  <h2>Available vs. load</h2>
   <div class="table-scroll">
   <table class="grid heat">
     <thead><tr><th class="lane">Team</th>{head}<th class="tot">Total</th></tr></thead>

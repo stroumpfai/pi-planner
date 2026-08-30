@@ -6988,9 +6988,9 @@
             "title": "Total Effort",
             "default": 0
           },
-          "total_capacity": {
+          "total_available": {
             "type": "integer",
-            "title": "Total Capacity",
+            "title": "Total Available",
             "default": 0
           },
           "created_at": {
@@ -7645,9 +7645,9 @@
             ],
             "title": "Sprint Index"
           },
-          "capacity": {
+          "available": {
             "type": "integer",
-            "title": "Capacity"
+            "title": "Available"
           },
           "effort": {
             "type": "number",
@@ -7694,7 +7694,7 @@
           "system_id",
           "pi_id",
           "sprint_index",
-          "capacity",
+          "available",
           "start_date",
           "end_date",
           "created_at",
@@ -7704,17 +7704,17 @@
       },
       "SprintUpdate": {
         "properties": {
-          "capacity": {
+          "available": {
             "anyOf": [
               {
                 "type": "integer",
-                "exclusiveMinimum": 0.0
+                "minimum": 0.0
               },
               {
                 "type": "null"
               }
             ],
-            "title": "Capacity"
+            "title": "Available"
           },
           "start_date": {
             "anyOf": [
@@ -7816,9 +7816,9 @@
             "title": "Effort",
             "default": 0
           },
-          "capacity": {
+          "available": {
             "type": "integer",
-            "title": "Capacity",
+            "title": "Available",
             "default": 0
           },
           "created_at": {

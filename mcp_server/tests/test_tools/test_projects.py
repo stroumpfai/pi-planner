@@ -45,7 +45,7 @@ SPRINT_RESP = {
     "system_id": SPRINT_ID,
     "pi_id": PI_ID,
     "sprint_index": 0,
-    "capacity": 20,
+    "available": 20,
     "start_date": None,
     "end_date": None,
 }
@@ -288,15 +288,36 @@ async def test_update_pi_omits_none_fields(mock_backend, mock_ctx, patch_get_htt
 # ---------------------------------------------------------------------------
 
 
-async def test_update_sprint_capacity(mock_backend, mock_ctx, patch_get_http_request):
+async def test_update_sprint_available(mock_backend, mock_ctx, patch_get_http_request):
     _lock_mocks(mock_backend)
     mock_backend.patch(f"/api/v1/sprints/{SPRINT_ID}").mock(
         return_value=httpx.Response(200, json=SPRINT_RESP)
     )
-    result = await update_sprint(sprint_id=SPRINT_ID, project_id=PROJECT_ID, capacity=20, ctx=mock_ctx)
-    assert result["capacity"] == 20
+    result = await update_sprint(sprint_id=SPRINT_ID, project_id=PROJECT_ID, available=20, ctx=mock_ctx)
+    assert result["available"] == 20
     body = _last_call_body(mock_backend, f"/sprints/{SPRINT_ID}")
-    assert body == {"capacity": 20}
+    assert body == {"available": 20}
+
+
+async def test_update_sprint_accepts_deprecated_capacity_alias(mock_backend, mock_ctx, patch_get_http_request):
+    """Calls written before the capacity -> available rename still reach the backend."""
+    _lock_mocks(mock_backend)
+    mock_backend.patch(f"/api/v1/sprints/{SPRINT_ID}").mock(
+        return_value=httpx.Response(200, json=SPRINT_RESP)
+    )
+    await update_sprint(sprint_id=SPRINT_ID, project_id=PROJECT_ID, capacity=20, ctx=mock_ctx)
+    body = _last_call_body(mock_backend, f"/sprints/{SPRINT_ID}")
+    assert body == {"available": 20}
+
+
+async def test_update_sprint_available_accepts_zero(mock_backend, mock_ctx, patch_get_http_request):
+    _lock_mocks(mock_backend)
+    mock_backend.patch(f"/api/v1/sprints/{SPRINT_ID}").mock(
+        return_value=httpx.Response(200, json={**SPRINT_RESP, "available": 0})
+    )
+    await update_sprint(sprint_id=SPRINT_ID, project_id=PROJECT_ID, available=0, ctx=mock_ctx)
+    body = _last_call_body(mock_backend, f"/sprints/{SPRINT_ID}")
+    assert body == {"available": 0}
 
 
 async def test_update_sprint_all_fields(mock_backend, mock_ctx, patch_get_http_request):
@@ -307,14 +328,14 @@ async def test_update_sprint_all_fields(mock_backend, mock_ctx, patch_get_http_r
     result = await update_sprint(
         sprint_id=SPRINT_ID,
         project_id=PROJECT_ID,
-        capacity=20,
+        available=20,
         start_date="2026-01-06",
         end_date="2026-01-19",
         ctx=mock_ctx,
     )
     assert result["start_date"] == "2026-01-06"
     body = _last_call_body(mock_backend, f"/sprints/{SPRINT_ID}")
-    assert body == {"capacity": 20, "start_date": "2026-01-06", "end_date": "2026-01-19"}
+    assert body == {"available": 20, "start_date": "2026-01-06", "end_date": "2026-01-19"}
 
 
 # ---------------------------------------------------------------------------

@@ -22,7 +22,7 @@ PBI_ID_1 = "00000000-0000-0000-0000-000000000001"
 PBI_ID_2 = "00000000-0000-0000-0000-000000000002"
 
 SPRINT_LIST = [
-    {"system_id": f"sprint-{i}", "sprint_index": i, "capacity": 50, "effort": 0}
+    {"system_id": f"sprint-{i}", "sprint_index": i, "available": 50, "effort": 0}
     for i in range(5)
 ]
 
@@ -136,7 +136,7 @@ async def test_set_sprint_capacities_updates_all_five(mock_backend, mock_ctx, pa
     )
     for i in range(5):
         mock_backend.patch(f"/api/v1/sprints/sprint-{i}").mock(
-            return_value=httpx.Response(200, json={**SPRINT_LIST[i], "capacity": 40 + i})
+            return_value=httpx.Response(200, json={**SPRINT_LIST[i], "available": 40 + i})
         )
     result = await set_sprint_capacities(
         project_id=PROJECT_ID, pi_id=PI_ID, capacities=[40, 41, 42, 43, 44], ctx=mock_ctx
@@ -172,7 +172,7 @@ async def test_propose_pbi_sprint_plan_no_writes(mock_backend, mock_ctx, patch_g
 
 async def test_propose_pbi_sprint_plan_assigns_by_effort(mock_backend, mock_ctx, patch_get_http_request):
     mock_backend.get(f"/api/v1/pis/{PI_ID}/sprints").mock(
-        return_value=httpx.Response(200, json=SPRINT_LIST)  # 50 capacity each
+        return_value=httpx.Response(200, json=SPRINT_LIST)  # 50 Available each
     )
     pi_features = [{**FEATURE_RESP_1, "pi_id": PI_ID, "location": "pi"}]
     mock_backend.get(f"/api/v1/projects/{PROJECT_ID}/features").mock(

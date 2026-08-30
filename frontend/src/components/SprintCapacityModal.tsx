@@ -12,14 +12,14 @@ interface Props {
 }
 
 export function SprintCapacityModal({ open, sprint, piId, onClose }: Props) {
-  const [capacity, setCapacity] = useState(String(sprint.capacity ?? 0))
+  const [available, setAvailable] = useState(String(sprint.available ?? 0))
   const [startDate, setStartDate] = useState(sprint.start_date ?? '')
   const [endDate, setEndDate] = useState(sprint.end_date ?? '')
   const [error, setError] = useState<string | null>(null)
   const update = useUpdateSprint(piId)
 
   function handleClose() {
-    setCapacity(String(sprint.capacity ?? 0))
+    setAvailable(String(sprint.available ?? 0))
     setStartDate(sprint.start_date ?? '')
     setEndDate(sprint.end_date ?? '')
     setError(null)
@@ -28,9 +28,9 @@ export function SprintCapacityModal({ open, sprint, piId, onClose }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const val = Number.parseInt(capacity, 10)
+    const val = Number.parseInt(available, 10)
     if (Number.isNaN(val) || val < 0) {
-      setError('Capacity must be 0 or greater')
+      setError('Available must be 0 or greater')
       return
     }
     setError(null)
@@ -38,7 +38,7 @@ export function SprintCapacityModal({ open, sprint, piId, onClose }: Props) {
       await update.mutateAsync({
         sprintId: sprint.system_id,
         body: {
-          capacity: val || 1,
+          available: val,
           start_date: startDate || null,
           end_date: endDate || null,
         },
@@ -65,15 +65,15 @@ export function SprintCapacityModal({ open, sprint, piId, onClose }: Props) {
           </Dialog.Title>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="sprint-capacity" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Capacity (story points)
+              <label htmlFor="sprint-available" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Available (story points)
               </label>
               <input
-                id="sprint-capacity"
+                id="sprint-available"
                 type="number"
                 min="0"
-                value={capacity}
-                onChange={(e) => setCapacity(e.target.value)}
+                value={available}
+                onChange={(e) => setAvailable(e.target.value)}
                 autoFocus
                 className={inputClass}
               />

@@ -294,14 +294,14 @@ describe('sprintsApi', () => {
 
   it('create calls POST /pis/:id/sprints', async () => {
     mockPost.mockResolvedValue({ data: {} } as never)
-    await sprintsApi.create('pi-1', { sprint_index: 0, capacity: 20 })
-    expect(mockPost).toHaveBeenCalledWith('/pis/pi-1/sprints', { sprint_index: 0, capacity: 20 })
+    await sprintsApi.create('pi-1', { sprint_index: 0, available: 20 })
+    expect(mockPost).toHaveBeenCalledWith('/pis/pi-1/sprints', { sprint_index: 0, available: 20 })
   })
 
   it('update calls PATCH /sprints/:id', async () => {
     mockPatch.mockResolvedValue({ data: {} } as never)
-    await sprintsApi.update('s-1', { capacity: 10 })
-    expect(mockPatch).toHaveBeenCalledWith('/sprints/s-1', { capacity: 10 })
+    await sprintsApi.update('s-1', { available: 10 })
+    expect(mockPatch).toHaveBeenCalledWith('/sprints/s-1', { available: 10 })
   })
 })
 

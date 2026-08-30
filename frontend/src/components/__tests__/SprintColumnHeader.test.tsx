@@ -7,7 +7,7 @@ const makeSprint = (overrides: Partial<Sprint> = {}): Sprint => ({
   system_id: 's-1',
   pi_id: 'pi-1',
   sprint_index: 0,
-  capacity: 0,
+  available: 0,
   effort: 0,
   start_date: null,
   end_date: null,
@@ -22,7 +22,7 @@ describe('SprintColumnHeader', () => {
     expect(screen.getByText('Sprint 3')).toBeInTheDocument()
   })
 
-  it('shows 0/0 pts 0% when capacity is zero', () => {
+  it('shows 0/0 pts 0% when Available is zero', () => {
     render(<SprintColumnHeader sprint={makeSprint()} usedEffort={0} />)
     expect(screen.getByText('0/0 pts - 0%')).toBeInTheDocument()
   })
@@ -45,12 +45,12 @@ describe('SprintColumnHeader', () => {
   it('calls onEditCapacity when edit button clicked', async () => {
     const onEdit = vi.fn()
     render(<SprintColumnHeader sprint={makeSprint()} usedEffort={0} onEditCapacity={onEdit} />)
-    await userEvent.click(screen.getByTitle('Edit capacity'))
+    await userEvent.click(screen.getByTitle('Edit Available'))
     expect(onEdit).toHaveBeenCalled()
   })
 
   it('hides edit button when onEditCapacity not provided', () => {
     render(<SprintColumnHeader sprint={makeSprint()} usedEffort={0} />)
-    expect(screen.queryByTitle('Edit capacity')).not.toBeInTheDocument()
+    expect(screen.queryByTitle('Edit Available')).not.toBeInTheDocument()
   })
 })

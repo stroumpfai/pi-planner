@@ -314,7 +314,7 @@ export function PIBoardPage({ projectId, piId }: Props) {
             '--swimlane-title-width': `${swimlaneTitleWidth}px`,
           } as React.CSSProperties}
         >
-          {/* Board header: name + PI capacity summary + Add Swimlane */}
+          {/* Board header: name + PI Available summary + Add Swimlane */}
           <div className="flex items-center justify-between px-4 py-[11px] border-b border-white/50 dark:border-white/5 bg-canvas flex-shrink-0 gap-4">
             <div className="flex items-center gap-2 flex-shrink-0">
               <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">{pi?.name ?? 'PI Board'}</h2>
@@ -322,7 +322,7 @@ export function PIBoardPage({ projectId, piId }: Props) {
             </div>
             {pi && (
               <div className="flex-1 max-w-xs">
-                <CapacityBar used={pi.total_effort ?? 0} capacity={pi.total_capacity ?? 0} unit={effortUnit} />
+                <CapacityBar used={pi.total_effort ?? 0} available={pi.total_available ?? 0} unit={effortUnit} />
               </div>
             )}
             <div className="flex items-center gap-4 flex-shrink-0">

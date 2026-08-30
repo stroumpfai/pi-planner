@@ -910,10 +910,10 @@ export interface components {
        */
       total_effort?: number;
       /**
-       * Total Capacity
+       * Total Available
        * @default 0
        */
-      total_capacity?: number;
+      total_available?: number;
       /**
        * Created At
        * Format: date-time
@@ -1154,8 +1154,8 @@ export interface components {
       pi_id: string;
       /** Sprint Index */
       sprint_index: number | null;
-      /** Capacity */
-      capacity: number;
+      /** Available */
+      available: number;
       /**
        * Effort
        * @default 0
@@ -1178,8 +1178,8 @@ export interface components {
     };
     /** SprintUpdate */
     SprintUpdate: {
-      /** Capacity */
-      capacity?: number | null;
+      /** Available */
+      available?: number | null;
       /** Start Date */
       start_date?: string | null;
       /** End Date */
@@ -1216,10 +1216,10 @@ export interface components {
        */
       effort?: number;
       /**
-       * Capacity
+       * Available
        * @default 0
        */
-      capacity?: number;
+      available?: number;
       /**
        * Created At
        * Format: date-time

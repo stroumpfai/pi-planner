@@ -13,7 +13,7 @@ from app.models.swimline import Swimline
 from app.models.user import User
 from app.schemas import SwimlineCreate, SwimlineResponse, SwimlineUpdate
 from app.schemas.swimline import SwimlineReorder
-from app.services.effort import pi_capacity, swimline_efforts
+from app.services.effort import pi_available, swimline_efforts
 from app.services.events import broadcaster
 
 router = APIRouter(tags=["swimlines"])
@@ -21,9 +21,9 @@ router = APIRouter(tags=["swimlines"])
 
 async def _swimline_response(db: AsyncSession, swimline: Swimline) -> SwimlineResponse:
     efforts = await swimline_efforts(db, [swimline.system_id])
-    cap = await pi_capacity(db, swimline.pi_id)
+    cap = await pi_available(db, swimline.pi_id)
     return SwimlineResponse.model_validate(swimline).model_copy(
-        update={"effort": efforts.get(swimline.system_id, 0), "capacity": cap}
+        update={"effort": efforts.get(swimline.system_id, 0), "available": cap}
     )
 
 
@@ -62,10 +62,10 @@ async def list_swimlines(
     if not swimlines:
         return []
     efforts = await swimline_efforts(db, [s.system_id for s in swimlines])
-    cap = await pi_capacity(db, pi_id)
+    cap = await pi_available(db, pi_id)
     return [
         SwimlineResponse.model_validate(s).model_copy(
-            update={"effort": efforts.get(s.system_id, 0), "capacity": cap}
+            update={"effort": efforts.get(s.system_id, 0), "available": cap}
         )
         for s in swimlines
     ]
@@ -196,10 +196,10 @@ async def reorder_swimlines(
     )
     reordered_swimlines = result.scalars().all()
     efforts = await swimline_efforts(db, [s.system_id for s in reordered_swimlines])
-    cap = await pi_capacity(db, pi_id)
+    cap = await pi_available(db, pi_id)
     return [
         SwimlineResponse.model_validate(s).model_copy(
-            update={"effort": efforts.get(s.system_id, 0), "capacity": cap}
+            update={"effort": efforts.get(s.system_id, 0), "available": cap}
         )
         for s in reordered_swimlines
     ]

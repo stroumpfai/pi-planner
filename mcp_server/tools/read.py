@@ -43,7 +43,7 @@ async def list_pis(
     """
     List all PIs (Program Increments) for a project.
 
-    Returns each PI with total_effort and total_capacity summaries, state
+    Returns each PI with total_effort and total_available summaries, state
     (draft | in_progress | closed), and date ranges. Use get_pi for detailed
     sprint-level breakdown of a single PI.
     """
@@ -56,10 +56,10 @@ async def get_pi(
     ctx: Context,
 ) -> dict:
     """
-    Get a single PI with effort and capacity summary.
+    Get a single PI with effort and Available summary.
 
     Returns state, dates, total_effort (sum of all PBI efforts in this PI),
-    and total_capacity (sum of sprint capacities).
+    and total_available (sum of sprint Available budgets).
     Use list_pis first to find the pi_id.
     """
     return await call_backend("GET", f"/api/v1/pis/{pi_id}")
@@ -71,10 +71,10 @@ async def list_sprints(
     ctx: Context,
 ) -> dict:
     """
-    List all sprints in a PI with their effort totals and capacity.
+    List all sprints in a PI with their effort totals and Available budget.
 
-    Returns 5 sprints (sprint_index 0–4) each with capacity, current effort,
-    and optional date range. Use this to understand capacity utilisation before
+    Returns 5 sprints (sprint_index 0–4) each with available, current effort,
+    and optional date range. Use this to understand utilisation before
     assigning PBIs to sprints.
     """
     return await call_backend("GET", f"/api/v1/pis/{pi_id}/sprints")
@@ -89,7 +89,7 @@ async def list_swimlines(
     List all swimlines in a PI with effort per swimline.
 
     Swimlines are horizontal rows on the PI board, each representing a team or
-    value stream. Returns system_id, name, order_index, effort, and capacity.
+    value stream. Returns system_id, name, order_index, effort, and available.
     Use get_edit_lock_status before creating or reordering swimlines.
     """
     return await call_backend("GET", f"/api/v1/pis/{pi_id}/swimlines")

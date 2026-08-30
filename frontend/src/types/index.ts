@@ -6,7 +6,7 @@ export type Project = components['schemas']['ProjectResponse']
 export type ProjectCreate = components['schemas']['ProjectCreate']
 export type ProjectUpdate = components['schemas']['ProjectUpdate']
 
-export type PI = components['schemas']['PIResponse'] & { total_effort: number; total_capacity: number }
+export type PI = components['schemas']['PIResponse'] & { total_effort: number; total_available: number }
 export type PICreate = components['schemas']['PICreate']
 export type PIUpdate = components['schemas']['PIUpdate']
 export type PIState = 'draft' | 'in_progress' | 'closed'
@@ -16,14 +16,14 @@ export type PIEventCreate = components['schemas']['PIEventCreate']
 export type PIEventUpdate = components['schemas']['PIEventUpdate']
 export type PIEventType = PIEvent['event_type']
 
-export type Swimline = components['schemas']['SwimlineResponse'] & { effort: number; capacity: number }
+export type Swimline = components['schemas']['SwimlineResponse'] & { effort: number; available: number }
 export type SwimlineCreate = components['schemas']['SwimlineCreate']
 export type SwimlineUpdate = components['schemas']['SwimlineUpdate']
 
 export type Sprint = components['schemas']['SprintResponse'] & { effort: number }
 export interface SprintCreate {
   sprint_index: number
-  capacity: number
+  available: number
   start_date?: string | null
   end_date?: string | null
 }

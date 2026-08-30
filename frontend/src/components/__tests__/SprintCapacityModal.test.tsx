@@ -21,7 +21,7 @@ const fakeSprint: Sprint = {
   system_id: 's-1',
   pi_id: 'pi-1',
   sprint_index: 1,
-  capacity: 10,
+  available: 10,
   start_date: null,
   end_date: null,
   effort: 0,
@@ -50,12 +50,12 @@ describe('SprintCapacityModal', () => {
     expect(screen.getByText(/edit sprint 2/i)).toBeInTheDocument()
   })
 
-  it('shows the current capacity value in the input', () => {
+  it('shows the current Available value in the input', () => {
     render(<SprintCapacityModal {...defaultProps} />, { wrapper: makeWrapper() })
     expect(screen.getByRole('spinbutton')).toHaveValue(10)
   })
 
-  it('submitting calls mutateAsync with the new capacity', async () => {
+  it('submitting calls mutateAsync with the new Available', async () => {
     mutateAsync.mockResolvedValue({})
     render(<SprintCapacityModal {...defaultProps} />, { wrapper: makeWrapper() })
     const input = screen.getByRole('spinbutton')
@@ -63,11 +63,11 @@ describe('SprintCapacityModal', () => {
     await userEvent.type(input, '20')
     await userEvent.click(screen.getByRole('button', { name: /save/i }))
     expect(mutateAsync).toHaveBeenCalledWith(
-      expect.objectContaining({ sprintId: 's-1', body: expect.objectContaining({ capacity: 20 }) }),
+      expect.objectContaining({ sprintId: 's-1', body: expect.objectContaining({ available: 20 }) }),
     )
   })
 
-  it('shows validation error when capacity is cleared (NaN)', async () => {
+  it('shows validation error when Available is cleared (NaN)', async () => {
     // min="0" on the number input stops HTML5 form submission for negative values,
     // but an empty value (parseInt → NaN) passes HTML5 validation and hits our check.
     render(<SprintCapacityModal {...defaultProps} />, { wrapper: makeWrapper() })
@@ -75,7 +75,7 @@ describe('SprintCapacityModal', () => {
     await userEvent.clear(input)
     await userEvent.click(screen.getByRole('button', { name: /save/i }))
     await waitFor(() =>
-      expect(screen.getByText(/capacity must be 0 or greater/i)).toBeInTheDocument(),
+      expect(screen.getByText(/available must be 0 or greater/i)).toBeInTheDocument(),
     )
     expect(mutateAsync).not.toHaveBeenCalled()
   })

@@ -32,7 +32,7 @@ const fakePI: PI = {
   start_date: null,
   end_date: null,
   total_effort: 0,
-  total_capacity: 0,
+  total_available: 0,
   created_at: '2026-01-01T00:00:00Z',
   modified_at: '2026-01-01T00:00:00Z',
 }
@@ -41,7 +41,7 @@ const fakeSprint: Sprint = {
   system_id: 's-1',
   pi_id: 'pi-1',
   sprint_index: 0,
-  capacity: 10,
+  available: 10,
   start_date: null,
   end_date: null,
   effort: 0,
@@ -107,7 +107,7 @@ describe('EditPIModal', () => {
     await waitFor(() =>
       expect(sprintsService.sprintsApi.update).toHaveBeenCalledWith(
         's-1',
-        expect.objectContaining({ capacity: 10 }),
+        expect.objectContaining({ available: 10 }),
       ),
     )
   })

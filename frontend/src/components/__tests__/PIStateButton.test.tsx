@@ -23,7 +23,7 @@ const makePI = (state: PI['state']): PI => ({
   description: null,
   state,
   total_effort: 0,
-  total_capacity: 0,
+  total_available: 0,
   start_date: null,
   end_date: null,
   created_at: '2026-01-01T00:00:00Z',

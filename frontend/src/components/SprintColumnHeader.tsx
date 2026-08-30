@@ -24,14 +24,14 @@ export function SprintColumnHeader({ sprint, usedEffort, unit, onEditCapacity }:
             type="button"
             onClick={onEditCapacity}
             className="text-xs text-gray-400 hover:text-blue-500"
-            title="Edit capacity"
+            title="Edit Available"
           >
             ✎
           </button>
         )}
       </div>
       {dates && <p className="text-xs text-gray-400 dark:text-gray-500">{dates}</p>}
-      <CapacityBar used={usedEffort} capacity={sprint.capacity ?? 0} unit={unit} />
+      <CapacityBar used={usedEffort} available={sprint.available ?? 0} unit={unit} />
     </div>
   )
 }

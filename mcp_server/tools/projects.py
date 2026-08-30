@@ -163,12 +163,12 @@ async def create_pi(
     """
     Create a new PI (Program Increment) within a project.
 
-    Automatically creates 5 sprints (sprint_index 0–4) with zero capacity.
-    Use update_sprint afterwards to set capacity and dates on each sprint.
+    Automatically creates 5 sprints (sprint_index 0–4) with zero Available.
+    Use update_sprint afterwards to set Available and dates on each sprint.
     Only one PI can be in 'in_progress' state at a time — attempting to create
     a second active PI returns a 409 error.
     Acquires the edit lock for the duration of the operation.
-    Returns the new PIResponse including system_id and effort/capacity totals.
+    Returns the new PIResponse including system_id and effort/Available totals.
     """
     body: dict = {"name": name, "state": state}
     if description is not None:
@@ -244,9 +244,9 @@ async def update_sprint(
     sprint_id: Annotated[str, Field(description="Sprint system_id (UUID)")],
     project_id: Annotated[str, Field(description="Project system_id (UUID) — needed to acquire the edit lock")],
     ctx: Context,
-    capacity: Annotated[
+    available: Annotated[
         int | None,
-        Field(default=None, gt=0, description="Sprint capacity in effort units (must be > 0)"),
+        Field(default=None, ge=0, description="Sprint Available budget in effort units (0 or more)"),
     ] = None,
     start_date: Annotated[
         str | None,
@@ -256,19 +256,29 @@ async def update_sprint(
         str | None,
         Field(default=None, description="Sprint end date in ISO 8601 format YYYY-MM-DD"),
     ] = None,
+    capacity: Annotated[
+        int | None,
+        Field(default=None, ge=0, description="DEPRECATED alias of 'available'; use 'available'"),
+    ] = None,
 ) -> dict:
     """
-    Set capacity and/or dates on a sprint.
+    Set the Available budget and/or dates on a sprint.
 
     Use list_sprints to find sprint system_ids within a PI.
-    Capacity must be a positive integer in the project's effort unit.
+    Available is a whole number of the project's effort unit and may be 0 —
+    a sprint spanning a shutdown genuinely has no budget.
     Supply only the fields you want to change.
     Acquires the edit lock for the duration of the update.
-    Returns the updated SprintResponse including current effort and capacity.
+    Returns the updated SprintResponse including current effort and Available.
+
+    'capacity' is a deprecated alias of 'available', kept for one release so calls
+    written before the rename keep working. Prefer 'available'.
     """
     body: dict = {}
-    if capacity is not None:
-        body["capacity"] = capacity
+    if available is None:
+        available = capacity
+    if available is not None:
+        body["available"] = available
     if start_date is not None:
         body["start_date"] = start_date
     if end_date is not None:
@@ -302,9 +312,9 @@ async def export_pi_csv(
 async def export_pi_png(
     pi_id: Annotated[str, Field(description="PI system_id (UUID)")],
     ctx: Context,
-    layout: Annotated[str, Field(default="roadmap", description="'roadmap' (swimlane bars), 'list' (PBIs per sprint), 'heatmap' (team × sprint capacity grid), or 'composition' (team × sprint PBI/bug counts)")] = "roadmap",
-    show_pi_effort: Annotated[bool, Field(default=False, description="Show total effort/capacity in the PI title")] = False,
-    show_sprint_effort: Annotated[bool, Field(default=False, description="Show effort, capacity and ratio bar in each sprint header")] = False,
+    layout: Annotated[str, Field(default="roadmap", description="'roadmap' (swimlane bars), 'list' (PBIs per sprint), 'heatmap' (team × sprint Available grid), or 'composition' (team × sprint PBI/bug counts)")] = "roadmap",
+    show_pi_effort: Annotated[bool, Field(default=False, description="Show total effort/Available in the PI title")] = False,
+    show_sprint_effort: Annotated[bool, Field(default=False, description="Show effort, Available and ratio bar in each sprint header")] = False,
     show_swimlane_effort: Annotated[bool, Field(default=False, description="Show effort value inside each swimlane bar")] = False,
     show_events: Annotated[bool, Field(default=False, description="Show PI events as vertical lines on the chart")] = False,
     swimlane_text_center: Annotated[bool, Field(default=False, description="Center swimlane labels inside bars (default: left-aligned)")] = False,
@@ -315,7 +325,7 @@ async def export_pi_png(
 
     Returns {"png_base64": "<base64 string>"} — decode and save as a .png file to view.
     The `layout` selects the view: 'roadmap' shows swimlane bars across sprints, 'list'
-    lists each sprint's PBIs, 'heatmap' renders a team × sprint grid coloured by capacity
+    lists each sprint's PBIs, 'heatmap' renders a team × sprint grid coloured by Available
     utilization (green/amber/red) — the fastest way to spot over-committed teams — and
     'composition' shows a team × sprint grid of PBI and bug counts (with per-team and
     per-sprint totals).
@@ -353,7 +363,7 @@ async def export_pi_report(
     - 'readiness': a data-quality checklist (unestimated PBIs, over-capacity sprints,
       features with no PBIs, unplaced PBIs, orphaned items, duplicate/invalid user IDs).
     - 'readout': an end-of-planning summary (dates, per-team committed load, sprint
-      capacity, over-capacity warnings, and the milestone timeline).
+      Available, over-capacity warnings, and the milestone timeline).
     - 'breakdown': a hierarchical listing of the PI's contents — one section per sprint
       (with its dates), then each feature, then a table of its PBIs and bugs. The
       show_ids and show_states flags add or remove the ID and State columns; when
@@ -387,8 +397,8 @@ async def export_pi_dashboard(
     """
     Export a live, self-contained HTML dashboard for a PI.
 
-    Bundles the glanceable planning views into one page: capacity gauges per sprint,
-    the capacity-vs-load heatmap (team × sprint, coloured green/amber/red), the
+    Bundles the glanceable planning views into one page: Available gauges per sprint,
+    the Available-vs-load heatmap (team × sprint, coloured green/amber/red), the
     backlog-composition grid (PBI/bug counts per team × sprint), and a milestone
     timeline. The HTML inlines all CSS/JS and makes no external calls, so it can be
     saved and opened directly or embedded anywhere.
