@@ -1,0 +1,1129 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@300;400;700&family=Caveat:wght@500;700&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#f0eee9;font-family:Kalam,system-ui,sans-serif}
+.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 20px}
+.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}
+.dv-tname{font:700 14px/1.2 Kalam,system-ui,sans-serif;color:#1a1a1a}
+.dv-opts{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}
+.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 13px/1.3 Kalam,system-ui,sans-serif;color:rgba(0,0,0,.6)}
+.dv-card{max-width:100%;background:#fff;border:1px solid rgba(0,0,0,.12);border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
+.dv-opt:target .dv-oid{background:#2a78d6;color:#fff}
+.dv-next{margin:22px 0 0;font:13px/1.5 Kalam,system-ui,sans-serif;color:rgba(0,0,0,.55)}
+.hc{width:3px;height:15px;display:block}
+.cw{background:#eceae6}
+.co{background:#fff;box-shadow:inset 0 0 0 .5px #d8d5cf}
+.cx{background:#f6f5f2;box-shadow:inset 0 0 0 .5px #e6e4df}
+.cn{background:repeating-linear-gradient(45deg,#f2f1ed 0 2px,#e2e0da 2px 4px)}
+.ca{background:#2b2b2b}
+.cr{background:repeating-linear-gradient(45deg,#2b2b2b 0 2px,#7a7a7a 2px 4px)}
+.dot-on{background:#2b2b2b}.dot-off{background:#fff;box-shadow:inset 0 0 0 1px #d8d5cf}
+.ca-sel{background:#2b2b2b;color:#fff;font-weight:700}
+.d-half{background:repeating-linear-gradient(45deg,#2b2b2b 0 2px,#cfcdc7 2px 4px)}
+.j-dot{background:#2b2b2b}.j-none{background:transparent}.j-sel{background:#f1efeb}
+.b-amber{background:#fef3c7;color:#92400e}
+.b-gray{background:#f1efeb;color:#888}
+.m-dark{background:#2b2b2b}.m-mid{background:#555}.m-light{background:#777}
+a{color:#1a1a1a}a:hover{color:#2a78d6}
+</style></helmet>
+
+<section class="dv-turn" id="t9">
+<div class="dv-thd"><a class="dv-tid" href="#t9">9</a><span class="dv-tname">“+ Add member” — identity · validity · the first working-days version</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="9a"><div class="dv-olabel"><a class="dv-oid" href="#9a">9a</a>One form, pattern included — a member can never land without capacity</div>
+<div class="dv-card" style="width:600px;padding:22px 24px;font-size:12px">
+  <div style="font-size:16px;font-weight:700">Add member to Platform</div>
+  <div style="color:#888;margin-top:3px">Identity, how long they are on the team, and the pattern their capacity is computed from.</div>
+  <div style="display:grid;grid-template-columns:1.4fr 1fr 1fr;gap:12px;margin-top:16px">
+    <div><div style="color:#888;margin-bottom:5px">Name</div><div style="border:1px solid #ccc;border-radius:8px;padding:8px 10px">Jonas Wehrli</div></div>
+    <div><div style="color:#888;margin-bottom:5px">Role</div><div style="border:1px solid #ccc;border-radius:8px;padding:8px 10px">Dev ▾</div></div>
+    <div><div style="color:#888;margin-bottom:5px">Org unit</div><div style="border:1px solid #ccc;border-radius:8px;padding:8px 10px">Dev ▾</div></div>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+    <div><div style="color:#888;margin-bottom:5px">On the team from</div><div style="border:1px solid #ccc;border-radius:8px;padding:8px 10px">1 Oct 2026</div></div>
+    <div><div style="color:#888;margin-bottom:5px">Until <span style="color:#bbb">optional</span></div><div style="border:1px solid #ccc;border-radius:8px;padding:8px 10px;color:#999">open — still on the team</div></div>
+  </div>
+  <div style="margin-top:18px;border-top:1px dashed #cfcdc7;padding-top:14px">
+    <div style="display:flex;align-items:baseline;gap:8px"><div style="font-weight:700;font-size:13px">First working-days version</div><div style="color:#888">effective 1 Oct 2026 — same as “from”</div></div>
+    <div style="display:grid;grid-template-columns:1fr auto auto;gap:12px;margin-top:10px;align-items:end">
+      <div>
+        <div style="color:#888;margin-bottom:5px">Working half-days</div>
+        <div style="display:flex;gap:10px">
+          <sc-for list="{{ wdPickerDays }}" as="d" hint-placeholder-count="7">
+            <div style="text-align:center;font-size:10px;color:#888">
+              <div style="display:flex;gap:4px;margin-bottom:3px"><span class="{{ d.a }}" style="width:15px;height:15px;border-radius:50%;border:1.5px solid #2b2b2b;display:block"></span><span class="{{ d.p }}" style="width:15px;height:15px;border-radius:50%;border:1.5px solid #2b2b2b;display:block"></span></div>
+              {{ d.l }}
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div><div style="color:#888;margin-bottom:5px">Hours / day</div><div style="border:1px solid #ccc;border-radius:8px;padding:8px 10px;width:66px">8.0</div></div>
+      <div><div style="color:#888;margin-bottom:5px">Focus</div><div style="border:1px solid #ccc;border-radius:8px;padding:8px 10px;width:62px">0.9</div></div>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:9px;color:#666"><span style="padding:3px 9px;border:1px solid #ddd;border-radius:999px">Full week</span><span style="padding:3px 9px;border:1px solid #ddd;border-radius:999px">80% — Fri off</span><span style="padding:3px 9px;border:1px solid #ddd;border-radius:999px">Copy from…</span></div>
+  </div>
+  <div style="background:#f6f5f2;border-radius:8px;padding:9px 11px;margin-top:14px;color:#555">→ 9 half-days / week · 8.0 h · focus 0.9 → <b>7.2 h/day effective</b> · counts from the first sprint starting after 1 Oct 2026</div>
+  <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px"><span style="padding:7px 14px;border:1px solid #999;border-radius:8px">Cancel</span><span style="padding:7px 16px;border-radius:8px;background:#2563eb;color:#fff">Add member</span></div>
+  <div style="font-family:Caveat,cursive;font-size:16px;color:#444;margin-top:12px;line-height:1.35">Members and Working days are separate views, but a member with <b>no version</b> reads 0 capacity and looks like a bug — so the first version is part of adding, dated to match “from”. Presets cover the common contracts in one click.</div>
+</div></div>
+
+</div>
+<p class="dv-next">Try next: “add a directory search to the name field” · “what happens when someone is added twice”</p>
+</section>
+
+<section class="dv-turn" id="t8">
+<div class="dv-thd"><a class="dv-tid" href="#t8">8</a><span class="dv-tname">Build detail for handoff — React · Radix · Tailwind · dnd-kit</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="8a"><div class="dv-olabel"><a class="dv-oid" href="#8a">8a</a>Per-view component map — what each wireframe becomes in the stack</div>
+<div class="dv-card" style="width:1240px;padding:16px 18px">
+  <div style="display:grid;grid-template-columns:150px 1.25fr 1fr 1.05fr;font-size:10.5px;color:#999;text-transform:uppercase;letter-spacing:.04em;padding-bottom:7px;border-bottom:2px solid #2b2b2b">
+    <div>View</div><div>Radix / dnd-kit primitives</div><div>Tailwind layout &amp; tokens</div><div>States that must exist</div>
+  </div>
+  <sc-for list="{{ specRows }}" as="s" hint-placeholder-count="9">
+    <div style="display:grid;grid-template-columns:150px 1.25fr 1fr 1.05fr;gap:12px;font-size:11.5px;padding:9px 0;border-bottom:1px dashed #eceae6;align-items:start">
+      <div style="font-weight:700">{{ s.view }}</div>
+      <div style="color:#333;text-wrap:pretty">{{ s.prim }}</div>
+      <div style="color:#555;font-family:ui-monospace,Menlo,monospace;font-size:10.5px;text-wrap:pretty">{{ s.tw }}</div>
+      <div style="color:#555;text-wrap:pretty">{{ s.state }}</div>
+    </div>
+  </sc-for>
+  <div style="font-family:Caveat,cursive;font-size:16px;color:#444;margin-top:10px;line-height:1.35">Every wireframe in this file maps to one route-level component; nothing here invents a new primitive. The one deliberate deviation from the existing app: the absence/meeting dialog is <b>sm:max-w-2xl</b>, not <b>max-w-md</b> — the member column earns it.</div>
+</div></div>
+
+<div class="dv-opt" id="8b"><div class="dv-olabel"><a class="dv-oid" href="#8b">8b</a>The two dnd-kit interactions, spelled out</div>
+<div class="dv-card" style="width:620px;padding:16px 18px;font-size:12px">
+  <div style="font-weight:700;font-size:13px">1 · Drag-to-create in the absence grid <span style="font-weight:400;color:#888">— custom, not Sortable</span></div>
+  <div style="display:grid;grid-template-columns:118px 1fr;gap:5px 12px;margin-top:8px;color:#444">
+    <div style="color:#888">unit</div><div>one half-day cell = <b>{ memberId, date, half }</b>; 8px wide, 15px tall, 1px gap</div>
+    <div style="color:#888">sensors</div><div>PointerSensor (activation distance 4px) + KeyboardSensor for the accessible path</div>
+    <div style="color:#888">drag</div><div>pointer-down on a cell sets the anchor; move extends a rectangular range over date × member rows; live count in an overlay chip (“12 half-days”)</div>
+    <div style="color:#888">drop</div><div>opens the Add-absence dialog (<a class="dv-oid" href="#3a">3a</a>) pre-filled from the range — never writes silently</div>
+    <div style="color:#888">invalid</div><div>non-working halves and “not yet on team” cells are skipped, not blocked: the range clips, cursor stays valid</div>
+    <div style="color:#888">keyboard</div><div>arrows move the focused cell, Space anchors, Shift+arrows extend, Enter opens the dialog, Delete triggers the same confirm as the bin in the selected-entry bar</div>
+    <div style="color:#888">css</div><div><span style="font-family:ui-monospace,Menlo,monospace">touch-none select-none</span> on the grid; the minimap window is a separate draggable with the same sensor</div>
+  </div>
+  <div style="font-weight:700;font-size:13px;margin-top:14px">2 · Reordering rows and columns <span style="font-weight:400;color:#888">— SortableContext</span></div>
+  <div style="display:grid;grid-template-columns:118px 1fr;gap:5px 12px;margin-top:8px;color:#444">
+    <div style="color:#888">Members</div><div>vertical strategy, handle is the ⠿ grip only; order persists per team</div>
+    <div style="color:#888">Meetings</div><div>horizontal strategy on column heads; order is the team's, not chronological</div>
+    <div style="color:#888">a11y</div><div>both wrap in <span style="font-family:ui-monospace,Menlo,monospace">DndContext</span> with announcements; a ⋯ menu offers “Move up / Move down” as the non-drag equivalent</div>
+  </div>
+  <div style="font-family:Caveat,cursive;font-size:16px;color:#444;margin-top:12px;line-height:1.35">The grid drag is the only bespoke gesture in the app — worth building once, carefully. Everything else is Sortable with a handle.</div>
+</div></div>
+
+<div class="dv-opt" id="8c"><div class="dv-olabel"><a class="dv-oid" href="#8c">8c</a>Concurrency &amp; write contract — where 409 and 412 surface</div>
+<div class="dv-card" style="width:560px;padding:16px 18px;font-size:12px">
+  <div style="display:grid;grid-template-columns:76px 1fr;gap:8px 12px;align-items:start">
+    <div style="font-weight:700;color:#92400e">412</div>
+    <div><b>Absence changed under you.</b> Send <span style="font-family:ui-monospace,Menlo,monospace">modified_at</span> with every absence write. On 412: roll the optimistic cell back, then show the inline yours/theirs banner (<a class="dv-oid" href="#1b">1b</a>) with <b>Keep theirs</b> / <b>Reapply mine</b>. Never a spinner, never a silent refetch.</div>
+    <div style="font-weight:700;color:#b91c1c">409</div>
+    <div><b>Project locked by another editor.</b> Only on “Update project(s)”. Per-project and <b>non-atomic</b> — render one result row per project (<a class="dv-oid" href="#1d">1d</a>), successes stay successful, the locked one gets <b>Retry this one</b>.</div>
+    <div style="font-weight:700;color:#555">write</div>
+    <div>Team edits take <b>no lock</b> — there is no Request Edit Mode on any team view. Locks belong to projects only.</div>
+    <div style="font-weight:700;color:#555">derive</div>
+    <div>Capacity is never stored: half-days → minus absences → minus meetings → × focus → ÷ 8 (the team's <span style="font-family:ui-monospace,Menlo,monospace">normal_day_hours</span>, never the member's h/day) → PD → × project share × conversion → pts. Sprint <b>Available</b> is written only by an explicit push.</div>
+    <div style="font-weight:700;color:#555">recompute</div>
+    <div>Editing a working-days version dated in the past changes <b>open PIs only</b>; closed PIs keep their pushed numbers until someone pushes again.</div>
+  </div>
+  <div style="font-family:Caveat,cursive;font-size:16px;color:#444;margin-top:12px;line-height:1.35">These three rules decide more of the UI than any layout choice — they are why the badge, the banner and the per-project result list exist.</div>
+</div></div>
+
+</div>
+<p class="dv-next">Try next: “generate the Claude Code handoff package from these” · “add the loading-skeleton state for each view” · “write the empty/error copy for all nine views”</p>
+</section>
+
+<section class="dv-turn" id="t7">
+<div class="dv-thd"><a class="dv-tid" href="#t7">7</a><span class="dv-tname">Final landing page — two columns with the column-table row layout on both lists</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="7a"><div class="dv-olabel"><a class="dv-oid" href="#7a">7a</a>Projects and Teams side by side, both as aligned column tables</div>
+<div class="dv-card" style="width:1220px">
+  <div style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid #e6e4df;font-size:13px">
+    <span style="font-size:14px">⌂</span><b style="font-size:14px">PI Planner</b>
+    <span style="margin-left:auto;display:flex;align-items:center;gap:14px;color:#777"><span>⚙</span><span>David ▾</span><span>Sign out</span></span>
+  </div>
+  <div style="padding:24px 32px 30px;background:#faf9f7;display:flex;gap:28px;align-items:flex-start">
+
+    <div style="flex:1.45;min-width:0">
+      <div style="display:flex;align-items:center;margin-bottom:12px">
+        <div style="flex:1;font-size:18px;font-weight:700">Projects <span style="font-size:12px;font-weight:400;color:#999">4</span></div>
+        <div style="display:flex;gap:8px;font-size:12px"><span style="padding:6px 12px;border:1px solid #ccc;border-radius:8px;background:#fff">Import</span><span style="padding:6px 12px;border-radius:8px;background:#2563eb;color:#fff">+ New Project</span></div>
+      </div>
+      <div style="background:#fff;border:1px solid #e6e4df;border-radius:10px;overflow:hidden">
+        <div style="display:grid;grid-template-columns:1.5fr 110px 150px 92px;font-size:10.5px;color:#999;padding:8px 14px;background:#faf9f7;border-bottom:1px solid #f1efeb;text-transform:uppercase;letter-spacing:.04em">
+          <div>Project</div><div>Source</div><div>Team</div><div style="text-align:right">Actions</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.5fr 110px 150px 92px;font-size:13px;padding:11px 14px;align-items:center;border-bottom:1px solid #f1efeb">
+          <div style="min-width:0"><div>ISK</div><div style="font-size:11px;color:#999">Informationssystem Schwerverkehr-Kontrollen</div></div>
+          <div style="font-size:11px;color:#666;text-decoration:underline dotted">Azure DevOps ↗</div>
+          <div style="font-size:11px"><div style="text-decoration:underline dotted">Platform · 70%</div><div style="margin-top:3px"><span style="font-size:10px;padding:2px 7px;border-radius:999px;background:#fef3c7;color:#92400e">3 sprints differ</span></div></div>
+          <div style="display:flex;gap:9px;justify-content:flex-end;color:#666"><span><svg width="14" height="14" viewBox="0 0 12 12"><path d="M1.5 10.5l.8-2.4 5.6-5.6 1.6 1.6-5.6 5.6z" fill="none" stroke="currentColor" stroke-width="1"></path></svg></span><span>↧</span><span>◫</span><span style="color:#b91c1c"><svg width="14" height="14" viewBox="0 0 12 12"><path d="M2 3.2h8M4.6 3.2V2h2.8v1.2M3.1 3.2l.6 7.3h4.6l.6-7.3" fill="none" stroke="currentColor" stroke-width="1"></path></svg></span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.5fr 110px 150px 92px;font-size:13px;padding:11px 14px;align-items:center;border-bottom:1px solid #f1efeb">
+          <div style="min-width:0"><div>Data Exchange</div><div style="font-size:11px;color:#999">Datenaustausch-Plattform</div></div>
+          <div style="font-size:11px;color:#666;text-decoration:underline dotted">Azure DevOps ↗</div>
+          <div style="font-size:11px"><div style="text-decoration:underline dotted">Platform · 30%</div><div style="margin-top:3px;color:#bbb;font-size:10px">in sync</div></div>
+          <div style="display:flex;gap:9px;justify-content:flex-end;color:#666"><span><svg width="14" height="14" viewBox="0 0 12 12"><path d="M1.5 10.5l.8-2.4 5.6-5.6 1.6 1.6-5.6 5.6z" fill="none" stroke="currentColor" stroke-width="1"></path></svg></span><span>↧</span><span>◫</span><span style="color:#b91c1c"><svg width="14" height="14" viewBox="0 0 12 12"><path d="M2 3.2h8M4.6 3.2V2h2.8v1.2M3.1 3.2l.6 7.3h4.6l.6-7.3" fill="none" stroke="currentColor" stroke-width="1"></path></svg></span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.5fr 110px 150px 92px;font-size:13px;padding:11px 14px;align-items:center;border-bottom:1px solid #f1efeb">
+          <div style="min-width:0"><div>Frontline API</div><div style="font-size:11px;color:#999">Frontline-Schnittstelle</div></div>
+          <div style="font-size:11px;color:#666;text-decoration:underline dotted">Azure DevOps ↗</div>
+          <div style="font-size:11px"><div style="text-decoration:underline dotted">Platform · 20%</div><div style="margin-top:3px;color:#bbb;font-size:10px">never pushed</div></div>
+          <div style="display:flex;gap:9px;justify-content:flex-end;color:#666"><span><svg width="14" height="14" viewBox="0 0 12 12"><path d="M1.5 10.5l.8-2.4 5.6-5.6 1.6 1.6-5.6 5.6z" fill="none" stroke="currentColor" stroke-width="1"></path></svg></span><span>↧</span><span>◫</span><span style="color:#b91c1c"><svg width="14" height="14" viewBox="0 0 12 12"><path d="M2 3.2h8M4.6 3.2V2h2.8v1.2M3.1 3.2l.6 7.3h4.6l.6-7.3" fill="none" stroke="currentColor" stroke-width="1"></path></svg></span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.5fr 110px 150px 92px;font-size:13px;padding:11px 14px;align-items:center">
+          <div>Testing</div><div style="font-size:11px;color:#ccc">—</div><div style="font-size:11px;color:#ccc">no team</div>
+          <div style="display:flex;gap:9px;justify-content:flex-end;color:#666"><span><svg width="14" height="14" viewBox="0 0 12 12"><path d="M1.5 10.5l.8-2.4 5.6-5.6 1.6 1.6-5.6 5.6z" fill="none" stroke="currentColor" stroke-width="1"></path></svg></span><span>↧</span><span>◫</span><span style="color:#b91c1c"><svg width="14" height="14" viewBox="0 0 12 12"><path d="M2 3.2h8M4.6 3.2V2h2.8v1.2M3.1 3.2l.6 7.3h4.6l.6-7.3" fill="none" stroke="currentColor" stroke-width="1"></path></svg></span></div>
+        </div>
+      </div>
+      <div style="font-family:Caveat,cursive;font-size:16px;color:#444;margin-top:10px;line-height:1.3">Team column is the pairing: share, staleness, “never pushed” and “no team” all read down one line. Σ over 100% surfaces on the team row, where the shares live.</div>
+    </div>
+
+    <div style="flex:1;min-width:0">
+      <div style="display:flex;align-items:center;margin-bottom:12px">
+        <div style="flex:1;font-size:18px;font-weight:700">Teams <span style="font-size:12px;font-weight:400;color:#999">2</span></div>
+        <div style="font-size:12px"><span style="padding:6px 12px;border-radius:8px;background:#2563eb;color:#fff">+ New Team</span></div>
+      </div>
+      <div style="background:#fff;border:1px solid #e6e4df;border-radius:10px;overflow:hidden">
+        <div style="display:grid;grid-template-columns:1.1fr 74px 1.3fr 64px;font-size:10.5px;color:#999;padding:8px 14px;background:#faf9f7;border-bottom:1px solid #f1efeb;text-transform:uppercase;letter-spacing:.04em">
+          <div>Team</div><div>Members</div><div>Serves</div><div style="text-align:right">Actions</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.1fr 74px 1.3fr 64px;font-size:13px;padding:11px 14px;align-items:center;border-bottom:1px solid #f1efeb">
+          <div>Platform</div>
+          <div style="font-size:12px">6</div>
+          <div style="font-size:11px;display:flex;flex-direction:column;gap:3px">
+            <span style="display:flex;gap:6px;align-items:center">ISK 70% <span style="font-size:10px;padding:2px 7px;border-radius:999px;background:#fef3c7;color:#92400e">3 differ</span></span>
+            <span>Data Exchange 30%</span>
+            <span>Frontline API 20%</span>
+            <span style="color:#b45309">Σ 120% — over-allocated</span>
+          </div>
+          <div style="display:flex;gap:9px;justify-content:flex-end;color:#666"><span><svg width="14" height="14" viewBox="0 0 12 12"><path d="M1.5 10.5l.8-2.4 5.6-5.6 1.6 1.6-5.6 5.6z" fill="none" stroke="currentColor" stroke-width="1"></path></svg></span><span style="color:#b91c1c"><svg width="14" height="14" viewBox="0 0 12 12"><path d="M2 3.2h8M4.6 3.2V2h2.8v1.2M3.1 3.2l.6 7.3h4.6l.6-7.3" fill="none" stroke="currentColor" stroke-width="1"></path></svg></span></div>
+        </div>
+        <div style="display:grid;grid-template-columns:1.1fr 74px 1.3fr 64px;font-size:13px;padding:11px 14px;align-items:center">
+          <div>Frontline</div><div style="font-size:12px">4</div>
+          <div style="font-size:11px;color:#bbb">no project yet</div>
+          <div style="display:flex;gap:9px;justify-content:flex-end;color:#666"><span><svg width="14" height="14" viewBox="0 0 12 12"><path d="M1.5 10.5l.8-2.4 5.6-5.6 1.6 1.6-5.6 5.6z" fill="none" stroke="currentColor" stroke-width="1"></path></svg></span><span style="color:#b91c1c"><svg width="14" height="14" viewBox="0 0 12 12"><path d="M2 3.2h8M4.6 3.2V2h2.8v1.2M3.1 3.2l.6 7.3h4.6l.6-7.3" fill="none" stroke="currentColor" stroke-width="1"></path></svg></span></div>
+        </div>
+      </div>
+      <div style="margin-top:14px;border:1.5px dashed #cbc9c3;border-radius:10px;padding:16px;text-align:center;font-size:12px;color:#666;background:#fff">
+        Empty state — “No teams yet. A team lets you compute sprint capacity from who is available.”
+      </div>
+      <div style="font-family:Caveat,cursive;font-size:16px;color:#444;margin-top:10px;line-height:1.3">Reader sees the same two tables with the Actions column and both + buttons gone — badges stay, they are information.</div>
+    </div>
+
+  </div>
+</div></div>
+
+</div>
+<p class="dv-next">Try next: “add the reader variant of <a class="dv-oid" href="#7a">7a</a> as a second card” · “show <a class="dv-oid" href="#7a">7a</a> with 8 projects and 4 teams” · “render <a class="dv-oid" href="#7a">7a</a> in the neumorphic skin, light + dark”</p>
+</section>
+
+<section class="dv-turn" id="t4">
+<div class="dv-thd"><a class="dv-tid" href="#t4">4</a><span class="dv-tname">The other two kinds of <a class="dv-oid" href="#3a">3a</a> — Weekly, and Interval (“every second Friday”)</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="4a"><div class="dv-olabel"><a class="dv-oid" href="#4a">4a</a>Weekly — one weekday, chosen halves, bounded run</div>
+<div class="dv-card" style="width:620px;padding:22px 24px">
+  <div style="font-size:16px;font-weight:700">Add absence</div>
+  <div style="display:flex;gap:20px;margin-top:16px;align-items:flex-start">
+    <div style="width:186px;flex:none;font-size:12px">
+      <div style="display:flex;justify-content:space-between;color:#888;margin-bottom:7px"><span>Who</span><span style="text-decoration:underline dotted;color:#333">all 6</span></div>
+      <div style="border:1px solid #ccc;border-radius:8px;padding:10px 11px;display:flex;flex-direction:column;gap:9px">
+        <div style="display:flex;gap:7px;align-items:center"><span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;flex:none"></span>Marta Lindqvist</div>
+        <div style="display:flex;gap:7px;align-items:center"><span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;flex:none"></span>Tomas Bergerat</div>
+        <div style="display:flex;gap:7px;align-items:center"><span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;background:#2b2b2b;flex:none"></span>Aïcha Ben Salah</div>
+        <div style="display:flex;gap:7px;align-items:center"><span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;flex:none"></span>Rui Domingues</div>
+        <div style="display:flex;gap:7px;align-items:center"><span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;flex:none"></span>Katrin Hofstetter</div>
+        <div style="display:flex;gap:7px;align-items:center"><span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;flex:none"></span>Jonas Wehrli</div>
+      </div>
+    </div>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:16px;font-size:12px">
+      <div>
+        <div style="color:#888;margin-bottom:5px">Label <span style="color:#bbb">optional</span></div>
+        <div style="border:1px solid #ccc;border-radius:8px;padding:8px 10px;color:#333">Study afternoon</div>
+      </div>
+      <div>
+        <div style="color:#888;margin-bottom:5px">Kind</div>
+        <div style="display:flex;border:1px solid #ccc;border-radius:8px;overflow:hidden">
+          <div style="flex:1;padding:7px;text-align:center">Range</div>
+          <div style="flex:1;padding:7px;text-align:center;background:#2b2b2b;color:#fff">Weekly</div>
+          <div style="flex:1;padding:7px;text-align:center">Interval</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1.2fr 1fr;gap:10px">
+        <div><div style="color:#888;margin-bottom:5px">Weekday</div><div style="border:1px solid #ccc;border-radius:8px;padding:8px 10px">Wednesday ▾</div></div>
+        <div><div style="color:#888;margin-bottom:5px">Halves</div>
+          <div style="display:flex;border:1px solid #ccc;border-radius:8px;overflow:hidden"><span style="flex:1;padding:8px;text-align:center">am</span><span style="flex:1;padding:8px;text-align:center;background:#2b2b2b;color:#fff">pm</span><span style="flex:1;padding:8px;text-align:center">both</span></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><div style="color:#888;margin-bottom:5px">Runs from</div><div style="border:1px solid #ccc;border-radius:8px;padding:8px 10px">1 Mar 2026</div></div>
+        <div><div style="color:#888;margin-bottom:5px">Until <span style="color:#bbb">inclusive</span></div><div style="border:1px solid #ccc;border-radius:8px;padding:8px 10px">30 Jun 2026</div></div>
+      </div>
+      <div style="background:#f6f5f2;border-radius:8px;padding:9px 11px;color:#555">→ every Wednesday pm, 1 Mar – 30 Jun · <b>18 occurrences</b> · 18 half-days for Aïcha</div>
+      <div style="display:flex;justify-content:flex-end;gap:8px"><span style="padding:7px 14px;border:1px solid #999;border-radius:8px">Cancel</span><span style="padding:7px 16px;border-radius:8px;background:#2563eb;color:#fff">Save</span></div>
+    </div>
+  </div>
+  <div style="font-family:Caveat,cursive;font-size:16px;color:#444;margin-top:14px;line-height:1.35">Weekly is the default recurrence — no interval input at all, so the common case carries no extra decision. <b>Until</b> can be left empty for open-ended.</div>
+</div></div>
+
+<div class="dv-opt" id="4b"><div class="dv-olabel"><a class="dv-oid" href="#4b">4b</a>Interval — every N-th weekday, with the anchor week made explicit</div>
+<div class="dv-card" style="width:620px;padding:22px 24px">
+  <div style="font-size:16px;font-weight:700">Add absence</div>
+  <div style="display:flex;gap:20px;margin-top:16px;align-items:flex-start">
+    <div style="width:186px;flex:none;font-size:12px">
+      <div style="display:flex;justify-content:space-between;color:#888;margin-bottom:7px"><span>Who</span><span style="text-decoration:underline dotted;color:#333">all 6</span></div>
+      <div style="border:1px solid #ccc;border-radius:8px;padding:10px 11px;display:flex;flex-direction:column;gap:9px">
+        <div style="display:flex;gap:7px;align-items:center"><span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;flex:none"></span>Marta Lindqvist</div>
+        <div style="display:flex;gap:7px;align-items:center"><span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;flex:none"></span>Tomas Bergerat</div>
+        <div style="display:flex;gap:7px;align-items:center"><span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;background:#2b2b2b;flex:none"></span>Aïcha Ben Salah</div>
+        <div style="display:flex;gap:7px;align-items:center"><span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;flex:none"></span>Rui Domingues</div>
+        <div style="display:flex;gap:7px;align-items:center"><span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;flex:none"></span>Katrin Hofstetter</div>
+        <div style="display:flex;gap:7px;align-items:center"><span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;flex:none"></span>Jonas Wehrli</div>
+      </div>
+    </div>
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:16px;font-size:12px">
+      <div>
+        <div style="color:#888;margin-bottom:5px">Label <span style="color:#bbb">optional</span></div>
+        <div style="border:1px solid #ccc;border-radius:8px;padding:8px 10px;color:#333">90% contract — free Friday</div>
+      </div>
+      <div>
+        <div style="color:#888;margin-bottom:5px">Kind</div>
+        <div style="display:flex;border:1px solid #ccc;border-radius:8px;overflow:hidden">
+          <div style="flex:1;padding:7px;text-align:center">Range</div>
+          <div style="flex:1;padding:7px;text-align:center">Weekly</div>
+          <div style="flex:1;padding:7px;text-align:center;background:#2b2b2b;color:#fff">Interval</div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:auto 1.1fr 1fr;gap:10px;align-items:end">
+        <div><div style="color:#888;margin-bottom:5px">Every</div>
+          <div style="display:flex;align-items:center;border:1px solid #ccc;border-radius:8px;overflow:hidden"><span style="padding:8px 10px">2</span><span style="padding:8px;border-left:1px solid #eee;color:#888">wks</span><span style="display:flex;flex-direction:column;border-left:1px solid #eee;font-size:9px;color:#666"><span style="padding:1px 6px">▲</span><span style="padding:1px 6px;border-top:1px solid #eee">▼</span></span></div>
+        </div>
+        <div><div style="color:#888;margin-bottom:5px">Weekday</div><div style="border:1px solid #ccc;border-radius:8px;padding:8px 10px">Friday ▾</div></div>
+        <div><div style="color:#888;margin-bottom:5px">Halves</div>
+          <div style="display:flex;border:1px solid #ccc;border-radius:8px;overflow:hidden"><span style="flex:1;padding:8px;text-align:center;background:#2b2b2b;color:#fff">am</span><span style="flex:1;padding:8px;text-align:center">pm</span><span style="flex:1;padding:8px;text-align:center">both</span></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+        <div><div style="color:#888;margin-bottom:5px">First occurrence</div><div style="border:1.5px solid #2b2b2b;border-radius:8px;padding:8px 10px">Fri 4 Sep 2026</div></div>
+        <div><div style="color:#888;margin-bottom:5px">Until <span style="color:#bbb">optional</span></div><div style="border:1px solid #ccc;border-radius:8px;padding:8px 10px;color:#999">no end date</div></div>
+      </div>
+      <div>
+        <div style="color:#888;margin-bottom:6px">Occurrences</div>
+        <div style="display:flex;gap:5px;flex-wrap:wrap"><span style="padding:3px 9px;border:1px solid #ddd;border-radius:6px">4 Sep</span><span style="padding:3px 9px;border:1px solid #ddd;border-radius:6px">18 Sep</span><span style="padding:3px 9px;border:1px solid #ddd;border-radius:6px">2 Oct</span><span style="padding:3px 9px;border:1px solid #ddd;border-radius:6px">16 Oct</span><span style="padding:3px 9px;border:1px solid #ddd;border-radius:6px">30 Oct</span><span style="color:#999">every 2nd Friday, ongoing</span></div>
+      </div>
+      <div style="background:#f6f5f2;border-radius:8px;padding:9px 11px;color:#555">→ 1 half-day per fortnight · <b>0.5 d / 2 weeks</b> for Aïcha</div>
+      <div style="display:flex;justify-content:flex-end;gap:8px"><span style="padding:7px 14px;border:1px solid #999;border-radius:8px">Cancel</span><span style="padding:7px 16px;border-radius:8px;background:#2563eb;color:#fff">Save</span></div>
+    </div>
+  </div>
+  <div style="font-family:Caveat,cursive;font-size:16px;color:#444;margin-top:14px;line-height:1.35">Interval is Weekly + <b>interval_weeks</b>, split out as its own kind so the fortnightly case is discoverable rather than hidden in a stepper. The <b>first occurrence</b> date is the anchor — it decides which alternate weeks are hit, so it is labelled as such, not as “runs from”. Occurrence chips are the check against an off-by-one week.</div>
+</div></div>
+
+</div>
+<p class="dv-next">Try next: “fold Interval back into Weekly as a stepper and compare” · “show <a class="dv-oid" href="#4b">4b</a>’s edit state with this-occurrence / whole-series” · “apply <a class="dv-oid" href="#4b">4b</a> into <a class="dv-oid" href="#3a">3a</a> as the third tab”</p>
+</section>
+
+<section class="dv-turn" id="t3">
+<div class="dv-thd"><a class="dv-tid" href="#t3">3</a><span class="dv-tname">Add / edit absence — modal proposition (members + range | weekly, §3.4)</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="3a"><div class="dv-olabel"><a class="dv-oid" href="#3a">3a</a>Member checklist down the left, Range|Weekly fields on the right</div>
+<div class="dv-card" style="width:620px;padding:22px 24px">
+  <div style="font-size:16px;font-weight:700">Add absence</div>
+  <div style="display:flex;gap:20px;margin-top:16px;align-items:flex-start">
+  <div style="width:186px;flex:none;font-size:12px">
+    <div style="display:flex;justify-content:space-between;color:#888;margin-bottom:7px"><span>Who</span><span style="text-decoration:underline dotted;color:#333">all 6</span></div>
+    <div style="border:1px solid #ccc;border-radius:8px;padding:10px 11px;display:flex;flex-direction:column;gap:9px">
+      <div style="display:flex;gap:7px;align-items:center"><span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;background:#2b2b2b;flex:none"></span>Marta Lindqvist</div>
+      <div style="display:flex;gap:7px;align-items:center"><span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;background:#2b2b2b;flex:none"></span>Tomas Bergerat</div>
+      <div style="display:flex;gap:7px;align-items:center"><span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;background:#2b2b2b;flex:none"></span>Aïcha Ben Salah</div>
+      <div style="display:flex;gap:7px;align-items:center"><span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;background:#2b2b2b;flex:none"></span>Rui Domingues</div>
+      <div style="display:flex;gap:7px;align-items:center"><span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;background:#2b2b2b;flex:none"></span>Katrin Hofstetter</div>
+      <div style="display:flex;gap:7px;align-items:center"><span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;background:#2b2b2b;flex:none"></span>Jonas Wehrli</div>
+    </div>
+    <div style="font-family:Caveat,cursive;font-size:15px;color:#444;margin-top:7px;line-height:1.3">“all 6” is one click — the 25 Dec holiday flow</div>
+  </div>
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:16px;font-size:12px">
+    <div>
+      <div style="color:#888;margin-bottom:5px">Label <span style="color:#bbb">optional, for humans only</span></div>
+      <div style="border:1px solid #ccc;border-radius:8px;padding:8px 10px;color:#333">Christmas</div>
+    </div>
+    <div>
+      <div style="color:#888;margin-bottom:5px">Kind</div>
+      <div style="display:flex;border:1px solid #ccc;border-radius:8px;overflow:hidden">
+        <div style="flex:1;padding:7px;text-align:center;background:#2b2b2b;color:#fff">Range</div>
+        <div style="flex:1;padding:7px;text-align:center">Weekly</div>
+        <div style="flex:1;padding:7px;text-align:center">Interval</div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div><div style="color:#888;margin-bottom:5px">From</div><div style="display:flex;gap:5px"><div style="flex:1;border:1px solid #ccc;border-radius:8px;padding:8px">25 Dec 2026</div><div style="border:1px solid #ccc;border-radius:8px;padding:8px">am ▾</div></div></div>
+      <div><div style="color:#888;margin-bottom:5px">To <span style="color:#bbb">inclusive</span></div><div style="display:flex;gap:5px"><div style="flex:1;border:1px solid #ccc;border-radius:8px;padding:8px">25 Dec 2026</div><div style="border:1px solid #ccc;border-radius:8px;padding:8px">pm ▾</div></div></div>
+    </div>
+    <div style="background:#f6f5f2;border-radius:8px;padding:9px 11px;color:#555">→ 25 Dec, both halves, 6 members · <b>12 half-days</b> removed from capacity</div>
+    <div style="display:flex;justify-content:flex-end;gap:8px"><span style="padding:7px 14px;border:1px solid #999;border-radius:8px">Cancel</span><span style="padding:7px 16px;border-radius:8px;background:#2563eb;color:#fff">Save</span></div>
+  </div>
+  </div>
+  <div style="font-family:Caveat,cursive;font-size:16px;color:#444;margin-top:14px;line-height:1.35">Switching to <b>Weekly</b> (<a class="dv-oid" href="#4a">4a</a>) or <b>Interval</b> (<a class="dv-oid" href="#4b">4b</a>) swaps the two date fields for that kind's own — same footprint, so the modal never jumps size. Wider than the app's <b>max-w-md</b> dialogs — the member column earns the exception.</div>
+</div></div>
+
+</div>
+<p class="dv-next">Try next: “put a preview calendar into <a class="dv-oid" href="#3a">3a</a>” · “add the 412 conflict state to the edit modal”</p>
+</section>
+
+<section class="dv-turn" id="t2">
+<div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">Reconciling the 12-month density strip with the 4-month grid — the option applied in <a class="dv-oid" href="#1b">1b</a></span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="2a"><div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>Minimap — the strip owns the year, a draggable window says which 4 months you see</div>
+<div class="dv-card" style="width:1180px;padding:14px 18px 18px">
+  <div style="display:flex;align-items:flex-end;gap:0;margin-bottom:2px">
+    <div style="width:140px;flex:none;font-size:11px;color:#888">the year · drag the window</div>
+    <div style="width:984px;flex:none;position:relative">
+      <div style="display:flex;align-items:flex-end;height:26px">
+        <sc-for list="{{ density }}" as="m" hint-placeholder-count="12">
+          <div style="width:82px;flex:none;padding:0 3px;box-sizing:border-box;text-align:center">
+            <div class="{{ m.k }}" style="height:{{ m.h }};width:100%;border-radius:2px"></div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="display:flex">
+        <sc-for list="{{ monthAbbr }}" as="l" hint-placeholder-count="12">
+          <div style="width:82px;flex:none;text-align:center;font-size:10px;color:#999">{{ l }}</div>
+        </sc-for>
+      </div>
+      <div style="position:absolute;left:492px;top:-4px;width:328px;height:44px;border:1.5px solid #2b2b2b;border-radius:6px;background:rgba(43,43,43,.05);box-sizing:border-box"></div>
+      <div style="position:absolute;left:492px;top:42px;width:328px;display:flex;justify-content:space-between;font-size:11px;color:#2b2b2b"><span>◄</span><span>the 4 months below</span><span>►</span></div>
+    </div>
+  </div>
+  <div style="margin-top:34px;border-top:1.5px solid #2b2b2b;padding-top:4px">
+    <div style="display:flex;font-size:12px;font-weight:700;padding-bottom:2px"><div style="width:140px;flex:none">Jul – Oct 2026</div></div>
+    <sc-for list="{{ absRows }}" as="r" hint-placeholder-count="6">
+      <div style="display:flex;align-items:center;height:20px">
+        <div style="width:140px;flex:none;font-size:12px">{{ r.name }}</div>
+        <div style="width:984px;flex:none;display:flex;gap:1px">
+          <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="120">
+            <div style="display:flex;gap:1px"><span class="hc {{ c.a }}"></span><span class="hc {{ c.p }}"></span></div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+  <div style="display:flex;margin-top:10px">
+    <div style="width:140px;flex:none"></div>
+    <div style="width:520px;font-family:Caveat,cursive;font-size:17px;color:#444;line-height:1.35">One timeline, two zooms, and the relationship is <b>drawn</b> rather than explained: the frame is the viewport. Drag it, or click a month bar to jump. Names move into the row labels of the grid, so the strip carries no member identity.</div>
+  </div>
+</div></div>
+
+</div>
+<p class="dv-next">Try next: “make <a class="dv-oid" href="#2a">2a</a>’s window resizable to 1–12 months”</p>
+</section>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Teams &amp; Capacity — wireframe propositions (priority order from §7)</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1a"><div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Capacity view — PD leads, hours beneath, one cell traced open</div>
+<div class="dv-card" style="width:1200px">
+  <div style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid #e6e4df;font-size:13px">
+    <span style="font-size:14px">⌂</span><b style="font-size:14px">PI Planner</b><span style="color:#bbb">/</span><span style="color:#777">Platform</span>
+    <span style="margin-left:auto;display:flex;align-items:center;gap:14px;color:#777"><span>⚙</span><span>David ▾</span><span>Sign out</span></span>
+  </div>
+  <div style="display:flex;align-items:stretch">
+  <div style="width:172px;flex:none;border-right:1px dashed #cfcdc7;background:#faf9f7;padding:14px 12px;display:flex;flex-direction:column;gap:14px">
+    <div style="font-size:12px;color:#888">◄ All teams</div>
+    <div style="font-size:19px;font-weight:700;line-height:1.15">Platform<div style="font-size:12px;font-weight:400;color:#888">6 members</div></div>
+    <div style="display:flex;flex-direction:column;gap:3px;font-size:13px;color:#666">
+      <span style="padding:6px 10px;border-radius:8px">Members</span>
+      <span style="padding:6px 10px;border-radius:8px">Working days</span>
+      <span style="padding:6px 10px;border-radius:8px">Absences</span>
+      <span style="padding:6px 10px;border-radius:8px">Meetings</span>
+      <span style="padding:6px 10px;border-radius:8px;background:#2b2b2b;color:#fff">Capacity</span>
+      <span style="padding:6px 10px;border-radius:8px">Projects</span>
+    </div>
+    <div style="margin-top:auto;font-family:Caveat,cursive;font-size:15px;color:#444;line-height:1.3">Left rail, like the rest of the app — and no “Request Edit Mode”: team editing takes no lock.</div>
+  </div>
+  <div style="flex:1;min-width:0;display:flex;flex-direction:column">
+  <div style="display:flex;align-items:center;gap:10px;padding:12px 18px;background:#faf9f7;border-bottom:1px dashed #cfcdc7;font-size:13px">
+    <span>Project view:</span>
+    <span style="padding:3px 10px;border:1px solid #bbb;border-radius:6px">ISK (70%) ▾</span>
+    <span style="color:#777">unit pts · factor 1.5 pts / PD</span>
+    <span style="margin-left:auto;display:flex;gap:8px;align-items:center"><span style="width:26px;height:24px;border:1px solid #bbb;border-radius:6px;display:flex;align-items:center;justify-content:center">◄</span><span>Sprints 7.4 – 8.4</span><span style="width:26px;height:24px;border:1px solid #bbb;border-radius:6px;display:flex;align-items:center;justify-content:center">►</span></span>
+  </div>
+  <div style="display:grid;grid-template-columns:170px repeat(6,1fr);font-size:12px">
+    <div style="padding:10px 12px;border-bottom:1px solid #e6e4df"></div>
+    <sc-for list="{{ capSprints }}" as="s" hint-placeholder-count="6">
+      <div style="padding:8px 10px;border-bottom:1px solid #e6e4df;border-left:1px dashed #eae8e3">
+        <div style="font-weight:700;font-size:13px">{{ s.name }}</div><div style="color:#888">{{ s.dates }}</div>
+      </div>
+    </sc-for>
+    <sc-for list="{{ capRows }}" as="r" hint-placeholder-count="6">
+      <div style="padding:9px 12px;border-bottom:1px dashed #eceae6">{{ r.name }}</div>
+      <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="6">
+        <div style="padding:8px 10px;border-bottom:1px dashed #eceae6;border-left:1px dashed #eae8e3">
+          <div style="font-size:15px;font-weight:700">{{ c.pd }}</div>
+          <div style="color:#555">{{ c.h }}</div>
+          <div style="color:#999;font-size:11px;border-top:1px dotted #ddd;margin-top:4px;padding-top:3px">{{ c.foot }}</div>
+        </div>
+      </sc-for>
+    </sc-for>
+  </div>
+  <div style="display:grid;grid-template-columns:170px repeat(6,1fr);font-size:12px;background:#f4f3f0;border-top:2px solid #2b2b2b">
+    <div style="padding:10px 12px;font-weight:700">Team</div>
+    <sc-for list="{{ teamCells }}" as="c" hint-placeholder-count="6">
+      <div style="padding:8px 10px;border-left:1px dashed #dedcd7">
+        <div style="font-size:16px;font-weight:700">{{ c.pd }}</div><div>{{ c.h }}</div>
+      </div>
+    </sc-for>
+    <div style="padding:8px 12px;color:#555">ISK 70% → pts</div>
+    <sc-for list="{{ projCells }}" as="c" hint-placeholder-count="6">
+      <div style="padding:6px 10px;border-left:1px dashed #dedcd7;border-top:1px dotted #d5d3ce">
+        <div>{{ c.pd }}</div><div style="font-weight:700;font-size:14px">{{ c.pts }}</div>
+      </div>
+    </sc-for>
+  </div>
+  <div style="display:flex;gap:20px;padding:16px 18px;border-top:1px dashed #cfcdc7;align-items:flex-start">
+    <div style="flex:1;border:1.5px solid #2b2b2b;border-radius:10px;padding:12px 14px">
+      <div style="display:flex;justify-content:space-between;font-size:13px;font-weight:700;margin-bottom:8px">Marta Lindqvist · Sprint 7.5 <span>▲ collapse</span></div>
+      <div style="font-size:12px;display:grid;grid-template-columns:1fr auto auto;gap:4px 14px">
+        <div>Contracted half-days (10 d × 2)</div><div style="text-align:right">20 ½d</div><div style="text-align:right;color:#888">80.0 h</div>
+        <div>− Absences (3 Sep, 1 d)</div><div style="text-align:right">−2 ½d</div><div style="text-align:right;color:#888">−8.0 h</div>
+        <div style="border-top:1px dotted #ccc;padding-top:4px">Present</div><div style="text-align:right;border-top:1px dotted #ccc;padding-top:4px">18 ½d</div><div style="text-align:right;border-top:1px dotted #ccc;padding-top:4px;color:#888">72.0 h</div>
+        <div>− Meetings (stand-up ×10, planning)</div><div style="text-align:right"></div><div style="text-align:right;color:#888">−4.5 h</div>
+        <div style="color:#888">After meetings</div><div style="text-align:right"></div><div style="text-align:right;color:#888">67.5 h</div>
+        <div>× Focus 0.8</div><div></div><div style="text-align:right;color:#888">54.0 h</div>
+        <div>÷ 8</div><div></div><div style="text-align:right;font-weight:700;font-size:14px">6.8 PD</div>
+        <div style="color:#888">× ISK share 70% × 1.5</div><div></div><div style="text-align:right;font-weight:700">7 pts</div>
+      </div>
+    </div>
+    <div style="width:300px;font-family:Caveat,cursive;font-size:17px;color:#444;line-height:1.35">
+      <div style="margin-bottom:10px">↑ every cell opens to this. Same order as the chain in §1, so a surprising number is traceable.</div>
+      <div style="margin-bottom:10px">Sprint 8.4 has no dates → shows <b>“—”</b>, never 0.</div>
+      <div>Footer line is <b>presence</b> (9 d present · 6.8 PD); the big number is <b>capacity</b>.</div>
+    </div>
+  </div>
+  </div>
+  </div>
+</div></div>
+
+<div class="dv-opt" id="1b"><div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Absences — 4-month grid under a year minimap (from <a class="dv-oid" href="#2a">2a</a>)</div>
+<div class="dv-card" style="width:1360px">
+  <div style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid #e6e4df;font-size:13px">
+    <span style="font-size:14px">⌂</span><b style="font-size:14px">PI Planner</b><span style="color:#bbb">/</span><span style="color:#777">Platform</span>
+    <span style="margin-left:auto;display:flex;align-items:center;gap:14px;color:#777"><span>⚙</span><span>David ▾</span><span>Sign out</span></span>
+  </div>
+  <div style="display:flex;align-items:stretch">
+  <div style="width:172px;flex:none;border-right:1px dashed #cfcdc7;background:#faf9f7;padding:14px 12px;display:flex;flex-direction:column;gap:14px">
+    <div style="font-size:12px;color:#888">◄ All teams</div>
+    <div style="font-size:19px;font-weight:700;line-height:1.15">Platform<div style="font-size:12px;font-weight:400;color:#888">6 members</div></div>
+    <div style="display:flex;flex-direction:column;gap:3px;font-size:13px;color:#666">
+      <span style="padding:6px 10px;border-radius:8px">Members</span>
+      <span style="padding:6px 10px;border-radius:8px">Working days</span>
+      <span style="padding:6px 10px;border-radius:8px;background:#2b2b2b;color:#fff">Absences</span>
+      <span style="padding:6px 10px;border-radius:8px">Meetings</span>
+      <span style="padding:6px 10px;border-radius:8px">Capacity</span>
+      <span style="padding:6px 10px;border-radius:8px">Projects</span>
+    </div>
+  </div>
+  <div style="flex:1;min-width:0">
+  <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px dashed #cfcdc7;font-size:13px">
+    <span style="font-size:18px;font-weight:700">Absences</span>
+    <span style="padding:4px 10px;border:1px solid #bbb;border-radius:6px">+ Add absence</span>
+    <span style="margin-left:auto;color:#777">drag across cells to create · click an entry to edit</span>
+  </div>
+  <div style="padding:12px 18px 6px;border-bottom:1px dashed #cfcdc7">
+    <div style="display:flex;align-items:flex-end">
+      <div style="width:140px;flex:none;font-size:11px;color:#888;display:flex;flex-direction:column;gap:4px;align-items:flex-start">
+        <span>drag the window</span>
+        <span style="font-size:11px;color:#666;text-decoration:underline dotted">jump to Sep 2026 ▾</span>
+      </div>
+      <div style="width:984px;flex:none;position:relative">
+        <div style="display:flex;align-items:flex-end;height:26px">
+          <sc-for list="{{ density }}" as="m" hint-placeholder-count="12">
+            <div style="width:82px;flex:none;padding:0 3px;box-sizing:border-box;text-align:center">
+              <div class="{{ m.k }}" style="height:{{ m.h }};width:100%;border-radius:2px"></div>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:flex">
+          <sc-for list="{{ monthAbbr }}" as="l" hint-placeholder-count="12">
+            <div style="width:82px;flex:none;text-align:center;font-size:10px;color:#999">{{ l }}</div>
+          </sc-for>
+        </div>
+        <div style="position:absolute;left:492px;top:-4px;width:328px;height:44px;border:1.5px solid #2b2b2b;border-radius:6px;background:rgba(43,43,43,.05);box-sizing:border-box"></div>
+        <div style="position:absolute;left:492px;top:42px;width:328px;text-align:center;font-size:11px;color:#2b2b2b">the 4 months below</div>
+      </div>
+    </div>
+    <div style="display:flex;margin-top:22px"><div style="width:140px;flex:none"></div><div style="font-family:Caveat,cursive;font-size:16px;color:#444">the frame <b>is</b> the viewport — bars show where entries exist, the Dec bar is the 25 Dec team holiday; click a month or drag the frame to move the grid</div></div>
+  </div>
+  <div style="padding:8px 18px 4px;display:flex;align-items:center">
+    <div style="width:140px;flex:none"></div>
+    <div style="display:flex">
+      <sc-for list="{{ monthHdr }}" as="m" hint-placeholder-count="4">
+        <div style="box-sizing:border-box;width:{{ m.w }};flex:none;font-size:12px;font-weight:700;border-left:1px solid #ddd;padding-left:4px">{{ m.n }} 2026</div>
+      </sc-for>
+    </div>
+  </div>
+  <div style="padding:0 18px 14px">
+    <sc-for list="{{ absRows }}" as="r" hint-placeholder-count="6">
+      <div style="display:flex;align-items:center;height:24px">
+        <div style="width:140px;flex:none;display:flex;align-items:center;font-size:12px">{{ r.name }}</div>
+        <div style="display:flex;gap:1px">
+          <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="120">
+            <div style="display:flex;gap:1px"><span class="hc {{ c.a }}"></span><span class="hc {{ c.p }}"></span></div>
+          </sc-for>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+  <div style="display:flex;gap:14px;align-items:flex-start;padding:2px 18px 14px">
+    <div style="width:300px;flex:none;border:1.5px solid #2b2b2b;border-radius:10px;padding:10px 12px;font-size:12px;background:#fff;box-shadow:0 2px 6px rgba(0,0,0,.07)">
+      <div style="display:flex;align-items:flex-start;gap:10px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700">Rui Domingues</div>
+          <div style="color:#555">20–31 Jul 2026 · both halves · 10 d</div>
+          <div style="color:#999;font-size:11px;margin-top:2px">“Summer holiday” · range</div>
+        </div>
+        <div style="display:flex;gap:9px;color:#555;flex:none;padding-top:2px">
+          <svg width="15" height="15" viewBox="0 0 12 12" aria-label="edit"><path d="M1.5 10.5l.8-2.4 5.6-5.6 1.6 1.6-5.6 5.6z" fill="none" stroke="currentColor" stroke-width="1"></path></svg>
+          <span style="color:#b91c1c"><svg width="15" height="15" viewBox="0 0 12 12" aria-label="delete"><path d="M2 3.2h8M4.6 3.2V2h2.8v1.2M3.1 3.2l.6 7.3h4.6l.6-7.3" fill="none" stroke="currentColor" stroke-width="1"></path></svg></span>
+        </div>
+      </div>
+    </div>
+    <div style="font-family:Caveat,cursive;font-size:16px;color:#444;line-height:1.35;max-width:520px">↑ click any absence run in the grid and it selects as one entry — pencil and bin sit side by side, so <b>delete is its own action</b> and never buried inside the edit modal. Bin on a recurring entry asks: this occurrence / whole series. Selected entries also take the <b>Delete</b> key.</div>
+  </div>
+  <div style="display:flex;gap:16px;padding:0 18px 16px;font-size:11px;color:#666;align-items:center;flex-wrap:wrap">
+    <span style="display:flex;align-items:center;gap:5px"><span class="hc ca" style="width:12px"></span> absence</span>
+    <span style="display:flex;align-items:center;gap:5px"><span class="hc cr" style="width:12px"></span> recurring (Aïcha, every 2nd Fri from 4 Sep)</span>
+    <span style="display:flex;align-items:center;gap:5px"><span class="hc cx" style="width:12px"></span> not a working half-day</span>
+    <span style="display:flex;align-items:center;gap:5px"><span class="hc cw" style="width:12px"></span> weekend</span>
+    <span style="display:flex;align-items:center;gap:5px"><span class="hc cn" style="width:12px"></span> not yet on team (Jonas, joins 1 Oct)</span>
+    <span style="font-family:Caveat,cursive;font-size:16px;color:#444">Tomas 14 Sep = am only → literally half a cell</span>
+  </div>
+  <div style="margin:0 18px 18px;border:1.5px solid #b45309;border-radius:10px;padding:12px 14px;background:#fffbf3">
+    <div style="font-weight:700;font-size:13px;color:#92400e">412 — this absence changed under you</div>
+    <div style="font-size:12px;margin:6px 0 10px">Rui Domingues 20–31 Jul was edited by <b>a.keller</b> 2 min ago. Yours: 20–31 Jul. Theirs: <b>20 Jul – 4 Aug</b>.</div>
+    <div style="display:flex;gap:8px;font-size:12px"><span style="padding:4px 12px;border:1px solid #999;border-radius:6px">Keep theirs</span><span style="padding:4px 12px;border-radius:6px;background:#2563eb;color:#fff">Reapply mine</span></div>
+    <div style="font-family:Caveat,cursive;font-size:16px;color:#444;margin-top:8px">412 = it changed, here it is. Never a spinner — see <a class="dv-oid" href="#1d">1d</a> for 409, which looks nothing like this.</div>
+  </div>
+  </div>
+  </div>
+</div></div>
+
+<div class="dv-opt" id="1c"><div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Working days — as-of date, version timeline per member</div>
+<div class="dv-card" style="width:1200px">
+  <div style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid #e6e4df;font-size:13px">
+    <span style="font-size:14px">⌂</span><b style="font-size:14px">PI Planner</b><span style="color:#bbb">/</span><span style="color:#777">Platform</span>
+    <span style="margin-left:auto;display:flex;align-items:center;gap:14px;color:#777"><span>⚙</span><span>David ▾</span><span>Sign out</span></span>
+  </div>
+  <div style="display:flex;align-items:stretch">
+  <div style="width:172px;flex:none;border-right:1px dashed #cfcdc7;background:#faf9f7;padding:14px 12px;display:flex;flex-direction:column;gap:14px">
+    <div style="font-size:12px;color:#888">◄ All teams</div>
+    <div style="font-size:19px;font-weight:700;line-height:1.15">Platform<div style="font-size:12px;font-weight:400;color:#888">6 members</div></div>
+    <div style="display:flex;flex-direction:column;gap:3px;font-size:13px;color:#666">
+      <span style="padding:6px 10px;border-radius:8px">Members</span>
+      <span style="padding:6px 10px;border-radius:8px;background:#2b2b2b;color:#fff">Working days</span>
+      <span style="padding:6px 10px;border-radius:8px">Absences</span>
+      <span style="padding:6px 10px;border-radius:8px">Meetings</span>
+      <span style="padding:6px 10px;border-radius:8px">Capacity</span>
+      <span style="padding:6px 10px;border-radius:8px">Projects</span>
+    </div>
+  </div>
+  <div style="flex:1;min-width:0">
+  <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px dashed #cfcdc7">
+    <span style="font-size:18px;font-weight:700">Working days</span>
+    <span style="font-size:13px;color:#777">Pattern in effect on</span>
+    <span style="padding:5px 12px;border:1.5px solid #2b2b2b;border-radius:8px;font-size:13px;font-weight:700">15 Sep 2026 ▾</span>
+    <span style="font-family:Caveat,cursive;font-size:16px;color:#444">← everything below reflects this date</span>
+  </div>
+  <div style="display:grid;grid-template-columns:150px repeat(7,54px) 60px 56px 110px;font-size:12px;padding:10px 18px 4px;color:#888;text-align:center">
+    <div></div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div><div>Sun</div><div>h/day</div><div>focus</div><div></div>
+  </div>
+  <div style="padding:0 18px 12px">
+    <sc-for list="{{ wdRows }}" as="r" hint-placeholder-count="6">
+      <div style="display:grid;grid-template-columns:150px repeat(7,54px) 60px 56px 110px;align-items:center;font-size:12px;border-top:1px dashed #eceae6;padding:7px 0">
+        <div>{{ r.name }}</div>
+        <sc-for list="{{ r.days }}" as="d" hint-placeholder-count="7">
+          <div style="display:flex;gap:6px;justify-content:center">
+            <span class="{{ d.a }}" style="width:15px;height:15px;border-radius:50%;border:1.5px solid #2b2b2b;display:block"></span>
+            <span class="{{ d.p }}" style="width:15px;height:15px;border-radius:50%;border:1.5px solid #2b2b2b;display:block"></span>
+          </div>
+        </sc-for>
+        <div style="text-align:center">{{ r.hd }}</div>
+        <div style="text-align:center">{{ r.focus }}</div>
+        <div style="text-align:right"><span style="padding:3px 9px;border:1px solid #bbb;border-radius:6px">Change from…</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:150px 1fr;font-size:11px;color:#888;padding-bottom:6px">
+        <div style="padding-left:14px">versions</div>
+        <div style="display:flex;align-items:center;gap:0;height:14px">
+          <sc-for list="{{ r.versions }}" as="v" hint-placeholder-count="2">
+            <div style="display:flex;align-items:center"><span style="display:block;width:9px;height:9px;border-radius:50%;background:#2b2b2b"></span><span style="display:block;width:{{ v.gap }};height:1.5px;background:#cbc9c3"></span></div>
+          </sc-for>
+          <span style="margin-left:6px">{{ r.vlabel }}</span>
+        </div>
+      </div>
+    </sc-for>
+  </div>
+  <div style="display:flex;gap:16px;padding:14px 18px;border-top:1px dashed #cfcdc7;align-items:flex-start">
+    <div style="flex:1;border:1.5px solid #2b2b2b;border-radius:10px;padding:14px">
+      <div style="font-size:14px;font-weight:700">Katrin Hofstetter — editing version 2 of 2</div>
+      <div style="font-size:12px;color:#666;margin:3px 0 10px">Effective <b>1 Sep 2026 → open</b> · previous version 1 Jan – 31 Aug 2026 stays untouched</div>
+      <div style="display:flex;gap:10px;align-items:center;font-size:12px;margin-bottom:10px">
+        <span>Change from</span><span style="padding:4px 10px;border:1.5px solid #b45309;border-radius:6px">1 Jul 2026 ▾</span>
+        <span style="padding:4px 10px;border:1px solid #bbb;border-radius:6px">Pre-filled from current version</span>
+      </div>
+      <div style="border:1.5px dashed #b45309;background:#fffbf3;border-radius:8px;padding:9px 12px;font-size:12px;color:#92400e">
+        ⚠ This date is in the past. Sprints in <b>closed PIs will not be recomputed</b> — only open PIs change after the next “Update project(s)”.
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;font-size:12px"><span style="padding:5px 14px;border:1px solid #999;border-radius:6px">Cancel</span><span style="padding:5px 14px;border-radius:6px;background:#2563eb;color:#fff">Save version</span></div>
+    </div>
+    <div style="width:250px;font-family:Caveat,cursive;font-size:17px;color:#444;line-height:1.35">
+      <div style="margin-bottom:10px">Katrin has two markers (1 Jan, 1 Sep) — the timeline is the only place versioning is visible, so it lives on the row itself.</div>
+      <div>h/day + focus are edited <b>here</b>, never on Members — changing them means dating a new version.</div>
+    </div>
+  </div>
+  </div>
+  </div>
+</div></div>
+
+<div class="dv-opt" id="1d"><div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>Update project(s) — preview, apply, per-project result</div>
+<div class="dv-card" style="width:880px">
+  <div style="padding:14px 18px;border-bottom:1px dashed #cfcdc7"><span style="font-size:17px;font-weight:700">Update project(s) from team Platform</span><div style="font-size:12px;color:#777">Step 1 of 2 — review. Nothing is written until you apply.</div></div>
+  <div style="padding:12px 18px;font-size:12px;display:flex;gap:10px;align-items:center">
+    <span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;background:#2b2b2b;display:block"></span> ISK (70%)
+    <span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;background:#2b2b2b;display:block;margin-left:14px"></span> Data Exchange (30%)
+    <span style="width:13px;height:13px;border:1.5px solid #2b2b2b;border-radius:3px;background:#2b2b2b;display:block;margin-left:14px"></span> Frontline API (20%)
+  </div>
+  <div style="padding:0 18px 8px;font-size:12px">
+    <div style="display:grid;grid-template-columns:1.1fr .8fr .9fr .6fr 1.3fr;background:#f4f3f0;padding:7px 10px;font-weight:700">
+      <div>ISK · PI.sprint</div><div>Current</div><div>Proposed</div><div>Δ</div><div>behind it</div>
+    </div>
+    <sc-for list="{{ pushRows }}" as="p" hint-placeholder-count="4">
+      <div style="display:grid;grid-template-columns:1.1fr .8fr .9fr .6fr 1.3fr;padding:8px 10px;border-bottom:1px dashed #eceae6">
+        <div>{{ p.s }}</div><div>{{ p.cur }}</div><div style="font-weight:700">{{ p.next }}</div><div class="{{ p.dk }}">{{ p.delta }}</div><div style="color:#888">{{ p.why }}</div>
+      </div>
+    </sc-for>
+    <div style="font-family:Caveat,cursive;font-size:16px;color:#444;padding:8px 2px">Proposed is <b>the whole number that will be written</b> — rounding happens here, in view, not silently on apply.</div>
+  </div>
+  <div style="display:flex;justify-content:flex-end;gap:8px;padding:0 18px 14px;font-size:12px"><span style="padding:6px 14px;border:1px solid #999;border-radius:6px">Cancel</span><span style="padding:6px 16px;border-radius:6px;background:#2563eb;color:#fff">Apply to 3 projects</span></div>
+  <div style="border-top:1px dashed #cfcdc7;padding:14px 18px">
+    <div style="font-size:14px;font-weight:700;margin-bottom:8px">Step 2 — result (per project, not atomic)</div>
+    <div style="font-size:13px;display:grid;grid-template-columns:170px 1fr;gap:7px 12px;align-items:center">
+      <div>ISK</div><div>✓ 3 sprints updated</div>
+      <div>Data Exchange</div><div style="color:#777">✓ no change</div>
+      <div>Frontline API</div>
+      <div style="color:#b91c1c">✗ locked by <b>mfranck</b> until 14:32 &nbsp;<span style="padding:3px 9px;border:1px solid #b91c1c;border-radius:6px;font-size:12px">Retry this one</span></div>
+    </div>
+    <div style="font-family:Caveat,cursive;font-size:16px;color:#444;margin-top:8px">409 = someone else is editing, wait &amp; retry. Row-level, so the two that succeeded stay succeeded.</div>
+  </div>
+</div></div>
+
+<div class="dv-opt" id="1f"><div class="dv-olabel"><a class="dv-oid" href="#1f">1f</a>Members (read-only effective values) + Projects tab (shares &gt; 100%)</div>
+<div style="display:flex;gap:16px;align-items:flex-start">
+<div class="dv-card" style="width:880px">
+  <div style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid #e6e4df;font-size:13px">
+    <span style="font-size:14px">⌂</span><b style="font-size:14px">PI Planner</b><span style="color:#bbb">/</span><span style="color:#777">Platform</span>
+    <span style="margin-left:auto;display:flex;align-items:center;gap:14px;color:#777"><span>⚙</span><span>David ▾</span><span>Sign out</span></span>
+  </div>
+  <div style="display:flex;align-items:stretch">
+  <div style="width:172px;flex:none;border-right:1px dashed #cfcdc7;background:#faf9f7;padding:14px 12px;display:flex;flex-direction:column;gap:14px">
+    <div style="font-size:12px;color:#888">◄ All teams</div>
+    <div style="font-size:19px;font-weight:700;line-height:1.15">Platform<div style="font-size:12px;font-weight:400;color:#888">6 members</div></div>
+    <div style="display:flex;flex-direction:column;gap:3px;font-size:13px;color:#666">
+      <span style="padding:6px 10px;border-radius:8px;background:#2b2b2b;color:#fff">Members</span>
+      <span style="padding:6px 10px;border-radius:8px">Working days</span>
+      <span style="padding:6px 10px;border-radius:8px">Absences</span>
+      <span style="padding:6px 10px;border-radius:8px">Meetings</span>
+      <span style="padding:6px 10px;border-radius:8px">Capacity</span>
+      <span style="padding:6px 10px;border-radius:8px">Projects</span>
+    </div>
+  </div>
+  <div style="flex:1;min-width:0">
+  <div style="display:flex;align-items:center;padding:12px 18px;border-bottom:1px dashed #cfcdc7"><span style="font-size:17px;font-weight:700">Members</span><span style="margin-left:auto;font-size:12px;padding:4px 10px;border-radius:6px;background:#2563eb;color:#fff">+ Add member</span></div>
+  <div style="display:grid;grid-template-columns:22px 1.3fr .7fr .6fr 1.1fr .8fr .7fr 30px;font-size:11px;color:#888;padding:8px 18px;background:#f4f3f0">
+    <div></div><div>Name</div><div>Role</div><div>Org</div><div>Valid</div><div>h/day</div><div>focus</div><div></div>
+  </div>
+  <sc-for list="{{ memberRows }}" as="m" hint-placeholder-count="6">
+    <div style="display:grid;grid-template-columns:22px 1.3fr .7fr .6fr 1.1fr .8fr .7fr 30px;font-size:12px;padding:9px 18px;border-bottom:1px dashed #eceae6;align-items:center">
+      <div style="color:#bbb">⠿</div><div>{{ m.name }}</div><div>{{ m.role }}</div><div>{{ m.org }}</div><div style="color:#777">{{ m.valid }}</div>
+      <div style="background:#f4f3f0;border-radius:5px;padding:3px 6px">{{ m.hd }} <span style="color:#999;font-size:10px">{{ m.since }}</span></div>
+      <div style="background:#f4f3f0;border-radius:5px;padding:3px 6px">{{ m.focus }}</div>
+      <div style="color:#bbb">⋯</div>
+    </div>
+  </sc-for>
+  <div style="padding:10px 18px;font-family:Caveat,cursive;font-size:16px;color:#444">Tinted, no input chrome, no strike-through: these are <b>effective today</b> values with the date they took effect. Clicking one jumps to <a class="dv-oid" href="#1c">1c</a> rather than editing in place.</div>
+  <div style="margin:0 18px 16px;border:1.5px dashed #cbc9c3;border-radius:10px;padding:20px;text-align:center;font-size:13px;color:#666">Empty team — no members yet. Capacity will read 0 until someone is added.<div style="margin-top:10px"><span style="padding:6px 14px;border-radius:6px;background:#2563eb;color:#fff;font-size:12px">Add the first member</span></div></div>
+</div>
+  </div>
+  </div>
+<div class="dv-card" style="width:600px">
+  <div style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid #e6e4df;font-size:13px">
+    <span style="font-size:14px">⌂</span><b style="font-size:14px">PI Planner</b><span style="color:#bbb">/</span><span style="color:#777">Platform</span>
+    <span style="margin-left:auto;display:flex;align-items:center;gap:14px;color:#777"><span>⚙</span><span>David ▾</span><span>Sign out</span></span>
+  </div>
+  <div style="display:flex;align-items:stretch">
+  <div style="width:172px;flex:none;border-right:1px dashed #cfcdc7;background:#faf9f7;padding:14px 12px;display:flex;flex-direction:column;gap:14px">
+    <div style="font-size:12px;color:#888">◄ All teams</div>
+    <div style="font-size:19px;font-weight:700;line-height:1.15">Platform<div style="font-size:12px;font-weight:400;color:#888">6 members</div></div>
+    <div style="display:flex;flex-direction:column;gap:3px;font-size:13px;color:#666">
+      <span style="padding:6px 10px;border-radius:8px">Members</span>
+      <span style="padding:6px 10px;border-radius:8px">Working days</span>
+      <span style="padding:6px 10px;border-radius:8px">Absences</span>
+      <span style="padding:6px 10px;border-radius:8px">Meetings</span>
+      <span style="padding:6px 10px;border-radius:8px">Capacity</span>
+      <span style="padding:6px 10px;border-radius:8px;background:#2b2b2b;color:#fff">Projects</span>
+    </div>
+  </div>
+  <div style="flex:1;min-width:0">
+  <div style="padding:12px 18px;border-bottom:1px dashed #cfcdc7;font-size:17px;font-weight:700">Projects served</div>
+  <div style="padding:12px 18px">
+    <div style="border:1.5px solid #b45309;background:#fffbf3;border-radius:10px;padding:10px 12px;font-size:12px;color:#92400e;margin-bottom:12px">⚠ Shares total <b>120%</b> — this team is over-allocated. You can still save; the numbers will be optimistic.</div>
+    <sc-for list="{{ shareRows }}" as="s" hint-placeholder-count="2">
+      <div style="border-top:1px dashed #eceae6;padding:10px 0;font-size:12px">
+        <div style="display:flex;align-items:center;gap:8px"><b style="flex:1">{{ s.name }}</b><span style="padding:3px 10px;border:1.5px solid #2b2b2b;border-radius:6px">{{ s.share }}</span></div>
+        <div style="display:flex;gap:10px;color:#777;margin-top:5px">conversion <span style="padding:2px 8px;border:1px solid #ddd;border-radius:5px">{{ s.conv }}</span><span class="{{ s.bk }}" style="padding:2px 8px;border-radius:999px">{{ s.badge }}</span></div>
+      </div>
+    </sc-for>
+    <div style="display:flex;justify-content:space-between;border-top:2px solid #2b2b2b;padding-top:8px;margin-top:6px;font-size:13px;font-weight:700"><span>Total</span><span style="color:#b45309">120%</span></div>
+    <div style="margin-top:12px;display:flex;gap:8px;font-size:12px"><span style="padding:6px 12px;border:1px solid #999;border-radius:6px">+ Assign project</span><span style="padding:6px 12px;border-radius:6px;background:#2563eb;color:#fff">Update project(s)</span></div>
+  </div>
+</div>
+  </div>
+  </div>
+</div></div>
+
+<div class="dv-opt" id="1g"><div class="dv-olabel"><a class="dv-oid" href="#1g">1g</a>Meetings — a member × meeting matrix; a meeting is a column, attendance is a cell</div>
+<div class="dv-card" style="width:1270px">
+  <div style="display:flex;align-items:center;gap:10px;padding:9px 16px;border-bottom:1px solid #e6e4df;font-size:13px">
+    <span style="font-size:14px">⌂</span><b style="font-size:14px">PI Planner</b><span style="color:#bbb">/</span><span style="color:#777">Platform</span>
+    <span style="margin-left:auto;display:flex;align-items:center;gap:14px;color:#777"><span>⚙</span><span>David ▾</span><span>Sign out</span></span>
+  </div>
+  <div style="display:flex;align-items:stretch">
+  <div style="width:172px;flex:none;border-right:1px dashed #cfcdc7;background:#faf9f7;padding:14px 12px;display:flex;flex-direction:column;gap:14px">
+    <div style="font-size:12px;color:#888">◄ All teams</div>
+    <div style="font-size:19px;font-weight:700;line-height:1.15">Platform<div style="font-size:12px;font-weight:400;color:#888">6 members</div></div>
+    <div style="display:flex;flex-direction:column;gap:3px;font-size:13px;color:#666">
+      <span style="padding:6px 10px;border-radius:8px">Members</span>
+      <span style="padding:6px 10px;border-radius:8px">Working days</span>
+      <span style="padding:6px 10px;border-radius:8px">Absences</span>
+      <span style="padding:6px 10px;border-radius:8px;background:#2b2b2b;color:#fff">Meetings</span>
+      <span style="padding:6px 10px;border-radius:8px">Capacity</span>
+      <span style="padding:6px 10px;border-radius:8px">Projects</span>
+    </div>
+  </div>
+  <div style="flex:1;min-width:0">
+  <div style="display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px dashed #cfcdc7;font-size:13px">
+    <span style="font-size:17px;font-weight:700">Meetings</span>
+    <span style="color:#777">one column per meeting · cells are attendance</span>
+    <span style="margin-left:auto;padding:5px 12px;border-radius:6px;background:#2563eb;color:#fff">+ Add meeting</span>
+  </div>
+  <div style="padding:12px 18px 18px">
+    <div style="display:grid;grid-template-columns:150px repeat(5,132px) 96px 200px;font-size:12px">
+      <div style="border-bottom:2px solid #2b2b2b"></div>
+      <sc-for list="{{ mtgCols }}" as="c" hint-placeholder-count="5">
+        <div style="border-bottom:2px solid #2b2b2b;border-left:1px dashed #eae8e3;padding:0 8px 8px">
+          <div style="font-weight:700;font-size:13px;text-wrap:pretty">{{ c.name }}</div>
+          <div style="color:#333">{{ c.dur }}</div>
+          <div style="color:#999;font-size:11px">{{ c.when }}</div>
+          <div style="margin-top:5px;display:flex;gap:5px;align-items:center;font-size:10px;color:#666"><span style="padding:2px 7px;border:1px solid #ddd;border-radius:999px">{{ c.kind }}</span><span style="display:flex;gap:7px;align-items:center;color:#555"><svg width="13" height="13" viewBox="0 0 12 12" aria-label="edit"><path d="M1.5 10.5l.8-2.4 5.6-5.6 1.6 1.6-5.6 5.6z" fill="none" stroke="currentColor" stroke-width="1"></path></svg><svg width="13" height="13" viewBox="0 0 12 12" aria-label="delete"><path d="M2 3.2h8M4.6 3.2V2h2.8v1.2M3.1 3.2l.6 7.3h4.6l.6-7.3" fill="none" stroke="currentColor" stroke-width="1"></path></svg></span></div>
+        </div>
+      </sc-for>
+      <div style="border-bottom:2px solid #2b2b2b;border-left:1.5px dashed #2b2b2b;padding:0 8px 8px;color:#888;font-size:11px">
+        <div style="font-size:22px;color:#bbb;line-height:1">+</div>new meeting = new column
+      </div>
+      <div style="border-bottom:2px solid #2b2b2b;padding:0 0 8px 10px">
+        <div style="font-size:12px;font-weight:700">Meeting load</div>
+        <div style="display:flex;gap:5px;align-items:center;margin-top:4px">
+          <span style="padding:3px 8px;border:1.5px solid #2b2b2b;border-radius:6px;font-size:11px">Sprint 7.5 ▾</span>
+          <span style="width:20px;height:20px;border:1px solid #bbb;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:9px">◄</span>
+          <span style="width:20px;height:20px;border:1px solid #bbb;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:9px">►</span>
+        </div>
+        <div style="font-size:10px;color:#999;margin-top:3px">20 Apr – 1 May 2026 · from ISK</div>
+      </div>
+
+      <sc-for list="{{ mtgMatrix }}" as="r" hint-placeholder-count="6">
+        <div style="padding:9px 0;border-bottom:1px dashed #eceae6">{{ r.name }}</div>
+        <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="5">
+          <div style="padding:9px 0;border-bottom:1px dashed #eceae6;border-left:1px dashed #eae8e3;display:flex;justify-content:center">
+            <span class="{{ c.k }}" style="width:15px;height:15px;border-radius:4px;display:block"></span>
+          </div>
+        </sc-for>
+        <div style="border-bottom:1px dashed #eceae6;border-left:1.5px dashed #2b2b2b"></div>
+        <div style="padding:9px 8px;border-bottom:1px dashed #eceae6;text-align:right;font-weight:700">{{ r.total }}</div>
+      </sc-for>
+
+      <div style="padding:9px 0;font-weight:700">Attending</div>
+      <sc-for list="{{ mtgCols }}" as="c" hint-placeholder-count="5">
+        <div style="padding:9px 0;border-left:1px dashed #eae8e3;text-align:center;color:#666">{{ c.att }}</div>
+      </sc-for>
+      <div style="border-left:1.5px dashed #2b2b2b"></div>
+      <div style="padding:9px 8px;text-align:right;font-weight:700">52.0 h</div>
+    </div>
+    <div style="margin-top:16px;border-top:1px dashed #cfcdc7;padding-top:12px">
+      <div style="display:grid;grid-template-columns:150px repeat(5,132px) 96px 200px;font-size:12px">
+        <div style="border-bottom:1px solid #e6e4df"></div>
+        <sc-for list="{{ mtgCols }}" as="c" hint-placeholder-count="5">
+          <div style="border-bottom:1px solid #e6e4df;border-left:1px dashed #eae8e3;padding:0 8px 6px;font-size:11px;color:#777">{{ c.name }}</div>
+        </sc-for>
+        <div style="border-bottom:1px solid #e6e4df;border-left:1.5px dashed #2b2b2b"></div>
+        <div style="border-bottom:1px solid #e6e4df;padding:0 0 6px 10px">
+          <div style="font-size:12px;font-weight:700">Meeting load</div>
+          <div style="margin-top:4px"><span style="padding:3px 8px;border:1.5px dashed #b45309;border-radius:6px;font-size:11px;color:#92400e">Sprint 8.4 ▾</span></div>
+          <div style="font-size:10px;color:#92400e;margin-top:3px">no dates set · from ISK</div>
+        </div>
+        <sc-for list="{{ mtgMatrix }}" as="r" hint-placeholder-count="6">
+          <div style="padding:7px 0;border-bottom:1px dashed #eceae6">{{ r.name }}</div>
+          <sc-for list="{{ r.cells }}" as="c" hint-placeholder-count="5">
+            <div style="padding:7px 0;border-bottom:1px dashed #eceae6;border-left:1px dashed #eae8e3;display:flex;justify-content:center">
+              <span class="{{ c.k }}" style="width:15px;height:15px;border-radius:4px;display:block"></span>
+            </div>
+          </sc-for>
+          <div style="border-bottom:1px dashed #eceae6;border-left:1.5px dashed #2b2b2b"></div>
+          <div style="padding:7px 8px;border-bottom:1px dashed #eceae6;text-align:right;font-weight:700;color:#999">—</div>
+        </sc-for>
+        <div style="padding:7px 0;font-weight:700">Attending</div>
+        <sc-for list="{{ mtgCols }}" as="c" hint-placeholder-count="5">
+          <div style="padding:7px 0;border-left:1px dashed #eae8e3;text-align:center;color:#666">{{ c.att }}</div>
+        </sc-for>
+        <div style="border-left:1.5px dashed #2b2b2b"></div>
+        <div style="padding:7px 8px;text-align:right;font-weight:700;color:#999">—</div>
+      </div>
+      <div style="font-family:Caveat,cursive;font-size:16px;color:#444;margin-top:8px;line-height:1.35">A sprint with <b>both dates</b> is required to count occurrences: pick an undated sprint and every computed value reads <b>“—”</b>, never 0. Attendance and the meeting definitions are unaffected — they are facts about the team, not about the sprint.</div>
+    </div>
+    <div style="display:flex;gap:16px;align-items:flex-start;margin-top:14px">
+      <div style="width:420px;font-family:Caveat,cursive;font-size:16px;color:#444;line-height:1.35">
+        Click a cell to add or drop an attendee — no timeline, so a 15-minute stand-up and an 8-hour workshop are equally legible: duration is <b>text in the column head</b>, not a bar length. Column order is the team's, not the clock's. A one-off dated <b>outside</b> the selected sprint keeps its column but greys its cells and contributes nothing to the load.
+      </div>
+      <div style="flex:1;border:1.5px solid #2b2b2b;border-radius:10px;padding:12px 14px;font-size:12px">
+        <div style="font-weight:700;font-size:13px;margin-bottom:6px">“+ Add meeting” → the absence modal, same three kinds</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;color:#333">
+          <span style="padding:4px 10px;border:1px solid #bbb;border-radius:6px">Range — one-off workshop (<a class="dv-oid" href="#3a">3a</a>)</span>
+          <span style="padding:4px 10px;border:1px solid #bbb;border-radius:6px">Weekly — stand-up, guild sync (<a class="dv-oid" href="#4a">4a</a>)</span>
+          <span style="padding:4px 10px;border:1px solid #bbb;border-radius:6px">Interval — fortnightly retro (<a class="dv-oid" href="#4b">4b</a>)</span>
+        </div>
+        <div style="color:#777;margin-top:8px">Plus duration in minutes (5 min – 8 h) and the attendee checklist — the same “Who” column, pre-ticked to the whole team.</div>
+        <div style="margin-top:10px;border-top:1px dashed #e6e4df;padding-top:8px">Editing a recurring meeting asks: <span style="padding:3px 10px;border:1.5px solid #2b2b2b;border-radius:6px">This occurrence</span> <span style="padding:3px 10px;border:1px solid #bbb;border-radius:6px">The whole series</span></div>
+      </div>
+    </div>
+  </div>
+  </div>
+  </div>
+</div></div>
+
+</div>
+<p class="dv-next">Try next: “push <a class="dv-oid" href="#1a">1a</a> further — show the collapsed vs expanded cell side by side” · “alternative for <a class="dv-oid" href="#1b">1b</a>: a list of absences instead of a grid” · “render these in the real neumorphic skin, light + dark”</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  renderVals() {
+    const names = ["Marta Lindqvist","Tomas Bergerat","Aïcha Ben Salah","Rui Domingues","Katrin Hofstetter","Jonas Wehrli"];
+    const short = ["Marta L.","Tomas B.","Aïcha B.S.","Rui D.","Katrin H.","Jonas W."];
+
+    // ---- capacity ----
+    const capSprints = [
+      {name:"Sprint 7.4", dates:"6–17 Apr"},{name:"Sprint 7.5", dates:"20 Apr–1 May"},{name:"Sprint 8.1", dates:"4–15 May"},
+      {name:"Sprint 8.2", dates:"18–29 May"},{name:"Sprint 8.3", dates:"1–12 Jun"},{name:"Sprint 8.4", dates:"no dates set"}
+    ];
+    const capData = [
+      [["55.2 h","6.9 PD","10 d present · 6.9 PD"],["54.0 h","6.8 PD","9 d present · 6.8 PD"],["48.0 h","6.0 PD","8 d · 6.0 PD"],["64.0 h","8.0 PD","10 d · 8.0 PD"],["57.6 h","7.2 PD","9 d · 7.2 PD"],["—","—","undated sprint"]],
+      [["66.6 h","8.3 PD","10 d · 8.3 PD"],["62.1 h","7.8 PD","10 d · 7.8 PD"],["66.6 h","8.3 PD","10 d · 8.3 PD"],["59.4 h","7.4 PD","9 d · 7.4 PD"],["66.6 h","8.3 PD","10 d · 8.3 PD"],["—","—","undated sprint"]],
+      [["47.6 h","6.0 PD","9 d · 6.0 PD"],["42.0 h","5.3 PD","8 d · 5.3 PD"],["47.6 h","6.0 PD","9 d · 6.0 PD"],["39.2 h","4.9 PD","7.5 d · 4.9 PD"],["47.6 h","6.0 PD","9 d · 6.0 PD"],["—","—","undated sprint"]],
+      [["0.0 h","0.0 PD","0 d · absent 20–31 Jul"],["57.0 h","7.1 PD","10 d · 7.1 PD"],["57.0 h","7.1 PD","10 d · 7.1 PD"],["57.0 h","7.1 PD","10 d · 7.1 PD"],["51.3 h","6.4 PD","9 d · 6.4 PD"],["—","—","undated sprint"]],
+      [["31.6 h","4.0 PD","6 d · 4.0 PD"],["31.6 h","4.0 PD","6 d · 4.0 PD"],["42.1 h","5.3 PD","6 d · 5.3 PD"],["42.1 h","5.3 PD","6 d · 5.3 PD"],["42.1 h","5.3 PD","6 d · 5.3 PD"],["—","—","undated sprint"]],
+      [["—","—","joins 1 Oct"],["—","—","joins 1 Oct"],["—","—","joins 1 Oct"],["—","—","joins 1 Oct"],["—","—","joins 1 Oct"],["—","—","undated sprint"]]
+    ];
+    const capRows = names.map((n,i)=>({name:short[i], cells: capData[i].map(c=>({h:c[0],pd:c[1],foot:c[2]}))}));
+    const teamTot = [["201.0 h","25.1 PD"],["246.7 h","30.8 PD"],["260.7 h","32.6 PD"],["261.7 h","32.7 PD"],["265.2 h","33.2 PD"],["—","—"]];
+    const teamCells = teamTot.map(t=>({h:t[0],pd:t[1]}));
+    const projCells = [["17.6 PD","26 pts"],["21.6 PD","32 pts"],["22.8 PD","34 pts"],["22.9 PD","34 pts"],["23.2 PD","35 pts"],["—","—"]];
+    const projCellsO = projCells.map(p=>({pd:p[0],pts:p[1]}));
+
+    // ---- absences grid ----
+    const months = [["Jul",31,6],["Aug",31,7],["Sep",30,8],["Oct",31,9]];
+    const days = [];
+    months.forEach(m=>{ for(let d=1; d<=m[1]; d++){ const wd = new Date(2026,m[2],d).getDay(); days.push({d:d, mi:m[2], we:(wd===0||wd===6), wd:wd}); } });
+    const monthHdr = months.map(m=>({n:m[0], w:(m[1]*8)+"px"}));
+    const pattern = [ // per member: worked weekdays, [amOnly days]
+      {work:[1,2,3,4,5], half:[]},
+      {work:[1,2,3,4,5], half:[]},
+      {work:[1,2,3,4,5], half:[5]},
+      {work:[1,2,3,4,5], half:[]},
+      {work:[2,3,4], half:[]},
+      {work:[1,2,3,4,5], half:[]}
+    ];
+    const cellFor = (i,day) => {
+      if (day.we) return ["cw","cw"];
+      if (i===5 && !(day.mi===9)) return ["cn","cn"];
+      const p = pattern[i];
+      if (p.work.indexOf(day.wd) === -1) return ["cx","cx"];
+      let am = "co", pm = p.half.indexOf(day.wd)>=0 ? "cx" : "co";
+      if (i===3 && day.mi===6 && day.d>=20 && day.d<=31) { am="ca"; pm="ca"; }
+      if (i===0 && day.mi===8 && day.d===3) { am="ca"; pm="ca"; }
+      if (i===1 && day.mi===8 && day.d===14) { am="ca"; }
+      if (i===2 && ((day.mi===8 && (day.d===4||day.d===18)) || (day.mi===9 && (day.d===2||day.d===16||day.d===30)))) { am="cr"; pm= pm==="cx" ? "cx" : "cr"; }
+      return [am,pm];
+    };
+    const absRows = names.map((n,i)=>({
+      name: short[i],
+      box: i<3 ? "ca" : "",
+      cells: days.map(day => { const c = cellFor(i,day); return {a:c[0], p:c[1]}; })
+    }));
+
+    const dens = {0:0,1:0,2:0,3:0,4:0,5:0,6:12,7:0,8:18,9:14,10:0,11:22};
+    const density = [];
+    ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"].forEach((l,i)=>{
+      density.push({l:l, h:(dens[i]||2)+"px", k: dens[i] ? "ca" : "cx"});
+    });
+
+    // ---- working days ----
+    const wdSpec = [
+      {i:0, days:[[1,1],[1,1],[1,1],[1,1],[1,1],[0,0],[0,0]], hd:"8.0", focus:"0.8", versions:[{gap:"120px"}], vlabel:"1 version — 1 Jan 2026 → open"},
+      {i:1, days:[[1,1],[1,1],[1,1],[1,1],[1,1],[0,0],[0,0]], hd:"8.0", focus:"0.9", versions:[{gap:"120px"}], vlabel:"1 version — 1 Jan 2026 → open"},
+      {i:2, days:[[1,1],[1,1],[1,1],[1,1],[1,0],[0,0],[0,0]], hd:"8.0", focus:"0.7", versions:[{gap:"120px"}], vlabel:"1 version · 90% — Fri pm off"},
+      {i:3, days:[[1,1],[1,1],[1,1],[1,1],[1,1],[0,0],[0,0]], hd:"6.0", focus:"1.0", versions:[{gap:"120px"}], vlabel:"1 version — 6 h days"},
+      {i:4, days:[[0,0],[1,1],[1,1],[1,1],[0,0],[0,0],[0,0]], hd:"8.0", focus:"0.9", versions:[{gap:"90px"},{gap:"60px"}], vlabel:"2 versions — 1 Jan (60%) · 1 Sep (80%) ← showing v2"},
+      {i:5, days:[[0,0],[0,0],[0,0],[0,0],[0,0],[0,0],[0,0]], hd:"—", focus:"—", versions:[{gap:"0px"}], vlabel:"no version in effect on 15 Sep — joins 1 Oct 2026"}
+    ];
+    const wdRows = wdSpec.map(s=>({
+      name: short[s.i], hd:s.hd, focus:s.focus, versions:s.versions, vlabel:s.vlabel,
+      days: s.days.map(d=>({a: d[0]?"ca":"", p: d[1]?"ca":""}))
+    }));
+
+    // ---- push preview ----
+    const pushRows = [
+      {s:"Sprint 7.4", cur:"24 pts", next:"26 pts", delta:"+2", dk:"", why:"17.6 PD · 201.0 h"},
+      {s:"Sprint 7.5", cur:"24 pts", next:"32 pts", delta:"+8", dk:"", why:"21.6 PD · 246.7 h"},
+      {s:"Sprint 8.1", cur:"34 pts", next:"34 pts", delta:"—", dk:"", why:"22.8 PD · 260.7 h"},
+      {s:"Sprint 8.2", cur:"48 pts", next:"34 pts", delta:"−14", dk:"", why:"22.9 PD · 261.7 h"}
+    ];
+
+    const homeProjects = [
+      {name:"ISK", team:"team Platform", badge:"3 sprints differ", bk:"badgeAmber"},
+      {name:"Data Exchange", team:"team Platform", badge:"in sync", bk:"badgeGray"},
+      {name:"Frontline API", team:"team Frontline", badge:"in sync", bk:"badgeGray"}
+    ];
+    const homeProjectsO = homeProjects.map(p=>({
+      name:p.name, team:p.team, badge:p.badge,
+      bk: p.bk === "badgeAmber" ? "b-amber" : "b-gray"
+    }));
+
+    const memberRows = [
+      {name:"Marta Lindqvist", role:"PO", org:"BIT", valid:"1 Jan 2026 → open", hd:"8.0 h", since:"since 1 Jan", focus:"0.8"},
+      {name:"Tomas Bergerat", role:"Dev", org:"Dev", valid:"1 Jan 2026 → open", hd:"8.0 h", since:"since 1 Jan", focus:"0.9"},
+      {name:"Aïcha Ben Salah", role:"SW-Arch", org:"Dev", valid:"1 Jan 2026 → open", hd:"8.0 h", since:"since 1 Jan", focus:"0.7"},
+      {name:"Rui Domingues", role:"Test", org:"ASTRA", valid:"1 Mar 2026 → open", hd:"6.0 h", since:"since 1 Mar", focus:"1.0"},
+      {name:"Katrin Hofstetter", role:"UX", org:"BIT", valid:"1 Jan 2026 → open", hd:"8.0 h", since:"since 1 Sep", focus:"0.9"},
+      {name:"Jonas Wehrli", role:"Dev", org:"Dev", valid:"1 Oct 2026 → open", hd:"8.0 h", since:"from 1 Oct", focus:"0.9"}
+    ];
+
+    const shareRows = [
+      {name:"ISK", share:"70 %", conv:"1.5 pts / PD", badge:"3 sprints differ", bk:"b-amber"},
+      {name:"Data Exchange", share:"30 %", conv:"manual", badge:"in sync", bk:"b-gray"},
+      {name:"Frontline API", share:"20 %", conv:"1.0 d / PD", badge:"never pushed", bk:"b-gray"}
+    ];
+
+    // ---- meetings ----
+    const mtgCols = [
+      {name:"Daily stand-up", dur:"15 min", when:"every working day · 09:00", kind:"Weekly", att:"6 of 6"},
+      {name:"Sprint planning", dur:"120 min", when:"first Monday of sprint", kind:"Weekly", att:"5 of 6"},
+      {name:"Architecture workshop", dur:"480 min", when:"Tue 28 Apr 2026 · one-off", kind:"Range", att:"2 of 6"},
+      {name:"Retro", dur:"60 min", when:"every 2nd Friday, am", kind:"Interval", att:"5 of 6"},
+      {name:"Guild sync", dur:"45 min", when:"weekly · Wednesday pm", kind:"Weekly", att:"4 of 6"}
+    ];
+    const attend = [
+      [1,1,0,1,0],
+      [1,1,0,1,1],
+      [1,1,1,1,1],
+      [1,1,0,1,0],
+      [1,0,1,1,1],
+      [1,1,0,0,1]
+    ];
+    const mtgTotals = ["5.5 h","7.0 h","15.0 h","5.5 h","13.0 h","6.0 h"];
+    const mtgMatrix = names.map((n,i)=>({
+      name: short[i],
+      total: mtgTotals[i],
+      cells: attend[i].map(v=>({k: v ? "dot-on" : "dot-off"}))
+    }));
+    const mtgDays = ["Tue 1","Wed 2","Thu 3","Fri 4","Mon 7","Tue 8","Wed 9","Thu 10","Fri 11","Mon 14"];
+    const stand = {k:"m-dark", w:"6px", l:""};
+    const plan = {k:"m-mid", w:"22px", l:"120"};
+    const shop = {k:"m-light", w:"58px", l:"workshop 480"};
+    const mtgRows = names.map((n,i)=>({
+      name: short[i],
+      days: mtgDays.map((d,j)=>{
+        const blocks = [];
+        if (i!==5) blocks.push(stand);
+        if (j===0 && i!==5) blocks.push(plan);
+        if (j===5 && (i===2||i===4)) blocks.push(shop);
+        return {blocks: blocks};
+      })
+    }));
+
+    // per-member 12-month density (2c) — 0 none, 1 some, 2 heavy
+    const mdRaw = [
+      [0,0,0,0,0,0,0,0,1,0,0,2],
+      [0,0,0,0,0,0,0,0,1,0,0,2],
+      [0,0,0,0,0,0,0,0,2,2,1,2],
+      [0,0,0,0,0,0,2,1,0,0,0,2],
+      [0,1,0,0,0,0,0,0,1,0,0,2],
+      [0,0,0,0,0,0,0,0,0,1,0,2]
+    ];
+    const monthAbbr = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+    const memberDensity = names.map((n,i)=>{
+      const months = mdRaw[i].map((v,j)=>({k: v===2 ? "ca" : (v===1 ? "d-half" : "cx"), l: monthAbbr[j]}));
+      return {name: short[i], months: months, pre: months.slice(0,6), post: months.slice(10), cells: absRows[i].cells};
+    });
+    const jumpMonths = monthAbbr.map((l,i)=>({l:l+" 2026", dot: [1,6,7,8,9,11].indexOf(i)>=0 ? "j-dot" : "j-none", sel: i===8 ? "j-sel" : ""}));
+
+    // Dec 2026 preview calendar (1 Dec is a Tuesday) — 25 Dec selected
+    const decDays = [];
+    for (let i=0;i<1;i++) decDays.push({l:"", k:"j-none"});
+    for (let d=1; d<=31; d++) {
+      const wd = new Date(2026,11,d).getDay();
+      decDays.push({l:String(d), k: d===25 ? "ca-sel" : ((wd===0||wd===6) ? "cw" : "co")});
+    }
+
+    const wdPickerDays = [["Mon",1,1],["Tue",1,1],["Wed",1,1],["Thu",1,1],["Fri",1,0],["Sat",0,0],["Sun",0,0]]
+      .map(d=>({l:d[0], a: d[1]?"ca":"", p: d[2]?"ca":""}));
+    const dirPeople = [
+      {name:"Nina Roth", meta:"BIT · Dev", box:"ca"},
+      {name:"Peter Aebi", meta:"ASTRA · Test", box:"ca"},
+      {name:"Sofia Marchetti", meta:"BIT · UX", box:""},
+      {name:"Luca Brunner", meta:"Dev · SW-Arch", box:""},
+      {name:"Marta Lindqvist", meta:"already on this team", box:"cx"}
+    ];
+    const specRows = [
+      {view:"Home (7a)", prim:"Radix Separator · AlertDialog (delete) · Tooltip (icon actions) · Toast (push result)", tw:"grid grid-cols-[1.5fr_110px_150px_92px] · lg:flex-row flex-col · text-xs text-muted-foreground", state:"loading skeleton rows ×3 · empty per list · reader hides Actions col + both + buttons"},
+      {view:"Members (1f)", prim:"dnd-kit SortableContext (row order) · Radix DropdownMenu (⋯) · AlertDialog (remove member) · HoverCard (effective values → jump to Working days)", tw:"grid grid-cols-[22px_1.3fr_.7fr_.6fr_1.1fr_.8fr_.7fr_30px] · bg-muted rounded-sm px-1.5 for read-only cells", state:"empty team · member not yet valid (Jonas) renders muted with 'from 1 Oct'"},
+      {view:"Add member (9a)", prim:"Radix Dialog · Select (role, org unit) · react-day-picker in Popover (from / until) · ToggleGroup type=multiple for the 14 am/pm circles · NumberInput (h/day step .5, focus step .05) · preset chips are Buttons that set the toggle group", tw:"sm:max-w-xl · grid grid-cols-[1.4fr_1fr_1fr] then [1fr_auto_auto] · border-t border-dashed for the version block", state:"one POST creates member + first working-days version dated = valid_from (never a memberless version, never a versionless member) · validation: name required, until ≥ from, ≥1 working half-day, 0 < focus ≤ 1 · duplicate person on the same team is rejected inline"},
+      {view:"Working days (1c)", prim:"Radix Popover + react-day-picker (as-of date) · ToggleGroup (am/pm circles, type=multiple) · Dialog (new version) · Callout for the past-date warning", tw:"grid grid-cols-[150px_repeat(7,54px)_60px_56px_110px] · ring-2 ring-amber-600/40 on the warning", state:"no version in effect → all circles disabled + '—' in h/day & focus"},
+      {view:"Absences (1b)", prim:"dnd-kit pointer sensor for drag-to-create (custom, not Sortable) + drag the minimap window · selected-entry action bar is the primary edit/delete affordance: click a run → inline pencil + bin (own buttons, not a menu) + Delete key · Radix AlertDialog (confirm; recurring → occurrence/series) · Dialog (add/edit) · ContextMenu only as a secondary path", tw:"grid over 8px/day columns · select-none touch-none on the grid · data-[selected=true]:ring-2", state:"412 conflict banner · optimistic cell then rollback on 409/412 · Delete key on selection"},
+      {view:"Meetings (1g)", prim:"dnd-kit SortableContext horizontal (column order) · Dialog (add/edit, same 3 kinds) · Checkbox cells (Radix) · Tooltip on duration · Select for the sprint, options = sprints of the FIRST project the team serves (ISK), disabled when the team serves none", tw:"grid grid-cols-[150px_repeat(N,132px)_96px_118px] · aria-colindex per column · tabular-nums on the load column", state:"no meetings → single '+ new column' head · cell toggle is optimistic · sprint missing start or end date → every computed cell renders '—', never 0 (same rule as Capacity) · one-off dated outside the selected sprint keeps its column, cells muted, contributes 0 to the load"},
+      {view:"Capacity (1a)", prim:"Radix Collapsible per cell (the traced-open panel) · Select (project view) · Tooltip on '—' cells", tw:"grid grid-cols-[170px_repeat(6,1fr)] · tabular-nums · font-semibold for PD, text-muted-foreground for h", state:"undated sprint '—' · no members → all zeros with an inline explainer"},
+      {view:"Projects (1f)", prim:"Radix Slider or NumberInput (share %) · Select (conversion) · Button (Update project(s)) → Dialog preview", tw:"total row border-t-2 · text-amber-700 when Σ > 100", state:"Σ>100 warning is non-blocking · 'never pushed' badge"},
+      {view:"Modals (3a/4a/4b)", prim:"Radix Dialog + Tabs (Range|Weekly|Interval) · CheckboxGroup (Who) · Select (weekday, halves) · NumberInput (interval_weeks ≥1) · react-day-picker (dates)", tw:"sm:max-w-2xl (exception to max-w-md) · grid grid-cols-[186px_1fr] gap-5", state:"validation: end ≥ start · interval ≥ 1 · ≥1 member · label ≤ 100 chars"},
+      {view:"Update project(s) (1d)", prim:"Radix Dialog (2 steps) · Checkbox per project · Toast per result row · Button 'Retry this one'", tw:"grid grid-cols-[1.1fr_.8fr_.9fr_.6fr_1.3fr] · text-red-700 for the 409 row", state:"per-project, non-atomic: partial success is the normal outcome"}
+    ];
+    return {wdPickerDays, dirPeople, specRows, mtgCols, mtgMatrix, decDays, memberDensity, jumpMonths, monthAbbr, capSprints, capRows, teamCells, projCells: projCellsO, monthHdr, absRows, density,
+            wdRows, pushRows, homeProjects: homeProjectsO, memberRows, shareRows, mtgDays, mtgRows};
+  }
+}
+</script>
+</body>
+</html>
