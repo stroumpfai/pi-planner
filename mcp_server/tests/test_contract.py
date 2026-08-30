@@ -12,6 +12,7 @@ from mcp_server.tools.groups import groups_mcp
 from mcp_server.tools.workflows import workflows_mcp
 from mcp_server.tools.pi_events import pi_events_mcp
 from mcp_server.tools.states import states_mcp
+from mcp_server.tools.teams import teams_mcp
 from mcp_server.server import mcp
 
 
@@ -33,6 +34,8 @@ EXPECTED_READ_TOOLS = {
     "list_snapshots",
     "list_pi_events",
     "get_edit_lock_status",
+    "list_teams",
+    "get_team",
 }
 
 EXPECTED_PROJECTS_TOOLS = {
@@ -85,6 +88,14 @@ EXPECTED_STATES_TOOLS = {
     "rename_state",
     "reorder_states",
     "delete_state",
+}
+
+# Teams: create and update only. There is no delete_team — containers are not
+# deletable by agents (teams.md §8.2.6), the same line that withholds
+# delete_project and delete_pi.
+EXPECTED_TEAMS_TOOLS = {
+    "create_team",
+    "update_team",
 }
 
 EXPECTED_WORKFLOWS_TOOLS = {
@@ -168,11 +179,26 @@ async def test_states_tools_all_registered():
 
 
 @pytest.mark.asyncio
+async def test_teams_tools_all_registered():
+    names = await _tool_names(teams_mcp)
+    assert names == EXPECTED_TEAMS_TOOLS, f"teams tools drifted: {names}"
+
+
+@pytest.mark.asyncio
+async def test_teams_module_exposes_no_delete():
+    """No delete_team, and no delete flag hiding inside update_team (§8.2.6)."""
+    names = await _tool_names(teams_mcp)
+    assert not [n for n in names if n.startswith("delete")]
+    schema = await _get_tool_schema(teams_mcp, "update_team")
+    assert "delete" not in schema.get("properties", {})
+
+
+@pytest.mark.asyncio
 async def test_total_tool_count():
     all_names = set()
-    for server in (read_mcp, projects_mcp, swimlines_mcp, features_mcp, groups_mcp, workflows_mcp, pi_events_mcp, states_mcp):
+    for server in (read_mcp, projects_mcp, swimlines_mcp, features_mcp, groups_mcp, workflows_mcp, pi_events_mcp, states_mcp, teams_mcp):
         all_names |= await _tool_names(server)
-    assert len(all_names) >= 46, f"Expected at least 46 tools, found {len(all_names)}: {all_names}"
+    assert len(all_names) >= 50, f"Expected at least 50 tools, found {len(all_names)}: {all_names}"
 
 
 @pytest.mark.asyncio
@@ -180,7 +206,7 @@ async def test_main_server_mounts_all_groups():
     """Verify the main server exposes tools from every sub-server (prefixed)."""
     all_tools = await _tool_names(mcp)
     prefixes = {name.split("_")[0] for name in all_tools if "_" in name}
-    for expected_prefix in ("read", "projects", "swimlines", "features", "groups", "workflows", "pi", "states"):
+    for expected_prefix in ("read", "projects", "swimlines", "features", "groups", "workflows", "pi", "states", "teams"):
         assert expected_prefix in prefixes, (
             f"Mount prefix '{expected_prefix}' not found in main server tools. "
             f"Found prefixes: {prefixes}"
@@ -288,3 +314,23 @@ async def test_update_sprint_keeps_deprecated_capacity_alias():
     """Agent calls written before the rename must keep working for one release."""
     schema = await _get_tool_schema(projects_mcp, "update_sprint")
     assert "capacity" in schema.get("properties", {})
+
+
+# ---------------------------------------------------------------------------
+# teams_mcp schema constraints
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_team_name_max_length():
+    schema = await _get_tool_schema(teams_mcp, "create_team")
+    assert schema.get("properties", {})["name"].get("maxLength") == 100
+
+
+@pytest.mark.asyncio
+async def test_create_team_normal_day_hours_bounds():
+    schema = await _get_tool_schema(teams_mcp, "create_team")
+    hours = schema.get("properties", {}).get("normal_day_hours", {})
+    schema_str = str(hours)
+    assert "1.0" in schema_str or "1" in schema_str, f"ge=1.0 missing: {hours}"
+    assert "24" in schema_str, f"le=24.0 missing: {hours}"

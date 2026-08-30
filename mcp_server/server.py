@@ -25,6 +25,7 @@ from mcp_server.tools.groups import groups_mcp
 from mcp_server.tools.workflows import workflows_mcp
 from mcp_server.tools.pi_events import pi_events_mcp
 from mcp_server.tools.states import states_mcp
+from mcp_server.tools.teams import teams_mcp
 
 log = logging.getLogger(__name__)
 
@@ -89,6 +90,7 @@ mcp.mount(groups_mcp, "groups")
 mcp.mount(workflows_mcp, "workflows")
 mcp.mount(pi_events_mcp, "pi_events")
 mcp.mount(states_mcp, "states")
+mcp.mount(teams_mcp, "teams")
 
 
 @mcp.resource("health://status")

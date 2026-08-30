@@ -273,3 +273,38 @@ async def get_edit_lock_status(
     multiple operations.
     """
     return await call_backend("GET", f"/api/v1/projects/{project_id}/edit-lock")
+
+
+# --- Teams -----------------------------------------------------------------
+# Teams are a top-level container like projects, so they are addressed by
+# system_id, not by name: list_teams is the one call that discovers them, exactly
+# as list_projects does. (Name resolution — resolve_state_id in states.py — is for
+# records *inside* a container the agent has already identified.)
+
+
+@read_mcp.tool()
+async def list_teams(ctx: Context) -> dict:
+    """
+    List all teams.
+
+    Call this first to discover teams and their system_id values, which every
+    other team call needs. Returns each team with name, description,
+    normal_day_hours (the divisor turning hours into person-days), member_count,
+    project_ids (the projects this team serves) and timestamps.
+    Teams are not planning items: there is no user-facing id beside system_id.
+    """
+    return await call_backend("GET", "/api/v1/teams")
+
+
+@read_mcp.tool()
+async def get_team(
+    team_id: Annotated[str, Field(description="Team system_id (UUID) — from list_teams")],
+    ctx: Context,
+) -> dict:
+    """
+    Get a single team by ID.
+
+    Returns name, description, normal_day_hours, member_count, project_ids and
+    timestamps. Use list_teams first to find the team_id.
+    """
+    return await call_backend("GET", f"/api/v1/teams/{team_id}")
