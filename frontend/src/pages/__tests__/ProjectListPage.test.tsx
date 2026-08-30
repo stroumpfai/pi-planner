@@ -1,15 +1,28 @@
 import { vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ProjectListPage } from '../ProjectListPage'
 import * as projectsService from '@/services/projects'
+import * as teamsService from '@/services/teams'
 import { useAuthStore } from '@/stores/authStore'
+import { useUiStore } from '@/stores/uiStore'
+import type { Project, Team, User } from '@/types'
 
 const stamps = { created_at: '2026-01-01T00:00:00Z', last_login_at: null, password_changed_at: null }
 
 vi.mock('@/services/projects')
+// Only the client is faked: the error readers (`teamErrorCode`, `blockingProjects`)
+// are the code under test wherever a 409 or 412 is asserted.
+vi.mock('@/services/teams', async (importOriginal) => {
+  const actual = await importOriginal<typeof teamsService>()
+  return {
+    ...actual,
+    teamsApi: { list: vi.fn(), get: vi.fn(), create: vi.fn(), update: vi.fn(), delete: vi.fn() },
+  }
+})
 const mockApi = vi.mocked(projectsService.projectsApi)
+const mockTeams = vi.mocked(teamsService.teamsApi)
 
 function makeWrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -29,6 +42,7 @@ const fakeProject = {
 describe('ProjectListPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockTeams.list = vi.fn().mockResolvedValue([])
   })
   afterEach(() => {
     vi.unstubAllGlobals()
@@ -235,5 +249,153 @@ describe('ProjectListPage', () => {
     expect(screen.getByText('Export')).toBeInTheDocument()
     expect(screen.getByText('Snapshots')).toBeInTheDocument()
     expect(screen.getByText('Delete')).toBeInTheDocument()
+  })
+})
+
+
+// ── Teams section (teams.md §7.0, §7.1) ──────────────────────────────────────
+
+const project = (over: Partial<Project> = {}): Project => ({
+  system_id: 'p-1',
+  name: 'ISK Portal',
+  description: null,
+  azure_devops_url: null,
+  work_item_path_template: null,
+  effort_unit: 'pts',
+  created_at: '2026-01-01T00:00:00Z',
+  modified_at: '2026-01-01T00:00:00Z',
+  ...over,
+})
+
+const team = (over: Partial<Team> = {}): Team => ({
+  system_id: 't-1',
+  name: 'Platform',
+  description: null,
+  normal_day_hours: 8,
+  member_count: 6,
+  project_ids: ['p-1'],
+  created_at: '2026-01-01T00:00:00Z',
+  modified_at: '2026-01-01T00:00:00Z',
+  ...over,
+})
+
+const editor: User = {
+  username: 'ed',
+  display_name: null,
+  role: 'editor',
+  created_at: '2026-01-01T00:00:00Z',
+  last_login_at: null,
+  password_changed_at: null,
+}
+
+/** A rejection shaped the way FastAPI wraps our business errors. */
+const httpError = (status: number, detail: unknown) => ({ response: { status, data: { detail } } })
+
+// Both sections only exist once the projects query has resolved, so these await.
+const teamsSection = () => screen.findByRole('region', { name: 'Teams' })
+const projectsSection = () => screen.findByRole('region', { name: 'Projects' })
+
+describe('ProjectListPage — Teams section', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    useAuthStore.setState({ user: editor, isEditing: false })
+    useUiStore.setState({ activeProjectId: null, activeTeamId: null, activePIId: null })
+    mockApi.list = vi.fn().mockResolvedValue([project()])
+    mockTeams.list = vi.fn().mockResolvedValue([team()])
+  })
+
+  it('renders a Projects section and a Teams section', async () => {
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    expect(await screen.findByRole('heading', { name: 'Projects' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Teams' })).toBeInTheDocument()
+    expect(await within(await teamsSection()).findByText('Platform')).toBeInTheDocument()
+  })
+
+  it('shows the team serving a project, and "No team" for the rest', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([
+      project(),
+      project({ system_id: 'p-2', name: 'Data Exchange' }),
+    ])
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+
+    const rows = await within(await projectsSection()).findAllByRole('listitem')
+    expect(within(rows[0]).getByText('Platform')).toBeInTheDocument()
+    expect(within(rows[1]).getByText('No team')).toBeInTheDocument()
+  })
+
+  it('shows member and project counts on a team row', async () => {
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    expect(await within(await teamsSection()).findByText('6 members · 1 project')).toBeInTheDocument()
+  })
+
+  it('shows the teams empty state when there are none', async () => {
+    mockTeams.list = vi.fn().mockResolvedValue([])
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    expect(
+      await screen.findByText(
+        'No teams yet — a team lets you compute sprint capacity from who is available.',
+      ),
+    ).toBeInTheDocument()
+  })
+
+  it('opens the team when its row is clicked', async () => {
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    await userEvent.click(await within(await teamsSection()).findByRole('button', { name: 'Platform' }))
+    expect(useUiStore.getState().activeTeamId).toBe('t-1')
+    expect(useUiStore.getState().activeProjectId).toBeNull()
+  })
+
+  it('opens the create-team modal from the section header', async () => {
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    await userEvent.click(await within(await teamsSection()).findByRole('button', { name: /new team/i }))
+    expect(await screen.findByRole('heading', { name: 'New Team' })).toBeInTheDocument()
+  })
+
+  it('gives a reader the team rows and counts but no write affordances', async () => {
+    useAuthStore.setState({ user: { ...editor, username: 'reader', role: 'reader' } })
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+
+    const teams = await teamsSection()
+    expect(await within(teams).findByText('Platform')).toBeInTheDocument()
+    expect(within(teams).getByText('6 members · 1 project')).toBeInTheDocument()
+    expect(within(teams).queryByRole('button', { name: /new team/i })).not.toBeInTheDocument()
+    expect(within(teams).queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument()
+    expect(within(teams).queryByRole('button', { name: /^delete$/i })).not.toBeInTheDocument()
+  })
+
+  it('names the projects that block a team deletion', async () => {
+    mockTeams.get = vi.fn().mockResolvedValue({ team: team(), etag: '"tag-1"' })
+    mockTeams.delete = vi.fn().mockRejectedValue(
+      httpError(409, {
+        error: 'TEAM_HAS_PROJECTS',
+        message: "Unassign this team's projects before deleting it.",
+        projects: [
+          { system_id: 'p-1', name: 'ISK Portal' },
+          { system_id: 'p-2', name: 'Data Exchange' },
+        ],
+      }),
+    )
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+
+    await userEvent.click(await within(await teamsSection()).findByRole('button', { name: /^delete$/i }))
+    const dialog = screen.getByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: /^delete$/i }))
+
+    const alert = await within(dialog).findByRole('alert')
+    expect(alert).toHaveTextContent('Unassign these projects before deleting this team:')
+    expect(within(alert).getByText('ISK Portal')).toBeInTheDocument()
+    expect(within(alert).getByText('Data Exchange')).toBeInTheDocument()
+  })
+
+  it('deletes a team with the If-Match it read', async () => {
+    mockTeams.get = vi.fn().mockResolvedValue({ team: team(), etag: '"tag-9"' })
+    mockTeams.delete = vi.fn().mockResolvedValue(undefined)
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+
+    await userEvent.click(await within(await teamsSection()).findByRole('button', { name: /^delete$/i }))
+    const dialog = screen.getByRole('dialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: /^delete$/i }))
+
+    await waitFor(() => expect(mockTeams.delete).toHaveBeenCalledWith('t-1', '"tag-9"'))
   })
 })

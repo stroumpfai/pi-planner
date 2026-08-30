@@ -6,6 +6,10 @@ export type Project = components['schemas']['ProjectResponse']
 export type ProjectCreate = components['schemas']['ProjectCreate']
 export type ProjectUpdate = components['schemas']['ProjectUpdate']
 
+export type Team = components['schemas']['TeamResponse']
+export type TeamCreate = components['schemas']['TeamCreate']
+export type TeamUpdate = components['schemas']['TeamUpdate']
+
 export type PI = components['schemas']['PIResponse'] & { total_effort: number; total_available: number }
 export type PICreate = components['schemas']['PICreate']
 export type PIUpdate = components['schemas']['PIUpdate']
