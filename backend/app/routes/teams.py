@@ -86,6 +86,7 @@ async def list_teams(
 @router.post("", status_code=status.HTTP_201_CREATED)
 async def create_team(
     body: TeamCreate,
+    response: Response,
     db: Annotated[AsyncSession, Depends(get_session)],
     _: Annotated[User, Depends(require_editor_or_above)],
 ) -> TeamResponse:
@@ -113,6 +114,10 @@ async def create_team(
     await db.refresh(team)
     # No create event: a team nobody is watching yet has no channel with listeners,
     # exactly as a newly created project has none.
+
+    # Stamp the tag here too, so "create then immediately rename" does not need a
+    # GET in between purely to learn a value this response already knows.
+    set_etag(response, team.modified_at)
     return _response(team, 0, [])
 
 
