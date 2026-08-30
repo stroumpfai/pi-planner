@@ -324,6 +324,20 @@ export interface paths {
      */
     post: operations["verify_key_api_v1_api_keys_admin_verify_post"];
   };
+  "/api/v1/teams": {
+    /** List Teams */
+    get: operations["list_teams_api_v1_teams_get"];
+    /** Create Team */
+    post: operations["create_team_api_v1_teams_post"];
+  };
+  "/api/v1/teams/{team_id}": {
+    /** Get Team */
+    get: operations["get_team_api_v1_teams__team_id__get"];
+    /** Delete Team */
+    delete: operations["delete_team_api_v1_teams__team_id__delete"];
+    /** Update Team */
+    patch: operations["update_team_api_v1_teams__team_id__patch"];
+  };
   "/health": {
     /** Health */
     get: operations["health_health_get"];
@@ -1247,6 +1261,64 @@ export interface components {
       name?: string | null;
       /** Order Index */
       order_index?: number | null;
+    };
+    /** TeamCreate */
+    TeamCreate: {
+      /** Name */
+      name: string;
+      /** Description */
+      description?: string | null;
+      /**
+       * Normal Day Hours
+       * @default 8
+       */
+      normal_day_hours?: number;
+    };
+    /**
+     * TeamResponse
+     * @description A team, with the two counts the landing page reads.
+     *
+     * Teams are not planning items: the dual-ID system does not apply, so there is
+     * no ``id`` beside ``system_id`` here (§3.1).
+     */
+    TeamResponse: {
+      /** System Id */
+      system_id: string;
+      /** Name */
+      name: string;
+      /** Description */
+      description: string | null;
+      /** Normal Day Hours */
+      normal_day_hours: number;
+      /**
+       * Member Count
+       * @default 0
+       */
+      member_count?: number;
+      /**
+       * Project Ids
+       * @default []
+       */
+      project_ids?: string[];
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Modified At
+       * Format: date-time
+       */
+      modified_at: string;
+    };
+    /** TeamUpdate */
+    TeamUpdate: {
+      /** Name */
+      name?: string | null;
+      /** Description */
+      description?: string | null;
+      /** Normal Day Hours */
+      normal_day_hours?: number | null;
     };
     /** TokenResponse */
     TokenResponse: {
@@ -3561,6 +3633,139 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["APIKeyVerifyResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** List Teams */
+  list_teams_api_v1_teams_get: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TeamResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Create Team */
+  create_team_api_v1_teams_post: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TeamCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["TeamResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Get Team */
+  get_team_api_v1_teams__team_id__get: {
+    parameters: {
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TeamResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Delete Team */
+  delete_team_api_v1_teams__team_id__delete: {
+    parameters: {
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Update Team */
+  update_team_api_v1_teams__team_id__patch: {
+    parameters: {
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TeamUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TeamResponse"];
         };
       };
       /** @description Validation Error */

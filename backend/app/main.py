@@ -38,6 +38,7 @@ from app.routes import (
     projects,
     sprints,
     swimlines,
+    teams,
     test_utils,
     users,
 )
@@ -95,6 +96,7 @@ for _router in [
     events.router,
     csv_import.router,
     api_keys.router,
+    teams.router,
 ]:
     app.include_router(_router)
 

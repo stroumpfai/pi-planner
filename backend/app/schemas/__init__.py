@@ -25,6 +25,7 @@ from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate
 from app.schemas.snapshot import SnapshotCreate, SnapshotDiffResponse, SnapshotResponse
 from app.schemas.sprint import SprintCreate, SprintResponse, SprintUpdate
 from app.schemas.swimline import SwimlineCreate, SwimlineReorder, SwimlineResponse, SwimlineUpdate
+from app.schemas.team import MAX_TEAMS, TeamCreate, TeamResponse, TeamUpdate
 
 __all__ = [
     "ProjectCreate", "ProjectUpdate", "ProjectResponse",
@@ -41,4 +42,5 @@ __all__ = [
     "SnapshotCreate", "SnapshotDiffResponse", "SnapshotResponse",
     "ApiResponse", "ApiError",
     "CsvRow", "CsvImportRequest", "CsvImportError", "CsvImportResult",
+    "TeamCreate", "TeamUpdate", "TeamResponse", "MAX_TEAMS",
 ]
