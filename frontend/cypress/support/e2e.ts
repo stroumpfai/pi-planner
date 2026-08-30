@@ -36,3 +36,14 @@ Cypress.Commands.add('enterEditMode', () => {
   cy.contains('button', 'Request Edit Mode').click()
   cy.contains('You • Editor').should('be.visible')
 })
+
+// Projects and teams share the landing page, so a bare cy.contains(name) can just
+// as easily hit a project row. Every team selector — this one included — scopes to
+// the Teams section first. Like openProject this clicks, because there is no URL
+// routing; the assertion is that the home page is gone rather than anything about
+// the team view itself, which is still a placeholder.
+Cypress.Commands.add('openTeam', (name: string) => {
+  cy.visit('/')
+  cy.get('section[aria-labelledby="teams-heading"]').contains('button', name).click()
+  cy.contains('h2', 'Projects').should('not.exist')
+})

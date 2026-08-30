@@ -6,6 +6,8 @@ declare namespace Cypress {
     openProject(name: string): Chainable<void>
     /** Open a PI from the left-hand PI list panel. Call after openProject. */
     openPI(name: string): Chainable<void>
+    /** Open a team from the home page's Teams section (scoped — names can collide with projects). */
+    openTeam(name: string): Chainable<void>
     /** Click "Request Edit Mode" and wait for the editor badge. */
     enterEditMode(): Chainable<void>
   }
