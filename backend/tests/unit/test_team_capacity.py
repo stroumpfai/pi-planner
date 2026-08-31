@@ -11,6 +11,7 @@ from app.services.team_capacity import (
     compute_team_capacity,
     pattern_version_from_row,
     resolve_version,
+    round_half_up,
 )
 
 # §5.5's sprint: Mon 6 Apr – Fri 17 Apr 2026, ten working days.
@@ -60,6 +61,24 @@ def test_a_version_holds_from_its_own_date_until_the_next():
     assert resolve_version([first, second], date(2026, 8, 31)) is first
     assert resolve_version([first, second], date(2026, 9, 1)) is second
     assert resolve_version([first, second], date(2030, 1, 1)) is second
+
+
+def test_resolution_works_on_stored_rows_as_well_as_the_maths_dataclass():
+    """One rule, one implementation.
+
+    The routes resolve ORM versions to show a member's current hours and focus,
+    and the maths resolves dataclasses. If these were two functions they could
+    disagree about which version a date falls in, and the Members view would
+    quietly show a contract the capacity figure was not computed from.
+    """
+    from app.models.team import MemberPatternVersion
+
+    first = MemberPatternVersion(effective_from=date(2026, 1, 1), hours_per_day=8.0)
+    second = MemberPatternVersion(effective_from=date(2026, 9, 1), hours_per_day=6.0)
+
+    assert resolve_version([first, second], date(2025, 12, 31)) is first
+    assert resolve_version([first, second], date(2026, 8, 31)) is first
+    assert resolve_version([first, second], date(2026, 9, 1)) is second
 
 
 def test_resolving_with_no_versions_is_a_programming_error():
@@ -302,3 +321,25 @@ def test_worked_example_with_bobs_workshop():
 def test_a_team_with_no_members_is_zero_not_an_error():
     team = compute_team_capacity([], 8.0, SPRINT_START, SPRINT_END)
     assert team.net_hours == 0.0 and team.person_days == 0.0
+
+
+# ── rounding at the boundary (§6.4) ──────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [(0.5, 1), (1.5, 2), (2.5, 3), (13.5, 14), (13.4999, 13), (0.0, 0), (14.0, 14)],
+)
+def test_the_boundary_rounds_half_up_not_to_even(value, expected):
+    """Python's round() is banker's rounding: round(0.5) == 0, round(2.5) == 2.
+
+    Nobody reading a sprint header expects 2.5 points to become 2, and a .5 lands
+    often once shares and factors are in play. This is the only rounding in the
+    chain, so getting it wrong is wrong everywhere.
+    """
+    assert round_half_up(value) == expected
+
+
+def test_rounding_sees_the_number_as_it_reads():
+    """2.675 is 2.67499999999999982… in binary, and would round down from the float."""
+    assert round_half_up(2.675) == 3

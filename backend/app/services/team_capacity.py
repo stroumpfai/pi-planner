@@ -28,7 +28,8 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, timedelta
-from typing import Literal
+from decimal import ROUND_HALF_UP, Decimal
+from typing import Literal, Protocol, TypeVar
 
 Half = Literal["am", "pm"]
 
@@ -158,12 +159,27 @@ class TeamCapacity:
 # ── the maths ────────────────────────────────────────────────────────────────
 
 
-def resolve_version(versions: Sequence[PatternVersion], on: date) -> PatternVersion:
+class Dated(Protocol):
+    """Anything carrying an ``effective_from`` — a dataclass here, an ORM row in a route."""
+
+    @property
+    def effective_from(self) -> date: ...
+
+
+V = TypeVar("V", bound=Dated)
+
+
+def resolve_version(versions: Sequence[V], on: date) -> V:
     """The version in force on *on*.
 
     The earliest version extends **backwards without limit**: any date before the
     first ``effective_from`` uses that first version, so no day is ever undefined
     and no capacity query has to handle a missing pattern (§3.3).
+
+    Generic over the row shape on purpose. The routes resolve ORM versions to show
+    a member's current hours and focus, and the maths resolves dataclasses; one
+    implementation means the two can never disagree about which version a date
+    falls in.
     """
     if not versions:
         raise ValueError("a member always has at least one pattern version")
@@ -288,3 +304,21 @@ def compute_team_capacity(
         result.net_hours += capacity.net_hours
     result.person_days = result.net_hours / normal_day_hours
     return result
+
+
+def round_half_up(value: float) -> int:
+    """Round a float to the integer a sprint header will hold (§6.4).
+
+    **Not** Python's ``round()``, which is banker's rounding: ``round(0.5) == 0``
+    and ``round(2.5) == 2``. Nobody reading a sprint header expects that, and a
+    ``.5`` lands often once shares and factors are in play — 13.5 pts must become
+    14, every time.
+
+    The float goes through ``str`` first so the rounding sees the number as it
+    reads rather than its binary expansion: ``Decimal(2.675)`` is
+    2.67499999999999982…, and would round down against every expectation.
+
+    This is the **only** rounding in the chain. Everything upstream is float, and
+    nothing downstream re-rounds (§6.4).
+    """
+    return int(Decimal(str(value)).quantize(Decimal("1"), rounding=ROUND_HALF_UP))

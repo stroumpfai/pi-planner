@@ -10,6 +10,26 @@ export type Team = components['schemas']['TeamResponse']
 export type TeamCreate = components['schemas']['TeamCreate']
 export type TeamUpdate = components['schemas']['TeamUpdate']
 
+export type TeamMember = components['schemas']['MemberResponse']
+export type TeamMemberCreate = components['schemas']['MemberCreate']
+export type TeamMemberUpdate = components['schemas']['MemberUpdate']
+/** One dated version of a member's contract. Intervals are derived, so there is
+ *  no end date here — a version holds until the next one's `effective_from`. */
+export type PatternVersion = components['schemas']['PatternVersionResponse']
+export type PatternVersionCreate = components['schemas']['PatternVersionCreate']
+export type PatternVersionUpdate = components['schemas']['PatternVersionUpdate']
+/** The first version, written with the member in one transaction (§3.3). */
+export type FirstPatternVersion = components['schemas']['FirstPatternVersion']
+
+export type TeamAssignment = components['schemas']['TeamProjectResponse']
+export type TeamAssignmentCreate = components['schemas']['TeamProjectCreate']
+export type TeamAssignmentUpdate = components['schemas']['TeamProjectUpdate']
+export type TeamCapacity = components['schemas']['TeamCapacityResponse']
+export type CapacitySprint = components['schemas']['CapacitySprint']
+/** One member's capacity in one sprint, as the §5.4 steps produced it. */
+export type CapacityBreakdown = components['schemas']['CapacityBreakdown']
+export type ProjectCapacityRow = components['schemas']['ProjectCapacityRow']
+
 export type PI = components['schemas']['PIResponse'] & { total_effort: number; total_available: number }
 export type PICreate = components['schemas']['PICreate']
 export type PIUpdate = components['schemas']['PIUpdate']

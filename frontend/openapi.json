@@ -5570,6 +5570,1123 @@
         }
       }
     },
+    "/api/v1/teams/{team_id}/members": {
+      "get": {
+        "tags": [
+          "team-members"
+        ],
+        "summary": "List Members",
+        "operationId": "list_members_api_v1_teams__team_id__members_get",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "as_of",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Show the pattern version in force on this date. Defaults to today.",
+              "title": "As Of"
+            },
+            "description": "Show the pattern version in force on this date. Defaults to today."
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MemberResponse"
+                  },
+                  "title": "Response List Members Api V1 Teams  Team Id  Members Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "team-members"
+        ],
+        "summary": "Create Member",
+        "description": "Create a member together with their first working pattern.\n\nOne transaction, because the two cannot be separated (\u00a73.3). The version's\n``effective_from`` defaults to the member's ``active_from``, or today when\nthat is blank \u2014 the date their contract starts being true.",
+        "operationId": "create_member_api_v1_teams__team_id__members_post",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{team_id}/members/reorder": {
+      "post": {
+        "tags": [
+          "team-members"
+        ],
+        "summary": "Reorder Members",
+        "description": "Set the display order from a list of member ids.\n\nNo ``If-Match``: order is not a field anyone edits in a form, and a reorder\ncarries none of the values a stale write would overwrite. Ids belonging to\nanother team are ignored rather than rejected \u2014 the list is a preference, and\na partial one is still an improvement on the old order.",
+        "operationId": "reorder_members_api_v1_teams__team_id__members_reorder_post",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberReorder"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MemberResponse"
+                  },
+                  "title": "Response Reorder Members Api V1 Teams  Team Id  Members Reorder Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{team_id}/members/{member_id}": {
+      "patch": {
+        "tags": [
+          "team-members"
+        ],
+        "summary": "Update Member",
+        "operationId": "update_member_api_v1_teams__team_id__members__member_id__patch",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Member Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MemberUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MemberResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "team-members"
+        ],
+        "summary": "Delete Member",
+        "description": "Delete a member, and with them every absence, attendance and version.\n\nThe cascade is the reason the response carries the counts: the confirm dialog\nstates what goes before it goes (\u00a710), and setting ``active_to`` is the\nnon-destructive alternative when someone has merely left.",
+        "operationId": "delete_member_api_v1_teams__team_id__members__member_id__delete",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Member Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{team_id}/members/{member_id}/working-days": {
+      "get": {
+        "tags": [
+          "team-members"
+        ],
+        "summary": "List Pattern Versions",
+        "description": "Every version this member owns, ascending.\n\nIntervals are half-open and derived: each version holds until the day before\nthe next one's ``effective_from``, and the latest holds indefinitely \u2014 which\nis why no end date is returned (\u00a73.3).",
+        "operationId": "list_pattern_versions_api_v1_teams__team_id__members__member_id__working_days_get",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Member Id"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PatternVersionResponse"
+                  },
+                  "title": "Response List Pattern Versions Api V1 Teams  Team Id  Members  Member Id  Working Days Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "team-members"
+        ],
+        "summary": "Create Pattern Version",
+        "description": "Add a version, or replace the one already on that date.\n\nPosting onto an existing ``effective_from`` **edits** that version rather than\ncreating a duplicate (\u00a73.3) \u2014 one date, one version, so a gap or an overlap\ncannot be expressed. The body carries the whole pattern, so this is a\nreplacement and not a merge: there is no half of someone else's edit for it to\nkeep by accident.",
+        "operationId": "create_pattern_version_api_v1_teams__team_id__members__member_id__working_days_post",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Member Id"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatternVersionCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatternVersionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{team_id}/members/{member_id}/working-days/{version_id}": {
+      "patch": {
+        "tags": [
+          "team-members"
+        ],
+        "summary": "Update Pattern Version",
+        "operationId": "update_pattern_version_api_v1_teams__team_id__members__member_id__working_days__version_id__patch",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Member Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatternVersionUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PatternVersionResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "team-members"
+        ],
+        "summary": "Delete Pattern Version",
+        "description": "Delete a version; its interval merges into the preceding one.\n\nThe merge needs no work because intervals are derived \u2014 with the row gone, the\nversion before it simply holds until the next one. The **earliest cannot be\ndeleted**: something has to define the beginning, and every date before the\nfirst ``effective_from`` resolves to it (\u00a73.3).",
+        "operationId": "delete_pattern_version_api_v1_teams__team_id__members__member_id__working_days__version_id__delete",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Member Id"
+            }
+          },
+          {
+            "name": "version_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{team_id}/projects": {
+      "get": {
+        "tags": [
+          "team-projects"
+        ],
+        "summary": "List Team Projects",
+        "description": "The projects this team serves, **anchor first**.\n\nOrder is by assignment time and is not a preference: the earliest assignment\nis the anchor whose sprint calendar the team's own views count in (\u00a76.8).",
+        "operationId": "list_team_projects_api_v1_teams__team_id__projects_get",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TeamProjectResponse"
+                  },
+                  "title": "Response List Team Projects Api V1 Teams  Team Id  Projects Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "team-projects"
+        ],
+        "summary": "Assign Project",
+        "operationId": "assign_project_api_v1_teams__team_id__projects_post",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeamProjectCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamProjectResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{team_id}/projects/{project_id}": {
+      "patch": {
+        "tags": [
+          "team-projects"
+        ],
+        "summary": "Update Assignment",
+        "operationId": "update_assignment_api_v1_teams__team_id__projects__project_id__patch",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TeamProjectUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamProjectResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "team-projects"
+        ],
+        "summary": "Unassign Project",
+        "description": "Stop serving a project. **Nothing is written to the project** (\u00a76.1).",
+        "operationId": "unassign_project_api_v1_teams__team_id__projects__project_id__delete",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{team_id}/capacity": {
+      "get": {
+        "tags": [
+          "team-projects"
+        ],
+        "summary": "Get Team Capacity",
+        "description": "Capacity per member, per sprint, for the team's anchor project calendar.\n\nA read, and only a read: nothing here writes a sprint. The number reaches a\nproject through an explicit push (\u00a76.7), which is why this endpoint is\navailable to anyone who can see the team.",
+        "operationId": "get_team_capacity_api_v1_teams__team_id__capacity_get",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only sprints ending on or after this date",
+              "title": "From"
+            },
+            "description": "Only sprints ending on or after this date"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only sprints starting on or before this date",
+              "title": "To"
+            },
+            "description": "Only sprints starting on or before this date"
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamCapacityResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -5927,6 +7044,135 @@
           "deleted_features"
         ],
         "title": "BulkDeleteResponse"
+      },
+      "CapacityBreakdown": {
+        "properties": {
+          "contracted_half_days": {
+            "type": "integer",
+            "title": "Contracted Half Days"
+          },
+          "contracted_hours": {
+            "type": "number",
+            "title": "Contracted Hours"
+          },
+          "absent_half_days": {
+            "type": "integer",
+            "title": "Absent Half Days"
+          },
+          "hours_after_absences": {
+            "type": "number",
+            "title": "Hours After Absences"
+          },
+          "meeting_hours": {
+            "type": "number",
+            "title": "Meeting Hours"
+          },
+          "hours_after_meetings": {
+            "type": "number",
+            "title": "Hours After Meetings"
+          },
+          "net_hours": {
+            "type": "number",
+            "title": "Net Hours"
+          },
+          "person_days": {
+            "type": "number",
+            "title": "Person Days"
+          },
+          "present_days": {
+            "type": "number",
+            "title": "Present Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "contracted_half_days",
+          "contracted_hours",
+          "absent_half_days",
+          "hours_after_absences",
+          "meeting_hours",
+          "hours_after_meetings",
+          "net_hours",
+          "person_days",
+          "present_days"
+        ],
+        "title": "CapacityBreakdown",
+        "description": "One member's capacity in one sprint, as the \u00a75.4 steps produced it.\n\nThe fields are the steps in order, because that is what an expanded cell\nrenders: contracted \u2192 absences \u2192 meetings \u2192 focus \u2192 \u00f7 normal_day_hours. The\ncollapsed cell shows the last two; the chain is what makes a surprising\nnumber traceable to its cause."
+      },
+      "CapacitySprint": {
+        "properties": {
+          "sprint_id": {
+            "type": "string",
+            "title": "Sprint Id"
+          },
+          "pi_id": {
+            "type": "string",
+            "title": "Pi Id"
+          },
+          "pi_name": {
+            "type": "string",
+            "title": "Pi Name"
+          },
+          "pi_state": {
+            "type": "string",
+            "title": "Pi State"
+          },
+          "sprint_number": {
+            "type": "integer",
+            "title": "Sprint Number"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "computable": {
+            "type": "boolean",
+            "title": "Computable"
+          },
+          "available": {
+            "type": "integer",
+            "title": "Available"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sprint_id",
+          "pi_id",
+          "pi_name",
+          "pi_state",
+          "sprint_number",
+          "label",
+          "start_date",
+          "end_date",
+          "computable",
+          "available"
+        ],
+        "title": "CapacitySprint",
+        "description": "A column: one sprint of the team's anchor project (\u00a77.0.1)."
       },
       "ChangePassword": {
         "properties": {
@@ -6507,6 +7753,121 @@
         "type": "object",
         "title": "FeatureUpdate"
       },
+      "FirstPatternVersion": {
+        "properties": {
+          "mon_am": {
+            "type": "boolean",
+            "title": "Mon Am",
+            "default": true
+          },
+          "mon_pm": {
+            "type": "boolean",
+            "title": "Mon Pm",
+            "default": true
+          },
+          "tue_am": {
+            "type": "boolean",
+            "title": "Tue Am",
+            "default": true
+          },
+          "tue_pm": {
+            "type": "boolean",
+            "title": "Tue Pm",
+            "default": true
+          },
+          "wed_am": {
+            "type": "boolean",
+            "title": "Wed Am",
+            "default": true
+          },
+          "wed_pm": {
+            "type": "boolean",
+            "title": "Wed Pm",
+            "default": true
+          },
+          "thu_am": {
+            "type": "boolean",
+            "title": "Thu Am",
+            "default": true
+          },
+          "thu_pm": {
+            "type": "boolean",
+            "title": "Thu Pm",
+            "default": true
+          },
+          "fri_am": {
+            "type": "boolean",
+            "title": "Fri Am",
+            "default": true
+          },
+          "fri_pm": {
+            "type": "boolean",
+            "title": "Fri Pm",
+            "default": true
+          },
+          "sat_am": {
+            "type": "boolean",
+            "title": "Sat Am",
+            "default": false
+          },
+          "sat_pm": {
+            "type": "boolean",
+            "title": "Sat Pm",
+            "default": false
+          },
+          "sun_am": {
+            "type": "boolean",
+            "title": "Sun Am",
+            "default": false
+          },
+          "sun_pm": {
+            "type": "boolean",
+            "title": "Sun Pm",
+            "default": false
+          },
+          "hours_per_day": {
+            "type": "number",
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Hours Per Day",
+            "default": 8.0
+          },
+          "focus": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.1,
+            "title": "Focus",
+            "default": 1.0
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "effective_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective From"
+          }
+        },
+        "type": "object",
+        "title": "FirstPatternVersion",
+        "description": "The version created with the member, in the same transaction.\n\n``effective_from`` is optional here alone: it defaults to the member's\n``active_from``, or today when that is blank, which is what the create-member\nform does (\u00a73.3)."
+      },
       "GroupCreate": {
         "properties": {
           "name": {
@@ -6731,6 +8092,315 @@
           "password"
         ],
         "title": "LoginRequest"
+      },
+      "MemberCapacityRow": {
+        "properties": {
+          "member_id": {
+            "type": "string",
+            "title": "Member Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "cells": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/CapacityBreakdown"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Cells"
+          }
+        },
+        "type": "object",
+        "required": [
+          "member_id",
+          "name",
+          "cells"
+        ],
+        "title": "MemberCapacityRow"
+      },
+      "MemberCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "organisation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organisation"
+          },
+          "active_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active From"
+          },
+          "active_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active To"
+          },
+          "pattern": {
+            "$ref": "#/components/schemas/FirstPatternVersion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "MemberCreate",
+        "description": "A member and their first working pattern, created together.\n\nThey cannot be separated: a member with no version has no contracted\nhalf-days, which computes as zero capacity and reads as a bug rather than as\nmissing data (\u00a73.3)."
+      },
+      "MemberReorder": {
+        "properties": {
+          "order": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Order"
+          }
+        },
+        "type": "object",
+        "required": [
+          "order"
+        ],
+        "title": "MemberReorder"
+      },
+      "MemberResponse": {
+        "properties": {
+          "system_id": {
+            "type": "string",
+            "title": "System Id"
+          },
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "organisation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organisation"
+          },
+          "active_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active From"
+          },
+          "active_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active To"
+          },
+          "order_index": {
+            "type": "integer",
+            "title": "Order Index"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Modified At"
+          },
+          "etag": {
+            "type": "string",
+            "title": "Etag",
+            "default": ""
+          },
+          "effective_version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PatternVersionResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "version_dates": {
+            "items": {
+              "type": "string",
+              "format": "date"
+            },
+            "type": "array",
+            "title": "Version Dates",
+            "default": []
+          },
+          "absence_count": {
+            "type": "integer",
+            "title": "Absence Count",
+            "default": 0
+          },
+          "meeting_count": {
+            "type": "integer",
+            "title": "Meeting Count",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "system_id",
+          "team_id",
+          "name",
+          "role",
+          "organisation",
+          "active_from",
+          "active_to",
+          "order_index",
+          "created_at",
+          "modified_at"
+        ],
+        "title": "MemberResponse",
+        "description": "A member as every team view reads them.\n\n``effective_version`` is the version in force on the requested ``as_of`` date,\nwhich is what makes one endpoint serve both views: Members shows today's\nhours and focus read-only, and Working days shows the same fields for any date\nthe picker names (\u00a77.2, \u00a77.3)."
+      },
+      "MemberUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Role"
+          },
+          "organisation": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Organisation"
+          },
+          "active_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active From"
+          },
+          "active_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active To"
+          }
+        },
+        "type": "object",
+        "title": "MemberUpdate",
+        "description": "Identity and validity only.\n\nHours and focus are absent on purpose: changing them means dating a new\nversion, not overwriting a field, so they are reachable only through the\nworking-days endpoints (\u00a73.3, \u00a77.2)."
       },
       "OrphanLocation": {
         "properties": {
@@ -7474,6 +9144,461 @@
         ],
         "title": "PasswordReset"
       },
+      "PatternVersionCreate": {
+        "properties": {
+          "mon_am": {
+            "type": "boolean",
+            "title": "Mon Am",
+            "default": true
+          },
+          "mon_pm": {
+            "type": "boolean",
+            "title": "Mon Pm",
+            "default": true
+          },
+          "tue_am": {
+            "type": "boolean",
+            "title": "Tue Am",
+            "default": true
+          },
+          "tue_pm": {
+            "type": "boolean",
+            "title": "Tue Pm",
+            "default": true
+          },
+          "wed_am": {
+            "type": "boolean",
+            "title": "Wed Am",
+            "default": true
+          },
+          "wed_pm": {
+            "type": "boolean",
+            "title": "Wed Pm",
+            "default": true
+          },
+          "thu_am": {
+            "type": "boolean",
+            "title": "Thu Am",
+            "default": true
+          },
+          "thu_pm": {
+            "type": "boolean",
+            "title": "Thu Pm",
+            "default": true
+          },
+          "fri_am": {
+            "type": "boolean",
+            "title": "Fri Am",
+            "default": true
+          },
+          "fri_pm": {
+            "type": "boolean",
+            "title": "Fri Pm",
+            "default": true
+          },
+          "sat_am": {
+            "type": "boolean",
+            "title": "Sat Am",
+            "default": false
+          },
+          "sat_pm": {
+            "type": "boolean",
+            "title": "Sat Pm",
+            "default": false
+          },
+          "sun_am": {
+            "type": "boolean",
+            "title": "Sun Am",
+            "default": false
+          },
+          "sun_pm": {
+            "type": "boolean",
+            "title": "Sun Pm",
+            "default": false
+          },
+          "hours_per_day": {
+            "type": "number",
+            "maximum": 12.0,
+            "minimum": 1.0,
+            "title": "Hours Per Day",
+            "default": 8.0
+          },
+          "focus": {
+            "type": "number",
+            "maximum": 1.0,
+            "minimum": 0.1,
+            "title": "Focus",
+            "default": 1.0
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "effective_from": {
+            "type": "string",
+            "format": "date",
+            "title": "Effective From"
+          }
+        },
+        "type": "object",
+        "required": [
+          "effective_from"
+        ],
+        "title": "PatternVersionCreate",
+        "description": "A new version, or an edit of the one already on that date.\n\nPosting a version whose ``effective_from`` already exists **edits** it rather\nthan creating a duplicate (\u00a73.3) \u2014 one date, one version, and no way to\nexpress a gap or an overlap."
+      },
+      "PatternVersionResponse": {
+        "properties": {
+          "system_id": {
+            "type": "string",
+            "title": "System Id"
+          },
+          "member_id": {
+            "type": "string",
+            "title": "Member Id"
+          },
+          "effective_from": {
+            "type": "string",
+            "format": "date",
+            "title": "Effective From"
+          },
+          "mon_am": {
+            "type": "boolean",
+            "title": "Mon Am"
+          },
+          "mon_pm": {
+            "type": "boolean",
+            "title": "Mon Pm"
+          },
+          "tue_am": {
+            "type": "boolean",
+            "title": "Tue Am"
+          },
+          "tue_pm": {
+            "type": "boolean",
+            "title": "Tue Pm"
+          },
+          "wed_am": {
+            "type": "boolean",
+            "title": "Wed Am"
+          },
+          "wed_pm": {
+            "type": "boolean",
+            "title": "Wed Pm"
+          },
+          "thu_am": {
+            "type": "boolean",
+            "title": "Thu Am"
+          },
+          "thu_pm": {
+            "type": "boolean",
+            "title": "Thu Pm"
+          },
+          "fri_am": {
+            "type": "boolean",
+            "title": "Fri Am"
+          },
+          "fri_pm": {
+            "type": "boolean",
+            "title": "Fri Pm"
+          },
+          "sat_am": {
+            "type": "boolean",
+            "title": "Sat Am"
+          },
+          "sat_pm": {
+            "type": "boolean",
+            "title": "Sat Pm"
+          },
+          "sun_am": {
+            "type": "boolean",
+            "title": "Sun Am"
+          },
+          "sun_pm": {
+            "type": "boolean",
+            "title": "Sun Pm"
+          },
+          "hours_per_day": {
+            "type": "number",
+            "title": "Hours Per Day"
+          },
+          "focus": {
+            "type": "number",
+            "title": "Focus"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Modified At"
+          },
+          "etag": {
+            "type": "string",
+            "title": "Etag",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "system_id",
+          "member_id",
+          "effective_from",
+          "mon_am",
+          "mon_pm",
+          "tue_am",
+          "tue_pm",
+          "wed_am",
+          "wed_pm",
+          "thu_am",
+          "thu_pm",
+          "fri_am",
+          "fri_pm",
+          "sat_am",
+          "sat_pm",
+          "sun_am",
+          "sun_pm",
+          "hours_per_day",
+          "focus",
+          "note",
+          "created_at",
+          "modified_at"
+        ],
+        "title": "PatternVersionResponse",
+        "description": "A stored version.\n\nThe fields are declared here rather than inherited from ``PatternFields``\nbecause a stored row always has all fourteen booleans, a day length and a\nfocus \u2014 none of them optional. Inheriting the defaults would publish them as\noptional in the schema, and the generated client would then make every reader\ninvent a fallback for a value the row is guaranteed to carry."
+      },
+      "PatternVersionUpdate": {
+        "properties": {
+          "mon_am": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mon Am"
+          },
+          "mon_pm": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mon Pm"
+          },
+          "tue_am": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tue Am"
+          },
+          "tue_pm": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tue Pm"
+          },
+          "wed_am": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wed Am"
+          },
+          "wed_pm": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wed Pm"
+          },
+          "thu_am": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thu Am"
+          },
+          "thu_pm": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thu Pm"
+          },
+          "fri_am": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fri Am"
+          },
+          "fri_pm": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fri Pm"
+          },
+          "sat_am": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sat Am"
+          },
+          "sat_pm": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sat Pm"
+          },
+          "sun_am": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sun Am"
+          },
+          "sun_pm": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sun Pm"
+          },
+          "hours_per_day": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 12.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours Per Day"
+          },
+          "focus": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "minimum": 0.1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Focus"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "effective_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effective From"
+          }
+        },
+        "type": "object",
+        "title": "PatternVersionUpdate"
+      },
       "PlaceStoryRequest": {
         "properties": {
           "sprint_index": {
@@ -7570,6 +9695,90 @@
         ],
         "title": "PlannedChange",
         "description": "One thing an import would do, as worked out by actually doing it.\n\nProduced by the same code path that performs the import, run inside a\ntransaction that is then rolled back \u2014 so this is what will happen, not a\nsecond implementation's opinion of what should."
+      },
+      "ProjectCapacityRow": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "effort_unit": {
+            "type": "string",
+            "title": "Effort Unit"
+          },
+          "share_pct": {
+            "type": "integer",
+            "title": "Share Pct"
+          },
+          "available_source": {
+            "type": "string",
+            "title": "Available Source"
+          },
+          "units_per_pd": {
+            "type": "number",
+            "title": "Units Per Pd"
+          },
+          "person_days": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Person Days"
+          },
+          "units": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Units"
+          },
+          "proposed_available": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Proposed Available"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "name",
+          "effort_unit",
+          "share_pct",
+          "available_source",
+          "units_per_pd",
+          "person_days",
+          "units",
+          "proposed_available"
+        ],
+        "title": "ProjectCapacityRow",
+        "description": "A served project: the team's PD after its share, in the project's own unit."
       },
       "ProjectCreate": {
         "properties": {
@@ -8244,6 +10453,75 @@
         "type": "object",
         "title": "SwimlineUpdate"
       },
+      "TeamCapacityResponse": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "normal_day_hours": {
+            "type": "number",
+            "title": "Normal Day Hours"
+          },
+          "anchor_project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor Project Id"
+          },
+          "sprints": {
+            "items": {
+              "$ref": "#/components/schemas/CapacitySprint"
+            },
+            "type": "array",
+            "title": "Sprints"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/MemberCapacityRow"
+            },
+            "type": "array",
+            "title": "Members"
+          },
+          "team": {
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/CapacityBreakdown"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Team"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectCapacityRow"
+            },
+            "type": "array",
+            "title": "Projects"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "normal_day_hours",
+          "anchor_project_id",
+          "sprints",
+          "members",
+          "team",
+          "projects"
+        ],
+        "title": "TeamCapacityResponse"
+      },
       "TeamCreate": {
         "properties": {
           "name": {
@@ -8277,6 +10555,158 @@
           "name"
         ],
         "title": "TeamCreate"
+      },
+      "TeamProjectCreate": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "share_pct": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Share Pct",
+            "default": 100
+          },
+          "available_source": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "factor"
+            ],
+            "title": "Available Source",
+            "default": "manual"
+          },
+          "units_per_pd": {
+            "type": "number",
+            "exclusiveMinimum": 0.0,
+            "title": "Units Per Pd",
+            "default": 1.0
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id"
+        ],
+        "title": "TeamProjectCreate"
+      },
+      "TeamProjectResponse": {
+        "properties": {
+          "system_id": {
+            "type": "string",
+            "title": "System Id"
+          },
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "project_name": {
+            "type": "string",
+            "title": "Project Name"
+          },
+          "effort_unit": {
+            "type": "string",
+            "title": "Effort Unit"
+          },
+          "share_pct": {
+            "type": "integer",
+            "title": "Share Pct"
+          },
+          "available_source": {
+            "type": "string",
+            "title": "Available Source"
+          },
+          "units_per_pd": {
+            "type": "number",
+            "title": "Units Per Pd"
+          },
+          "is_anchor": {
+            "type": "boolean",
+            "title": "Is Anchor",
+            "default": false
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Modified At"
+          },
+          "etag": {
+            "type": "string",
+            "title": "Etag",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "system_id",
+          "team_id",
+          "project_id",
+          "project_name",
+          "effort_unit",
+          "share_pct",
+          "available_source",
+          "units_per_pd",
+          "created_at",
+          "modified_at"
+        ],
+        "title": "TeamProjectResponse",
+        "description": "One project this team serves, and how its PD reaches that project."
+      },
+      "TeamProjectUpdate": {
+        "properties": {
+          "share_pct": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Pct"
+          },
+          "available_source": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "manual",
+                  "factor"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available Source"
+          },
+          "units_per_pd": {
+            "anyOf": [
+              {
+                "type": "number",
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Units Per Pd"
+          }
+        },
+        "type": "object",
+        "title": "TeamProjectUpdate"
       },
       "TeamResponse": {
         "properties": {
@@ -8315,6 +10745,14 @@
             "type": "array",
             "title": "Project Ids",
             "default": []
+          },
+          "project_shares": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Project Shares",
+            "default": {}
           },
           "created_at": {
             "type": "string",

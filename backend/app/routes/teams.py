@@ -29,8 +29,10 @@ async def _get_or_404(db: AsyncSession, team_id: str) -> Team:
     return team
 
 
-async def _counts(db: AsyncSession, team_ids: list[str]) -> tuple[dict[str, int], dict[str, list[str]]]:
-    """Member counts and served project ids for a set of teams, in two queries."""
+async def _counts(
+    db: AsyncSession, team_ids: list[str]
+) -> tuple[dict[str, int], dict[str, list[tuple[str, int]]]]:
+    """Member counts, and served projects with their shares, in two queries."""
     if not team_ids:
         return {}, {}
     member_rows = await db.execute(
@@ -41,19 +43,25 @@ async def _counts(db: AsyncSession, team_ids: list[str]) -> tuple[dict[str, int]
     members = {team_id: count for team_id, count in member_rows.all()}
 
     project_rows = await db.execute(
-        select(TeamProject.team_id, TeamProject.project_id)
+        select(TeamProject.team_id, TeamProject.project_id, TeamProject.share_pct)
         .where(TeamProject.team_id.in_(team_ids))
         .order_by(TeamProject.created_at.asc())
     )
-    projects: dict[str, list[str]] = {}
-    for team_id, project_id in project_rows.all():
-        projects.setdefault(team_id, []).append(project_id)
+    projects: dict[str, list[tuple[str, int]]] = {}
+    for team_id, project_id, share_pct in project_rows.all():
+        projects.setdefault(team_id, []).append((project_id, share_pct))
     return members, projects
 
 
-def _response(team: Team, member_count: int, project_ids: list[str]) -> TeamResponse:
+def _response(
+    team: Team, member_count: int, assignments: list[tuple[str, int]]
+) -> TeamResponse:
     return TeamResponse.model_validate(team).model_copy(
-        update={"member_count": member_count, "project_ids": project_ids}
+        update={
+            "member_count": member_count,
+            "project_ids": [project_id for project_id, _ in assignments],
+            "project_shares": {project_id: share for project_id, share in assignments},
+        }
     )
 
 

@@ -200,11 +200,20 @@ export function ProjectListPage() {
                         </a>
                       )}
                     </div>
-                    {/* The team share (Step 4) and the staleness badge (Step 7) land in this
-                        column beneath the name, which is why it is a block and not inline text. */}
+                    {/* The staleness badge (Step 7) lands in this column beneath the
+                        name, which is why it is a block and not inline text. */}
                     <div className="shrink-0 w-36 pt-0.5 text-xs">
                       {team ? (
-                        <span className="text-gray-700 dark:text-gray-300">{team.name}</span>
+                        <>
+                          <span className="text-gray-700 dark:text-gray-300">{team.name}</span>
+                          {/* The share is what this project gets of that team, so the
+                              two belong on one line: a team name alone reads as though
+                              the whole team were on it. */}
+                          <span className="text-gray-400 dark:text-gray-500">
+                            {' · '}
+                            {team.project_shares?.[project.system_id] ?? 100}%
+                          </span>
+                        </>
                       ) : (
                         <span className="text-gray-400 dark:text-gray-500">No team</span>
                       )}

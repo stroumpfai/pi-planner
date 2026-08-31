@@ -274,6 +274,7 @@ const team = (over: Partial<Team> = {}): Team => ({
   normal_day_hours: 8,
   member_count: 6,
   project_ids: ['p-1'],
+  project_shares: { 'p-1': 70 },
   created_at: '2026-01-01T00:00:00Z',
   modified_at: '2026-01-01T00:00:00Z',
   ...over,
@@ -311,7 +312,7 @@ describe('ProjectListPage — Teams section', () => {
     expect(await within(await teamsSection()).findByText('Platform')).toBeInTheDocument()
   })
 
-  it('shows the team serving a project, and "No team" for the rest', async () => {
+  it('shows the team serving a project with its share, and "No team" for the rest', async () => {
     mockApi.list = vi.fn().mockResolvedValue([
       project(),
       project({ system_id: 'p-2', name: 'Data Exchange' }),
@@ -320,6 +321,9 @@ describe('ProjectListPage — Teams section', () => {
 
     const rows = await within(await projectsSection()).findAllByRole('listitem')
     expect(within(rows[0]).getByText('Platform')).toBeInTheDocument()
+    // The share belongs beside the name: a team name alone reads as though the
+    // whole team were on this project (§6.3).
+    expect(within(rows[0]).getByText('· 70%')).toBeInTheDocument()
     expect(within(rows[1]).getByText('No team')).toBeInTheDocument()
   })
 

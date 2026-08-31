@@ -25,7 +25,34 @@ from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate
 from app.schemas.snapshot import SnapshotCreate, SnapshotDiffResponse, SnapshotResponse
 from app.schemas.sprint import SprintCreate, SprintResponse, SprintUpdate
 from app.schemas.swimline import SwimlineCreate, SwimlineReorder, SwimlineResponse, SwimlineUpdate
-from app.schemas.team import MAX_TEAMS, TeamCreate, TeamResponse, TeamUpdate
+from app.schemas.team import (
+    HALF_DAY_FIELDS,
+    MAX_MEMBERS_PER_TEAM,
+    MAX_PATTERN_VERSIONS_PER_MEMBER,
+    MAX_PROJECTS_PER_TEAM,
+    MAX_TEAMS,
+    FirstPatternVersion,
+    MemberCreate,
+    MemberReorder,
+    MemberResponse,
+    MemberUpdate,
+    PatternVersionCreate,
+    PatternVersionResponse,
+    PatternVersionUpdate,
+    TeamCreate,
+    TeamProjectCreate,
+    TeamProjectResponse,
+    TeamProjectUpdate,
+    TeamResponse,
+    TeamUpdate,
+)
+from app.schemas.team_capacity import (
+    CapacityBreakdown,
+    CapacitySprint,
+    MemberCapacityRow,
+    ProjectCapacityRow,
+    TeamCapacityResponse,
+)
 
 __all__ = [
     "ProjectCreate", "ProjectUpdate", "ProjectResponse",
@@ -43,4 +70,11 @@ __all__ = [
     "ApiResponse", "ApiError",
     "CsvRow", "CsvImportRequest", "CsvImportError", "CsvImportResult",
     "TeamCreate", "TeamUpdate", "TeamResponse", "MAX_TEAMS",
+    "MemberCreate", "MemberUpdate", "MemberResponse", "MemberReorder",
+    "FirstPatternVersion", "PatternVersionCreate", "PatternVersionUpdate",
+    "PatternVersionResponse", "HALF_DAY_FIELDS",
+    "MAX_MEMBERS_PER_TEAM", "MAX_PATTERN_VERSIONS_PER_MEMBER",
+    "TeamProjectCreate", "TeamProjectUpdate", "TeamProjectResponse", "MAX_PROJECTS_PER_TEAM",
+    "CapacityBreakdown", "CapacitySprint", "MemberCapacityRow", "ProjectCapacityRow",
+    "TeamCapacityResponse",
 ]

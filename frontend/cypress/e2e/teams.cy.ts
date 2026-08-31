@@ -129,7 +129,8 @@ describe('Teams', () => {
 
     cy.openTeam('Platform')
 
-    cy.contains('This team has no views yet.').should('be.visible')
+    cy.contains('h2', 'Platform').should('be.visible')
+    cy.contains('[role="tab"]', 'Members').should('be.visible')
     cy.contains('h2', 'Teams').should('not.exist')
     // A team view has no project to lock, so the lock button must not follow you
     // in here (implementation plan §1.4).

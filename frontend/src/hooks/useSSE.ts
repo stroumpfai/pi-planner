@@ -72,6 +72,14 @@ function handleTeamSSEEvent(
   if (!event.type.startsWith('team:') && !event.type.startsWith('member:')) return
   qc.invalidateQueries({ queryKey: ['teams'] })
   qc.invalidateQueries({ queryKey: ['team', teamId] })
+  // Members are cached per as-of date, so the prefix invalidates every date the
+  // views are holding rather than only today's.
+  qc.invalidateQueries({ queryKey: ['teamMembers', teamId] })
+  qc.invalidateQueries({ queryKey: ['patternVersions', teamId] })
+  qc.invalidateQueries({ queryKey: ['teamProjects', teamId] })
+  // Capacity is computed on read from all of the above, so every team event
+  // moves it — including one that changed no member at all, like a share.
+  qc.invalidateQueries({ queryKey: ['teamCapacity', teamId] })
 }
 
 function handleSSEEvent(

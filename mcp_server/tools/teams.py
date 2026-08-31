@@ -180,3 +180,478 @@ async def update_team(
         # reapply; a second STALE is handed to the agent rather than looped —
         # at that point a human is actively editing and should be left alone.
         return await attempt()
+
+
+# ── Members ───────────────────────────────────────────────────────────────────
+#
+# Members are addressed **by name**, unlike the team itself: an agent knows a
+# person as "Marta", and the id is an implementation detail of a list nested
+# inside a team it has already identified. This follows the `resolve_state_id`
+# precedent in `states.py`, including its rule — an unrecognised name is
+# **rejected with the list of members who do exist**, never created implicitly.
+# Creating a person is at least as deliberate an act as creating State
+# vocabulary (ADR-0003), which is why `create_member` is its own tool and why
+# there is no `delete_member` (§8.2.4, §8.2.6).
+
+#: The 14 half-day slots, in week order. Agents may name a whole day ("mon") or
+#: one half of it ("mon_am").
+_HALF_DAYS: tuple[str, ...] = tuple(
+    f"{day}_{half}"
+    for day in ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+    for half in ("am", "pm")
+)
+_DAYS: tuple[str, ...] = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
+
+
+def _half_days_from(working_days: list[str]) -> dict[str, bool]:
+    """Turn ``["mon", "tue_am"]`` into the 14 booleans the API stores.
+
+    Anything not named is off. A whole-day token switches both halves on, which
+    is what makes the common contract one short list rather than ten flags.
+    """
+    slots = {slot: False for slot in _HALF_DAYS}
+    for raw in working_days:
+        token = raw.strip().lower().replace("-", "_")
+        if token in slots:
+            slots[token] = True
+        elif token in _DAYS:
+            slots[f"{token}_am"] = True
+            slots[f"{token}_pm"] = True
+        else:
+            raise ValueError(
+                f"{raw!r} is not a working-day slot. Use a day (mon, tue, … sun) for "
+                "the whole day, or a half-day (mon_am, fri_pm)."
+            )
+    return slots
+
+
+async def _members_of(team_id: str, as_of: str | None = None) -> list[dict]:
+    params = {"as_of": as_of} if as_of else None
+    response = await call_backend("GET", f"/api/v1/teams/{team_id}/members", params=params)
+    members: list[dict] = response.get("items", [])
+    return members
+
+
+async def _find_member(team_id: str, name: str, as_of: str | None = None) -> dict:
+    """The member row for *name*, or a ValueError naming everyone who does exist."""
+    members = await _members_of(team_id, as_of)
+    wanted = name.strip().lower()
+    for member in members:
+        if str(member["name"]).strip().lower() == wanted:
+            return member
+
+    existing = ", ".join(repr(m["name"]) for m in members) or "(this team has no members)"
+    raise ValueError(
+        f"No member named {name!r} on this team. Members: {existing}. "
+        "To add them, call create_member deliberately — no other tool creates a person."
+    )
+
+
+async def resolve_member_id(team_id: str, name: str) -> str:
+    """Map a member's name to their system_id within one team.
+
+    Raises ValueError when the name is not on the team, listing who is. Mirrors
+    `resolve_state_id`: an unknown name is far more likely a typo than an intent
+    to hire (§8.2.4).
+    """
+    return str((await _find_member(team_id, name))["system_id"])
+
+
+@teams_mcp.tool()
+async def create_member(
+    team_id: Annotated[str, Field(pattern=_UUID_RE, description="Team system_id (UUID) — from list_teams")],
+    name: Annotated[str, Field(max_length=100, description="The person's name (unique per team)")],
+    ctx: Context,
+    role: Annotated[
+        str | None,
+        Field(default=None, max_length=50, description="Free text, e.g. Dev, Test, PO, SW-Arch — descriptive only"),
+    ] = None,
+    organisation: Annotated[
+        str | None,
+        Field(default=None, max_length=50, description="Free text, e.g. the department they come from"),
+    ] = None,
+    active_from: Annotated[
+        str | None,
+        Field(default=None, description="First day on the team (YYYY-MM-DD). Blank means always."),
+    ] = None,
+    active_to: Annotated[
+        str | None,
+        Field(default=None, description="Last day on the team (YYYY-MM-DD). Blank means open-ended."),
+    ] = None,
+    working_days: Annotated[
+        list[str] | None,
+        Field(
+            default=None,
+            description=(
+                "Half-days this person is contracted for: whole days ('mon') or halves "
+                "('fri_am'). Anything unnamed is off. Defaults to Mon–Fri, both halves."
+            ),
+        ),
+    ] = None,
+    hours_per_day: Annotated[
+        float | None,
+        Field(default=None, ge=1.0, le=12.0, description="Hours in one full contracted day (default 8.0)"),
+    ] = None,
+    focus: Annotated[
+        float | None,
+        Field(
+            default=None,
+            ge=0.1,
+            le=1.0,
+            description="Share of contracted time available for planned work, in steps of 0.05 (default 1.0)",
+        ),
+    ] = None,
+    effective_from: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description=(
+                "Date this first working pattern starts applying (YYYY-MM-DD). "
+                "Defaults to active_from, or today."
+            ),
+        ),
+    ] = None,
+    note: Annotated[
+        str | None,
+        Field(default=None, max_length=100, description="Note on this pattern version, e.g. '80% from July'"),
+    ] = None,
+) -> dict:
+    """
+    Add a person to a team, with their first working pattern.
+
+    The two are created together and cannot be separated: a member with no
+    pattern has no contracted half-days, which computes as zero capacity and
+    reads as a team that does no work rather than as data nobody entered.
+
+    role and organisation are free text — there is no roles list, nothing to
+    administer, and no value is rejected. Neither is read by the capacity maths.
+    active_from / active_to bound the membership: half-days outside that window
+    contribute nothing, which is how a joiner or a leaver is recorded without
+    destroying the history a delete would take with it.
+    Names are unique per team, case-insensitively (MEMBER_NAME_TAKEN); a team
+    holds at most 50 members (MEMBER_LIMIT_REACHED). Call list_members first.
+    Takes no edit lock — team writes are outside the single-writer lock.
+    There is no delete_member: removing a person is a human act in the web UI.
+    Returns the new member including their effective_version.
+    """
+    pattern: dict = {}
+    if working_days is not None:
+        pattern.update(_half_days_from(working_days))
+    if hours_per_day is not None:
+        pattern["hours_per_day"] = hours_per_day
+    if focus is not None:
+        pattern["focus"] = focus
+    if note is not None:
+        pattern["note"] = note
+    if effective_from is not None:
+        pattern["effective_from"] = effective_from
+
+    body: dict = {"name": name, "pattern": pattern}
+    for field, value in (
+        ("role", role),
+        ("organisation", organisation),
+        ("active_from", active_from),
+        ("active_to", active_to),
+    ):
+        if value is not None:
+            body[field] = value
+
+    return await call_backend("POST", f"/api/v1/teams/{team_id}/members", json=body)
+
+
+@teams_mcp.tool()
+async def update_member(
+    team_id: Annotated[str, Field(pattern=_UUID_RE, description="Team system_id (UUID) — from list_teams")],
+    member_name: Annotated[str, Field(description="The member's current name — from list_members")],
+    ctx: Context,
+    new_name: Annotated[
+        str | None, Field(default=None, max_length=100, description="Rename this member")
+    ] = None,
+    role: Annotated[str | None, Field(default=None, max_length=50, description="New role (free text)")] = None,
+    organisation: Annotated[
+        str | None, Field(default=None, max_length=50, description="New organisation (free text)")
+    ] = None,
+    active_from: Annotated[
+        str | None, Field(default=None, description="New first day on the team (YYYY-MM-DD)")
+    ] = None,
+    active_to: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description="New last day on the team (YYYY-MM-DD) — the non-destructive way to record a leaver",
+        ),
+    ] = None,
+) -> dict:
+    """
+    Update a member's identity or their membership window.
+
+    **Hours and focus are deliberately not here.** They are contract terms living
+    on a dated version, so changing them means dating a new one with
+    add_pattern_version, not overwriting a field — otherwise a change today would
+    silently restate every sprint already planned.
+    Only supply what you want to change; unset fields are left as they are.
+
+    Setting active_to is how a leaver is recorded: their absences, attendance and
+    pattern history survive, and half-days after that date simply stop counting.
+    Deleting the person would take all of it, and is not available here.
+
+    Concurrency works as it does in update_team: this reads the member and writes
+    inside one call, quoting the ETag from that read. A STALE failure is retried
+    once from a fresh read; a second means a human is editing this member right
+    now — re-read with list_members and reapply if it still makes sense.
+    Takes no edit lock — team writes are outside the single-writer lock.
+    Returns the updated member.
+    """
+    body: dict = {}
+    if new_name is not None:
+        body["name"] = new_name
+    for field, value in (
+        ("role", role),
+        ("organisation", organisation),
+        ("active_from", active_from),
+        ("active_to", active_to),
+    ):
+        if value is not None:
+            body[field] = value
+
+    async def attempt() -> dict:
+        member = await _find_member(team_id, member_name)
+        return await call_backend(
+            "PATCH",
+            f"/api/v1/teams/{team_id}/members/{member['system_id']}",
+            json=body,
+            headers={"If-Match": member["etag"]},
+        )
+
+    try:
+        return await attempt()
+    except MCPBackendError as exc:
+        if exc.code != "STALE":
+            raise
+        return await attempt()
+
+
+@teams_mcp.tool()
+async def add_pattern_version(
+    team_id: Annotated[str, Field(pattern=_UUID_RE, description="Team system_id (UUID) — from list_teams")],
+    member_name: Annotated[str, Field(description="The member's name — from list_members")],
+    effective_from: Annotated[
+        str, Field(description="Date the new contract starts applying (YYYY-MM-DD)")
+    ],
+    ctx: Context,
+    working_days: Annotated[
+        list[str] | None,
+        Field(
+            default=None,
+            description=(
+                "Half-days contracted from that date: whole days ('mon') or halves "
+                "('fri_am'). Anything unnamed is off. Omit to keep the current days."
+            ),
+        ),
+    ] = None,
+    hours_per_day: Annotated[
+        float | None,
+        Field(default=None, ge=1.0, le=12.0, description="Hours in one full contracted day. Omit to keep."),
+    ] = None,
+    focus: Annotated[
+        float | None,
+        Field(
+            default=None,
+            ge=0.1,
+            le=1.0,
+            description="Share available for planned work, in steps of 0.05. Omit to keep.",
+        ),
+    ] = None,
+    note: Annotated[
+        str | None,
+        Field(default=None, max_length=100, description="Why the contract changed, e.g. '80% from September'"),
+    ] = None,
+) -> dict:
+    """
+    Date a change to a member's working pattern.
+
+    This is how hours, focus and working days change: a contract change has a
+    date, so it becomes a new version rather than an edit of the old one. Figures
+    before that date do not move — which is the whole reason patterns are
+    versioned.
+
+    A version holds from its effective_from until the day before the next one,
+    and the latest holds indefinitely. There is no end date to supply, and no way
+    to leave a gap. Posting a version onto a date that already has one **edits
+    that version**.
+
+    Fields you omit are carried over from the pattern in force on effective_from,
+    so "drop to 6 hours from 1 September" is one argument and changes nothing
+    else. A member holds at most 50 versions.
+
+    Back-dating into a closed PI is allowed but does **not** recompute those
+    sprints, and nothing warns you here — check what you are moving first.
+    Takes no edit lock — team writes are outside the single-writer lock.
+    Returns the new (or edited) pattern version.
+    """
+    member = await _find_member(team_id, member_name, as_of=effective_from)
+    current = member.get("effective_version") or {}
+
+    body: dict = {"effective_from": effective_from}
+    if working_days is not None:
+        body.update(_half_days_from(working_days))
+    else:
+        body.update({slot: bool(current.get(slot, False)) for slot in _HALF_DAYS})
+    body["hours_per_day"] = hours_per_day if hours_per_day is not None else current.get("hours_per_day", 8.0)
+    body["focus"] = focus if focus is not None else current.get("focus", 1.0)
+    if note is not None:
+        body["note"] = note
+
+    return await call_backend(
+        "POST",
+        f"/api/v1/teams/{team_id}/members/{member['system_id']}/working-days",
+        json=body,
+    )
+
+
+# ── Project assignment ────────────────────────────────────────────────────────
+#
+# Assigning is a team write, not a project write: it takes no edit lock and
+# changes no sprint. The number reaches a project only through an explicit push
+# (§6.7), which is the one team tool that *does* take the lock — and it arrives
+# with step 7.
+
+
+async def _assignment_of(team_id: str, project_id: str) -> dict:
+    """This team's assignment for one project, with the ETag a PATCH must quote."""
+    response = await call_backend("GET", f"/api/v1/teams/{team_id}/projects")
+    assignments: list[dict] = response.get("items", [])
+    for assignment in assignments:
+        if assignment["project_id"] == project_id:
+            return assignment
+
+    served = ", ".join(repr(a["project_name"]) for a in assignments) or "(none)"
+    raise ValueError(
+        f"This team does not serve project {project_id}. It serves: {served}. "
+        "Assign it with assign_project first."
+    )
+
+
+@teams_mcp.tool()
+async def assign_project(
+    team_id: Annotated[str, Field(pattern=_UUID_RE, description="Team system_id (UUID) — from list_teams")],
+    project_id: Annotated[str, Field(pattern=_UUID_RE, description="Project system_id (UUID) — from list_projects")],
+    ctx: Context,
+    share_pct: Annotated[
+        int | None,
+        Field(
+            default=None,
+            ge=1,
+            le=100,
+            description="Percentage of this team's capacity this project gets (default 100)",
+        ),
+    ] = None,
+    available_source: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description=(
+                "'manual' (default — Available stays typed by hand, team capacity is "
+                "shown beside it) or 'factor' (Available is derived from team PD)"
+            ),
+        ),
+    ] = None,
+    units_per_pd: Annotated[
+        float | None,
+        Field(
+            default=None,
+            gt=0,
+            description=(
+                "How many of the project's effort units one person-day buys. Only used "
+                "with available_source='factor'. 1.0 for a project measured in days."
+            ),
+        ),
+    ] = None,
+) -> dict:
+    """
+    Assign a team to a project.
+
+    A project is served by **at most one team**; assigning one that another team
+    already serves is refused with PROJECT_ALREADY_ASSIGNED naming the holder.
+    A team serves at most 20 projects.
+
+    **The first project assigned is the anchor**: its sprint calendar is the one
+    every capacity figure for this team is counted in. Assign the project whose
+    PI dates the team actually plans against first.
+
+    Shares are per project and may sum past 100% across a team — that is an
+    over-allocation warning in the UI, never a refusal, because teams really are
+    overcommitted and the tool exists to show it.
+
+    available_source defaults to 'manual', which changes nothing about the
+    project: Available stays whatever a human typed. 'factor' makes it derivable,
+    but still writes nothing until someone pushes.
+    Takes no edit lock, and writes no sprint.
+    Returns the new assignment.
+    """
+    body: dict = {"project_id": project_id}
+    if share_pct is not None:
+        body["share_pct"] = share_pct
+    if available_source is not None:
+        body["available_source"] = available_source
+    if units_per_pd is not None:
+        body["units_per_pd"] = units_per_pd
+    return await call_backend("POST", f"/api/v1/teams/{team_id}/projects", json=body)
+
+
+@teams_mcp.tool()
+async def update_assignment(
+    team_id: Annotated[str, Field(pattern=_UUID_RE, description="Team system_id (UUID) — from list_teams")],
+    project_id: Annotated[str, Field(pattern=_UUID_RE, description="Project system_id (UUID) this team serves")],
+    ctx: Context,
+    share_pct: Annotated[
+        int | None, Field(default=None, ge=1, le=100, description="New share of the team's capacity")
+    ] = None,
+    available_source: Annotated[
+        str | None, Field(default=None, description="'manual' or 'factor'")
+    ] = None,
+    units_per_pd: Annotated[
+        float | None,
+        Field(default=None, gt=0, description="New effort units per person-day (factor projects)"),
+    ] = None,
+) -> dict:
+    """
+    Change a project's share, conversion factor, or how its Available is produced.
+
+    Only supply what you want to change. Switching to 'factor' makes Available
+    derivable from the team; it does not write it — a push does, and the preview
+    (preview_team_capacity) is where a wrong units_per_pd shows up as visibly
+    wrong integers before anything is stored.
+    Switching back to 'manual' leaves every sprint exactly as it stands.
+
+    Concurrency works as in update_team: the assignment is read and written inside
+    one call, quoting the ETag from that read, and a STALE failure is retried once
+    from a fresh read.
+    There is no unassign tool — removing a team from a project is a human act in
+    the web UI, like every other container removal.
+    Takes no edit lock, and writes no sprint.
+    Returns the updated assignment.
+    """
+    body: dict = {}
+    if share_pct is not None:
+        body["share_pct"] = share_pct
+    if available_source is not None:
+        body["available_source"] = available_source
+    if units_per_pd is not None:
+        body["units_per_pd"] = units_per_pd
+
+    async def attempt() -> dict:
+        assignment = await _assignment_of(team_id, project_id)
+        return await call_backend(
+            "PATCH",
+            f"/api/v1/teams/{team_id}/projects/{project_id}",
+            json=body,
+            headers={"If-Match": assignment["etag"]},
+        )
+
+    try:
+        return await attempt()
+    except MCPBackendError as exc:
+        if exc.code != "STALE":
+            raise
+        return await attempt()

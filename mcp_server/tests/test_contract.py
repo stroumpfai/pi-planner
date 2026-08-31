@@ -36,6 +36,9 @@ EXPECTED_READ_TOOLS = {
     "get_edit_lock_status",
     "list_teams",
     "get_team",
+    "list_members",
+    "get_team_capacity",
+    "preview_team_capacity",
 }
 
 EXPECTED_PROJECTS_TOOLS = {
@@ -96,6 +99,11 @@ EXPECTED_STATES_TOOLS = {
 EXPECTED_TEAMS_TOOLS = {
     "create_team",
     "update_team",
+    "create_member",
+    "update_member",
+    "add_pattern_version",
+    "assign_project",
+    "update_assignment",
 }
 
 EXPECTED_WORKFLOWS_TOOLS = {

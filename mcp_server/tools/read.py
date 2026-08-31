@@ -308,3 +308,158 @@ async def get_team(
     timestamps. Use list_teams first to find the team_id.
     """
     return await call_backend("GET", f"/api/v1/teams/{team_id}")
+
+
+@read_mcp.tool()
+async def list_members(
+    team_id: Annotated[str, Field(description="Team system_id (UUID) — from list_teams")],
+    ctx: Context,
+    as_of: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description=(
+                "Show each member's working pattern as it stands on this date "
+                "(YYYY-MM-DD). Defaults to today."
+            ),
+        ),
+    ] = None,
+) -> dict:
+    """
+    List a team's members, with the working pattern in force on a given date.
+
+    Members are the people capacity is computed from. Each carries name, role and
+    organisation (free text, never computed on), active_from / active_to (their
+    membership window — half-days outside it count for nothing), order_index, and:
+
+    - effective_version: the working pattern in force on `as_of` — 14 half-day
+      booleans (mon_am … sun_pm), hours_per_day, focus, and the effective_from
+      date it started applying from.
+    - version_dates: every date this member's contract changed on.
+    - absence_count / meeting_count: what deleting them would take with them.
+
+    A member always has at least one version, and the earliest extends backwards
+    without limit, so every date resolves. Pass `as_of` to see a past or future
+    contract — the same member reads differently before and after a change.
+    Use the `name` values here for the member_name argument of the write tools.
+    """
+    params = {"as_of": as_of} if as_of else None
+    return await call_backend("GET", f"/api/v1/teams/{team_id}/members", params=params)
+
+
+@read_mcp.tool()
+async def get_team_capacity(
+    team_id: Annotated[str, Field(description="Team system_id (UUID) — from list_teams")],
+    ctx: Context,
+    date_from: Annotated[
+        str | None,
+        Field(default=None, description="Only sprints ending on or after this date (YYYY-MM-DD)"),
+    ] = None,
+    date_to: Annotated[
+        str | None,
+        Field(default=None, description="Only sprints starting on or before this date (YYYY-MM-DD)"),
+    ] = None,
+) -> dict:
+    """
+    Compute a team's capacity per member, per sprint.
+
+    The sprint calendar comes from the team's **anchor project** — the first
+    project assigned to it. A team serving no project has no calendar and returns
+    no sprints rather than inventing months.
+
+    Each cell is the chain from spec §5.4 in order: contracted half-days →
+    absences → meetings → focus → ÷ normal_day_hours. A person-day is the team's
+    normal_day_hours of work for everyone, never the member's own day, so a
+    6 h/day part-timer's full day is 0.75 PD.
+    A sprint missing either date returns **null**, not 0 — unknown and empty are
+    different, and a zero would read as a team that does no work.
+    `present_days` answers a different question from `person_days`: someone can be
+    around for 9 days and contribute 6.3 PD.
+
+    Also returns one row per served project with the share-adjusted PD, the value
+    in that project's own effort unit, and — for `factor` projects — the integer a
+    push would write. Reading this changes nothing: capacity reaches a project
+    only through an explicit push.
+    """
+    params = {}
+    if date_from:
+        params["from"] = date_from
+    if date_to:
+        params["to"] = date_to
+    return await call_backend("GET", f"/api/v1/teams/{team_id}/capacity", params=params or None)
+
+
+@read_mcp.tool()
+async def preview_team_capacity(
+    team_id: Annotated[str, Field(description="Team system_id (UUID) — from list_teams")],
+    project_id: Annotated[str, Field(description="Project system_id (UUID) this team serves")],
+    ctx: Context,
+    date_from: Annotated[
+        str | None,
+        Field(default=None, description="Only sprints ending on or after this date (YYYY-MM-DD)"),
+    ] = None,
+    date_to: Annotated[
+        str | None,
+        Field(default=None, description="Only sprints starting on or before this date (YYYY-MM-DD)"),
+    ] = None,
+) -> dict:
+    """
+    Show what pushing this team's capacity would write into one project's sprints.
+
+    A **read**, deliberately: "what would this do" should be answerable without
+    holding a write capability, and it is the review step of the update flow.
+    Nothing is written — the push itself is a separate, explicit act.
+
+    Per sprint it returns the label, the dates, the Available the sprint holds
+    now, the value the team's capacity produces (PD → the project's unit), and the
+    integer that value rounds to — half-up, per sprint independently, which is the
+    single rounding in the whole chain.
+    `proposed` is null for a sprint without both dates, and the whole preview is
+    empty of proposals when the project's available_source is `manual`: nothing is
+    meant to flow into a manual project. Switch it to `factor` with
+    update_assignment first, and set units_per_pd — a wrong factor shows up here
+    as visibly wrong integers, which is the point of previewing.
+    """
+    params = {}
+    if date_from:
+        params["from"] = date_from
+    if date_to:
+        params["to"] = date_to
+    report = await call_backend("GET", f"/api/v1/teams/{team_id}/capacity", params=params or None)
+
+    row = next((p for p in report["projects"] if p["project_id"] == project_id), None)
+    if row is None:
+        served = ", ".join(repr(p["name"]) for p in report["projects"]) or "(none)"
+        raise ValueError(
+            f"This team does not serve project {project_id}. It serves: {served}. "
+            "Assign it with assign_project first."
+        )
+
+    sprints = []
+    for index, sprint in enumerate(report["sprints"]):
+        sprints.append(
+            {
+                "sprint_id": sprint["sprint_id"],
+                "label": sprint["label"],
+                "pi_name": sprint["pi_name"],
+                "pi_state": sprint["pi_state"],
+                "start_date": sprint["start_date"],
+                "end_date": sprint["end_date"],
+                "current_available": sprint["available"],
+                "team_person_days": (report["team"][index] or {}).get("person_days"),
+                "share_adjusted_person_days": row["person_days"][index],
+                "in_project_units": row["units"][index],
+                "proposed_available": row["proposed_available"][index],
+            }
+        )
+
+    return {
+        "team_id": team_id,
+        "project_id": project_id,
+        "project_name": row["name"],
+        "effort_unit": row["effort_unit"],
+        "share_pct": row["share_pct"],
+        "available_source": row["available_source"],
+        "units_per_pd": row["units_per_pd"],
+        "sprints": sprints,
+    }
