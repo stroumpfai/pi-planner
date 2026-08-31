@@ -12,8 +12,13 @@
  */
 
 const memberDialog = () => cy.get('[role="dialog"]')
-const memberTab = (name: string) => cy.contains('[role="tab"]', name)
+const memberTab = (name: string) =>
+  cy.get('nav[aria-label="Team views"]').contains('button', name)
 const memberRow = (name: string) => cy.contains('li', name)
+
+/** Open a member row's ⋯ menu — where Edit, Move up/down and Remove live. */
+const memberActions = (name: string) =>
+  cy.get(`button[aria-label="Actions for ${name}"]`).click()
 
 /** A half-day toggle, addressed the way a screen reader would: "<who> <day> <half>". */
 const halfDay = (member: string, label: string) =>
@@ -50,11 +55,12 @@ describe('Team members', () => {
     memberDialog().find('#organisation').type('BIT')
     memberDialog().contains('button', /^Add member$/).click()
 
+    // Role and Org are their own columns in the members table (design §3).
+    memberRow('Marta Lindqvist').should('contain', 'PO').and('contain', 'BIT')
     // The row carries the pattern the same dialog created: a member without one
     // would compute as zero capacity and read as a bug (§3.3).
-    memberRow('Marta Lindqvist').should('contain', 'PO · BIT')
     memberRow('Marta Lindqvist').should('contain', '8.0 h')
-    memberRow('Marta Lindqvist').should('contain', 'focus 1.00')
+    memberRow('Marta Lindqvist').should('contain', '1.00')
     cy.contains('1 member').should('be.visible')
   })
 
@@ -67,7 +73,7 @@ describe('Team members', () => {
     memberRow('Rui Domingues').contains('6.0 h').click()
 
     // Changing hours means dating a new version, so the chip navigates (§7.2).
-    memberTab('Working days').should('have.attr', 'aria-selected', 'true')
+    memberTab('Working days').should('have.attr', 'aria-current', 'page')
     halfDay('Rui Domingues', 'Mon am').should('exist')
   })
 
@@ -110,7 +116,7 @@ describe('Team members', () => {
     halfDay('Tomas Bergerat', 'Sat am').should('have.attr', 'aria-checked', 'true')
 
     // It is one version, not two: the timeline still says so.
-    cy.contains('one version').should('be.visible')
+    cy.contains('1 version').should('be.visible')
   })
 
   it('reorders members, and keeps the order after a reload', () => {
@@ -121,7 +127,8 @@ describe('Team members', () => {
     cy.openTeam('Platform')
 
     cy.get('li').filter(':contains("Lindqvist"), :contains("Bergerat")').first().should('contain', 'Marta')
-    cy.get('[aria-label="Move Tomas Bergerat up"]').click()
+    memberActions('Tomas Bergerat')
+    cy.contains('[role="menuitem"]', 'Move up').click()
 
     cy.reload()
     cy.openTeam('Platform')
@@ -134,13 +141,14 @@ describe('Team members', () => {
     cy.reload()
     cy.openTeam('Platform')
 
-    memberRow('Jonas Wehrli').contains('button', /^Remove$/).click()
+    memberActions('Jonas Wehrli')
+    cy.contains('[role="menuitem"]', 'Remove').click()
     memberDialog().should('contain', '1 working-pattern version')
     memberDialog().should('contain', '"until" date instead')
     memberDialog().contains('button', /^Remove$/).click()
 
     cy.contains('Jonas Wehrli').should('not.exist')
-    cy.contains('Nobody on this team yet').should('be.visible')
+    cy.contains('No members yet — capacity will read 0').should('be.visible')
   })
 
   it('refuses a name the team already holds, in the form', () => {

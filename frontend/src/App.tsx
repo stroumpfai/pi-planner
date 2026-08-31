@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useTheme } from '@/hooks/useTheme'
 import { useCurrentUser, useLogout } from '@/hooks/useAuth'
 import { useProject } from '@/hooks/useProjects'
+import { useTeamRead } from '@/hooks/useTeams'
 import { useUiStore } from '@/stores/uiStore'
 import { useSSE, useTeamSSE } from '@/hooks/useSSE'
 import { useAuthStore } from '@/stores/authStore'
@@ -23,6 +24,7 @@ export default function App() {
   const logout = useLogout()
   const { activeProjectId, activePIId, activeTeamId, setActiveProject } = useUiStore()
   const { data: activeProject } = useProject(activeProjectId ?? '')
+  const { data: activeTeam } = useTeamRead(activeTeamId ?? '')
   const isAdmin = useAuthStore((s) => s.isAdmin())
   const focusMode = useSettingsStore((s) => s.focusMode)
   const [userMgmtOpen, setUserMgmtOpen] = useState(false)
@@ -60,6 +62,12 @@ export default function App() {
             <>
               <span className="text-gray-300 dark:text-gray-600">/</span>
               <span className="text-sm font-medium text-gray-600 dark:text-gray-300">{activeProject.name}</span>
+            </>
+          )}
+          {activeTeam && (
+            <>
+              <span className="text-gray-300 dark:text-gray-600">/</span>
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-300">{activeTeam.team.name}</span>
             </>
           )}
         </div>

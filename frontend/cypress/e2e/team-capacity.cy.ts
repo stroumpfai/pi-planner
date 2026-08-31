@@ -10,7 +10,8 @@
  */
 
 const capacityDialog = () => cy.get('[role="dialog"]')
-const capacityTab = (name: string) => cy.contains('[role="tab"]', name)
+const capacityTab = (name: string) =>
+  cy.get('nav[aria-label="Team views"]').contains('button', name)
 
 /** A team, a member, and a project with one dated sprint. */
 function seedTeamAndProject(options: { hoursPerDay?: number; focus?: number } = {}) {
@@ -54,7 +55,7 @@ describe('Team capacity', () => {
 
     // The empty state leads to the tab that fixes it rather than describing it.
     cy.contains('button', 'Assign a project').click()
-    capacityTab('Projects').should('have.attr', 'aria-selected', 'true')
+    capacityTab('Projects').should('have.attr', 'aria-current', 'page')
   })
 
   it('assigns a project and reads a real figure from it', () => {
@@ -117,7 +118,7 @@ describe('Team capacity', () => {
     capacityTab('Projects').click()
 
     // Warn, never block: both assignments are still there (§6.3).
-    cy.contains('140% of the team').should('be.visible')
+    cy.contains('Shares total 140% — this team is over-allocated').should('be.visible')
     cy.get('li').filter(':contains("ISK Portal"), :contains("Data Exchange")').should('have.length', 2)
   })
 

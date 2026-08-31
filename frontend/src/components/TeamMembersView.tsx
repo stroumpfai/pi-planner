@@ -16,7 +16,7 @@ import {
 import { AddMemberModal } from '@/components/AddMemberModal'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EditMemberModal } from '@/components/EditMemberModal'
-import { TeamMemberRow } from '@/components/TeamMemberRow'
+import { MEMBER_COLUMNS, MEMBER_COLUMNS_READER, TeamMemberRow } from '@/components/TeamMemberRow'
 import { useDeleteMember, useReorderMembers, useTeamMembers } from '@/hooks/useTeamMembers'
 import { MEMBER_CHANGED_MESSAGE, memberErrorCode } from '@/services/teamMembers'
 import { useAuthStore } from '@/stores/authStore'
@@ -105,14 +105,36 @@ export function TeamMembersView({ teamId, onOpenWorkingDays }: Props) {
         <p className="text-sm text-gray-400 dark:text-gray-500">Loading members…</p>
       ) : rows.length === 0 ? (
         <div className="text-center py-16 text-gray-400 dark:text-gray-500 bg-canvas shadow-soft rounded-xl">
-          <p className="text-sm">
-            Nobody on this team yet — add the people whose time this team plans with.
-          </p>
+          <p className="text-sm">No members yet — capacity will read 0 until someone is added.</p>
+          {canEdit && (
+            <button
+              onClick={() => setAdding(true)}
+              className="mt-3 text-sm text-blue-600 hover:text-blue-800 font-medium"
+            >
+              Add the first member
+            </button>
+          )}
         </div>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={rows.map((m) => m.system_id)} strategy={verticalListSortingStrategy}>
-            <ul className="divide-y divide-white/60 shadow-soft rounded-xl bg-canvas">
+            <div className="shadow-soft rounded-xl bg-canvas overflow-hidden">
+              {/* The uppercase rule the design puts above every table — without it
+                  "8.0 h · since 01.09.26" is a chip with nothing naming it. */}
+              <div
+                aria-hidden="true"
+                className={`grid ${canEdit ? MEMBER_COLUMNS : MEMBER_COLUMNS_READER} gap-3 px-4 py-2 border-b border-white/60 dark:border-white/10 bg-band/30 text-[10.5px] uppercase tracking-[0.04em] text-gray-400 dark:text-gray-500`}
+              >
+                {canEdit && <span />}
+                <span>Name</span>
+                <span>Role</span>
+                <span>Org</span>
+                <span>Valid</span>
+                <span>h/day</span>
+                <span>focus</span>
+                {canEdit && <span />}
+              </div>
+              <ul className="divide-y divide-white/60">
               {rows.map((member, index) => (
                 <TeamMemberRow
                   key={member.system_id}
@@ -127,7 +149,8 @@ export function TeamMembersView({ teamId, onOpenWorkingDays }: Props) {
                   onOpenWorkingDays={() => onOpenWorkingDays(member.system_id)}
                 />
               ))}
-            </ul>
+              </ul>
+            </div>
           </SortableContext>
         </DndContext>
       )}

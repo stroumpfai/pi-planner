@@ -50,7 +50,8 @@ describe('Teams', () => {
 
     // A brand-new team has nobody in it and serves nothing, and the row says so
     // rather than leaving the column blank.
-    teamRow('Platform').should('contain', '0 members').and('contain', '0 projects')
+    teamRow('Platform').find('[aria-label="0 members"]').should('be.visible')
+    teamRow('Platform').should('contain', 'no project yet')
     teamRow('Platform').should('contain', 'Runs the shared services')
     teamsSection().contains(EMPTY_STATE).should('not.exist')
   })
@@ -59,7 +60,7 @@ describe('Teams', () => {
     cy.request('POST', '/api/v1/teams', { name: 'Original Team' })
     cy.reload()
 
-    teamRow('Original Team').contains('button', /^Edit$/).click()
+    teamRow('Original Team').find('button[aria-label="Edit"]').click()
     // The modal shows "Loading…" until its own read lands; the form only exists
     // after that, so wait for the field rather than for the dialog.
     dialog().find('input[name="name"]').should('have.value', 'Original Team')
@@ -74,7 +75,7 @@ describe('Teams', () => {
     cy.request('POST', '/api/v1/teams', { name: 'Doomed Team' })
     cy.reload()
 
-    teamRow('Doomed Team').contains('button', /^Delete$/).click()
+    teamRow('Doomed Team').find('button[aria-label="Delete"]').click()
     // Anchored, and scoped to the dialog: the row behind it still carries its own
     // "Delete" button, and a team named "Delete" would match a substring.
     dialog().contains('button', /^Delete$/).click()
@@ -89,13 +90,13 @@ describe('Teams', () => {
     dialog().contains('button', /^Create Team$/).click()
     teamRow('Journey Team').should('be.visible')
 
-    teamRow('Journey Team').contains('button', /^Edit$/).click()
+    teamRow('Journey Team').find('button[aria-label="Edit"]').click()
     dialog().find('input[name="name"]').should('have.value', 'Journey Team')
     dialog().find('input[name="name"]').clear().type('Journey Team Renamed')
     dialog().contains('button', /^Save$/).click()
     teamRow('Journey Team Renamed').should('be.visible')
 
-    teamRow('Journey Team Renamed').contains('button', /^Delete$/).click()
+    teamRow('Journey Team Renamed').find('button[aria-label="Delete"]').click()
     dialog().contains('button', /^Delete$/).click()
     teamsSection().contains(EMPTY_STATE).should('be.visible')
   })
@@ -108,11 +109,11 @@ describe('Teams', () => {
     cy.reload()
 
     projectsSection().contains('li', 'Atlas').should('contain', 'No team')
-    teamRow('Atlas').should('contain', '0 members')
+    teamRow('Atlas').find('[aria-label="0 members"]').should('be.visible')
     // The project row has an Export button; the team row does not. Each section
     // therefore found its own row and not the other one's.
-    projectsSection().contains('li', 'Atlas').contains('button', /^Export$/).should('exist')
-    teamRow('Atlas').contains('button', /^Export$/).should('not.exist')
+    projectsSection().contains('li', 'Atlas').find('button[aria-label="Export"]').should('exist')
+    teamRow('Atlas').find('button[aria-label="Export"]').should('not.exist')
   })
 
   it('shows "No team" on a project row while nothing is assigned', () => {
@@ -129,8 +130,13 @@ describe('Teams', () => {
 
     cy.openTeam('Platform')
 
-    cy.contains('h2', 'Platform').should('be.visible')
-    cy.contains('[role="tab"]', 'Members').should('be.visible')
+    // The shell is a left rail carrying the team, its size and the way out.
+    cy.get('nav[aria-label="Team views"]').within(() => {
+      cy.contains('Platform').should('be.visible')
+      cy.contains('button', 'Members').should('be.visible')
+      cy.contains('button', 'Capacity').should('be.visible')
+      cy.contains('button', '◄ All teams').should('be.visible')
+    })
     cy.contains('h2', 'Teams').should('not.exist')
     // A team view has no project to lock, so the lock button must not follow you
     // in here (implementation plan §1.4).

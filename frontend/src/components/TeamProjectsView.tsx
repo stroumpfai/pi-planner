@@ -75,8 +75,8 @@ export function TeamProjectsView({ teamId }: Props) {
           role="status"
           className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2"
         >
-          These shares add up to {totalShare}% of the team. That is allowed — teams really are
-          overcommitted — but every project here is planned on capacity the team does not have.
+          ⚠ Shares total {totalShare}% — this team is over-allocated. You can still save; the
+          numbers will be optimistic.
         </p>
       )}
 
@@ -95,7 +95,8 @@ export function TeamProjectsView({ teamId }: Props) {
             <li key={row.project_id} className="px-4 py-3 flex items-center gap-4 hover:bg-band/40">
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                  {row.project_name}
+                  {row.project_name}{' '}
+                  <span className="text-gray-500 dark:text-gray-400 font-normal">{row.share_pct}%</span>
                   {row.is_anchor && (
                     <span
                       className="ml-2 px-2 py-0.5 text-[10px] rounded-full bg-band shadow-soft-inset text-gray-500 dark:text-gray-400"
@@ -106,10 +107,10 @@ export function TeamProjectsView({ teamId }: Props) {
                   )}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {row.share_pct}% of the team ·{' '}
+                  conversion{' '}
                   {row.available_source === 'factor'
-                    ? `Available derived at ${row.units_per_pd} ${row.effort_unit}/PD`
-                    : `Available typed by hand (${row.effort_unit})`}
+                    ? `${row.units_per_pd} ${row.effort_unit} per PD`
+                    : `— Available typed by hand (${row.effort_unit})`}
                 </p>
               </div>
 
@@ -131,6 +132,18 @@ export function TeamProjectsView({ teamId }: Props) {
               )}
             </li>
           ))}
+          {/* The total is the point of the column: a share only means something
+              against the others, and 120% is only visible here (§6.3). */}
+          <li className="px-4 py-2 flex items-center justify-between bg-band/30">
+            <span className="text-xs text-gray-500 dark:text-gray-400">Total</span>
+            <span
+              className={`text-xs font-medium ${
+                totalShare > 100 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-600 dark:text-gray-300'
+              }`}
+            >
+              {totalShare}%
+            </span>
+          </li>
         </ul>
       )}
 

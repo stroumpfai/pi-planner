@@ -20,7 +20,7 @@ describe('Project CRUD', () => {
   it('renames a project and new name is reflected', () => {
     cy.request('POST', '/api/v1/projects/', { name: 'Original Name' })
     cy.reload()
-    projectRow('Original Name').contains('button', /^Edit$/).click()
+    projectRow('Original Name').find('button[aria-label="Edit"]').click()
     cy.get('input[name="name"]').clear().type('Renamed Project')
     cy.get('button[type="submit"]').click()
     cy.contains('Renamed Project').should('be.visible')
@@ -30,7 +30,7 @@ describe('Project CRUD', () => {
   it('deletes a project with confirmation and it disappears from the list', () => {
     cy.request('POST', '/api/v1/projects/', { name: 'To Delete' })
     cy.reload()
-    projectRow('To Delete').contains('button', /^Delete$/).click()
+    projectRow('To Delete').find('button[aria-label="Delete"]').click()
     cy.get('[role="dialog"]').contains('button', /^Delete$/).click()
     cy.contains('To Delete').should('not.exist')
   })
@@ -62,7 +62,7 @@ describe('Work-item deep links', () => {
 
   it('configures the Azure DevOps preset via the edit modal', () => {
     cy.reload()
-    cy.contains('li', 'Linked Project').contains('button', /^Edit$/).click()
+    cy.contains('li', 'Linked Project').find('button[aria-label="Edit"]').click()
     cy.get('select#edit-proj-link-preset').should('have.value', 'azure_devops')
   })
 
@@ -115,7 +115,7 @@ describe('Project JSON export and import', () => {
   // observe, and its body is what the import half consumes.
   function exportProject() {
     cy.intercept('GET', '/api/v1/projects/*/export').as('exportProject')
-    projectRow('Portable').contains('button', /^Export$/).click()
+    projectRow('Portable').find('button[aria-label="Export"]').click()
     return cy.wait('@exportProject').its('response')
   }
 

@@ -1,7 +1,12 @@
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import type { TeamMember } from '@/types'
 import { fmtDate } from '@/utils/dates'
+
+/** The column template the design fixes for the Members table (design §3). */
+export const MEMBER_COLUMNS = 'grid-cols-[22px_1.3fr_.7fr_.6fr_1.1fr_.8fr_.7fr_30px]'
+export const MEMBER_COLUMNS_READER = 'grid-cols-[1.3fr_.7fr_.6fr_1.1fr_.8fr_.7fr]'
 
 interface Props {
   readonly member: TeamMember
@@ -16,13 +21,17 @@ interface Props {
 }
 
 /**
- * One member in the Members view (teams.md §7.2).
+ * One member in the Members view (teams.md §7.2; design §3).
  *
- * Hours and focus are shown **read-only, with the date they took effect** — and
- * clicking either goes to Working days rather than editing in place. That is not
- * a missing feature: changing them means dating a new version, and an input here
- * would imply it rewrites the current one, silently restating sprints that are
- * already planned. The chip is a link, and it says what it is looking at.
+ * Hours and focus are shown **read-only, with the date they took effect** — a
+ * tinted chip with no input chrome, and clicking either goes to Working days
+ * rather than editing in place. That is not a missing feature: changing them
+ * means dating a new version, and an input here would imply it rewrites the
+ * current one, silently restating sprints that are already planned.
+ *
+ * The ⋯ menu is the non-drag path to reordering. Order is a preference people
+ * set rarely and often from a keyboard, so a pointer-only gesture would leave it
+ * unreachable for some of them.
  */
 export function TeamMemberRow({
   member,
@@ -39,87 +48,100 @@ export function TeamMemberRow({
     useSortable({ id: member.system_id, disabled: !canEdit })
 
   const version = member.effective_version
-  const since = version ? `since ${fmtDate(version.effective_from)}` : ''
 
   return (
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={`px-4 py-3 hover:bg-band/40 ${isDragging ? 'opacity-50 shadow-soft z-10' : ''}`}
+      className={`grid ${canEdit ? MEMBER_COLUMNS : MEMBER_COLUMNS_READER} gap-3 items-center px-4 py-2.5 hover:bg-band/40 ${
+        isDragging ? 'opacity-50 shadow-soft z-10' : ''
+      }`}
     >
-      <div className="flex items-center gap-3">
-        {canEdit && (
-          <button
-            type="button"
-            ref={setActivatorNodeRef}
-            {...attributes}
-            {...listeners}
-            aria-label={`Drag to reorder ${member.name}`}
-            title="Drag to reorder"
-            className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-grab active:cursor-grabbing"
+      {canEdit && (
+        <button
+          type="button"
+          ref={setActivatorNodeRef}
+          {...attributes}
+          {...listeners}
+          aria-label={`Drag to reorder ${member.name}`}
+          title="Drag to reorder"
+          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 cursor-grab active:cursor-grabbing text-sm"
+        >
+          ⠿
+        </button>
+      )}
+
+      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{member.name}</p>
+      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{member.role ?? '—'}</p>
+      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{member.organisation ?? '—'}</p>
+      <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{validity(member)}</p>
+
+      {/* Tinted, no input chrome, no strike-through: effective values with the
+          date they took effect, and a click that navigates rather than edits. */}
+      <button
+        type="button"
+        onClick={onOpenWorkingDays}
+        title="Set in Working days"
+        className="justify-self-start px-2 py-0.5 rounded-lg bg-band shadow-soft-inset text-xs text-gray-600 dark:text-gray-300 hover:text-blue-600 truncate max-w-full"
+      >
+        {version ? `${version.hours_per_day.toFixed(1)} h · since ${fmtDate(version.effective_from)}` : 'no pattern'}
+      </button>
+      <button
+        type="button"
+        onClick={onOpenWorkingDays}
+        title="Set in Working days"
+        className="justify-self-start px-2 py-0.5 rounded-lg bg-band shadow-soft-inset text-xs text-gray-600 dark:text-gray-300 hover:text-blue-600"
+      >
+        {version ? version.focus.toFixed(2) : '—'}
+      </button>
+
+      {canEdit && (
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger
+            aria-label={`Actions for ${member.name}`}
+            className="justify-self-end px-1 rounded-lg text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
           >
-            ⠿
-          </button>
-        )}
-
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{member.name}</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-            {[member.role, member.organisation].filter(Boolean).join(' · ') || '—'}
-          </p>
-        </div>
-
-        <div className="w-40 shrink-0 text-xs text-gray-500 dark:text-gray-400">
-          {validity(member)}
-        </div>
-
-        {/* Read-only, and legible as such: an inset well rather than a disabled
-            input, with the action it does have spelled out in the title. */}
-        <div className="flex items-center gap-2 shrink-0">
-          <button
-            type="button"
-            onClick={onOpenWorkingDays}
-            title="Set in Working days"
-            className="px-2 py-1 rounded-lg bg-band shadow-soft-inset text-xs text-gray-600 dark:text-gray-300 hover:text-blue-600"
-          >
-            {version ? `${version.hours_per_day.toFixed(1)} h · ${since}` : 'no pattern'}
-          </button>
-          <button
-            type="button"
-            onClick={onOpenWorkingDays}
-            title="Set in Working days"
-            className="px-2 py-1 rounded-lg bg-band shadow-soft-inset text-xs text-gray-600 dark:text-gray-300 hover:text-blue-600"
-          >
-            {version ? `focus ${version.focus.toFixed(2)}` : '—'}
-          </button>
-        </div>
-
-        {canEdit && (
-          <div className="flex items-center gap-3 shrink-0">
-            <button onClick={onEdit} className="text-xs text-blue-500 hover:text-blue-700">Edit</button>
-            {/* The non-drag path to the same result: reordering must not need a
-                pointer gesture to be reachable. */}
-            <button
-              onClick={onMoveUp}
-              disabled={isFirst}
-              aria-label={`Move ${member.name} up`}
-              className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-30"
+            ⋯
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Portal>
+            <DropdownMenu.Content
+              align="end"
+              sideOffset={4}
+              className="z-50 min-w-[10rem] rounded-lg bg-white dark:bg-gray-800 shadow-xl py-1 text-sm"
             >
-              ↑
-            </button>
-            <button
-              onClick={onMoveDown}
-              disabled={isLast}
-              aria-label={`Move ${member.name} down`}
-              className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 disabled:opacity-30"
-            >
-              ↓
-            </button>
-            <button onClick={onDelete} className="text-xs text-red-500 hover:text-red-700">Remove</button>
-          </div>
-        )}
-      </div>
+              <Item onSelect={onEdit}>Edit</Item>
+              <Item onSelect={onMoveUp} disabled={isFirst}>Move up</Item>
+              <Item onSelect={onMoveDown} disabled={isLast}>Move down</Item>
+              <DropdownMenu.Separator className="my-1 h-px bg-gray-100 dark:bg-gray-700" />
+              <Item onSelect={onDelete} destructive>Remove</Item>
+            </DropdownMenu.Content>
+          </DropdownMenu.Portal>
+        </DropdownMenu.Root>
+      )}
     </li>
+  )
+}
+
+interface ItemProps {
+  readonly onSelect: () => void
+  readonly disabled?: boolean
+  readonly destructive?: boolean
+  readonly children: React.ReactNode
+}
+
+function Item({ onSelect, disabled = false, destructive = false, children }: ItemProps) {
+  return (
+    <DropdownMenu.Item
+      disabled={disabled}
+      onSelect={onSelect}
+      className={`px-3 py-1.5 outline-none cursor-pointer data-[disabled]:opacity-40 data-[disabled]:cursor-not-allowed ${
+        destructive
+          ? 'text-red-600 dark:text-red-400 data-[highlighted]:bg-red-50 dark:data-[highlighted]:bg-red-900/20'
+          : 'text-gray-700 dark:text-gray-200 data-[highlighted]:bg-band'
+      }`}
+    >
+      {children}
+    </DropdownMenu.Item>
   )
 }
 

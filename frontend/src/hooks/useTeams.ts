@@ -18,6 +18,9 @@ export const useTeamRead = (teamId: string) =>
   useQuery({
     queryKey: ['team', teamId],
     queryFn: () => teamsApi.get(teamId),
+    // The shell calls this with '' whenever no team is open; without the guard
+    // that would fetch /teams/ and hand a list to a caller expecting one team.
+    enabled: teamId !== '',
     staleTime: Infinity,
     refetchOnWindowFocus: false,
     refetchOnReconnect: false,

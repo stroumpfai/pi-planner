@@ -96,21 +96,23 @@ describe('ProjectListPage', () => {
   it('shows delete button per project', async () => {
     mockApi.list = vi.fn().mockResolvedValue([fakeProject])
     render(<ProjectListPage />, { wrapper: makeWrapper() })
-    await waitFor(() => expect(screen.getByText('Delete')).toBeInTheDocument())
+    // Row actions are icon buttons; the label is their accessible name and their
+    // tooltip, which is what every selector here uses.
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument())
   })
 
   it('shows Export button per project', async () => {
     mockApi.list = vi.fn().mockResolvedValue([fakeProject])
     render(<ProjectListPage />, { wrapper: makeWrapper() })
-    await waitFor(() => expect(screen.getByText('Export')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument())
   })
 
   it('shows Snapshots button per project and opens the modal on click', async () => {
     mockApi.list = vi.fn().mockResolvedValue([fakeProject])
     render(<ProjectListPage />, { wrapper: makeWrapper() })
-    await waitFor(() => expect(screen.getByText('Snapshots')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Snapshots' })).toBeInTheDocument())
 
-    await userEvent.click(screen.getByText('Snapshots'))
+    await userEvent.click(screen.getByRole('button', { name: 'Snapshots' }))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Snapshots' })).toBeInTheDocument()
   })
@@ -118,9 +120,9 @@ describe('ProjectListPage', () => {
   it('shows Edit button per project and opens the edit modal with the effort unit field', async () => {
     mockApi.list = vi.fn().mockResolvedValue([{ ...fakeProject, effort_unit: 'pts' }])
     render(<ProjectListPage />, { wrapper: makeWrapper() })
-    await waitFor(() => expect(screen.getByText('Edit')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument())
 
-    await userEvent.click(screen.getByText('Edit'))
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }))
     expect(screen.getByRole('dialog')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Edit Project' })).toBeInTheDocument()
     expect(screen.getByLabelText('Effort unit')).toBeInTheDocument()
@@ -140,16 +142,17 @@ describe('ProjectListPage', () => {
     const clickSpy = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
 
     render(<ProjectListPage />, { wrapper: makeWrapper() })
-    await waitFor(() => screen.getByText('Export'))
+    await waitFor(() => screen.getByRole('button', { name: 'Export' }))
 
-    await userEvent.click(screen.getByText('Export'))
-    expect(screen.getByText('Exporting…')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Export' }))
+    // The glyph cannot say "Exporting…", so the label does.
+    expect(screen.getByRole('button', { name: 'Exporting…' })).toBeInTheDocument()
 
     resolveFetch(new Response(new Blob(['{}'], { type: 'application/json' }), {
       headers: { 'Content-Disposition': 'attachment; filename="test.json"' },
     }))
 
-    await waitFor(() => expect(screen.getByText('Export')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument())
 
     clickSpy.mockRestore()
   })
@@ -225,9 +228,9 @@ describe('ProjectListPage', () => {
     await waitFor(() => expect(screen.getByText('My Project')).toBeInTheDocument())
     expect(screen.queryByRole('button', { name: /new project/i })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /^import$/i })).not.toBeInTheDocument()
-    expect(screen.queryByText('Export')).not.toBeInTheDocument()
-    expect(screen.queryByText('Snapshots')).not.toBeInTheDocument()
-    expect(screen.queryByText('Delete')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Export' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Snapshots' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument()
   })
 
   it('editor sees all action buttons', async () => {
@@ -236,9 +239,9 @@ describe('ProjectListPage', () => {
     render(<ProjectListPage />, { wrapper: makeWrapper() })
     await waitFor(() => expect(screen.getByRole('button', { name: /new project/i })).toBeInTheDocument())
     expect(screen.getByRole('button', { name: /^import$/i })).toBeInTheDocument()
-    expect(screen.getByText('Export')).toBeInTheDocument()
-    expect(screen.getByText('Snapshots')).toBeInTheDocument()
-    expect(screen.getByText('Delete')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Snapshots' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
   })
 
   it('admin sees all action buttons', async () => {
@@ -246,9 +249,9 @@ describe('ProjectListPage', () => {
     mockApi.list = vi.fn().mockResolvedValue([fakeProject])
     render(<ProjectListPage />, { wrapper: makeWrapper() })
     await waitFor(() => expect(screen.getByRole('button', { name: /new project/i })).toBeInTheDocument())
-    expect(screen.getByText('Export')).toBeInTheDocument()
-    expect(screen.getByText('Snapshots')).toBeInTheDocument()
-    expect(screen.getByText('Delete')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Snapshots' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
   })
 })
 
@@ -327,9 +330,35 @@ describe('ProjectListPage — Teams section', () => {
     expect(within(rows[1]).getByText('No team')).toBeInTheDocument()
   })
 
-  it('shows member and project counts on a team row', async () => {
+  it('counts members in their own column and names what the team serves', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([project()])
     render(<ProjectListPage />, { wrapper: makeWrapper() })
-    expect(await within(await teamsSection()).findByText('6 members · 1 project')).toBeInTheDocument()
+
+    const row = within(await within(await teamsSection()).findByRole('listitem'))
+    // The count is a number under a Members header; its accessible label keeps
+    // the words a screen reader needs.
+    expect(row.getByLabelText('6 members')).toHaveTextContent('6')
+    // Serves names each project with its share — the pairing the landing page exists for.
+    expect(row.getByText(/ISK Portal/)).toBeInTheDocument()
+    expect(row.getByText('70%')).toBeInTheDocument()
+  })
+
+  it('warns on the team row when its shares add up past 100%', async () => {
+    // The shares are only all visible here, so this is where Σ > 100% surfaces (§6.3).
+    mockApi.list = vi.fn().mockResolvedValue([project(), project({ system_id: 'p-2', name: 'Data Exchange' })])
+    mockTeams.list = vi.fn().mockResolvedValue([
+      team({ project_ids: ['p-1', 'p-2'], project_shares: { 'p-1': 70, 'p-2': 60 } }),
+    ])
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+
+    expect(await screen.findByText('Σ 130% — over-allocated')).toBeInTheDocument()
+  })
+
+  it('says a team serves nothing rather than showing an empty column', async () => {
+    mockTeams.list = vi.fn().mockResolvedValue([team({ project_ids: [], project_shares: {} })])
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+
+    expect(await screen.findByText('no project yet')).toBeInTheDocument()
   })
 
   it('shows the teams empty state when there are none', async () => {
@@ -361,7 +390,9 @@ describe('ProjectListPage — Teams section', () => {
 
     const teams = await teamsSection()
     expect(await within(teams).findByText('Platform')).toBeInTheDocument()
-    expect(within(teams).getByText('6 members · 1 project')).toBeInTheDocument()
+    // A reader loses the Actions column and both + buttons; the counts and the
+    // shares stay, because they are information rather than actions (design §1).
+    expect(within(teams).getByLabelText('6 members')).toBeInTheDocument()
     expect(within(teams).queryByRole('button', { name: /new team/i })).not.toBeInTheDocument()
     expect(within(teams).queryByRole('button', { name: /^edit$/i })).not.toBeInTheDocument()
     expect(within(teams).queryByRole('button', { name: /^delete$/i })).not.toBeInTheDocument()

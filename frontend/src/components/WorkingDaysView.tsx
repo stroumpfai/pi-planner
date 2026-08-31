@@ -292,25 +292,35 @@ interface TimelineProps {
  *
  * Each marker sets the view's date, which makes the timeline a control rather
  * than a decoration: clicking the September marker shows September's pattern.
+ * The caption spells out what the dots cannot — how many versions there are and
+ * which one is on screen — because a row of identical circles is unreadable at
+ * the moment somebody is asking "which contract am I looking at?" (design §5).
  */
 function VersionTimeline({ dates, current, onPick }: TimelineProps) {
   if (dates.length <= 1) {
-    return <span className="text-xs text-gray-300 dark:text-gray-600">one version</span>
+    return <span className="text-xs text-gray-300 dark:text-gray-600">1 version</span>
   }
+  const shown = current === null ? -1 : dates.indexOf(current)
   return (
-    <div className="flex items-center gap-1" aria-label="Version timeline">
-      {dates.map((date) => (
-        <button
-          key={date}
-          type="button"
-          onClick={() => onPick(date)}
-          title={`Show the pattern from ${fmtDate(date)}`}
-          aria-label={`Pattern from ${fmtDate(date)}`}
-          className={`w-2.5 h-2.5 rounded-full ${
-            date === current ? 'bg-blue-500 shadow-soft-sm' : 'bg-band shadow-soft-inset hover:bg-blue-200'
-          }`}
-        />
-      ))}
+    <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1" aria-label="Version timeline">
+        {dates.map((date) => (
+          <button
+            key={date}
+            type="button"
+            onClick={() => onPick(date)}
+            title={`Show the pattern from ${fmtDate(date)}`}
+            aria-label={`Pattern from ${fmtDate(date)}`}
+            className={`w-2.5 h-2.5 rounded-full ${
+              date === current ? 'bg-blue-500 shadow-soft-sm' : 'bg-band shadow-soft-inset hover:bg-blue-200'
+            }`}
+          />
+        ))}
+      </div>
+      <span className="text-[11px] text-gray-400 dark:text-gray-500 whitespace-nowrap">
+        {dates.length} versions — {dates.map(fmtDate).join(' · ')}
+        {shown >= 0 && ` ← showing v${shown + 1}`}
+      </span>
     </div>
   )
 }

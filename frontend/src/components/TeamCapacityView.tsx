@@ -131,7 +131,9 @@ export function TeamCapacityView({ teamId, onOpenProjects }: Props) {
               </tr>
             )}
 
-            <tr className="bg-band/40">
+            {/* The emphasis rule the design puts above the total: everything above
+                it is a person, everything below is arithmetic on them. */}
+            <tr className="bg-band/40 border-t-2 border-gray-700 dark:border-gray-300">
               <th scope="row" className="px-4 py-2 text-left text-sm font-semibold text-gray-900 dark:text-gray-100">
                 Team
               </th>

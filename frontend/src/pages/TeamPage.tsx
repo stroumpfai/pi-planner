@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import * as Tabs from '@radix-ui/react-tabs'
 import { TeamCapacityView } from '@/components/TeamCapacityView'
 import { TeamMembersView } from '@/components/TeamMembersView'
 import { TeamProjectsView } from '@/components/TeamProjectsView'
@@ -11,96 +10,115 @@ interface Props {
   readonly teamId: string
 }
 
+type ViewId = 'members' | 'working-days' | 'absences' | 'meetings' | 'capacity' | 'projects'
+
+interface TeamView {
+  readonly id: ViewId
+  readonly label: string
+  /** Built by a later step. Listed, so the rail is the whole area, but never a dead click. */
+  readonly pending?: boolean
+}
+
+/** The six views of a team, in the order the design fixes them. */
+const VIEWS: readonly TeamView[] = [
+  { id: 'members', label: 'Members' },
+  { id: 'working-days', label: 'Working days' },
+  { id: 'absences', label: 'Absences', pending: true },
+  { id: 'meetings', label: 'Meetings', pending: true },
+  { id: 'capacity', label: 'Capacity' },
+  { id: 'projects', label: 'Projects' },
+]
+
 /**
- * The team workspace.
+ * The team workspace: a left rail and one view (teams.md §7.0; design §2).
  *
- * Teams get their own local tab bar rather than living in the project shell, and
- * deliberately **no edit-lock control**: team writes take no lock (teams.md
- * §4.1), so offering "Request Edit Mode" here would contradict the design. The
- * header's button is gated on `activeProjectId`, which is null while a team is
- * open — this page must not reintroduce it.
+ * A rail rather than a tab strip. Six destinations is past what a tab row reads
+ * well at, and the rail carries what a tab row has nowhere to put: which team you
+ * are in, how many people are on it, and the way back out. It is the shell for
+ * every team view, so all six are listed from the start — Absences and Meetings
+ * are marked as not built yet rather than omitted, because a rail that grows
+ * items as steps land would keep moving under people who had learned it.
  *
- * Absences and Meetings are the remaining tabs and arrive with the steps that
- * build them; a tab that leads nowhere is worse than one that is not there yet.
+ * There is deliberately **no edit-mode button** anywhere here: team writes take
+ * no lock (§4.1), and the header's control is gated on `activeProjectId`, which
+ * is null while a team is open.
  */
 export const TeamPage: React.FC<Props> = ({ teamId }) => {
   const { data } = useTeamRead(teamId)
   const setActiveProject = useUiStore((s) => s.setActiveProject)
-  const [tab, setTab] = useState('members')
+  const [view, setView] = useState<ViewId>('members')
   const [focusMemberId, setFocusMemberId] = useState<string | null>(null)
 
+  const team = data?.team
+  const memberCount = team?.member_count ?? 0
+
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="px-6 pt-6">
+    <div className="flex flex-1 min-h-0">
+      <nav
+        aria-label="Team views"
+        className="w-[172px] shrink-0 border-r border-white/60 dark:border-white/10 px-3 py-4 overflow-y-auto"
+      >
         <button
           onClick={() => setActiveProject(null)}
           className="text-xs text-gray-500 dark:text-gray-400 hover:text-blue-600"
         >
-          ← Projects and teams
+          ◄ All teams
         </button>
-        <h2 className="mt-2 text-xl font-semibold text-gray-900 dark:text-gray-100">
-          {data?.team.name ?? 'Team'}
-        </h2>
-        {data?.team.description && (
-          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{data.team.description}</p>
-        )}
-      </div>
 
-      <Tabs.Root value={tab} onValueChange={setTab} className="mt-4">
-        <Tabs.List className="flex border-b border-white/60 dark:border-white/10 px-6">
-          <Tabs.Trigger
-            value="members"
-            className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 border-b-2 border-transparent hover:text-gray-900 dark:hover:text-gray-100 data-[state=active]:border-blue-600 dark:data-[state=active]:border-blue-400 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 transition-colors"
-          >
-            Members
-          </Tabs.Trigger>
-          <Tabs.Trigger
-            value="working-days"
-            className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 border-b-2 border-transparent hover:text-gray-900 dark:hover:text-gray-100 data-[state=active]:border-blue-600 dark:data-[state=active]:border-blue-400 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 transition-colors"
-          >
-            Working days
-          </Tabs.Trigger>
-          <Tabs.Trigger
-            value="capacity"
-            className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 border-b-2 border-transparent hover:text-gray-900 dark:hover:text-gray-100 data-[state=active]:border-blue-600 dark:data-[state=active]:border-blue-400 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 transition-colors"
-          >
-            Capacity
-          </Tabs.Trigger>
-          <Tabs.Trigger
-            value="projects"
-            className="px-4 py-2 text-sm font-medium text-gray-600 dark:text-gray-400 border-b-2 border-transparent hover:text-gray-900 dark:hover:text-gray-100 data-[state=active]:border-blue-600 dark:data-[state=active]:border-blue-400 data-[state=active]:text-blue-600 dark:data-[state=active]:text-blue-400 transition-colors"
-          >
-            Projects
-          </Tabs.Trigger>
-        </Tabs.List>
+        <div className="mt-4 px-1">
+          <p className="text-sm font-semibold text-gray-900 dark:text-gray-100 break-words">
+            {team?.name ?? 'Team'}
+          </p>
+          <p className="text-xs text-gray-400 dark:text-gray-500">
+            {memberCount === 1 ? '1 member' : `${memberCount} members`}
+          </p>
+        </div>
 
-        <Tabs.Content value="members">
+        <ul className="mt-4 space-y-0.5">
+          {VIEWS.map((item) => {
+            const active = item.id === view
+            return (
+              <li key={item.id}>
+                <button
+                  type="button"
+                  disabled={item.pending}
+                  aria-current={active ? 'page' : undefined}
+                  onClick={() => setView(item.id)}
+                  title={item.pending ? 'Not built yet' : undefined}
+                  className={`w-full text-left px-2.5 py-1.5 rounded-lg text-sm transition-colors ${
+                    active
+                      ? 'bg-band shadow-soft-inset text-blue-600 dark:text-blue-400 font-medium'
+                      : 'text-gray-600 dark:text-gray-300 hover:bg-band/60'
+                  } ${item.pending ? 'opacity-40 cursor-not-allowed hover:bg-transparent' : ''}`}
+                >
+                  {item.label}
+                </button>
+              </li>
+            )
+          })}
+        </ul>
+      </nav>
+
+      <div className="flex-1 min-w-0 overflow-y-auto">
+        {view === 'members' && (
           <TeamMembersView
             teamId={teamId}
             onOpenWorkingDays={(memberId) => {
-              // A member's hours and focus are read-only in Members; this is where
-              // they are actually set, so the chip navigates instead of editing.
+              // Hours and focus are read-only in Members; this is where they are
+              // actually set, so the chip navigates instead of editing (§7.2).
               setFocusMemberId(memberId)
-              setTab('working-days')
+              setView('working-days')
             }}
           />
-        </Tabs.Content>
-
-        <Tabs.Content value="working-days">
-          <WorkingDaysView teamId={teamId} focusMemberId={focusMemberId} />
-        </Tabs.Content>
-
-        <Tabs.Content value="capacity">
-          {/* The sprint calendar comes from the anchor project, so a team with
-              none is sent to the tab that gives it one rather than shown an
-              empty grid (§7.0.1). */}
-          <TeamCapacityView teamId={teamId} onOpenProjects={() => setTab('projects')} />
-        </Tabs.Content>
-
-        <Tabs.Content value="projects">
-          <TeamProjectsView teamId={teamId} />
-        </Tabs.Content>
-      </Tabs.Root>
+        )}
+        {view === 'working-days' && <WorkingDaysView teamId={teamId} focusMemberId={focusMemberId} />}
+        {/* The sprint calendar comes from the anchor project, so a team with none
+            is sent to the view that gives it one rather than shown an empty grid. */}
+        {view === 'capacity' && (
+          <TeamCapacityView teamId={teamId} onOpenProjects={() => setView('projects')} />
+        )}
+        {view === 'projects' && <TeamProjectsView teamId={teamId} />}
+      </div>
     </div>
   )
 }

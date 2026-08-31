@@ -60,10 +60,21 @@ describe('TeamProjectsView', () => {
   it('marks the anchor, because it is why the capacity columns are those dates', async () => {
     render(<TeamProjectsView teamId="t-1" />, { wrapper: wrapper() })
 
-    const row = within(await screen.findByRole('listitem'))
-    expect(row.getByText('ISK Portal')).toBeInTheDocument()
+    // The last row is the shares total, so the assignment is the first one.
+    const rows = await screen.findAllByRole('listitem')
+    const row = within(rows[0])
     expect(row.getByText('anchor')).toBeInTheDocument()
-    expect(row.getByText(/70% of the team · Available typed by hand/)).toBeInTheDocument()
+    expect(row.getByText('70%')).toBeInTheDocument()
+    expect(row.getByText(/conversion — Available typed by hand/)).toBeInTheDocument()
+  })
+
+  it('totals the shares, because one share only means something against the others', async () => {
+    render(<TeamProjectsView teamId="t-1" />, { wrapper: wrapper() })
+
+    const rows = await screen.findAllByRole('listitem')
+    const total = within(rows[rows.length - 1])
+    expect(total.getByText('Total')).toBeInTheDocument()
+    expect(total.getByText('70%')).toBeInTheDocument()
   })
 
   it('warns above 100% and never blocks', async () => {
@@ -75,8 +86,11 @@ describe('TeamProjectsView', () => {
     ])
     render(<TeamProjectsView teamId="t-1" />, { wrapper: wrapper() })
 
-    expect(await screen.findByRole('status')).toHaveTextContent('130% of the team')
-    expect(screen.getAllByRole('listitem')).toHaveLength(2)
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      '⚠ Shares total 130% — this team is over-allocated. You can still save; the numbers will be optimistic.',
+    )
+    // Two assignments plus the total row: warned, and not one of them blocked.
+    expect(screen.getAllByRole('listitem')).toHaveLength(3)
   })
 
   it('says nothing when the shares are under 100%', async () => {

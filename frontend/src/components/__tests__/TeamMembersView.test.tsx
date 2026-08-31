@@ -82,7 +82,7 @@ describe('TeamMembersView', () => {
 
     expect(await screen.findByText('Aïcha Ben Salah')).toBeInTheDocument()
     expect(screen.getByText('8.0 h · since 01.09.26')).toBeInTheDocument()
-    expect(screen.getByText('focus 0.70')).toBeInTheDocument()
+    expect(screen.getByText('0.70')).toBeInTheDocument()
   })
 
   it('sends the reader to Working days rather than editing hours in place', async () => {
@@ -100,7 +100,10 @@ describe('TeamMembersView', () => {
   it('names what a removal takes with it, and the alternative', async () => {
     render(<TeamMembersView teamId="t-1" onOpenWorkingDays={onOpenWorkingDays} />, { wrapper: wrapper() })
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Remove' }))
+    // Row actions live behind the ⋯ menu, which is also the non-drag path to
+    // reordering (design §3).
+    await userEvent.click(await screen.findByRole('button', { name: 'Actions for Aïcha Ben Salah' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Remove' }))
     const dialog = screen.getByRole('dialog')
 
     expect(within(dialog).getByText(/2 working-pattern versions/)).toBeInTheDocument()
@@ -113,8 +116,9 @@ describe('TeamMembersView', () => {
     mockApi.delete.mockResolvedValue({ data: null, headers: {} })
     render(<TeamMembersView teamId="t-1" onOpenWorkingDays={onOpenWorkingDays} />, { wrapper: wrapper() })
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Remove' }))
-    await userEvent.click(screen.getByRole('button', { name: /^Remove$/, hidden: false }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Actions for Aïcha Ben Salah' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Remove' }))
+    await userEvent.click(screen.getByRole('button', { name: /^Remove$/ }))
 
     await waitFor(() => expect(mockApi.delete).toHaveBeenCalled())
     expect(mockApi.delete).toHaveBeenCalledWith('/teams/t-1/members/m-1', {
@@ -130,7 +134,8 @@ describe('TeamMembersView', () => {
     mockApi.post.mockResolvedValue({ data: [], headers: {} })
     render(<TeamMembersView teamId="t-1" onOpenWorkingDays={onOpenWorkingDays} />, { wrapper: wrapper() })
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Move Rui Domingues up' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Actions for Rui Domingues' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Move up' }))
 
     await waitFor(() => expect(mockApi.post).toHaveBeenCalled())
     expect(mockApi.post).toHaveBeenCalledWith('/teams/t-1/members/reorder', {
@@ -144,14 +149,15 @@ describe('TeamMembersView', () => {
 
     expect(await screen.findByText('Aïcha Ben Salah')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '+ Add member' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Remove' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Drag to reorder/ })).not.toBeInTheDocument()
   })
 
   it('says the team is empty rather than showing an empty table', async () => {
     mockApi.get.mockResolvedValue({ data: [], headers: {} })
     render(<TeamMembersView teamId="t-1" onOpenWorkingDays={onOpenWorkingDays} />, { wrapper: wrapper() })
 
-    expect(await screen.findByText(/Nobody on this team yet/)).toBeInTheDocument()
+    expect(await screen.findByText(/No members yet — capacity will read 0/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add the first member' })).toBeInTheDocument()
   })
 })
