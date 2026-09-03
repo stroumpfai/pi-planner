@@ -9,6 +9,7 @@ import {
   daysBetween,
   dragRange,
   inDragRange,
+  isWeekStart,
   monthLabel,
   monthOf,
   type CellState,
@@ -34,6 +35,20 @@ interface Props {
 /** Pointer travel before a press becomes a drag, so a click stays a click. */
 const ACTIVATION_DISTANCE = 4
 
+
+/**
+ * The line between morning and afternoon, drawn on the morning's underside.
+ *
+ * A *rule*, not a gap. A one-pixel gap would show the column's background
+ * through it, and a free half-day is already the same colour as that background
+ * — so the split the whole layout exists to show would be invisible on exactly
+ * the cells people scan past most. Drawn over a filled absence too, which is
+ * right: a whole day off is two half-days, and the column should say so.
+ */
+const HALF_RULE: Record<Half, string> = {
+  am: 'border-b border-gray-400/40 dark:border-gray-500/40',
+  pm: '',
+}
 
 const STATE_CLASS: Record<CellState, string> = {
   // Filled: an entered absence. Hatched: one occurrence of a recurring rule —
@@ -62,13 +77,17 @@ const STATE_CLASS: Record<CellState, string> = {
  * a part-timer's unworked Friday must not stop at their row; the range simply
  * does not count that cell (§3.4).
  *
- * **Rows are 30px tall, not 15.** A half-day is 3px wide, so height is the only
- * dimension carrying the cell at all: at 15px a filled run read as a hairline
- * and the hatching that separates a recurrence from a one-off was invisible.
+ * **A day is one column, morning above afternoon.** Stacking the halves is what
+ * retires "half-day" as a marking of its own: a morning off is the top half of
+ * the column filled, which needs no legend entry because it is not a code for
+ * anything — it is the shape of the thing. Whole days read as solid columns and
+ * a run of them as one bar, which is how a calendar draws leave.
  *
- * **The keyboard path is complete**, not a courtesy: arrows move, Space anchors,
- * Shift+arrows extend, Enter opens the dialog, Delete removes the selected
- * entry. A roving tabindex keeps the grid one tab stop rather than a thousand.
+ * **The keyboard walks the grid the way it looks.** Left and right move a day at
+ * a time in the same half; up and down step morning↔afternoon and on into the
+ * next member's row, so the whole grid is one vertical sequence of half-days.
+ * Space anchors, Shift+arrows extend, Enter opens the dialog, Delete removes the
+ * selected entry. A roving tabindex keeps the grid one tab stop, not a thousand.
  */
 export function AbsenceGrid({
   members,
@@ -155,14 +174,26 @@ export function AbsenceGrid({
     onSelect(member ? (coverage.get(cellKey(member.system_id, cell.date, cell.half)) ?? null) : null)
   }
 
+  /**
+   * Move the focus by *dx* days and *dy* half-day rows.
+   *
+   * The two axes are the two the grid now draws: horizontal is time in whole
+   * days, vertical is the stack of half-days — Marta's morning, Marta's
+   * afternoon, Rui's morning — so ArrowDown off the bottom of one member lands
+   * on the top of the next rather than skipping a half.
+   */
   const move = (cell: GridCell, dx: number, dy: number, extend: boolean): void => {
-    const halfIndex = HALVES.indexOf(cell.half) + dx
-    const dayShift = Math.floor(halfIndex / 2)
-    const dayIndex = Math.min(days.length - 1, Math.max(0, days.indexOf(cell.date) + dayShift))
+    if (members.length === 0) return
+    const dayIndex = Math.min(days.length - 1, Math.max(0, days.indexOf(cell.date) + dx))
+    const rows = members.length * HALVES.length
+    const row = Math.min(
+      rows - 1,
+      Math.max(0, cell.memberIndex * HALVES.length + HALVES.indexOf(cell.half) + dy),
+    )
     const next: GridCell = {
-      memberIndex: Math.min(members.length - 1, Math.max(0, cell.memberIndex + dy)),
+      memberIndex: Math.floor(row / HALVES.length),
       date: days[dayIndex],
-      half: HALVES[((halfIndex % 2) + 2) % 2],
+      half: HALVES[row % HALVES.length],
     }
     setFocused(next)
     if (extend) {
@@ -226,9 +257,21 @@ export function AbsenceGrid({
                 MIN_DAY_WIDTH, which is where the wrapper starts scrolling. */}
             <div className="flex flex-1 min-w-0">
               {days.map((date) => (
+                /* One column per day, morning above afternoon — the way a
+                   calendar draws it, and the reason a half-day needs no
+                   special mark: it is simply the half of the column it fills.
+
+                   The left border is on **every** day and merely changes
+                   colour on a Monday. A border Mondays alone carried would
+                   make those columns a pixel wider than the rest, and by
+                   February the month labels would sit over the wrong days. */
                 <div
                   key={date}
-                  className="flex gap-px pr-px flex-1 min-w-0"
+                  className={`flex flex-col flex-1 min-w-0 border-l ${
+                    isWeekStart(date)
+                      ? 'border-gray-400/70 dark:border-gray-500/60'
+                      : 'border-transparent'
+                  }`}
                   style={{ minWidth: MIN_DAY_WIDTH }}
                   data-day={date}
                 >
@@ -253,7 +296,7 @@ export function AbsenceGrid({
                         tabIndex={-1}
                         aria-selected={selected}
                         title={`${member.name} · ${date} ${half}`}
-                        className={`flex-1 min-w-0 h-[30px] rounded-[1px] ${STATE_CLASS[state]} ${
+                        className={`h-[14px] ${HALF_RULE[half]} ${STATE_CLASS[state]} ${
                           inRange ? 'ring-1 ring-blue-500 bg-blue-300' : ''
                         } ${selected ? 'ring-1 ring-gray-900 dark:ring-white' : ''} ${
                           isFocused ? 'ring-1 ring-blue-400' : ''
@@ -321,12 +364,19 @@ function MonthHeader({ days }: MonthHeaderProps) {
   )
 }
 
-/** The cell vocabulary, spelled out — the grid is unreadable without it (§7.4). */
+/**
+ * The cell vocabulary, spelled out — the grid is unreadable without it (§7.4).
+ *
+ * Four markings and a state that is not one. "Half-day" used to be a fifth line
+ * of prose here, explaining that an absence could fill half a cell; stacking the
+ * halves made the explanation unnecessary, so what remains is a note on how to
+ * *read a column* rather than on how to decode one more pattern.
+ */
 export function AbsenceLegend() {
   const items: { state: CellState; label: string }[] = [
     { state: 'absence', label: 'absence' },
     { state: 'recurring', label: 'recurring' },
-    { state: 'non-working', label: 'not a working half-day' },
+    { state: 'non-working', label: 'not working' },
     { state: 'weekend', label: 'weekend' },
     { state: 'off-team', label: 'not on the team yet' },
   ]
@@ -334,11 +384,14 @@ export function AbsenceLegend() {
     <ul className="flex flex-wrap gap-4 text-[11px] text-gray-500 dark:text-gray-400">
       {items.map((item) => (
         <li key={item.state} className="flex items-center gap-1.5">
-          <span className={`w-3 h-[12px] rounded-[1px] ${STATE_CLASS[item.state]}`} />
+          {/* Shaped like the thing it names: one day's column, not a swatch. */}
+          <span className={`w-2 h-[14px] ${STATE_CLASS[item.state]}`} />
           {item.label}
         </li>
       ))}
-      <li className="text-gray-400 dark:text-gray-500">A half-day absence fills half a cell.</li>
+      <li className="text-gray-400 dark:text-gray-500">
+        A column is one day — morning above, afternoon below.
+      </li>
     </ul>
   )
 }

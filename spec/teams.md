@@ -856,10 +856,23 @@ nothing prunes one. Three consequences for the view:
 
 The one bound is a **sanity check, not a horizon**: a date more than 10 years out is almost
 always a typo'd year, so it warns and asks for confirmation. It never refuses.
-Each day is two half-day cells. Drag across cells to create; click an existing absence to
-edit or delete. Member multi-select in the left column applies one entry to several or all
-members (§3.4) — with everyone selected, this is how public and national holidays are entered,
-and individual rows can be corrected afterwards for whoever works that day.
+
+**Each day is one column, split across its middle: morning above, afternoon below** — the
+arrangement a calendar uses, and the one people arrive already able to read. A week is
+therefore seven columns, ruled at the Monday. Stacking the halves is also what retires
+"half-day" as a marking of its own: a morning off is the top half of a column filled, so the
+vocabulary is just **absence, recurring, not working, weekend** (plus days a member is not yet
+on the team). Nothing about the model changes — an absence still covers `(day, half)` pairs
+and capacity still deducts per half-day (§3.4, §5.4); only the geometry says so more plainly.
+
+Drag across cells to create; click an existing absence to edit or delete. A drag stays **linear in time**, as the stored rule is: dragging from Monday
+morning to Friday morning means "Monday morning through Friday morning", filling the days
+between, not "five mornings" — a range absence has one starting half and one ending half, and
+there is no shape in the model for the other reading.
+
+Member multi-select in the left column applies one entry to several or all members (§3.4) —
+with everyone selected, this is how public and national holidays are entered, and individual
+rows can be corrected afterwards for whoever works that day.
 
 ### 7.5 Meetings view — an attendance matrix, not a timeline
 

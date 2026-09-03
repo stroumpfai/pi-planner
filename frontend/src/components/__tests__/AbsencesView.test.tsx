@@ -400,6 +400,79 @@ describe('AbsencesView', () => {
     })
   })
 
+  it('stacks the morning above the afternoon in one column per day', async () => {
+    // The change itself: a day is one column, not two cells side by side, so a
+    // morning off is the top half of that column filled.
+    render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })
+    const grid = await screen.findByRole('grid', { name: /absences by member/i })
+
+    const column = grid.querySelector<HTMLElement>('[data-day="2026-09-14"]')
+    const halves = [...(column?.querySelectorAll<HTMLElement>('[data-half]') ?? [])]
+    expect(halves.map((cell) => cell.dataset.half)).toEqual(['am', 'pm'])
+    expect(column?.className).toContain('flex-col')
+  })
+
+  it('rules every day the same width and colours only the Monday', async () => {
+    // The alignment invariant, in the one place it is easy to break. Giving
+    // Mondays a border the other six lack would make those columns a pixel
+    // wider, and six months on the month labels would sit over the wrong days.
+    render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })
+    const grid = await screen.findByRole('grid', { name: /absences by member/i })
+
+    const day = (date: string) => grid.querySelector<HTMLElement>(`[data-day="${date}"]`)
+    // 14 September 2026 is a Monday; the 15th is not.
+    expect(day('2026-09-14')?.className).toContain('border-l')
+    expect(day('2026-09-15')?.className).toContain('border-l')
+    expect(day('2026-09-14')?.className).not.toContain('border-transparent')
+    expect(day('2026-09-15')?.className).toContain('border-transparent')
+  })
+
+  it('no longer explains a half-day as a case of its own', async () => {
+    // It used to need a sentence. Stacking the halves made the sentence into
+    // the picture, so what is left is how to read a column.
+    render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })
+    await screen.findByRole('grid', { name: /absences by member/i })
+
+    expect(screen.queryByText(/fills half a cell/i)).not.toBeInTheDocument()
+    expect(screen.getByText(/morning above, afternoon below/i)).toBeInTheDocument()
+  })
+
+  it('walks right by a whole day, because right is the time axis now', async () => {
+    // Under the old side-by-side layout ArrowRight stepped am → pm on the same
+    // day. With the halves stacked that step is downwards, and right is a day.
+    const user = userEvent.setup()
+    render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })
+    await screen.findByRole('grid', { name: /absences by member/i })
+
+    await user.click(screen.getByTitle('Marta Lindqvist · 2026-09-16 am'))
+    await user.keyboard('{ }{Shift>}{ArrowRight}{/Shift}{Enter}')
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByTestId('absence-summary')).toHaveTextContent(
+      '2026-09-16 – 2026-09-17, am to am, 1 person',
+    )
+  })
+
+  it('walks down a half-day at a time, through both people’s afternoons', async () => {
+    // The vertical axis is the stack of half-days, not the list of members, so
+    // ArrowDown twice from a morning reaches the person below — never a
+    // half-day skipped at the seam.
+    const user = userEvent.setup()
+    render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })
+    await screen.findByRole('grid', { name: /absences by member/i })
+
+    await user.click(screen.getByTitle('Marta Lindqvist · 2026-09-16 am'))
+    // Three steps to cross two people: Marta pm, Rui am, Rui pm. The stride is
+    // a half-day, so the afternoons are reachable at all — under the old layout
+    // one step landed on Rui and the rest clamped there, morning forever.
+    await user.keyboard('{ }{Shift>}{ArrowDown}{ArrowDown}{ArrowDown}{/Shift}{Enter}')
+
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByTestId('absence-summary')).toHaveTextContent(
+      '2026-09-16, both halves, 2 people',
+    )
+  })
+
   it('says why the grid is empty when nobody is on the team', async () => {
     respondWith([], [])
     render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })

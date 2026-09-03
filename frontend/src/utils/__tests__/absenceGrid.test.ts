@@ -16,6 +16,7 @@ import {
   previewOccurrences,
   shiftDays,
   stripMonthsFor,
+  isWeekStart,
   stripStartFor,
   weekdayIndex,
   windowOf,
@@ -112,6 +113,16 @@ describe('date arithmetic', () => {
   it('counts whole months in both directions', () => {
     expect(monthsBetween({ year: 2026, month: 9 }, { year: 2027, month: 2 })).toBe(5)
     expect(monthsBetween({ year: 2027, month: 2 }, { year: 2026, month: 9 })).toBe(-5)
+  })
+
+  it('finds the Monday a week is ruled at', () => {
+    // 14 September 2026 is a Monday, the 13th a Sunday.
+    expect(isWeekStart('2026-09-14')).toBe(true)
+    expect(isWeekStart('2026-09-13')).toBe(false)
+    // Every seventh day and no other, across a month boundary.
+    const mondays = daysBetween('2026-09-01', '2026-10-31').filter(isWeekStart)
+    expect(mondays).toHaveLength(8)
+    expect(mondays[0]).toBe('2026-09-07')
   })
 
   it('lists days inclusively', () => {

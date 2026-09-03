@@ -20,13 +20,17 @@ import { HALVES, WEEKDAYS, type Half, type HalfDayKey, type Weekday } from '@/ut
 export const GRID_MONTHS = 6
 
 /**
- * The narrowest a day may be drawn — two half-day cells and their gaps.
+ * The narrowest a day may be drawn — one column, plus the rule down its left.
  *
  * A floor, not a size. Day columns flex to fill whatever width there is and stop
  * shrinking here, which is what lets the calendar fill a wide screen and scroll
  * a narrow one with no measurement at all.
+ *
+ * Six rather than the eight two side-by-side halves needed: a day is a single
+ * column now and its halves are stacked, so the width buys one cell instead of
+ * two. Six months of days fit a 1280px screen without scrolling at all.
  */
-export const MIN_DAY_WIDTH = 8
+export const MIN_DAY_WIDTH = 6
 
 /**
  * The strip spans whole years — one, two or three (§7.4).
@@ -117,6 +121,17 @@ export function weekdayIndex(iso: string): number {
 export const weekdayOf = (iso: string): Weekday => WEEKDAYS[weekdayIndex(iso)]
 
 export const isWeekendDay = (iso: string) => weekdayIndex(iso) >= 5
+
+/**
+ * True on a Monday — where the calendar draws its week rule.
+ *
+ * The rule is what makes seven columns read as *a week* rather than as an
+ * undifferentiated run of days. It is drawn as a **coloured left border that
+ * every day carries**, transparent on the other six: a border only Mondays had
+ * would give those columns a pixel the rest lack, and six months on the drift
+ * would walk the month labels off the days they name.
+ */
+export const isWeekStart = (iso: string) => weekdayIndex(iso) === 0
 
 /** The window a set of months covers, as the read's `from` / `to`. */
 export function windowOf(start: YearMonth, months: number): { from: string; to: string } {
