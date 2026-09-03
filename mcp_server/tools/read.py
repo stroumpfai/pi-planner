@@ -348,6 +348,58 @@ async def list_members(
 
 
 @read_mcp.tool()
+async def list_absences(
+    team_id: Annotated[str, Field(description="Team system_id (UUID) — from list_teams")],
+    ctx: Context,
+    date_from: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description=(
+                "Expand occurrences from this date (YYYY-MM-DD). Defaults to the start "
+                "of the current month."
+            ),
+        ),
+    ] = None,
+    date_to: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description="Expand occurrences up to this date (YYYY-MM-DD). Defaults to a year out.",
+        ),
+    ] = None,
+    member_id: Annotated[
+        str | None, Field(default=None, description="Only this member's absences")
+    ] = None,
+) -> dict:
+    """
+    List a team's absences, with the days each one actually covers.
+
+    Every rule the team holds is returned; only the **occurrences** are windowed.
+    A rule with no occurrence in the window still appears with an empty
+    `occurrences` list — it exists, it is simply not in view.
+
+    Each absence carries its schedule rule (kind, dates, weekday, halves,
+    interval_weeks), a plain-language `summary` of it, the expanded occurrences
+    inside the window, and the `etag` a write must quote.
+
+    Absences reduce contracted half-days before focus. Overlaps count **once**,
+    and an absence on a half-day the member does not work has no effect. There is
+    no absence category, and `label` is never interpreted.
+    Recurring entries have no per-occurrence exceptions: an occurrence you see
+    here can only be removed by changing or deleting the whole series.
+    """
+    params = {}
+    if date_from:
+        params["from"] = date_from
+    if date_to:
+        params["to"] = date_to
+    if member_id:
+        params["member_id"] = member_id
+    return await call_backend("GET", f"/api/v1/teams/{team_id}/absences", params=params or None)
+
+
+@read_mcp.tool()
 async def get_team_capacity(
     team_id: Annotated[str, Field(description="Team system_id (UUID) — from list_teams")],
     ctx: Context,

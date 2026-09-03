@@ -655,3 +655,351 @@ async def update_assignment(
         if exc.code != "STALE":
             raise
         return await attempt()
+
+
+# ── Absences ──────────────────────────────────────────────────────────────────
+#
+# These are the only destructive team tools (§8.2.6): an absence is a leaf
+# record, and `delete_absence` follows the line this codebase already draws —
+# leaves yes, containers no.
+#
+# They are also the **bulk data path**. The planning inputs live on a Confluence
+# page read by a model, not in a CSV, so `bulk_create_absences` writes a whole
+# window in one transaction and *replaces* within it rather than appending. That
+# is the only rule that survives a re-read of the page after an entry was deleted
+# from it — a merge would keep the deleted entry forever (§8.2.7).
+
+
+def _schedule(
+    kind: str,
+    start_date: str,
+    end_date: str | None,
+    start_half: str | None,
+    end_half: str | None,
+    weekday: int | None,
+    halves: list[str] | None,
+    interval_weeks: int | None,
+    label: str | None,
+) -> dict:
+    """The schedule rule as the API takes it, with nothing invented."""
+    body: dict = {"kind": kind, "start_date": start_date}
+    for name, value in (
+        ("end_date", end_date),
+        ("start_half", start_half),
+        ("end_half", end_half),
+        ("weekday", weekday),
+        ("halves", halves),
+        ("interval_weeks", interval_weeks),
+        ("label", label),
+    ):
+        if value is not None:
+            body[name] = value
+    return body
+
+
+_KIND = (
+    "'range' (a block of consecutive days — a holiday, or a one-day public "
+    "holiday), 'weekly' (the same slot every week) or 'interval' (the same slot "
+    "every N weeks — a 90% contract's free Friday)"
+)
+_START_DATE = (
+    "For 'range', the first day (YYYY-MM-DD). For 'weekly' and 'interval' this is "
+    "the ANCHOR: the first occurrence is the first matching weekday on or after "
+    "it, and later ones fall every interval from there. It decides which alternate "
+    "weeks are hit, so check the summary in the result before trusting it."
+)
+_HALVES = "Which halves a recurring rule covers: ['am'], ['pm'] or ['am','pm']"
+
+
+async def _absence_with_etag(team_id: str, absence_id: str) -> dict:
+    absences: list[dict] = (
+        await call_backend("GET", f"/api/v1/teams/{team_id}/absences")
+    ).get("items", [])
+    for row in absences:
+        if row["system_id"] == absence_id:
+            return row
+    raise ValueError(
+        f"No absence {absence_id} on this team. Call list_absences to see what exists."
+    )
+
+
+@teams_mcp.tool()
+async def create_absence(
+    team_id: Annotated[str, Field(pattern=_UUID_RE, description="Team system_id (UUID) — from list_teams")],
+    member_names: Annotated[
+        list[str],
+        Field(
+            max_length=50,
+            description=(
+                "The people this applies to, by name as list_members reports them. "
+                "One record is created per person, each editable afterwards — this is "
+                "how a public holiday is entered: name everyone."
+            ),
+        ),
+    ],
+    kind: Annotated[str, Field(description=_KIND)],
+    start_date: Annotated[str, Field(description=_START_DATE)],
+    ctx: Context,
+    end_date: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description=(
+                "For 'range', the last day, inclusive — omit for a one-day absence. "
+                "For a recurring rule, when it stops; omit for open-ended."
+            ),
+        ),
+    ] = None,
+    start_half: Annotated[
+        str | None,
+        Field(default=None, description="'range' only: 'am' (default) or 'pm' — which half the block opens on"),
+    ] = None,
+    end_half: Annotated[
+        str | None,
+        Field(default=None, description="'range' only: 'pm' (default) or 'am' — which half it closes on"),
+    ] = None,
+    weekday: Annotated[
+        int | None,
+        Field(default=None, ge=0, le=6, description="Recurring only: 0 = Monday … 6 = Sunday"),
+    ] = None,
+    halves: Annotated[list[str] | None, Field(default=None, description=_HALVES)] = None,
+    interval_weeks: Annotated[
+        int | None,
+        Field(
+            default=None,
+            ge=2,
+            le=52,
+            description="'interval' only: weeks between occurrences. Starts at 2 — every week is kind='weekly'.",
+        ),
+    ] = None,
+    label: Annotated[
+        str | None,
+        Field(default=None, max_length=100, description="Free text for the human reading the row, e.g. 'Christmas'"),
+    ] = None,
+) -> dict:
+    """
+    Record when one or more members are not available.
+
+    There is no absence category — an absence is an absence, and `label` is never
+    interpreted by the capacity maths. Absences reduce contracted half-days before
+    focus is applied; overlapping ones are counted **once**, never summed. An
+    absence on a half-day the member does not work is allowed and simply has no
+    effect, so entering an office shutdown for everyone produces no warnings for
+    the part-timers.
+
+    Naming several members creates **one record each**, independently editable
+    afterwards — that is deliberate, so "everyone's Christmas" can be corrected
+    for the one person on call without deleting and recreating the lot.
+    Unknown names are rejected with the list of members who do exist; no tool
+    creates a person implicitly (use create_member).
+
+    A recurring entry has **no per-occurrence exceptions**: editing or deleting
+    acts on the whole series. For one stray day, add a one-day 'range' alongside
+    it; for a changed pattern, give the rule an end_date and start a new one.
+
+    Takes no edit lock, and writes no sprint — capacity reaches a project only
+    through a push.
+    Returns every record created, each with a plain-language `summary` of the
+    rule. Read that summary: an off-by-one week is invisible in the fields.
+    """
+    member_ids = [await resolve_member_id(team_id, name) for name in member_names]
+    body = _schedule(
+        kind, start_date, end_date, start_half, end_half, weekday, halves, interval_weeks, label
+    )
+    body["member_ids"] = member_ids
+    return await call_backend("POST", f"/api/v1/teams/{team_id}/absences", json=body)
+
+
+@teams_mcp.tool()
+async def update_absence(
+    team_id: Annotated[str, Field(pattern=_UUID_RE, description="Team system_id (UUID) — from list_teams")],
+    absence_id: Annotated[str, Field(pattern=_UUID_RE, description="Absence system_id (UUID) — from list_absences")],
+    ctx: Context,
+    kind: Annotated[str | None, Field(default=None, description=_KIND)] = None,
+    start_date: Annotated[str | None, Field(default=None, description=_START_DATE)] = None,
+    end_date: Annotated[
+        str | None, Field(default=None, description="New end date (inclusive), or when a recurrence stops")
+    ] = None,
+    start_half: Annotated[str | None, Field(default=None, description="'range' only: 'am' or 'pm'")] = None,
+    end_half: Annotated[str | None, Field(default=None, description="'range' only: 'am' or 'pm'")] = None,
+    weekday: Annotated[
+        int | None, Field(default=None, ge=0, le=6, description="Recurring only: 0 = Monday … 6 = Sunday")
+    ] = None,
+    halves: Annotated[list[str] | None, Field(default=None, description=_HALVES)] = None,
+    interval_weeks: Annotated[
+        int | None, Field(default=None, ge=2, le=52, description="'interval' only: weeks between occurrences")
+    ] = None,
+    label: Annotated[str | None, Field(default=None, max_length=100, description="New label")] = None,
+) -> dict:
+    """
+    Change an absence — **the whole series**, always.
+
+    There is no "just this occurrence": recurring entries have no exception list,
+    by design. To end a recurrence early, set end_date. To drop one stray day, you
+    cannot — end the rule and start a new one, which is the truer record anyway.
+
+    Only supply what you want to change; the patch is merged onto the stored rule
+    and the *result* must be coherent, so switching kind to 'weekly' without a
+    weekday is refused with INVALID_SCHEDULE.
+    The member cannot be changed here: moving an absence to someone else is a
+    delete and a create.
+
+    Concurrency works as in update_team — read, write quoting the ETag, one retry
+    on STALE.
+    Returns the updated absence with its new plain-language summary.
+    """
+    body: dict = {}
+    for name, value in (
+        ("kind", kind),
+        ("start_date", start_date),
+        ("end_date", end_date),
+        ("start_half", start_half),
+        ("end_half", end_half),
+        ("weekday", weekday),
+        ("halves", halves),
+        ("interval_weeks", interval_weeks),
+        ("label", label),
+    ):
+        if value is not None:
+            body[name] = value
+
+    async def attempt() -> dict:
+        absence = await _absence_with_etag(team_id, absence_id)
+        return await call_backend(
+            "PATCH",
+            f"/api/v1/teams/{team_id}/absences/{absence_id}",
+            json=body,
+            headers={"If-Match": absence["etag"]},
+        )
+
+    try:
+        return await attempt()
+    except MCPBackendError as exc:
+        if exc.code != "STALE":
+            raise
+        return await attempt()
+
+
+@teams_mcp.tool()
+async def delete_absence(
+    team_id: Annotated[str, Field(pattern=_UUID_RE, description="Team system_id (UUID) — from list_teams")],
+    absence_id: Annotated[str, Field(pattern=_UUID_RE, description="Absence system_id (UUID) — from list_absences")],
+    ctx: Context,
+) -> dict:
+    """
+    Delete an absence, and with it every occurrence of a recurring one.
+
+    Permanent — this app has no trash. A recurring entry goes as a whole; there is
+    no way to remove a single occurrence, because there are no per-occurrence
+    exceptions in the model.
+
+    This and delete_meeting are the only destructive team tools: teams, members,
+    pattern versions and project assignments are removed by a human in the web UI.
+    Capacity for the affected days goes back up immediately, but no sprint changes
+    until someone pushes.
+    Returns {"deleted": absence_id}.
+    """
+
+    async def attempt() -> None:
+        absence = await _absence_with_etag(team_id, absence_id)
+        await call_backend(
+            "DELETE",
+            f"/api/v1/teams/{team_id}/absences/{absence_id}",
+            headers={"If-Match": absence["etag"]},
+        )
+
+    try:
+        await attempt()
+    except MCPBackendError as exc:
+        if exc.code != "STALE":
+            raise
+        await attempt()
+    return {"deleted": absence_id}
+
+
+def _bulk_body(
+    window_from: str, window_to: str, entries: list[dict], dry_run: bool
+) -> dict:
+    return {
+        "window_from": window_from,
+        "window_to": window_to,
+        "dry_run": dry_run,
+        "entries": entries,
+    }
+
+
+_BULK_ENTRIES = (
+    "One object per absence rule. Each takes member_names (a list of names as "
+    "list_members reports them), kind, start_date, and whatever that kind needs: "
+    "end_date, start_half/end_half for 'range'; weekday and halves for 'weekly'; "
+    "plus interval_weeks for 'interval'. label is optional free text."
+)
+
+
+@teams_mcp.tool()
+async def bulk_create_absences(
+    team_id: Annotated[str, Field(pattern=_UUID_RE, description="Team system_id (UUID) — from list_teams")],
+    window_from: Annotated[str, Field(description="First day of the window being replaced (YYYY-MM-DD)")],
+    window_to: Annotated[str, Field(description="Last day of the window being replaced (YYYY-MM-DD)")],
+    entries: Annotated[list[dict], Field(max_length=2000, description=_BULK_ENTRIES)],
+    ctx: Context,
+) -> dict:
+    """
+    Replace a team's absences inside a date window, in one transaction.
+
+    This is the import path for the planning page: there is no CSV import for
+    teams, because the source is a hand-maintained wiki table whose shape drifts —
+    which a model reads well and a parser does not.
+
+    **Replace, not append**: everything the team has anchored inside
+    [window_from, window_to] is replaced by `entries`. Membership is decided by an
+    absence's start_date, so a recurring rule anchored before the window survives
+    even though it reaches into it — pick a window that matches the section of the
+    page you read.
+    Re-running the same import is therefore idempotent, and an entry deleted from
+    the source page disappears here too — which a merge could never do.
+
+    Every unresolved member name is reported **at once**, and nothing is written
+    when there are any: spelling variants ("Anders Michel" / "Michel Anders")
+    arrive in groups, and a batch that reports one per call is a batch nobody
+    finishes. Members are never created implicitly — call create_member first,
+    deliberately, and note that there is no way for you to undo that.
+
+    Call preview_bulk_absences with the same arguments first. The review step is
+    worth more here than anywhere else in this API: the input is free text a model
+    interpreted, and a misread column is caught there rather than in a plan.
+    Returns created/deleted counts and every record written.
+    """
+    return await call_backend(
+        "POST",
+        f"/api/v1/teams/{team_id}/absences/bulk",
+        json=_bulk_body(window_from, window_to, entries, dry_run=False),
+    )
+
+
+@teams_mcp.tool()
+async def preview_bulk_absences(
+    team_id: Annotated[str, Field(pattern=_UUID_RE, description="Team system_id (UUID) — from list_teams")],
+    window_from: Annotated[str, Field(description="First day of the window that would be replaced (YYYY-MM-DD)")],
+    window_to: Annotated[str, Field(description="Last day of the window that would be replaced (YYYY-MM-DD)")],
+    entries: Annotated[list[dict], Field(max_length=2000, description=_BULK_ENTRIES)],
+    ctx: Context,
+) -> dict:
+    """
+    Show what bulk_create_absences would do, without writing anything.
+
+    Same arguments, same validation, no side effects: it reports how many records
+    would be created, how many existing ones would be replaced, and — the reason
+    to call it — **every member name it could not resolve**.
+
+    Show the result to the human before applying. The input came from free text a
+    model interpreted, and this is where a misread column or a name spelled two
+    ways is caught, while it is still cheap.
+    Returns the same shape as bulk_create_absences with dry_run: true and no
+    records.
+    """
+    return await call_backend(
+        "POST",
+        f"/api/v1/teams/{team_id}/absences/bulk",
+        json=_bulk_body(window_from, window_to, entries, dry_run=True),
+    )

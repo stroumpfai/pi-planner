@@ -30,6 +30,15 @@ export type CapacitySprint = components['schemas']['CapacitySprint']
 export type CapacityBreakdown = components['schemas']['CapacityBreakdown']
 export type ProjectCapacityRow = components['schemas']['ProjectCapacityRow']
 
+/** One absence rule, with its occurrences expanded inside the window that was read. */
+export type Absence = components['schemas']['AbsenceResponse']
+export type AbsenceCreate = components['schemas']['AbsenceCreate']
+export type AbsenceUpdate = components['schemas']['AbsenceUpdate']
+/** One day an absence touches, and which halves of it. */
+export type AbsenceOccurrence = components['schemas']['AbsenceOccurrence']
+/** The three schedule shapes absences and meetings share (§3.4). */
+export type ScheduleKind = NonNullable<AbsenceCreate['kind']>
+
 export type PI = components['schemas']['PIResponse'] & { total_effort: number; total_available: number }
 export type PICreate = components['schemas']['PICreate']
 export type PIUpdate = components['schemas']['PIUpdate']

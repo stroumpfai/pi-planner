@@ -6293,6 +6293,510 @@
         }
       }
     },
+    "/api/v1/teams/{team_id}/absences": {
+      "get": {
+        "tags": [
+          "team-absences"
+        ],
+        "summary": "List Absences",
+        "description": "Every absence rule the team holds, with its occurrences inside the window.\n\nThe rules are always returned in full; only the expansion is windowed. A rule\nwith no occurrence in view still appears \u2014 the minimap's density bars are\ndrawn from rows the grid is not currently showing (\u00a77.4).",
+        "operationId": "list_absences_api_v1_teams__team_id__absences_get",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Expand occurrences from this date",
+              "title": "From"
+            },
+            "description": "Expand occurrences from this date"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Expand occurrences up to this date",
+              "title": "To"
+            },
+            "description": "Expand occurrences up to this date"
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only this member's absences",
+              "title": "Member Id"
+            },
+            "description": "Only this member's absences"
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AbsenceResponse"
+                  },
+                  "title": "Response List Absences Api V1 Teams  Team Id  Absences Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "team-absences"
+        ],
+        "summary": "Create Absences",
+        "description": "One rule, one record per named member, in one transaction (\u00a73.4).\n\nReturns them all \u2014 the caller selected several people and needs every id\nback, not the first. No `If-Match`: a create cannot clobber (\u00a74.2).",
+        "operationId": "create_absences_api_v1_teams__team_id__absences_post",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Expand occurrences from this date",
+              "title": "From"
+            },
+            "description": "Expand occurrences from this date"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Expand occurrences up to this date",
+              "title": "To"
+            },
+            "description": "Expand occurrences up to this date"
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AbsenceCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AbsenceResponse"
+                  },
+                  "title": "Response Create Absences Api V1 Teams  Team Id  Absences Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{team_id}/absences/{absence_id}": {
+      "patch": {
+        "tags": [
+          "team-absences"
+        ],
+        "summary": "Update Absence",
+        "description": "Edit the **whole series**. There is no per-occurrence exception (\u00a73.4).\n\nThe patch is merged onto the stored row and the result validated as a rule,\nso a partial edit cannot leave a weekly entry without a weekday.",
+        "operationId": "update_absence_api_v1_teams__team_id__absences__absence_id__patch",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "absence_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Absence Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Expand occurrences from this date",
+              "title": "From"
+            },
+            "description": "Expand occurrences from this date"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Expand occurrences up to this date",
+              "title": "To"
+            },
+            "description": "Expand occurrences up to this date"
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AbsenceUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "team-absences"
+        ],
+        "summary": "Delete Absence",
+        "description": "Delete the whole series \u2014 permanently, as everywhere in this app (\u00a710).",
+        "operationId": "delete_absence_api_v1_teams__team_id__absences__absence_id__delete",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "absence_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Absence Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{team_id}/absences/bulk": {
+      "post": {
+        "tags": [
+          "team-absences"
+        ],
+        "summary": "Bulk Absences",
+        "description": "Replace the absences anchored inside a window, in one transaction (\u00a78.2.7).\n\nThe bulk path exists because the planning inputs live on a wiki page read by\na model, not in a CSV: thirteen months for twenty people is thousands of\nrows, and a per-row call would be unusable and would half-apply on failure.\n\n**Replace, not merge.** The page is re-read on a schedule, so appending would\ndouble everything; and only replacement survives an entry being *deleted*\nfrom the page. Membership of the window is decided by `start_date`, so a\nrecurring rule anchored last year is left alone even though it reaches into\nthe window.\n\nUnresolved member names are collected and returned **all at once**, and\nnothing is written when there are any: spelling variants arrive in groups,\nand members are never created implicitly (\u00a78.2.4).",
+        "operationId": "bulk_absences_api_v1_teams__team_id__absences_bulk_post",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkAbsenceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkAbsenceResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/teams/{team_id}/projects": {
       "get": {
         "tags": [
@@ -6911,6 +7415,429 @@
         ],
         "title": "APIKeyVerifyResponse"
       },
+      "AbsenceCreate": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "range",
+              "weekly",
+              "interval"
+            ],
+            "title": "Kind"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "start_half": {
+            "type": "string",
+            "enum": [
+              "am",
+              "pm"
+            ],
+            "title": "Start Half",
+            "default": "am"
+          },
+          "end_half": {
+            "type": "string",
+            "enum": [
+              "am",
+              "pm"
+            ],
+            "title": "End Half",
+            "default": "pm"
+          },
+          "weekday": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 6.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekday"
+          },
+          "halves": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "am",
+                    "pm"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Halves"
+          },
+          "interval_weeks": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 52.0,
+                "minimum": 2.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Weeks"
+          },
+          "member_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Member Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "start_date",
+          "member_ids"
+        ],
+        "title": "AbsenceCreate",
+        "description": "One rule, applied to one or more members.\n\nThe multi-select is an input convenience, not a shared object: the result is\none record each. Editing \"everyone's Christmas\" for the one person who is\nworking that day must not force a delete and recreate (\u00a73.4)."
+      },
+      "AbsenceOccurrence": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "halves": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "am",
+                "pm"
+              ]
+            },
+            "type": "array",
+            "title": "Halves"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "halves"
+        ],
+        "title": "AbsenceOccurrence",
+        "description": "One day this absence touches, and which halves of it.\n\nExpanded by the server inside the requested window so the grid and the\ncapacity figures are drawn from the same generator (\u00a73.4)."
+      },
+      "AbsenceResponse": {
+        "properties": {
+          "system_id": {
+            "type": "string",
+            "title": "System Id"
+          },
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "member_id": {
+            "type": "string",
+            "title": "Member Id"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "start_half": {
+            "type": "string",
+            "title": "Start Half"
+          },
+          "end_half": {
+            "type": "string",
+            "title": "End Half"
+          },
+          "weekday": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekday"
+          },
+          "halves": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "am",
+                    "pm"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Halves"
+          },
+          "interval_weeks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Weeks"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "default": ""
+          },
+          "occurrences": {
+            "items": {
+              "$ref": "#/components/schemas/AbsenceOccurrence"
+            },
+            "type": "array",
+            "title": "Occurrences",
+            "default": []
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Modified At"
+          },
+          "etag": {
+            "type": "string",
+            "title": "Etag",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "system_id",
+          "team_id",
+          "member_id",
+          "label",
+          "kind",
+          "start_date",
+          "end_date",
+          "start_half",
+          "end_half",
+          "weekday",
+          "halves",
+          "interval_weeks",
+          "created_at",
+          "modified_at"
+        ],
+        "title": "AbsenceResponse"
+      },
+      "AbsenceUpdate": {
+        "properties": {
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "range",
+                  "weekly",
+                  "interval"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "start_half": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "am",
+                  "pm"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Half"
+          },
+          "end_half": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "am",
+                  "pm"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Half"
+          },
+          "weekday": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 6.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekday"
+          },
+          "halves": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "am",
+                    "pm"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Halves"
+          },
+          "interval_weeks": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 52.0,
+                "minimum": 2.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Weeks"
+          }
+        },
+        "type": "object",
+        "title": "AbsenceUpdate",
+        "description": "A patch. Every field optional; the merged result is validated as a whole.\n\n``member_id`` is deliberately absent \u2014 moving an absence to another person is\na delete and a create, and letting it slide across in a patch would make the\n412 banner's \"yours / theirs\" compare two different people's rows."
+      },
       "ActivityLogResponse": {
         "properties": {
           "id": {
@@ -7031,6 +7958,213 @@
           "file"
         ],
         "title": "Body_import_project_api_v1_projects_import_post"
+      },
+      "BulkAbsenceEntry": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "range",
+              "weekly",
+              "interval"
+            ],
+            "title": "Kind"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "start_half": {
+            "type": "string",
+            "enum": [
+              "am",
+              "pm"
+            ],
+            "title": "Start Half",
+            "default": "am"
+          },
+          "end_half": {
+            "type": "string",
+            "enum": [
+              "am",
+              "pm"
+            ],
+            "title": "End Half",
+            "default": "pm"
+          },
+          "weekday": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 6.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekday"
+          },
+          "halves": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "am",
+                    "pm"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Halves"
+          },
+          "interval_weeks": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 52.0,
+                "minimum": 2.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Weeks"
+          },
+          "member_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Member Names"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "start_date",
+          "member_names"
+        ],
+        "title": "BulkAbsenceEntry",
+        "description": "One line of a bulk import, addressing members **by name**.\n\nNames rather than ids because the source is a wiki page read by a model, and\nit has never seen a UUID. Unknown names are reported, never created (\u00a78.2.4)."
+      },
+      "BulkAbsenceRequest": {
+        "properties": {
+          "window_from": {
+            "type": "string",
+            "format": "date",
+            "title": "Window From"
+          },
+          "window_to": {
+            "type": "string",
+            "format": "date",
+            "title": "Window To"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/BulkAbsenceEntry"
+            },
+            "type": "array",
+            "maxItems": 2000,
+            "title": "Entries"
+          },
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "window_from",
+          "window_to"
+        ],
+        "title": "BulkAbsenceRequest",
+        "description": "Replace this team's absences anchored inside a window (\u00a78.2.7).\n\n**Replacement, not merge.** The source page is re-read on a schedule, so a\nsecond run must not double every absence \u2014 and only replacement survives an\nentry being *deleted* from the page, which a merge would keep forever.\n\nMembership of the window is decided by ``start_date``: an absence anchored\ninside it is replaced, one anchored outside is untouched even if it happens\nto overlap. Anything else would silently delete a recurring rule that has run\nsince last year."
+      },
+      "BulkAbsenceResult": {
+        "properties": {
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run"
+          },
+          "window_from": {
+            "type": "string",
+            "format": "date",
+            "title": "Window From"
+          },
+          "window_to": {
+            "type": "string",
+            "format": "date",
+            "title": "Window To"
+          },
+          "created": {
+            "type": "integer",
+            "title": "Created"
+          },
+          "deleted": {
+            "type": "integer",
+            "title": "Deleted"
+          },
+          "unresolved_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unresolved Names",
+            "default": []
+          },
+          "absences": {
+            "items": {
+              "$ref": "#/components/schemas/AbsenceResponse"
+            },
+            "type": "array",
+            "title": "Absences",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "dry_run",
+          "window_from",
+          "window_to",
+          "created",
+          "deleted"
+        ],
+        "title": "BulkAbsenceResult",
+        "description": "What a bulk write did, or would do.\n\n``unresolved_names`` collects **every** unknown name rather than raising on\nthe first: spelling variants arrive in groups, and a batch that reports one\nper round-trip is a batch nobody finishes (\u00a78.2.7)."
       },
       "BulkDeleteResponse": {
         "properties": {

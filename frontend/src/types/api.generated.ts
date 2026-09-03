@@ -412,6 +412,61 @@ export interface paths {
     /** Update Pattern Version */
     patch: operations["update_pattern_version_api_v1_teams__team_id__members__member_id__working_days__version_id__patch"];
   };
+  "/api/v1/teams/{team_id}/absences": {
+    /**
+     * List Absences
+     * @description Every absence rule the team holds, with its occurrences inside the window.
+     *
+     * The rules are always returned in full; only the expansion is windowed. A rule
+     * with no occurrence in view still appears — the minimap's density bars are
+     * drawn from rows the grid is not currently showing (§7.4).
+     */
+    get: operations["list_absences_api_v1_teams__team_id__absences_get"];
+    /**
+     * Create Absences
+     * @description One rule, one record per named member, in one transaction (§3.4).
+     *
+     * Returns them all — the caller selected several people and needs every id
+     * back, not the first. No `If-Match`: a create cannot clobber (§4.2).
+     */
+    post: operations["create_absences_api_v1_teams__team_id__absences_post"];
+  };
+  "/api/v1/teams/{team_id}/absences/{absence_id}": {
+    /**
+     * Delete Absence
+     * @description Delete the whole series — permanently, as everywhere in this app (§10).
+     */
+    delete: operations["delete_absence_api_v1_teams__team_id__absences__absence_id__delete"];
+    /**
+     * Update Absence
+     * @description Edit the **whole series**. There is no per-occurrence exception (§3.4).
+     *
+     * The patch is merged onto the stored row and the result validated as a rule,
+     * so a partial edit cannot leave a weekly entry without a weekday.
+     */
+    patch: operations["update_absence_api_v1_teams__team_id__absences__absence_id__patch"];
+  };
+  "/api/v1/teams/{team_id}/absences/bulk": {
+    /**
+     * Bulk Absences
+     * @description Replace the absences anchored inside a window, in one transaction (§8.2.7).
+     *
+     * The bulk path exists because the planning inputs live on a wiki page read by
+     * a model, not in a CSV: thirteen months for twenty people is thousands of
+     * rows, and a per-row call would be unusable and would half-apply on failure.
+     *
+     * **Replace, not merge.** The page is re-read on a schedule, so appending would
+     * double everything; and only replacement survives an entry being *deleted*
+     * from the page. Membership of the window is decided by `start_date`, so a
+     * recurring rule anchored last year is left alone even though it reaches into
+     * the window.
+     *
+     * Unresolved member names are collected and returned **all at once**, and
+     * nothing is written when there are any: spelling variants arrive in groups,
+     * and members are never created implicitly (§8.2.4).
+     */
+    post: operations["bulk_absences_api_v1_teams__team_id__absences_bulk_post"];
+  };
   "/api/v1/teams/{team_id}/projects": {
     /**
      * List Team Projects
@@ -518,6 +573,149 @@ export interface components {
       /** Key Id */
       key_id: string;
     };
+    /**
+     * AbsenceCreate
+     * @description One rule, applied to one or more members.
+     *
+     * The multi-select is an input convenience, not a shared object: the result is
+     * one record each. Editing "everyone's Christmas" for the one person who is
+     * working that day must not force a delete and recreate (§3.4).
+     */
+    AbsenceCreate: {
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: "range" | "weekly" | "interval";
+      /** Label */
+      label?: string | null;
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /** End Date */
+      end_date?: string | null;
+      /**
+       * Start Half
+       * @default am
+       * @enum {string}
+       */
+      start_half?: "am" | "pm";
+      /**
+       * End Half
+       * @default pm
+       * @enum {string}
+       */
+      end_half?: "am" | "pm";
+      /** Weekday */
+      weekday?: number | null;
+      /** Halves */
+      halves?: (("am" | "pm")[]) | null;
+      /** Interval Weeks */
+      interval_weeks?: number | null;
+      /** Member Ids */
+      member_ids: string[];
+    };
+    /**
+     * AbsenceOccurrence
+     * @description One day this absence touches, and which halves of it.
+     *
+     * Expanded by the server inside the requested window so the grid and the
+     * capacity figures are drawn from the same generator (§3.4).
+     */
+    AbsenceOccurrence: {
+      /**
+       * Date
+       * Format: date
+       */
+      date: string;
+      /** Halves */
+      halves: ("am" | "pm")[];
+    };
+    /** AbsenceResponse */
+    AbsenceResponse: {
+      /** System Id */
+      system_id: string;
+      /** Team Id */
+      team_id: string;
+      /** Member Id */
+      member_id: string;
+      /** Label */
+      label: string | null;
+      /** Kind */
+      kind: string;
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /** End Date */
+      end_date: string | null;
+      /** Start Half */
+      start_half: string;
+      /** End Half */
+      end_half: string;
+      /** Weekday */
+      weekday: number | null;
+      /** Halves */
+      halves: (("am" | "pm")[]) | null;
+      /** Interval Weeks */
+      interval_weeks: number | null;
+      /**
+       * Summary
+       * @default
+       */
+      summary?: string;
+      /**
+       * Occurrences
+       * @default []
+       */
+      occurrences?: components["schemas"]["AbsenceOccurrence"][];
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Modified At
+       * Format: date-time
+       */
+      modified_at: string;
+      /**
+       * Etag
+       * @default
+       */
+      etag?: string;
+    };
+    /**
+     * AbsenceUpdate
+     * @description A patch. Every field optional; the merged result is validated as a whole.
+     *
+     * ``member_id`` is deliberately absent — moving an absence to another person is
+     * a delete and a create, and letting it slide across in a patch would make the
+     * 412 banner's "yours / theirs" compare two different people's rows.
+     */
+    AbsenceUpdate: {
+      /** Label */
+      label?: string | null;
+      /** Kind */
+      kind?: ("range" | "weekly" | "interval") | null;
+      /** Start Date */
+      start_date?: string | null;
+      /** End Date */
+      end_date?: string | null;
+      /** Start Half */
+      start_half?: ("am" | "pm") | null;
+      /** End Half */
+      end_half?: ("am" | "pm") | null;
+      /** Weekday */
+      weekday?: number | null;
+      /** Halves */
+      halves?: (("am" | "pm")[]) | null;
+      /** Interval Weeks */
+      interval_weeks?: number | null;
+    };
     /** ActivityLogResponse */
     ActivityLogResponse: {
       /** Id */
@@ -556,6 +754,117 @@ export interface components {
     Body_import_project_api_v1_projects_import_post: {
       /** File */
       file: string;
+    };
+    /**
+     * BulkAbsenceEntry
+     * @description One line of a bulk import, addressing members **by name**.
+     *
+     * Names rather than ids because the source is a wiki page read by a model, and
+     * it has never seen a UUID. Unknown names are reported, never created (§8.2.4).
+     */
+    BulkAbsenceEntry: {
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: "range" | "weekly" | "interval";
+      /** Label */
+      label?: string | null;
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /** End Date */
+      end_date?: string | null;
+      /**
+       * Start Half
+       * @default am
+       * @enum {string}
+       */
+      start_half?: "am" | "pm";
+      /**
+       * End Half
+       * @default pm
+       * @enum {string}
+       */
+      end_half?: "am" | "pm";
+      /** Weekday */
+      weekday?: number | null;
+      /** Halves */
+      halves?: (("am" | "pm")[]) | null;
+      /** Interval Weeks */
+      interval_weeks?: number | null;
+      /** Member Names */
+      member_names: string[];
+    };
+    /**
+     * BulkAbsenceRequest
+     * @description Replace this team's absences anchored inside a window (§8.2.7).
+     *
+     * **Replacement, not merge.** The source page is re-read on a schedule, so a
+     * second run must not double every absence — and only replacement survives an
+     * entry being *deleted* from the page, which a merge would keep forever.
+     *
+     * Membership of the window is decided by ``start_date``: an absence anchored
+     * inside it is replaced, one anchored outside is untouched even if it happens
+     * to overlap. Anything else would silently delete a recurring rule that has run
+     * since last year.
+     */
+    BulkAbsenceRequest: {
+      /**
+       * Window From
+       * Format: date
+       */
+      window_from: string;
+      /**
+       * Window To
+       * Format: date
+       */
+      window_to: string;
+      /** Entries */
+      entries?: components["schemas"]["BulkAbsenceEntry"][];
+      /**
+       * Dry Run
+       * @default false
+       */
+      dry_run?: boolean;
+    };
+    /**
+     * BulkAbsenceResult
+     * @description What a bulk write did, or would do.
+     *
+     * ``unresolved_names`` collects **every** unknown name rather than raising on
+     * the first: spelling variants arrive in groups, and a batch that reports one
+     * per round-trip is a batch nobody finishes (§8.2.7).
+     */
+    BulkAbsenceResult: {
+      /** Dry Run */
+      dry_run: boolean;
+      /**
+       * Window From
+       * Format: date
+       */
+      window_from: string;
+      /**
+       * Window To
+       * Format: date
+       */
+      window_to: string;
+      /** Created */
+      created: number;
+      /** Deleted */
+      deleted: number;
+      /**
+       * Unresolved Names
+       * @default []
+       */
+      unresolved_names?: string[];
+      /**
+       * Absences
+       * @default []
+       */
+      absences?: components["schemas"]["AbsenceResponse"][];
     };
     /** BulkDeleteResponse */
     BulkDeleteResponse: {
@@ -4776,6 +5085,211 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["PatternVersionResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Absences
+   * @description Every absence rule the team holds, with its occurrences inside the window.
+   *
+   * The rules are always returned in full; only the expansion is windowed. A rule
+   * with no occurrence in view still appears — the minimap's density bars are
+   * drawn from rows the grid is not currently showing (§7.4).
+   */
+  list_absences_api_v1_teams__team_id__absences_get: {
+    parameters: {
+      query?: {
+        /** @description Expand occurrences from this date */
+        from?: string | null;
+        /** @description Expand occurrences up to this date */
+        to?: string | null;
+        /** @description Only this member's absences */
+        member_id?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["AbsenceResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Absences
+   * @description One rule, one record per named member, in one transaction (§3.4).
+   *
+   * Returns them all — the caller selected several people and needs every id
+   * back, not the first. No `If-Match`: a create cannot clobber (§4.2).
+   */
+  create_absences_api_v1_teams__team_id__absences_post: {
+    parameters: {
+      query?: {
+        /** @description Expand occurrences from this date */
+        from?: string | null;
+        /** @description Expand occurrences up to this date */
+        to?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AbsenceCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["AbsenceResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Delete Absence
+   * @description Delete the whole series — permanently, as everywhere in this app (§10).
+   */
+  delete_absence_api_v1_teams__team_id__absences__absence_id__delete: {
+    parameters: {
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        team_id: string;
+        absence_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Update Absence
+   * @description Edit the **whole series**. There is no per-occurrence exception (§3.4).
+   *
+   * The patch is merged onto the stored row and the result validated as a rule,
+   * so a partial edit cannot leave a weekly entry without a weekday.
+   */
+  update_absence_api_v1_teams__team_id__absences__absence_id__patch: {
+    parameters: {
+      query?: {
+        /** @description Expand occurrences from this date */
+        from?: string | null;
+        /** @description Expand occurrences up to this date */
+        to?: string | null;
+      };
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        team_id: string;
+        absence_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AbsenceUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["AbsenceResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Bulk Absences
+   * @description Replace the absences anchored inside a window, in one transaction (§8.2.7).
+   *
+   * The bulk path exists because the planning inputs live on a wiki page read by
+   * a model, not in a CSV: thirteen months for twenty people is thousands of
+   * rows, and a per-row call would be unusable and would half-apply on failure.
+   *
+   * **Replace, not merge.** The page is re-read on a schedule, so appending would
+   * double everything; and only replacement survives an entry being *deleted*
+   * from the page. Membership of the window is decided by `start_date`, so a
+   * recurring rule anchored last year is left alone even though it reaches into
+   * the window.
+   *
+   * Unresolved member names are collected and returned **all at once**, and
+   * nothing is written when there are any: spelling variants arrive in groups,
+   * and members are never created implicitly (§8.2.4).
+   */
+  bulk_absences_api_v1_teams__team_id__absences_bulk_post: {
+    parameters: {
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BulkAbsenceRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["BulkAbsenceResult"];
         };
       };
       /** @description Validation Error */

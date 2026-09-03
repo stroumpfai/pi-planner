@@ -1,3 +1,14 @@
+from app.schemas.absence import (
+    MAX_ABSENCES_PER_MEMBER,
+    AbsenceCreate,
+    AbsenceOccurrence,
+    AbsenceResponse,
+    AbsenceUpdate,
+    BulkAbsenceEntry,
+    BulkAbsenceRequest,
+    BulkAbsenceResult,
+    ScheduleFields,
+)
 from app.schemas.auth import (
     ChangePassword,
     LoginRequest,
@@ -77,4 +88,6 @@ __all__ = [
     "TeamProjectCreate", "TeamProjectUpdate", "TeamProjectResponse", "MAX_PROJECTS_PER_TEAM",
     "CapacityBreakdown", "CapacitySprint", "MemberCapacityRow", "ProjectCapacityRow",
     "TeamCapacityResponse",
+    "ScheduleFields", "AbsenceCreate", "AbsenceUpdate", "AbsenceResponse", "AbsenceOccurrence",
+    "BulkAbsenceEntry", "BulkAbsenceRequest", "BulkAbsenceResult", "MAX_ABSENCES_PER_MEMBER",
 ]

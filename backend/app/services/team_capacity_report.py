@@ -29,10 +29,13 @@ from app.schemas.team_capacity import (
     ProjectCapacityRow,
     TeamCapacityResponse,
 )
+from app.services.absences import build_lookup, load_absences
 from app.services.team_capacity import (
+    AbsenceLookup,
     Member,
     MemberCapacity,
     compute_member_capacity,
+    no_absences,
     pattern_version_from_row,
     round_half_up,
 )
@@ -193,6 +196,17 @@ async def build_report(
 
     members = await load_members(db, team.system_id)
 
+    # Absences are expanded **once**, over the span every column together covers,
+    # rather than per sprint per member. The lookup is a set membership test, so
+    # overlapping entries union rather than sum: two absences on the same
+    # afternoon cost one half-day, never two (§3.4).
+    absent: AbsenceLookup = no_absences
+    dated = [c for c in columns if c.start_date is not None and c.end_date is not None]
+    if dated:
+        span_start = min(c.start_date for c in dated if c.start_date is not None)
+        span_end = max(c.end_date for c in dated if c.end_date is not None)
+        absent = build_lookup(await load_absences(db, team.system_id), span_start, span_end)
+
     rows: list[MemberCapacityRow] = []
     per_sprint: list[list[CapacityBreakdown]] = [[] for _ in columns]
     for row, member in members:
@@ -204,10 +218,14 @@ async def build_report(
                 cells.append(None)
                 continue
             assert column.start_date is not None and column.end_date is not None
-            # Absences and meetings are the seams steps 5 and 6 fill; until then
-            # the engine's no-op lookups apply and the chain is contracted → focus.
+            # Meetings are step 6's seam; until then the engine's no-op lookup
+            # applies and the chain is contracted → absences → focus.
             capacity = compute_member_capacity(
-                member, team.normal_day_hours, column.start_date, column.end_date
+                member,
+                team.normal_day_hours,
+                column.start_date,
+                column.end_date,
+                absent=absent,
             )
             breakdown = _breakdown(capacity)
             per_sprint[index].append(breakdown)

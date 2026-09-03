@@ -36,6 +36,7 @@ EXPECTED_READ_TOOLS = {
     "get_edit_lock_status",
     "list_teams",
     "get_team",
+    "list_absences",
     "list_members",
     "get_team_capacity",
     "preview_team_capacity",
@@ -104,6 +105,11 @@ EXPECTED_TEAMS_TOOLS = {
     "add_pattern_version",
     "assign_project",
     "update_assignment",
+    "create_absence",
+    "update_absence",
+    "delete_absence",
+    "bulk_create_absences",
+    "preview_bulk_absences",
 }
 
 EXPECTED_WORKFLOWS_TOOLS = {
@@ -194,9 +200,14 @@ async def test_teams_tools_all_registered():
 
 @pytest.mark.asyncio
 async def test_teams_module_exposes_no_delete():
-    """No delete_team, and no delete flag hiding inside update_team (§8.2.6)."""
+    """No delete_team, and no delete flag hiding inside update_team (§8.2.6).
+
+    `delete_absence` is the one exception the spec names, and it proves the rule
+    rather than breaking it: leaf records are deletable by an agent, containers —
+    team, member, pattern version, project assignment — are not.
+    """
     names = await _tool_names(teams_mcp)
-    assert not [n for n in names if n.startswith("delete")]
+    assert {n for n in names if n.startswith("delete")} == {"delete_absence"}
     schema = await _get_tool_schema(teams_mcp, "update_team")
     assert "delete" not in schema.get("properties", {})
 
