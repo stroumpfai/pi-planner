@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AbsenceDialog, type AbsenceDraft } from '@/components/AbsenceDialog'
 import { AbsenceGrid, AbsenceLegend } from '@/components/AbsenceGrid'
 import { AbsenceMinimap } from '@/components/AbsenceMinimap'
@@ -9,8 +9,8 @@ import { absenceErrorCode, staleAbsence } from '@/services/absences'
 import { useAuthStore } from '@/stores/authStore'
 import type { Absence } from '@/types'
 import {
+  DEFAULT_STRIP_MONTHS,
   GRID_MONTHS,
-  MINIMAP_MONTHS,
   addMonths,
   firstDay,
   monthLabel,
@@ -26,6 +26,25 @@ import { todayIso } from '@/utils/workingDays'
 
 interface Props {
   readonly teamId: string
+}
+
+/**
+ * A select shrunk below the size the forms plugin draws it at.
+ *
+ * The plugin renders the chevron as a **background image** — 1.5em at
+ * `right 0.5rem` — and reserves 2.5rem of padding to keep the text off it.
+ * Overriding the padding alone is what put the arrow on top of the text: the
+ * chevron kept its 1.5em while the room for it halved.
+ *
+ * So the two live in one object and the padding is derived from the chevron.
+ * Splitting them across an inline style and a Tailwind class is precisely how
+ * they came apart, and a class cannot be read back by a test to catch it.
+ */
+const CHEVRON_EM = 1
+const COMPACT_SELECT: React.CSSProperties = {
+  backgroundSize: `${CHEVRON_EM}em ${CHEVRON_EM}em`,
+  backgroundPosition: 'right 0.125rem center',
+  paddingRight: `${CHEVRON_EM + 0.375}em`,
 }
 
 /**
@@ -54,7 +73,11 @@ export function AbsencesView({ teamId }: Props) {
   const [minimapStart, setMinimapStart] = useState<YearMonth>(() => monthOf(todayIso()))
   const [gridStart, setGridStart] = useState<YearMonth>(() => monthOf(todayIso()))
 
-  const year = windowOf(minimapStart, MINIMAP_MONTHS)
+  // How many months the density strip carries — measured by it, owned here,
+  // because the same number decides the window the absences are fetched over.
+  const [stripMonths, setStripMonths] = useState(DEFAULT_STRIP_MONTHS)
+
+  const year = windowOf(minimapStart, stripMonths)
   const grid = windowOf(gridStart, GRID_MONTHS)
 
   /**
@@ -64,10 +87,20 @@ export function AbsencesView({ teamId }: Props) {
    * a month click, the jump, the frame — goes through here, so all three land
    * the calendar in the same place for the same month.
    */
-  const showMonth = (target: YearMonth) => {
-    setGridStart(target)
-    setMinimapStart((current) => stripStartFor(current, target))
-  }
+  const showMonth = useCallback(
+    (target: YearMonth) => {
+      setGridStart(target)
+      setMinimapStart((current) => stripStartFor(current, target, stripMonths))
+    },
+    [stripMonths],
+  )
+
+  // A strip that grew or shrank can leave the frame outside it — three years of
+  // columns on a wide screen, one when the window is dragged narrow. Re-anchor
+  // on the months already on screen rather than moving the reader.
+  useEffect(() => {
+    setMinimapStart((current) => stripStartFor(current, gridStart, stripMonths))
+  }, [stripMonths, gridStart])
 
   // Members are read as of the grid's first day: the tint marking a non-working
   // half-day comes from the contract in force then. It is a display hint — the
@@ -176,6 +209,8 @@ export function AbsencesView({ teamId }: Props) {
           gridStart={gridStart}
           absences={entries}
           onGridStart={showMonth}
+          stripMonths={stripMonths}
+          onStripMonths={setStripMonths}
         >
           {/* Under the strip's own label, because it moves the same viewport —
               reaching September 2028 by dragging is not a feature (§7.4). */}
@@ -188,7 +223,8 @@ export function AbsencesView({ teamId }: Props) {
               aria-label="Jump to month"
               value={`${gridStart.year}-${String(gridStart.month).padStart(2, '0')}`}
               onChange={(event) => showMonth(monthOf(`${event.target.value}-01`))}
-              className="rounded border-0 bg-transparent p-0 pr-4 text-[11px] text-gray-500 dark:text-gray-400 focus:ring-1 focus:ring-blue-500"
+              className="min-w-0 flex-1 rounded border-0 bg-transparent py-0.5 pl-1 text-[11px] text-gray-600 dark:text-gray-300 hover:bg-band/60 focus:ring-1 focus:ring-blue-500"
+              style={COMPACT_SELECT}
             >
               {monthsFrom(addMonths(monthOf(todayIso()), -12), 36).map((month) => (
                 <option

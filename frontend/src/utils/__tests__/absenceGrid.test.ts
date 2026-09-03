@@ -1,4 +1,6 @@
 import {
+  DEFAULT_STRIP_MONTHS,
+  MIN_MONTH_COLUMN,
   addMonths,
   buildCoverage,
   cellStateFor,
@@ -12,8 +14,9 @@ import {
   monthsBetween,
   monthsFrom,
   previewOccurrences,
-  stripStartFor,
   shiftDays,
+  stripMonthsFor,
+  stripStartFor,
   weekdayIndex,
   windowOf,
 } from '../absenceGrid'
@@ -228,30 +231,85 @@ describe('the minimap', () => {
   })
 })
 
+describe('how many months of density a track can carry', () => {
+  it('falls back to a year before anything has been measured', () => {
+    // The first render, and every render in a test environment with no layout.
+    expect(stripMonthsFor(0)).toBe(DEFAULT_STRIP_MONTHS)
+    expect(stripMonthsFor(Number.NaN)).toBe(DEFAULT_STRIP_MONTHS)
+    expect(stripMonthsFor(-500)).toBe(DEFAULT_STRIP_MONTHS)
+  })
+
+  it('never drops below one year, however narrow the track', () => {
+    expect(stripMonthsFor(200)).toBe(12)
+    expect(stripMonthsFor(MIN_MONTH_COLUMN * 11)).toBe(12)
+  })
+
+  it('spans whole years only, so a year marker never covers a part of one', () => {
+    // 19 columns fit at 1240px, and 19 months would end in a 7-month "year".
+    expect(stripMonthsFor(1240)).toBe(12)
+    expect(stripMonthsFor(1800)).toBe(24)
+    expect(stripMonthsFor(2480)).toBe(36)
+  })
+
+  it('snaps exactly on the width a further year needs', () => {
+    expect(stripMonthsFor(MIN_MONTH_COLUMN * 24 - 1)).toBe(12)
+    expect(stripMonthsFor(MIN_MONTH_COLUMN * 24)).toBe(24)
+    expect(stripMonthsFor(MIN_MONTH_COLUMN * 36)).toBe(36)
+  })
+
+  it('stops at three years — more density than anyone reads at once', () => {
+    expect(stripMonthsFor(10_000)).toBe(36)
+  })
+
+  it('squeezes the columns rather than showing less than a year', () => {
+    // Below 12 × 64px the two rules collide, and the year wins: the strip is the
+    // navigation control and the window the absences are fetched over, so it
+    // always spans a year even when that means narrow columns.
+    expect(stripMonthsFor(640)).toBe(12)
+    expect(640 / stripMonthsFor(640)).toBeLessThan(MIN_MONTH_COLUMN)
+  })
+
+  it('holds the column floor everywhere it can — past one year, always', () => {
+    for (const width of [1024, 1240, 1440, 1800, 2480, 3440]) {
+      const months = stripMonthsFor(width)
+      if (months > 12) expect(width / months).toBeGreaterThanOrEqual(MIN_MONTH_COLUMN)
+    }
+  })
+})
+
 describe('anchoring the minimap on a chosen month', () => {
   const strip = { year: 2026, month: 9 }
 
   it('leaves the strip alone when the frame already fits inside it', () => {
     // Six-month frame in a twelve-month strip: Dec is offset 3, well inside.
-    expect(stripStartFor(strip, { year: 2026, month: 12 })).toEqual(strip)
+    expect(stripStartFor(strip, { year: 2026, month: 12 }, 12)).toEqual(strip)
   })
 
   it('slides the strip the least it can when the month is past its end', () => {
     // Sep 2027 is offset 12; the frame's last legal start is offset 6.
-    expect(stripStartFor(strip, { year: 2027, month: 9 })).toEqual({ year: 2027, month: 3 })
+    expect(stripStartFor(strip, { year: 2027, month: 9 }, 12)).toEqual({ year: 2027, month: 3 })
   })
 
   it('re-anchors on a month before the strip begins', () => {
-    expect(stripStartFor(strip, { year: 2026, month: 2 })).toEqual({ year: 2026, month: 2 })
+    expect(stripStartFor(strip, { year: 2026, month: 2 }, 12)).toEqual({ year: 2026, month: 2 })
+  })
+
+  it('reaches further before sliding once the strip spans three years', () => {
+    // Offset 12 is well inside a 36-month strip, so it does not move at all.
+    expect(stripStartFor(strip, { year: 2027, month: 9 }, 36)).toEqual(strip)
+    // Offset 31 is past the last legal frame start (30), so it slides by one.
+    expect(stripStartFor(strip, { year: 2029, month: 4 }, 36)).toEqual({ year: 2026, month: 10 })
   })
 
   it('always leaves the chosen month first in the calendar', () => {
     // The property the old clamp broke: a click landed near the month, not on it.
-    for (const target of monthsFrom({ year: 2025, month: 1 }, 48)) {
-      const anchored = stripStartFor(strip, target)
-      const offset = monthsBetween(anchored, target)
-      expect(offset).toBeGreaterThanOrEqual(0)
-      expect(offset).toBeLessThanOrEqual(6)
+    for (const stripMonths of [12, 24, 36]) {
+      for (const target of monthsFrom({ year: 2025, month: 1 }, 72)) {
+        const anchored = stripStartFor(strip, target, stripMonths)
+        const offset = monthsBetween(anchored, target)
+        expect(offset).toBeGreaterThanOrEqual(0)
+        expect(offset).toBeLessThanOrEqual(stripMonths - 6)
+      }
     }
   })
 })

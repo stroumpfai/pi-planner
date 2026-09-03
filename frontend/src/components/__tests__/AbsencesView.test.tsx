@@ -87,6 +87,23 @@ const absence = (over: Partial<Absence> = {}): Absence =>
     ...over,
   }) as Absence
 
+/**
+ * Give every element a measured width, as a real layout would.
+ *
+ * jsdom reports 0 for everything, which is exactly the "not measured yet" case
+ * the strip already falls back on — so a test about what a wide screen shows has
+ * to supply the width the browser would.
+ */
+function withScreenWidth(width: number) {
+  const original = Element.prototype.getBoundingClientRect
+  Element.prototype.getBoundingClientRect = function rect(this: Element) {
+    return { ...original.call(this), width, left: 0, right: width } as DOMRect
+  }
+  return () => {
+    Element.prototype.getBoundingClientRect = original
+  }
+}
+
 function respondWith(members: TeamMember[], absences: Absence[]) {
   mockApi.get.mockImplementation((url: string) =>
     Promise.resolve({ data: url.includes('/absences') ? absences : members, headers: {} }),
@@ -255,6 +272,96 @@ describe('AbsencesView', () => {
     const frame = screen.getByRole('button', { name: /Showing Sep 2026 to Feb 2027/ })
     expect(frame).toHaveStyle({ left: '0%', width: '50%' })
     expect(screen.getAllByRole('button', { name: /^Show \w+ \d{4}/ })).toHaveLength(12)
+  })
+
+  it('carries three years of density on a wide screen, and fetches them', async () => {
+    // 2480px / 64px = 38 columns, snapped down to three whole years.
+    const restore = withScreenWidth(2480)
+    try {
+      render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })
+      await screen.findByRole('grid', { name: /absences by member/i })
+
+      await waitFor(() =>
+        expect(screen.getAllByRole('button', { name: /^Show \w+ \d{4}/ })).toHaveLength(36),
+      )
+      // The strip is also the read window: three years of bars, three years read.
+      await waitFor(() => {
+        const calls = mockApi.get.mock.calls.filter(([url]: [string]) => url.includes('/absences'))
+        expect(calls[calls.length - 1][1].params).toEqual({
+          from: '2026-09-01',
+          to: '2029-08-31',
+        })
+      })
+      // The frame still covers six months — a sixth of the strip, not a half.
+      expect(screen.getByRole('button', { name: /Showing Sep 2026 to Feb 2027/ })).toHaveStyle({
+        width: `${(6 / 36) * 100}%`,
+      })
+    } finally {
+      restore()
+    }
+  })
+
+  it('keeps the calendar at six months however wide the screen', async () => {
+    // Wider screens buy bigger cells, not more time: the half-day a person reads
+    // is the same size wherever they read it.
+    const restore = withScreenWidth(2480)
+    try {
+      render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })
+      await screen.findByRole('grid', { name: /absences by member/i })
+
+      const header = within(screen.getByLabelText('Months shown'))
+      expect(header.getByText('Sep 2026')).toBeInTheDocument()
+      expect(header.getByText('Feb 2027')).toBeInTheDocument()
+      expect(header.queryByText('Mar 2027')).not.toBeInTheDocument()
+    } finally {
+      restore()
+    }
+  })
+
+  it('leaves the jump control room for its own chevron', async () => {
+    // The forms plugin draws the arrow as a background image and reserves
+    // padding for it. Shrinking one without the other is what put the arrow on
+    // top of the text, and nothing about that is visible in a class name.
+    render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })
+    await screen.findByRole('grid', { name: /absences by member/i })
+
+    const jump = screen.getByLabelText('Jump to month')
+    const chevron = Number.parseFloat(jump.style.backgroundSize)
+    const padding = Number.parseFloat(jump.style.paddingRight)
+    expect(chevron).toBeGreaterThan(0)
+    expect(padding).toBeGreaterThan(chevron)
+  })
+
+  it('marks the months in the header and leaves the rows clean', async () => {
+    render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })
+    const grid = await screen.findByRole('grid', { name: /absences by member/i })
+
+    // Six labels, and nothing dividing the cells: the rule belongs to the header
+    // alone, so the rows stay a plain run of half-days.
+    const header = screen.getByLabelText('Months shown')
+    expect(header.querySelectorAll('[style*="flex"]')).toHaveLength(6)
+    expect(grid.querySelectorAll('[aria-hidden="true"]')).toHaveLength(0)
+  })
+
+  it('keeps each month label weighted by its own days', async () => {
+    // The alignment invariant. The header divides by day count and the rows
+    // divide by day count, and nothing in either consumes width the other does
+    // not — so a label cannot drift off the days it names.
+    render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })
+    const grid = await screen.findByRole('grid', { name: /absences by member/i })
+
+    const row = within(grid).getByText('Marta Lindqvist').parentElement as HTMLElement
+    const daysPerMonth = new Map<string, number>()
+    for (const day of row.querySelectorAll<HTMLElement>('[data-day]')) {
+      const month = (day.dataset.day as string).slice(0, 7)
+      daysPerMonth.set(month, (daysPerMonth.get(month) ?? 0) + 1)
+    }
+    expect([...daysPerMonth.values()]).toEqual([30, 31, 30, 31, 31, 28])
+
+    const labels = [...screen.getByLabelText('Months shown').querySelectorAll<HTMLElement>('[style*="flex"]')]
+    expect(labels.map((label) => label.style.flexGrow)).toEqual(
+      [...daysPerMonth.values()].map(String),
+    )
   })
 
   it('marks the years the twelve-month strip runs across', async () => {

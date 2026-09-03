@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Absence, TeamMember } from '@/types'
 import {
+  MIN_DAY_WIDTH,
   buildCoverage,
   cellKey,
   cellStateFor,
@@ -32,6 +33,7 @@ interface Props {
 
 /** Pointer travel before a press becomes a drag, so a click stays a click. */
 const ACTIVATION_DISTANCE = 4
+
 
 const STATE_CLASS: Record<CellState, string> = {
   // Filled: an entered absence. Hatched: one occurrence of a recurring rule —
@@ -199,7 +201,7 @@ export function AbsenceGrid({
   const counted = range ? countHalfDaysIn(range, members, days) : 0
 
   return (
-    <div className="relative">
+    <div className="relative min-w-max">
       <MonthHeader days={days} />
       <div
         ref={gridRef}
@@ -212,16 +214,24 @@ export function AbsenceGrid({
         className="touch-none select-none outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-lg"
       >
         {members.map((member, memberIndex) => (
-          <div key={member.system_id} role="row" className="flex items-center h-12">
+          <div key={member.system_id} role="row" className="flex items-center h-12 min-w-0">
             <div
               role="rowheader"
               className="w-[140px] shrink-0 pr-2 text-sm text-gray-700 dark:text-gray-200 truncate"
             >
               {member.name}
             </div>
-            <div className="flex">
+            {/* The days divide whatever width is left over, down to a floor.
+                No measurement: flex fills a wide screen and stops shrinking at
+                MIN_DAY_WIDTH, which is where the wrapper starts scrolling. */}
+            <div className="flex flex-1 min-w-0">
               {days.map((date) => (
-                <div key={date} className="flex gap-px mr-px" data-day={date}>
+                <div
+                  key={date}
+                  className="flex gap-px pr-px flex-1 min-w-0"
+                  style={{ minWidth: MIN_DAY_WIDTH }}
+                  data-day={date}
+                >
                   {HALVES.map((half) => {
                     const state = cellStateFor(member, date, half, coverage)
                     const selected =
@@ -243,7 +253,7 @@ export function AbsenceGrid({
                         tabIndex={-1}
                         aria-selected={selected}
                         title={`${member.name} · ${date} ${half}`}
-                        className={`w-[3px] h-[30px] rounded-[1px] ${STATE_CLASS[state]} ${
+                        className={`flex-1 min-w-0 h-[30px] rounded-[1px] ${STATE_CLASS[state]} ${
                           inRange ? 'ring-1 ring-blue-500 bg-blue-300' : ''
                         } ${selected ? 'ring-1 ring-gray-900 dark:ring-white' : ''} ${
                           isFocused ? 'ring-1 ring-blue-400' : ''
@@ -288,12 +298,20 @@ function MonthHeader({ days }: MonthHeaderProps) {
   return (
     <header aria-label="Months shown" className="flex items-end pb-1">
       <div className="w-[140px] shrink-0" />
-      <div className="flex">
+      {/* Weighted by day count and floored the same way as the day columns, so a
+          month name sits over its own days at every width.
+
+          The rule is a **border**, not an element: a border sits inside the
+          label's own box, so the header keeps dividing the width by day count
+          exactly as the rows do. A spacer element between labels would add three
+          pixels the rows do not have, and by February the names would sit over
+          the wrong days. */}
+      <div className="flex flex-1 min-w-0 items-end">
         {spans.map((span) => (
           <div
             key={span.key}
-            className="text-xs font-semibold text-gray-500 dark:text-gray-400 border-l border-white/60 dark:border-white/10 pl-1"
-            style={{ width: span.count * 8 }}
+            className="min-w-0 border-l-2 border-gray-400/80 dark:border-gray-500/80 pl-1 text-xs font-semibold text-gray-700 dark:text-gray-200"
+            style={{ flex: `${span.count} 1 0%`, minWidth: span.count * MIN_DAY_WIDTH }}
           >
             <span className="whitespace-nowrap">{span.label}</span>
           </div>

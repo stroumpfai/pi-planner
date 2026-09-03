@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Absence } from '@/types'
+import { useElementWidth } from '@/hooks/useElementWidth'
 import {
   GRID_MONTHS,
-  MINIMAP_MONTHS,
   addMonths,
   monthDensity,
   monthLabel,
   monthsFrom,
+  stripMonthsFor,
   type YearMonth,
 } from '@/utils/absenceGrid'
 
@@ -17,11 +18,19 @@ interface Props {
   readonly gridStart: YearMonth
   readonly absences: readonly Absence[]
   readonly onGridStart: (month: YearMonth) => void
+  /** How many months the strip spans — measured here, owned by the caller. */
+  readonly stripMonths: number
+  /**
+   * The strip's measured capacity, in whole years of months.
+   *
+   * Reported upward rather than kept here because the caller fetches the data
+   * for those months: the span is a question about layout and an argument to a
+   * query at the same time, and only one of the two can own it.
+   */
+  readonly onStripMonths: (months: number) => void
   /** The month/year jump, rendered under this control's own label (§7.4). */
   readonly children?: React.ReactNode
 }
-
-const MONTH_WIDTH = 82
 
 /**
  * The year above the grid: density and navigation in one control (teams.md §7.4).
@@ -43,14 +52,25 @@ export function AbsenceMinimap({
   gridStart,
   absences,
   onGridStart,
+  stripMonths,
+  onStripMonths,
   children,
 }: Props) {
-  const months = monthsFrom(windowStart, MINIMAP_MONTHS)
+  const trackRef = useRef<HTMLDivElement | null>(null)
+  const trackWidth = useElementWidth(trackRef)
+  const fits = stripMonthsFor(trackWidth)
+
+  // No feedback loop: the track is `flex-1`, so its width is fixed by the card
+  // and not by how many columns end up inside it.
+  useEffect(() => {
+    if (fits !== stripMonths) onStripMonths(fits)
+  }, [fits, stripMonths, onStripMonths])
+
+  const months = monthsFrom(windowStart, stripMonths)
   const density = monthDensity(absences, months)
   const busiest = Math.max(1, ...density)
 
   const offset = monthOffset(windowStart, gridStart)
-  const trackRef = useRef<HTMLDivElement | null>(null)
   const [dragging, setDragging] = useState(false)
 
   const moveTo = useCallback(
@@ -58,14 +78,14 @@ export function AbsenceMinimap({
       const track = trackRef.current
       if (!track) return
       const bounds = track.getBoundingClientRect()
-      const width = bounds.width / MINIMAP_MONTHS
+      const width = bounds.width / stripMonths
       // The pointer holds the frame's middle, which is what makes dragging feel
       // like moving a window rather than pushing its left edge.
       const centred = (clientX - bounds.left) / width - GRID_MONTHS / 2
-      const clamped = Math.max(0, Math.min(MINIMAP_MONTHS - GRID_MONTHS, Math.round(centred)))
+      const clamped = Math.max(0, Math.min(stripMonths - GRID_MONTHS, Math.round(centred)))
       onGridStart(addMonths(windowStart, clamped))
     },
-    [onGridStart, windowStart],
+    [onGridStart, windowStart, stripMonths],
   )
 
   useEffect(() => {
@@ -92,17 +112,12 @@ export function AbsenceMinimap({
         {children}
       </div>
 
-      {/* The cap is on the **track**, not on each bar.
-          Capping the bars instead let them stop short of a wide track while the
-          frame — sized as a percentage of that track — kept going, so a
-          six-month frame drew as wide as nine and its right half hung over
-          nothing. With the cap here, twelve bars always fill the track exactly
-          and the frame's arithmetic is exact at any width. */}
-      <div
-        className="relative flex-1 min-w-0"
-        style={{ maxWidth: MONTH_WIDTH * MINIMAP_MONTHS }}
-        ref={trackRef}
-      >
+      {/* The track takes the whole width and the columns divide it, so the
+          frame's percentage and the bars' widths are the same arithmetic.
+          Capping either one is what previously let a six-month frame draw as
+          wide as nine with its right half hanging over nothing — the months
+          stopped at their cap while the frame kept using the full track. */}
+      <div className="relative flex-1 min-w-0" ref={trackRef}>
         <div className="flex items-end h-7">
           {months.map((month, index) => (
             <button
@@ -166,7 +181,7 @@ export function AbsenceMinimap({
           }}
           onKeyDown={(event) => {
             if (event.key === 'ArrowLeft' && offset > 0) onGridStart(addMonths(gridStart, -1))
-            if (event.key === 'ArrowRight' && offset < MINIMAP_MONTHS - GRID_MONTHS) {
+            if (event.key === 'ArrowRight' && offset < stripMonths - GRID_MONTHS) {
               onGridStart(addMonths(gridStart, 1))
             }
           }}
@@ -179,8 +194,8 @@ export function AbsenceMinimap({
             dragging ? 'cursor-grabbing' : 'cursor-grab'
           }`}
           style={{
-            left: `${(offset / MINIMAP_MONTHS) * 100}%`,
-            width: `${(GRID_MONTHS / MINIMAP_MONTHS) * 100}%`,
+            left: `${(offset / stripMonths) * 100}%`,
+            width: `${(GRID_MONTHS / stripMonths) * 100}%`,
           }}
         />
       </div>

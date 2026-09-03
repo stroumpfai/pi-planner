@@ -11,15 +11,55 @@ import { HALVES, WEEKDAYS, type Half, type HalfDayKey, type Weekday } from '@/ut
  */
 
 /**
- * The grid shows six months; the minimap above it spans a year (§7.4).
+ * The grid shows six months, whatever the screen (§7.4).
  *
- * One constant for both, so the frame drawn on the strip and the span drawn
- * below it cannot drift apart: the frame *is* the viewport, and a frame that
- * covered a different number of months than the calendar would make the
- * relationship it exists to draw a lie.
+ * Fixed on purpose: a wider screen makes the *cells* bigger rather than showing
+ * more time, so the half-day a person reads is the same size wherever they read
+ * it. The strip above is the control for reaching other months.
  */
 export const GRID_MONTHS = 6
-export const MINIMAP_MONTHS = 12
+
+/**
+ * The narrowest a day may be drawn — two half-day cells and their gaps.
+ *
+ * A floor, not a size. Day columns flex to fill whatever width there is and stop
+ * shrinking here, which is what lets the calendar fill a wide screen and scroll
+ * a narrow one with no measurement at all.
+ */
+export const MIN_DAY_WIDTH = 8
+
+/**
+ * The strip spans whole years — one, two or three (§7.4).
+ *
+ * Whole years because the year markers have to mean something: a strip of
+ * twenty-nine months ends in a marker spanning five, which reads as a rendering
+ * accident rather than as a year. Snapping down is also the conservative
+ * direction — a column never falls below what a month abbreviation needs.
+ */
+export const MIN_MONTH_COLUMN = 64
+export const MIN_STRIP_YEARS = 1
+export const MAX_STRIP_YEARS = 3
+
+/** What the strip spans before anything has been measured, and on a narrow screen. */
+export const DEFAULT_STRIP_MONTHS = MIN_STRIP_YEARS * 12
+
+/**
+ * How many months of density a track that wide can carry.
+ *
+ * Zero and NaN both mean "not measured yet" — the first render, and every render
+ * in a test environment with no layout — and both answer with the default rather
+ * than with nothing, so the strip is never momentarily empty.
+ *
+ * Below `12 × MIN_MONTH_COLUMN` the two rules collide and **the year wins**: the
+ * strip is the navigation control and the window absences are fetched over, so
+ * it spans a year even when that squeezes the columns under their floor.
+ */
+export function stripMonthsFor(trackWidth: number): number {
+  if (!Number.isFinite(trackWidth) || trackWidth <= 0) return DEFAULT_STRIP_MONTHS
+  const columns = Math.floor(trackWidth / MIN_MONTH_COLUMN)
+  const years = Math.max(MIN_STRIP_YEARS, Math.min(MAX_STRIP_YEARS, Math.floor(columns / 12)))
+  return years * 12
+}
 
 const MONTH_NAMES = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
@@ -99,9 +139,13 @@ export const monthsBetween = (from: YearMonth, to: YearMonth): number =>
  * it. A jump that lands somewhere the user did not ask for is worse than no
  * jump at all.
  */
-export function stripStartFor(current: YearMonth, target: YearMonth): YearMonth {
+export function stripStartFor(
+  current: YearMonth,
+  target: YearMonth,
+  stripMonths: number,
+): YearMonth {
   const offset = monthsBetween(current, target)
-  const last = MINIMAP_MONTHS - GRID_MONTHS
+  const last = stripMonths - GRID_MONTHS
   if (offset < 0) return target
   if (offset > last) return addMonths(target, -last)
   return current
