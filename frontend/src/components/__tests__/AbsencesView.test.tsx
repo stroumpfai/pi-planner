@@ -473,6 +473,30 @@ describe('AbsencesView', () => {
     )
   })
 
+  it('paints cells with flat fills, never the card shadows', async () => {
+    // The shadows are card shadows — a 6px blur, an 8px inset with 3px spread.
+    // On a 14px cell the inset has no middle left and the blur crosses into the
+    // neighbour, taking the morning/afternoon rule with it.
+    render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })
+    const grid = await screen.findByRole('grid', { name: /absences by member/i })
+
+    const cells = [...grid.querySelectorAll<HTMLElement>('[data-half]')]
+    expect(cells.length).toBeGreaterThan(0)
+    expect(cells.filter((cell) => cell.className.includes('shadow-soft'))).toEqual([])
+  })
+
+  it('never paints a free half-day in the card’s own colour', async () => {
+    // bg-canvas is what the card behind the grid is painted in, so a free cell
+    // wearing it is invisible. That was survivable while a drop shadow drew the
+    // cell for it; with the shadows gone the fill is all there is.
+    render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })
+    const grid = await screen.findByRole('grid', { name: /absences by member/i })
+
+    // Wednesday the 16th: Marta works it and is not away.
+    const free = within(grid).getByTitle('Marta Lindqvist · 2026-09-16 am')
+    expect(free.className).not.toMatch(/\bbg-canvas\b/)
+  })
+
   it('says why the grid is empty when nobody is on the team', async () => {
     respondWith([], [])
     render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })

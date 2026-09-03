@@ -50,16 +50,31 @@ const HALF_RULE: Record<Half, string> = {
   pm: '',
 }
 
+/**
+ * What each half-day is painted as — **flat fills, no soft shadows**.
+ *
+ * The app's neumorphic shadows are card shadows: a 6px blur at a 2px offset, an
+ * 8px inset with 3px of spread. They need a box big enough to have a middle. A
+ * cell is now 14px tall with its twin one pixel below it, and at that size the
+ * inset's two halves meet and the drop shadow reaches across its neighbours —
+ * washing out the very rule this layout depends on.
+ *
+ * So the ramp is carried by fill alone, which is size-independent: `free` is
+ * lighter than the card, everything unavailable is darker than it, and the two
+ * blues are unmistakably neither. `free` cannot stay `bg-canvas` — that is the
+ * card's own colour, and the shadow was the only thing that had been making an
+ * empty cell visible at all.
+ */
 const STATE_CLASS: Record<CellState, string> = {
   // Filled: an entered absence. Hatched: one occurrence of a recurring rule —
   // clicking either selects the whole entry, because there is no such thing as
   // one occurrence in this model (§3.4).
   absence: 'bg-blue-500',
   recurring: 'bg-blue-400 [background-image:repeating-linear-gradient(45deg,transparent,transparent_1px,rgba(255,255,255,.65)_1px,rgba(255,255,255,.65)_2px)]',
-  'non-working': 'bg-band shadow-soft-inset',
+  'non-working': 'bg-band',
   weekend: 'bg-gray-300/70 dark:bg-gray-600/70',
   'off-team': 'bg-transparent [background-image:repeating-linear-gradient(45deg,transparent,transparent_2px,rgba(148,163,184,.5)_2px,rgba(148,163,184,.5)_3px)]',
-  free: 'bg-canvas shadow-soft-sm',
+  free: 'bg-white dark:bg-white/[0.08]',
 }
 
 /**
