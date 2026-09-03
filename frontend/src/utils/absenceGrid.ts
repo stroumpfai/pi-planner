@@ -176,11 +176,6 @@ export function stripStartFor(
  */
 export type CellState = 'off-team' | 'absence' | 'recurring' | 'non-working' | 'weekend' | 'free'
 
-export const ABSENT_STATES: readonly CellState[] = ['absence', 'recurring']
-
-/** True when this half-day carries an absence of either kind. */
-export const isAbsent = (state: CellState) => state === 'absence' || state === 'recurring'
-
 /** Which absence covers each `member|date|half`, keyed for O(1) lookup. */
 export type Coverage = ReadonlyMap<string, Absence>
 
