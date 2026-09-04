@@ -6797,6 +6797,599 @@
         }
       }
     },
+    "/api/v1/teams/{team_id}/meetings": {
+      "get": {
+        "tags": [
+          "team-meetings"
+        ],
+        "summary": "List Meetings",
+        "description": "Every meeting the team holds, with its occurrences inside the window.\n\nThe rules are always returned in full; only the expansion is windowed. A\nmeeting with no occurrence in the selected sprint keeps its column and\ncontributes nothing, rather than disappearing from a matrix whose other\ncolumns are unchanged (\u00a77.5).",
+        "operationId": "list_meetings_api_v1_teams__team_id__meetings_get",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Expand occurrences from this date",
+              "title": "From"
+            },
+            "description": "Expand occurrences from this date"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Expand occurrences up to this date",
+              "title": "To"
+            },
+            "description": "Expand occurrences up to this date"
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MeetingResponse"
+                  },
+                  "title": "Response List Meetings Api V1 Teams  Team Id  Meetings Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "team-meetings"
+        ],
+        "summary": "Create Meeting",
+        "description": "One meeting, one row, with its attendees (\u00a73.5).\n\nThe attendee list may be empty \u2014 a meeting nobody attends costs nothing, and\nentering the schedule first and ticking attendance afterwards in the matrix\nis the order people work in. No `If-Match`: a create cannot clobber (\u00a74.2).",
+        "operationId": "create_meeting_api_v1_teams__team_id__meetings_post",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Expand occurrences from this date",
+              "title": "From"
+            },
+            "description": "Expand occurrences from this date"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Expand occurrences up to this date",
+              "title": "To"
+            },
+            "description": "Expand occurrences up to this date"
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeetingCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{team_id}/meetings/reorder": {
+      "post": {
+        "tags": [
+          "team-meetings"
+        ],
+        "summary": "Reorder Meetings",
+        "description": "Set the column order from a list of meeting ids (\u00a77.5).\n\nNo `If-Match`, on the same reasoning as the member reorder: order is not a\nfield anyone edits in a form, and a reorder carries none of the values a stale\nwrite would overwrite. Ids belonging to another team are ignored rather than\nrejected \u2014 the list is a preference, and a partial one still beats the order\nit replaces.",
+        "operationId": "reorder_meetings_api_v1_teams__team_id__meetings_reorder_post",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Expand occurrences from this date",
+              "title": "From"
+            },
+            "description": "Expand occurrences from this date"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Expand occurrences up to this date",
+              "title": "To"
+            },
+            "description": "Expand occurrences up to this date"
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeetingReorder"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MeetingResponse"
+                  },
+                  "title": "Response Reorder Meetings Api V1 Teams  Team Id  Meetings Reorder Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{team_id}/meetings/{meeting_id}": {
+      "patch": {
+        "tags": [
+          "team-meetings"
+        ],
+        "summary": "Update Meeting",
+        "description": "Edit the **whole series**, and optionally who attends it.\n\nThe patch is merged onto the stored row and the result validated as a rule, so\na partial edit cannot leave a weekly meeting without a weekday. Omitting\n`member_ids` leaves attendance alone; sending it replaces the set, which is\nhow a matrix cell toggle arrives.",
+        "operationId": "update_meeting_api_v1_teams__team_id__meetings__meeting_id__patch",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Expand occurrences from this date",
+              "title": "From"
+            },
+            "description": "Expand occurrences from this date"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Expand occurrences up to this date",
+              "title": "To"
+            },
+            "description": "Expand occurrences up to this date"
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MeetingUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MeetingResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "team-meetings"
+        ],
+        "summary": "Delete Meeting",
+        "description": "Delete the meeting and its attendance \u2014 permanently, as everywhere (\u00a710).",
+        "operationId": "delete_meeting_api_v1_teams__team_id__meetings__meeting_id__delete",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "meeting_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Meeting Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{team_id}/meetings/bulk": {
+      "post": {
+        "tags": [
+          "team-meetings"
+        ],
+        "summary": "Bulk Meetings",
+        "description": "Replace the meetings anchored inside a date window, in one transaction.\n\nThe same import path absences use, for the same reason: the meeting calendar\nlives on a wiki page read by a model, not in a CSV (\u00a78.2.7).\n\n**Replace, not merge.** Everything anchored inside `[window_from, window_to]`\nis replaced by `entries`, so re-running an unchanged import writes the same\nrows and a meeting deleted from the page disappears here too. Membership is\ndecided by `start_date`, so a stand-up anchored last year survives a window\ncovering next month \u2014 pick a window matching the section you read.\n\nUnresolved attendee names are collected and returned **all at once**, and\nnothing is written when there are any; members are never created implicitly\n(\u00a78.2.4).",
+        "operationId": "bulk_meetings_api_v1_teams__team_id__meetings_bulk_post",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkMeetingRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkMeetingResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/teams/{team_id}/projects": {
       "get": {
         "tags": [
@@ -8179,6 +8772,192 @@
         ],
         "title": "BulkDeleteResponse"
       },
+      "BulkMeetingEntry": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "range",
+              "weekly",
+              "interval"
+            ],
+            "title": "Kind"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "weekday": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 6.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekday"
+          },
+          "interval_weeks": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 52.0,
+                "minimum": 2.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Weeks"
+          },
+          "half": {
+            "type": "string",
+            "enum": [
+              "am",
+              "pm"
+            ],
+            "title": "Half",
+            "default": "am"
+          },
+          "duration_minutes": {
+            "type": "integer",
+            "multipleOf": 5.0,
+            "maximum": 480.0,
+            "minimum": 5.0,
+            "title": "Duration Minutes"
+          },
+          "member_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Member Names"
+          },
+          "all_members": {
+            "type": "boolean",
+            "title": "All Members",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "kind",
+          "start_date",
+          "duration_minutes"
+        ],
+        "title": "BulkMeetingEntry",
+        "description": "One line of a bulk import, addressing attendees **by name**.\n\nNames rather than ids because the source is a wiki page read by a model, and\nit has never seen a UUID. Unknown names are reported, never created (\u00a78.2.4)."
+      },
+      "BulkMeetingRequest": {
+        "properties": {
+          "window_from": {
+            "type": "string",
+            "format": "date",
+            "title": "Window From"
+          },
+          "window_to": {
+            "type": "string",
+            "format": "date",
+            "title": "Window To"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/BulkMeetingEntry"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Entries"
+          },
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "window_from",
+          "window_to"
+        ],
+        "title": "BulkMeetingRequest",
+        "description": "Replace this team's meetings anchored inside a window (\u00a78.2.7).\n\n**Replacement, not merge**, on the same rule absences use: membership of the\nwindow is decided by `start_date`, so a stand-up anchored last year survives\na window covering next month even though it occurs inside it."
+      },
+      "BulkMeetingResult": {
+        "properties": {
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run"
+          },
+          "window_from": {
+            "type": "string",
+            "format": "date",
+            "title": "Window From"
+          },
+          "window_to": {
+            "type": "string",
+            "format": "date",
+            "title": "Window To"
+          },
+          "created": {
+            "type": "integer",
+            "title": "Created"
+          },
+          "deleted": {
+            "type": "integer",
+            "title": "Deleted"
+          },
+          "unresolved_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unresolved Names",
+            "default": []
+          },
+          "meetings": {
+            "items": {
+              "$ref": "#/components/schemas/MeetingResponse"
+            },
+            "type": "array",
+            "title": "Meetings",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "dry_run",
+          "window_from",
+          "window_to",
+          "created",
+          "deleted"
+        ],
+        "title": "BulkMeetingResult",
+        "description": "What a bulk write did, or would do.\n\n`unresolved_names` collects **every** unknown attendee rather than raising on\nthe first: spelling variants arrive in groups (\u00a78.2.7)."
+      },
       "CapacityBreakdown": {
         "properties": {
           "contracted_half_days": {
@@ -9226,6 +10005,374 @@
           "password"
         ],
         "title": "LoginRequest"
+      },
+      "MeetingCreate": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "range",
+              "weekly",
+              "interval"
+            ],
+            "title": "Kind"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "weekday": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 6.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekday"
+          },
+          "interval_weeks": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 52.0,
+                "minimum": 2.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Weeks"
+          },
+          "half": {
+            "type": "string",
+            "enum": [
+              "am",
+              "pm"
+            ],
+            "title": "Half",
+            "default": "am"
+          },
+          "duration_minutes": {
+            "type": "integer",
+            "multipleOf": 5.0,
+            "maximum": 480.0,
+            "minimum": 5.0,
+            "title": "Duration Minutes"
+          },
+          "member_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Member Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "kind",
+          "start_date",
+          "duration_minutes"
+        ],
+        "title": "MeetingCreate",
+        "description": "One meeting, with the people who attend it.\n\nThe attendee list may be **empty**: a meeting nobody attends is allowed and\ncosts nothing (\u00a711). That is what lets the schedule be entered first and\nattendance ticked afterwards in the matrix, which is the order people work in."
+      },
+      "MeetingReorder": {
+        "properties": {
+          "order": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 100,
+            "title": "Order"
+          }
+        },
+        "type": "object",
+        "required": [
+          "order"
+        ],
+        "title": "MeetingReorder",
+        "description": "Column order for the matrix, as a list of meeting ids (\u00a77.5)."
+      },
+      "MeetingResponse": {
+        "properties": {
+          "system_id": {
+            "type": "string",
+            "title": "System Id"
+          },
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "weekday": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekday"
+          },
+          "interval_weeks": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Weeks"
+          },
+          "half": {
+            "type": "string",
+            "title": "Half"
+          },
+          "duration_minutes": {
+            "type": "integer",
+            "title": "Duration Minutes"
+          },
+          "order_index": {
+            "type": "integer",
+            "title": "Order Index"
+          },
+          "member_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Member Ids",
+            "default": []
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary",
+            "default": ""
+          },
+          "occurrences": {
+            "items": {
+              "type": "string",
+              "format": "date"
+            },
+            "type": "array",
+            "title": "Occurrences",
+            "default": []
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Modified At"
+          },
+          "etag": {
+            "type": "string",
+            "title": "Etag",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "system_id",
+          "team_id",
+          "title",
+          "kind",
+          "start_date",
+          "end_date",
+          "weekday",
+          "interval_weeks",
+          "half",
+          "duration_minutes",
+          "order_index",
+          "created_at",
+          "modified_at"
+        ],
+        "title": "MeetingResponse"
+      },
+      "MeetingUpdate": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "range",
+                  "weekly",
+                  "interval"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "weekday": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 6.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekday"
+          },
+          "interval_weeks": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 52.0,
+                "minimum": 2.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Weeks"
+          },
+          "half": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "am",
+                  "pm"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Half"
+          },
+          "duration_minutes": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "multipleOf": 5.0,
+                "maximum": 480.0,
+                "minimum": 5.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Minutes"
+          },
+          "member_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Ids"
+          }
+        },
+        "type": "object",
+        "title": "MeetingUpdate",
+        "description": "A patch. Every field optional; the merged result is validated as a whole.\n\n`member_ids` **replaces** the attendee set when present and is left alone when\nabsent \u2014 which is what makes a matrix cell toggle a single ordinary PATCH\nrather than a pair of add/remove endpoints."
       },
       "MemberCapacityRow": {
         "properties": {

@@ -37,6 +37,7 @@ EXPECTED_READ_TOOLS = {
     "list_teams",
     "get_team",
     "list_absences",
+    "list_meetings",
     "list_members",
     "get_team_capacity",
     "preview_team_capacity",
@@ -110,6 +111,10 @@ EXPECTED_TEAMS_TOOLS = {
     "delete_absence",
     "bulk_create_absences",
     "preview_bulk_absences",
+    "create_meeting",
+    "update_meeting",
+    "delete_meeting",
+    "bulk_create_meetings",
 }
 
 EXPECTED_WORKFLOWS_TOOLS = {
@@ -202,12 +207,13 @@ async def test_teams_tools_all_registered():
 async def test_teams_module_exposes_no_delete():
     """No delete_team, and no delete flag hiding inside update_team (§8.2.6).
 
-    `delete_absence` is the one exception the spec names, and it proves the rule
-    rather than breaking it: leaf records are deletable by an agent, containers —
-    team, member, pattern version, project assignment — are not.
+    `delete_absence` and `delete_meeting` are the two exceptions the spec names,
+    and they prove the rule rather than breaking it: leaf records are deletable by
+    an agent, containers — team, member, pattern version, project assignment — are
+    not.
     """
     names = await _tool_names(teams_mcp)
-    assert {n for n in names if n.startswith("delete")} == {"delete_absence"}
+    assert {n for n in names if n.startswith("delete")} == {"delete_absence", "delete_meeting"}
     schema = await _get_tool_schema(teams_mcp, "update_team")
     assert "delete" not in schema.get("properties", {})
 

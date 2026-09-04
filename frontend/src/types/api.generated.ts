@@ -467,6 +467,77 @@ export interface paths {
      */
     post: operations["bulk_absences_api_v1_teams__team_id__absences_bulk_post"];
   };
+  "/api/v1/teams/{team_id}/meetings": {
+    /**
+     * List Meetings
+     * @description Every meeting the team holds, with its occurrences inside the window.
+     *
+     * The rules are always returned in full; only the expansion is windowed. A
+     * meeting with no occurrence in the selected sprint keeps its column and
+     * contributes nothing, rather than disappearing from a matrix whose other
+     * columns are unchanged (§7.5).
+     */
+    get: operations["list_meetings_api_v1_teams__team_id__meetings_get"];
+    /**
+     * Create Meeting
+     * @description One meeting, one row, with its attendees (§3.5).
+     *
+     * The attendee list may be empty — a meeting nobody attends costs nothing, and
+     * entering the schedule first and ticking attendance afterwards in the matrix
+     * is the order people work in. No `If-Match`: a create cannot clobber (§4.2).
+     */
+    post: operations["create_meeting_api_v1_teams__team_id__meetings_post"];
+  };
+  "/api/v1/teams/{team_id}/meetings/reorder": {
+    /**
+     * Reorder Meetings
+     * @description Set the column order from a list of meeting ids (§7.5).
+     *
+     * No `If-Match`, on the same reasoning as the member reorder: order is not a
+     * field anyone edits in a form, and a reorder carries none of the values a stale
+     * write would overwrite. Ids belonging to another team are ignored rather than
+     * rejected — the list is a preference, and a partial one still beats the order
+     * it replaces.
+     */
+    post: operations["reorder_meetings_api_v1_teams__team_id__meetings_reorder_post"];
+  };
+  "/api/v1/teams/{team_id}/meetings/{meeting_id}": {
+    /**
+     * Delete Meeting
+     * @description Delete the meeting and its attendance — permanently, as everywhere (§10).
+     */
+    delete: operations["delete_meeting_api_v1_teams__team_id__meetings__meeting_id__delete"];
+    /**
+     * Update Meeting
+     * @description Edit the **whole series**, and optionally who attends it.
+     *
+     * The patch is merged onto the stored row and the result validated as a rule, so
+     * a partial edit cannot leave a weekly meeting without a weekday. Omitting
+     * `member_ids` leaves attendance alone; sending it replaces the set, which is
+     * how a matrix cell toggle arrives.
+     */
+    patch: operations["update_meeting_api_v1_teams__team_id__meetings__meeting_id__patch"];
+  };
+  "/api/v1/teams/{team_id}/meetings/bulk": {
+    /**
+     * Bulk Meetings
+     * @description Replace the meetings anchored inside a date window, in one transaction.
+     *
+     * The same import path absences use, for the same reason: the meeting calendar
+     * lives on a wiki page read by a model, not in a CSV (§8.2.7).
+     *
+     * **Replace, not merge.** Everything anchored inside `[window_from, window_to]`
+     * is replaced by `entries`, so re-running an unchanged import writes the same
+     * rows and a meeting deleted from the page disappears here too. Membership is
+     * decided by `start_date`, so a stand-up anchored last year survives a window
+     * covering next month — pick a window matching the section you read.
+     *
+     * Unresolved attendee names are collected and returned **all at once**, and
+     * nothing is written when there are any; members are never created implicitly
+     * (§8.2.4).
+     */
+    post: operations["bulk_meetings_api_v1_teams__team_id__meetings_bulk_post"];
+  };
   "/api/v1/teams/{team_id}/projects": {
     /**
      * List Team Projects
@@ -870,6 +941,110 @@ export interface components {
     BulkDeleteResponse: {
       /** Deleted Features */
       deleted_features: number;
+    };
+    /**
+     * BulkMeetingEntry
+     * @description One line of a bulk import, addressing attendees **by name**.
+     *
+     * Names rather than ids because the source is a wiki page read by a model, and
+     * it has never seen a UUID. Unknown names are reported, never created (§8.2.4).
+     */
+    BulkMeetingEntry: {
+      /** Title */
+      title: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: "range" | "weekly" | "interval";
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /** End Date */
+      end_date?: string | null;
+      /** Weekday */
+      weekday?: number | null;
+      /** Interval Weeks */
+      interval_weeks?: number | null;
+      /**
+       * Half
+       * @default am
+       * @enum {string}
+       */
+      half?: "am" | "pm";
+      /** Duration Minutes */
+      duration_minutes: number;
+      /** Member Names */
+      member_names?: string[];
+      /**
+       * All Members
+       * @default false
+       */
+      all_members?: boolean;
+    };
+    /**
+     * BulkMeetingRequest
+     * @description Replace this team's meetings anchored inside a window (§8.2.7).
+     *
+     * **Replacement, not merge**, on the same rule absences use: membership of the
+     * window is decided by `start_date`, so a stand-up anchored last year survives
+     * a window covering next month even though it occurs inside it.
+     */
+    BulkMeetingRequest: {
+      /**
+       * Window From
+       * Format: date
+       */
+      window_from: string;
+      /**
+       * Window To
+       * Format: date
+       */
+      window_to: string;
+      /** Entries */
+      entries?: components["schemas"]["BulkMeetingEntry"][];
+      /**
+       * Dry Run
+       * @default false
+       */
+      dry_run?: boolean;
+    };
+    /**
+     * BulkMeetingResult
+     * @description What a bulk write did, or would do.
+     *
+     * `unresolved_names` collects **every** unknown attendee rather than raising on
+     * the first: spelling variants arrive in groups (§8.2.7).
+     */
+    BulkMeetingResult: {
+      /** Dry Run */
+      dry_run: boolean;
+      /**
+       * Window From
+       * Format: date
+       */
+      window_from: string;
+      /**
+       * Window To
+       * Format: date
+       */
+      window_to: string;
+      /** Created */
+      created: number;
+      /** Deleted */
+      deleted: number;
+      /**
+       * Unresolved Names
+       * @default []
+       */
+      unresolved_names?: string[];
+      /**
+       * Meetings
+       * @default []
+       */
+      meetings?: components["schemas"]["MeetingResponse"][];
     };
     /**
      * CapacityBreakdown
@@ -1305,6 +1480,138 @@ export interface components {
        * @default false
        */
       remember_me?: boolean;
+    };
+    /**
+     * MeetingCreate
+     * @description One meeting, with the people who attend it.
+     *
+     * The attendee list may be **empty**: a meeting nobody attends is allowed and
+     * costs nothing (§11). That is what lets the schedule be entered first and
+     * attendance ticked afterwards in the matrix, which is the order people work in.
+     */
+    MeetingCreate: {
+      /** Title */
+      title: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: "range" | "weekly" | "interval";
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /** End Date */
+      end_date?: string | null;
+      /** Weekday */
+      weekday?: number | null;
+      /** Interval Weeks */
+      interval_weeks?: number | null;
+      /**
+       * Half
+       * @default am
+       * @enum {string}
+       */
+      half?: "am" | "pm";
+      /** Duration Minutes */
+      duration_minutes: number;
+      /** Member Ids */
+      member_ids?: string[];
+    };
+    /**
+     * MeetingReorder
+     * @description Column order for the matrix, as a list of meeting ids (§7.5).
+     */
+    MeetingReorder: {
+      /** Order */
+      order: string[];
+    };
+    /** MeetingResponse */
+    MeetingResponse: {
+      /** System Id */
+      system_id: string;
+      /** Team Id */
+      team_id: string;
+      /** Title */
+      title: string;
+      /** Kind */
+      kind: string;
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /** End Date */
+      end_date: string | null;
+      /** Weekday */
+      weekday: number | null;
+      /** Interval Weeks */
+      interval_weeks: number | null;
+      /** Half */
+      half: string;
+      /** Duration Minutes */
+      duration_minutes: number;
+      /** Order Index */
+      order_index: number;
+      /**
+       * Member Ids
+       * @default []
+       */
+      member_ids?: string[];
+      /**
+       * Summary
+       * @default
+       */
+      summary?: string;
+      /**
+       * Occurrences
+       * @default []
+       */
+      occurrences?: string[];
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Modified At
+       * Format: date-time
+       */
+      modified_at: string;
+      /**
+       * Etag
+       * @default
+       */
+      etag?: string;
+    };
+    /**
+     * MeetingUpdate
+     * @description A patch. Every field optional; the merged result is validated as a whole.
+     *
+     * `member_ids` **replaces** the attendee set when present and is left alone when
+     * absent — which is what makes a matrix cell toggle a single ordinary PATCH
+     * rather than a pair of add/remove endpoints.
+     */
+    MeetingUpdate: {
+      /** Title */
+      title?: string | null;
+      /** Kind */
+      kind?: ("range" | "weekly" | "interval") | null;
+      /** Start Date */
+      start_date?: string | null;
+      /** End Date */
+      end_date?: string | null;
+      /** Weekday */
+      weekday?: number | null;
+      /** Interval Weeks */
+      interval_weeks?: number | null;
+      /** Half */
+      half?: ("am" | "pm") | null;
+      /** Duration Minutes */
+      duration_minutes?: number | null;
+      /** Member Ids */
+      member_ids?: string[] | null;
     };
     /** MemberCapacityRow */
     MemberCapacityRow: {
@@ -5290,6 +5597,257 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["BulkAbsenceResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Meetings
+   * @description Every meeting the team holds, with its occurrences inside the window.
+   *
+   * The rules are always returned in full; only the expansion is windowed. A
+   * meeting with no occurrence in the selected sprint keeps its column and
+   * contributes nothing, rather than disappearing from a matrix whose other
+   * columns are unchanged (§7.5).
+   */
+  list_meetings_api_v1_teams__team_id__meetings_get: {
+    parameters: {
+      query?: {
+        /** @description Expand occurrences from this date */
+        from?: string | null;
+        /** @description Expand occurrences up to this date */
+        to?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MeetingResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Meeting
+   * @description One meeting, one row, with its attendees (§3.5).
+   *
+   * The attendee list may be empty — a meeting nobody attends costs nothing, and
+   * entering the schedule first and ticking attendance afterwards in the matrix
+   * is the order people work in. No `If-Match`: a create cannot clobber (§4.2).
+   */
+  create_meeting_api_v1_teams__team_id__meetings_post: {
+    parameters: {
+      query?: {
+        /** @description Expand occurrences from this date */
+        from?: string | null;
+        /** @description Expand occurrences up to this date */
+        to?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MeetingCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["MeetingResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Reorder Meetings
+   * @description Set the column order from a list of meeting ids (§7.5).
+   *
+   * No `If-Match`, on the same reasoning as the member reorder: order is not a
+   * field anyone edits in a form, and a reorder carries none of the values a stale
+   * write would overwrite. Ids belonging to another team are ignored rather than
+   * rejected — the list is a preference, and a partial one still beats the order
+   * it replaces.
+   */
+  reorder_meetings_api_v1_teams__team_id__meetings_reorder_post: {
+    parameters: {
+      query?: {
+        /** @description Expand occurrences from this date */
+        from?: string | null;
+        /** @description Expand occurrences up to this date */
+        to?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MeetingReorder"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MeetingResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Delete Meeting
+   * @description Delete the meeting and its attendance — permanently, as everywhere (§10).
+   */
+  delete_meeting_api_v1_teams__team_id__meetings__meeting_id__delete: {
+    parameters: {
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        team_id: string;
+        meeting_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Update Meeting
+   * @description Edit the **whole series**, and optionally who attends it.
+   *
+   * The patch is merged onto the stored row and the result validated as a rule, so
+   * a partial edit cannot leave a weekly meeting without a weekday. Omitting
+   * `member_ids` leaves attendance alone; sending it replaces the set, which is
+   * how a matrix cell toggle arrives.
+   */
+  update_meeting_api_v1_teams__team_id__meetings__meeting_id__patch: {
+    parameters: {
+      query?: {
+        /** @description Expand occurrences from this date */
+        from?: string | null;
+        /** @description Expand occurrences up to this date */
+        to?: string | null;
+      };
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        team_id: string;
+        meeting_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MeetingUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MeetingResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Bulk Meetings
+   * @description Replace the meetings anchored inside a date window, in one transaction.
+   *
+   * The same import path absences use, for the same reason: the meeting calendar
+   * lives on a wiki page read by a model, not in a CSV (§8.2.7).
+   *
+   * **Replace, not merge.** Everything anchored inside `[window_from, window_to]`
+   * is replaced by `entries`, so re-running an unchanged import writes the same
+   * rows and a meeting deleted from the page disappears here too. Membership is
+   * decided by `start_date`, so a stand-up anchored last year survives a window
+   * covering next month — pick a window matching the section you read.
+   *
+   * Unresolved attendee names are collected and returned **all at once**, and
+   * nothing is written when there are any; members are never created implicitly
+   * (§8.2.4).
+   */
+  bulk_meetings_api_v1_teams__team_id__meetings_bulk_post: {
+    parameters: {
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BulkMeetingRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["BulkMeetingResult"];
         };
       };
       /** @description Validation Error */

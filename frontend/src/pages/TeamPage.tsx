@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AbsencesView } from '@/components/AbsencesView'
+import { MeetingsView } from '@/components/MeetingsView'
 import { TeamCapacityView } from '@/components/TeamCapacityView'
 import { TeamMembersView } from '@/components/TeamMembersView'
 import { TeamProjectsView } from '@/components/TeamProjectsView'
@@ -25,7 +26,7 @@ const VIEWS: readonly TeamView[] = [
   { id: 'members', label: 'Members' },
   { id: 'working-days', label: 'Working days' },
   { id: 'absences', label: 'Absences' },
-  { id: 'meetings', label: 'Meetings', pending: true },
+  { id: 'meetings', label: 'Meetings' },
   { id: 'capacity', label: 'Capacity' },
   { id: 'projects', label: 'Projects' },
 ]
@@ -36,9 +37,9 @@ const VIEWS: readonly TeamView[] = [
  * A rail rather than a tab strip. Six destinations is past what a tab row reads
  * well at, and the rail carries what a tab row has nowhere to put: which team you
  * are in, how many people are on it, and the way back out. It is the shell for
- * every team view, so all six are listed from the start — Meetings is marked as
- * not built yet rather than omitted, because a rail that grows items as steps
- * land would keep moving under people who had learned it.
+ * every team view, so all six are listed from the start; anything a later step
+ * has yet to build is marked as such rather than omitted, because a rail that
+ * grows items as steps land would keep moving under people who had learned it.
  *
  * There is deliberately **no edit-mode button** anywhere here: team writes take
  * no lock (§4.1), and the header's control is gated on `activeProjectId`, which
@@ -114,6 +115,7 @@ export const TeamPage: React.FC<Props> = ({ teamId }) => {
         )}
         {view === 'working-days' && <WorkingDaysView teamId={teamId} focusMemberId={focusMemberId} />}
         {view === 'absences' && <AbsencesView teamId={teamId} />}
+        {view === 'meetings' && <MeetingsView teamId={teamId} />}
         {/* The sprint calendar comes from the anchor project, so a team with none
             is sent to the view that gives it one rather than shown an empty grid. */}
         {view === 'capacity' && (

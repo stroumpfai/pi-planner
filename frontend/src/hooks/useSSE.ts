@@ -79,6 +79,8 @@ function handleTeamSSEEvent(
   qc.invalidateQueries({ queryKey: ['teamProjects', teamId] })
   // Absences are cached per window, so the prefix reaches every span on screen.
   qc.invalidateQueries({ queryKey: ['absences', teamId] })
+  // Meetings likewise: the matrix's window is whichever sprint is selected.
+  qc.invalidateQueries({ queryKey: ['meetings', teamId] })
   // Capacity is computed on read from all of the above, so every team event
   // moves it — including one that changed no member at all, like a share.
   qc.invalidateQueries({ queryKey: ['teamCapacity', teamId] })

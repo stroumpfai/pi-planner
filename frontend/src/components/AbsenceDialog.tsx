@@ -4,6 +4,13 @@ import { DateInput } from '@/components/DateInput'
 import { useCreateAbsences, useUpdateAbsence } from '@/hooks/useAbsences'
 import { absenceErrorCode, staleAbsence } from '@/services/absences'
 import { errorDetail } from '@/services/api'
+import {
+  Field,
+  FAR_FUTURE_YEARS,
+  KindTabs,
+  inputClass,
+  isFarFuture,
+} from '@/components/scheduleForm'
 import type { Absence, AbsenceCreate, ScheduleKind, TeamMember } from '@/types'
 import { previewOccurrences, weekdayIndex } from '@/utils/absenceGrid'
 import { WEEKDAY_LABELS, WEEKDAYS, type Half } from '@/utils/workingDays'
@@ -39,11 +46,11 @@ interface Props {
   readonly onStale?: (mine: Absence, theirs: Absence) => void
 }
 
-const KINDS: readonly { readonly id: ScheduleKind; readonly label: string; readonly hint: string }[] = [
-  { id: 'range', label: 'Range', hint: 'A block of consecutive days — a holiday, or one public holiday' },
-  { id: 'weekly', label: 'Weekly', hint: 'The same slot every week' },
-  { id: 'interval', label: 'Interval', hint: 'The same slot every N weeks — a 90% contract’s free Friday' },
-]
+const KIND_HINTS: Readonly<Record<ScheduleKind, string>> = {
+  range: 'A block of consecutive days — a holiday, or one public holiday',
+  weekly: 'The same slot every week',
+  interval: 'The same slot every N weeks — a 90% contract’s free Friday',
+}
 
 type HalvesChoice = 'am' | 'pm' | 'both'
 
@@ -297,28 +304,12 @@ export function AbsenceDialog({
                 />
               </div>
 
-              <div>
-                <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">Kind</span>
-                <div role="tablist" aria-label="Absence kind" className="mt-1 flex gap-1 p-1 rounded-lg bg-band shadow-soft-inset">
-                  {KINDS.map((option) => (
-                    <button
-                      key={option.id}
-                      type="button"
-                      role="tab"
-                      aria-selected={kind === option.id}
-                      title={option.hint}
-                      onClick={() => setKind(option.id)}
-                      className={`flex-1 px-3 py-1.5 text-sm rounded-md transition-colors ${
-                        kind === option.id
-                          ? 'bg-canvas shadow-soft-sm text-blue-600 dark:text-blue-400 font-medium'
-                          : 'text-gray-600 dark:text-gray-300 hover:bg-canvas/60'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <KindTabs
+                label="Absence kind"
+                value={kind}
+                onChange={setKind}
+                hints={KIND_HINTS}
+              />
 
               {kind === 'range' ? (
                 <div className="grid grid-cols-2 gap-3">
@@ -446,38 +437,6 @@ export function AbsenceDialog({
         </Dialog.Content>
       </Dialog.Portal>
     </Dialog.Root>
-  )
-}
-
-/** spec/teams.md §9: beyond ten years warns; nothing ever refuses a date. */
-export const FAR_FUTURE_YEARS = 10
-
-function isFarFuture(iso: string): boolean {
-  if (!iso) return false
-  const limit = new Date()
-  limit.setFullYear(limit.getFullYear() + FAR_FUTURE_YEARS)
-  return iso > limit.toISOString().slice(0, 10)
-}
-
-const inputClass =
-  'mt-1 block w-full rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm'
-
-interface FieldProps {
-  readonly label: string
-  readonly htmlFor: string
-  readonly hint?: string
-  readonly children: React.ReactNode
-}
-
-function Field({ label, htmlFor, hint, children }: FieldProps) {
-  return (
-    <div>
-      <label htmlFor={htmlFor} className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-        {label}
-        {hint && <span className="ml-1 text-xs font-normal text-gray-400">{hint}</span>}
-      </label>
-      {children}
-    </div>
   )
 }
 

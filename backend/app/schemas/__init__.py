@@ -29,6 +29,17 @@ from app.schemas.feature import (
     FeatureUpdate,
 )
 from app.schemas.group import GroupCreate, GroupResponse, GroupUpdate, PlaceStoryRequest, PlaceStoryResponse
+from app.schemas.meeting import (
+    MAX_MEETINGS_PER_TEAM,
+    BulkMeetingEntry,
+    BulkMeetingRequest,
+    BulkMeetingResult,
+    MeetingCreate,
+    MeetingFields,
+    MeetingReorder,
+    MeetingResponse,
+    MeetingUpdate,
+)
 from app.schemas.pbi import PBICreate, PBIResponse, PBIUpdate
 from app.schemas.pi import PICreate, PIResponse, PIUpdate
 from app.schemas.pi_event import PIEventCreate, PIEventResponse, PIEventUpdate
@@ -90,4 +101,6 @@ __all__ = [
     "TeamCapacityResponse",
     "ScheduleFields", "AbsenceCreate", "AbsenceUpdate", "AbsenceResponse", "AbsenceOccurrence",
     "BulkAbsenceEntry", "BulkAbsenceRequest", "BulkAbsenceResult", "MAX_ABSENCES_PER_MEMBER",
+    "MeetingFields", "MeetingCreate", "MeetingUpdate", "MeetingResponse", "MeetingReorder",
+    "BulkMeetingEntry", "BulkMeetingRequest", "BulkMeetingResult", "MAX_MEETINGS_PER_TEAM",
 ]

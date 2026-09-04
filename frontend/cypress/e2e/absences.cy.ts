@@ -129,6 +129,26 @@ describe('Absences', () => {
     cy.get('button[aria-label*="Marta Lindqvist, PI 7.1"]').should('contain', '5.0 PD')
   })
 
+  it('keeps paired controls level however their labels wrap', () => {
+    showSeptember()
+    cy.contains('button', /^\+ Add absence$/).click()
+    absenceDialog().contains('button', /^Interval$/).click()
+
+    // "First occurrence · the anchor — it picks the weeks" wraps to two lines
+    // beside a one-line "Until". The two date fields still share a baseline —
+    // an assertion only a real browser can make, since jsdom has no layout.
+    absenceDialog()
+      .find('#absence-anchor')
+      .then(($anchor) => {
+        const top = $anchor[0].getBoundingClientRect().top
+        absenceDialog()
+          .find('#absence-until')
+          .then(($until) => {
+            expect($until[0].getBoundingClientRect().top).to.be.closeTo(top, 1)
+          })
+      })
+  })
+
   it('books a fortnightly Friday and previews which Fridays it means', () => {
     showSeptember()
     cy.contains('button', /^\+ Add absence$/).click()

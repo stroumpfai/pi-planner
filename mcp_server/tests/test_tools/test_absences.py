@@ -130,6 +130,35 @@ async def test_create_absence_resolves_names_to_ids(mock_backend, mock_ctx, patc
     _assert_no_lock_calls(mock_backend)
 
 
+async def test_all_members_enters_a_public_holiday_without_naming_anyone(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    """The §8.2.4 flag: everyone on the team, and it cannot go stale (§3.4)."""
+    _members_mock(mock_backend)
+    mock_backend.post(ABSENCES_URL).mock(return_value=httpx.Response(201, json=[ABSENCE]))
+
+    await create_absence(
+        team_id=TEAM_ID,
+        kind="range",
+        start_date="2026-12-25",
+        label="Christmas",
+        all_members=True,
+        ctx=mock_ctx,
+    )
+    assert _body(mock_backend, "POST")["member_ids"] == [MEMBER_ID]
+
+
+async def test_an_absence_for_nobody_is_refused_before_any_write(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    with pytest.raises(ValueError) as err:
+        await create_absence(
+            team_id=TEAM_ID, kind="range", start_date="2026-12-25", ctx=mock_ctx
+        )
+    assert "all_members" in str(err.value)
+    assert not [c for c in mock_backend.calls if c.request.method == "POST"]
+
+
 async def test_create_absence_rejects_an_unknown_name_and_lists_who_exists(
     mock_backend, mock_ctx, patch_get_http_request
 ):

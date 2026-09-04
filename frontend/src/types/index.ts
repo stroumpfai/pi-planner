@@ -39,6 +39,12 @@ export type AbsenceOccurrence = components['schemas']['AbsenceOccurrence']
 /** The three schedule shapes absences and meetings share (§3.4). */
 export type ScheduleKind = NonNullable<AbsenceCreate['kind']>
 
+/** One meeting: a schedule rule, where it starts, how long it runs, and who is in
+ *  it. A recurring meeting is one row, never one per occurrence (§3.5). */
+export type Meeting = components['schemas']['MeetingResponse']
+export type MeetingCreate = components['schemas']['MeetingCreate']
+export type MeetingUpdate = components['schemas']['MeetingUpdate']
+
 export type PI = components['schemas']['PIResponse'] & { total_effort: number; total_available: number }
 export type PICreate = components['schemas']['PICreate']
 export type PIUpdate = components['schemas']['PIUpdate']

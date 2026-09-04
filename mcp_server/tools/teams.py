@@ -247,6 +247,26 @@ async def _find_member(team_id: str, name: str, as_of: str | None = None) -> dic
     )
 
 
+async def resolve_members(
+    team_id: str, member_names: list[str], all_members: bool
+) -> list[str]:
+    """The ids an absence or a meeting applies to (§8.2.4).
+
+    ``all_members`` is an explicit flag rather than a magic name because "add
+    Christmas for everyone" and "everyone attends the stand-up" are one call each,
+    and because a list the agent assembled from an earlier ``list_members`` goes
+    stale the moment somebody joins. It **wins over** ``member_names``: an agent
+    that says both means everyone, and silently intersecting the two would be a
+    rule nobody could predict.
+
+    Named members are resolved one by one, so an unknown name raises with the list
+    of members who do exist — never created implicitly.
+    """
+    if all_members:
+        return [str(member["system_id"]) for member in await _members_of(team_id)]
+    return [await resolve_member_id(team_id, name) for name in member_names]
+
+
 async def resolve_member_id(team_id: str, name: str) -> str:
     """Map a member's name to their system_id within one team.
 
@@ -726,20 +746,31 @@ async def _absence_with_etag(team_id: str, absence_id: str) -> dict:
 @teams_mcp.tool()
 async def create_absence(
     team_id: Annotated[str, Field(pattern=_UUID_RE, description="Team system_id (UUID) — from list_teams")],
+    kind: Annotated[str, Field(description=_KIND)],
+    start_date: Annotated[str, Field(description=_START_DATE)],
+    ctx: Context,
     member_names: Annotated[
         list[str],
         Field(
             max_length=50,
             description=(
                 "The people this applies to, by name as list_members reports them. "
-                "One record is created per person, each editable afterwards — this is "
-                "how a public holiday is entered: name everyone."
+                "One record is created per person, each editable afterwards. Leave "
+                "empty and set all_members instead for a public holiday."
             ),
         ),
-    ],
-    kind: Annotated[str, Field(description=_KIND)],
-    start_date: Annotated[str, Field(description=_START_DATE)],
-    ctx: Context,
+    ] = [],
+    all_members: Annotated[
+        bool,
+        Field(
+            default=False,
+            description=(
+                "Apply to everyone currently on the team — the public-holiday flow. "
+                "Overrides member_names, and stays right as the team changes, which a "
+                "list copied from list_members does not."
+            ),
+        ),
+    ] = False,
     end_date: Annotated[
         str | None,
         Field(
@@ -789,7 +820,9 @@ async def create_absence(
 
     Naming several members creates **one record each**, independently editable
     afterwards — that is deliberate, so "everyone's Christmas" can be corrected
-    for the one person on call without deleting and recreating the lot.
+    for the one person on call without deleting and recreating the lot. Pass
+    all_members=true for the whole team rather than listing everybody: it is the
+    public-holiday flow, and it cannot go stale when somebody joins.
     Unknown names are rejected with the list of members who do exist; no tool
     creates a person implicitly (use create_member).
 
@@ -802,7 +835,12 @@ async def create_absence(
     Returns every record created, each with a plain-language `summary` of the
     rule. Read that summary: an off-by-one week is invisible in the fields.
     """
-    member_ids = [await resolve_member_id(team_id, name) for name in member_names]
+    member_ids = await resolve_members(team_id, member_names, all_members)
+    if not member_ids:
+        raise ValueError(
+            "An absence belongs to somebody: name them in member_names, or set "
+            "all_members=true for a team-wide entry."
+        )
     body = _schedule(
         kind, start_date, end_date, start_half, end_half, weekday, halves, interval_weeks, label
     )
@@ -1002,4 +1040,324 @@ async def preview_bulk_absences(
         "POST",
         f"/api/v1/teams/{team_id}/absences/bulk",
         json=_bulk_body(window_from, window_to, entries, dry_run=True),
+    )
+
+
+# ── Meetings ──────────────────────────────────────────────────────────────────
+#
+# A meeting carries the **same schedule rule as an absence** (§3.5) — one shape,
+# one generator, one set of validation — plus the three things an absence has no
+# use for: the half-day an occurrence starts in, how long it runs, and who
+# attends.
+#
+# Two differences to hold on to when reading these tools beside the absence ones:
+#
+# 1. **One row, many attendees.** `create_absence` fans a rule out into one record
+#    per person; `create_meeting` writes a single row with an attendee set, because
+#    a meeting is a shared event and what changes week to week is who is in it.
+#    `update_meeting` therefore edits attendance too.
+# 2. **A recurring meeting is one row, not one per occurrence.** A daily stand-up
+#    over a year is five weekly rules, which is why §9 caps meeting *definitions*
+#    at 100 against 2000 absences.
+#
+# `delete_meeting` joins `delete_absence` as the only destructive team tools: a
+# meeting is a leaf record, recreated in one call if removed by mistake (§8.2.6).
+
+
+_MEETING_KIND = (
+    "'range' (a block of consecutive days — a one-off is a one-day range, and each "
+    "day of a longer block costs the full duration), 'weekly' (the same slot every "
+    "week — a stand-up) or 'interval' (every N weeks — a fortnightly retro)"
+)
+_HALF = (
+    "The half-day an occurrence STARTS in: 'am' or 'pm'. A meeting is not confined "
+    "there — anything longer spills into the rest of the same day — but placement is "
+    "what lets it be cancelled against an absence: a meeting starting on a morning "
+    "the member is away costs nothing."
+)
+_DURATION = (
+    "How long one occurrence runs, in minutes: 5–480, in steps of 5. Independent of "
+    "the attendee's contracted day — an 8 h workshop is fine for a 6 h/day member and "
+    "costs their whole day, never more."
+)
+_ATTENDEES = (
+    "Who attends, by name as list_members reports them. May be empty — a meeting "
+    "nobody attends is allowed and costs nothing, so the schedule can be entered "
+    "first and attendance ticked afterwards."
+)
+_ALL_MEMBERS = (
+    "Everyone currently on the team attends — 'the whole team is in the stand-up' "
+    "without listing them. Overrides member_names."
+)
+
+
+def _meeting_body(
+    title: str | None,
+    kind: str | None,
+    start_date: str | None,
+    end_date: str | None,
+    weekday: int | None,
+    interval_weeks: int | None,
+    half: str | None,
+    duration_minutes: int | None,
+) -> dict:
+    """The meeting fields as the API takes them, with nothing invented."""
+    body: dict = {}
+    for name, value in (
+        ("title", title),
+        ("kind", kind),
+        ("start_date", start_date),
+        ("end_date", end_date),
+        ("weekday", weekday),
+        ("interval_weeks", interval_weeks),
+        ("half", half),
+        ("duration_minutes", duration_minutes),
+    ):
+        if value is not None:
+            body[name] = value
+    return body
+
+
+async def _meeting_with_etag(team_id: str, meeting_id: str) -> dict:
+    meetings: list[dict] = (
+        await call_backend("GET", f"/api/v1/teams/{team_id}/meetings")
+    ).get("items", [])
+    for row in meetings:
+        if row["system_id"] == meeting_id:
+            return row
+    raise ValueError(
+        f"No meeting {meeting_id} on this team. Call list_meetings to see what exists."
+    )
+
+
+@teams_mcp.tool()
+async def create_meeting(
+    team_id: Annotated[str, Field(pattern=_UUID_RE, description="Team system_id (UUID) — from list_teams")],
+    title: Annotated[str, Field(max_length=100, description="What the meeting is called")],
+    kind: Annotated[str, Field(description=_MEETING_KIND)],
+    start_date: Annotated[str, Field(description=_START_DATE)],
+    duration_minutes: Annotated[int, Field(ge=5, le=480, description=_DURATION)],
+    ctx: Context,
+    end_date: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description=(
+                "For 'range', the last day, inclusive — omit for a one-off. For a "
+                "recurring rule, when it stops; omit for open-ended."
+            ),
+        ),
+    ] = None,
+    weekday: Annotated[
+        int | None,
+        Field(default=None, ge=0, le=6, description="Recurring only: 0 = Monday … 6 = Sunday"),
+    ] = None,
+    interval_weeks: Annotated[
+        int | None,
+        Field(
+            default=None,
+            ge=2,
+            le=52,
+            description="'interval' only: weeks between occurrences. Starts at 2 — every week is kind='weekly'.",
+        ),
+    ] = None,
+    half: Annotated[str, Field(default="am", description=_HALF)] = "am",
+    member_names: Annotated[list[str], Field(max_length=50, description=_ATTENDEES)] = [],
+    all_members: Annotated[bool, Field(default=False, description=_ALL_MEMBERS)] = False,
+) -> dict:
+    """
+    Add a meeting: booked time that comes off capacity before focus is applied.
+
+    A meeting is **one row with an attendee set**, not one row per person and not
+    one row per occurrence — a daily stand-up over a year is one weekly rule per
+    weekday. That is why a team holds at most 100 meetings and why the recurrence
+    shape matters: use 'weekly' or 'interval' rather than creating occurrences.
+
+    What an occurrence costs is not simply its length. It consumes hours from the
+    half-day it starts in, spills into the other half of the same day, and stops
+    at the hours that survived absences: an 8 h workshop for a 6 h/day member
+    costs their whole day and no more, and a meeting starting on a half the member
+    is absent costs nothing at all. Do not also raise focus to account for
+    meetings, or the time is paid for twice.
+
+    Unknown attendee names are rejected with the list of members who exist; no
+    tool creates a person implicitly (use create_member).
+    Takes no edit lock and writes no sprint — capacity reaches a project only
+    through a push.
+    Returns the meeting with a plain-language `summary` of its schedule. Read it:
+    an off-by-one week is invisible in the fields and obvious in the sentence.
+    """
+    body = _meeting_body(
+        title, kind, start_date, end_date, weekday, interval_weeks, half, duration_minutes
+    )
+    body["member_ids"] = await resolve_members(team_id, member_names, all_members)
+    return await call_backend("POST", f"/api/v1/teams/{team_id}/meetings", json=body)
+
+
+@teams_mcp.tool()
+async def update_meeting(
+    team_id: Annotated[str, Field(pattern=_UUID_RE, description="Team system_id (UUID) — from list_teams")],
+    meeting_id: Annotated[str, Field(pattern=_UUID_RE, description="Meeting system_id (UUID) — from list_meetings")],
+    ctx: Context,
+    title: Annotated[str | None, Field(default=None, max_length=100, description="New title")] = None,
+    kind: Annotated[str | None, Field(default=None, description=_MEETING_KIND)] = None,
+    start_date: Annotated[str | None, Field(default=None, description=_START_DATE)] = None,
+    end_date: Annotated[
+        str | None, Field(default=None, description="New end date, or when a recurrence stops")
+    ] = None,
+    weekday: Annotated[
+        int | None, Field(default=None, ge=0, le=6, description="Recurring only: 0 = Monday … 6 = Sunday")
+    ] = None,
+    interval_weeks: Annotated[
+        int | None, Field(default=None, ge=2, le=52, description="'interval' only: weeks between occurrences")
+    ] = None,
+    half: Annotated[str | None, Field(default=None, description=_HALF)] = None,
+    duration_minutes: Annotated[int | None, Field(default=None, ge=5, le=480, description=_DURATION)] = None,
+    member_names: Annotated[
+        list[str] | None,
+        Field(
+            default=None,
+            max_length=50,
+            description=(
+                "Replaces the attendee list when given; omit to leave attendance "
+                "untouched. Send the whole set, not a difference."
+            ),
+        ),
+    ] = None,
+    all_members: Annotated[bool, Field(default=False, description=_ALL_MEMBERS)] = False,
+) -> dict:
+    """
+    Change a meeting — **the whole series**, always — and optionally who attends.
+
+    There is no "just this occurrence": recurring entries have no exception list,
+    by design. To end a recurrence early, set end_date; to move it, change the
+    rule and accept that every occurrence moves.
+
+    Attendance is edited here rather than through a tool of its own, because it
+    belongs to the meeting and shares its concurrency token. Omit both
+    member_names and all_members to leave the attendee set alone; sending
+    member_names **replaces** it, so include everyone who should still be in.
+
+    Only supply what you want to change; the patch is merged onto the stored rule
+    and the *result* must be coherent, so switching kind to 'weekly' without a
+    weekday is refused with INVALID_SCHEDULE.
+    Concurrency works as in update_team — read, write quoting the ETag, one retry
+    on STALE.
+    Returns the updated meeting with its new summary.
+    """
+    body = _meeting_body(
+        title, kind, start_date, end_date, weekday, interval_weeks, half, duration_minutes
+    )
+    if all_members or member_names is not None:
+        body["member_ids"] = await resolve_members(team_id, member_names or [], all_members)
+
+    async def attempt() -> dict:
+        meeting = await _meeting_with_etag(team_id, meeting_id)
+        return await call_backend(
+            "PATCH",
+            f"/api/v1/teams/{team_id}/meetings/{meeting_id}",
+            json=body,
+            headers={"If-Match": meeting["etag"]},
+        )
+
+    try:
+        return await attempt()
+    except MCPBackendError as exc:
+        if exc.code != "STALE":
+            raise
+        return await attempt()
+
+
+@teams_mcp.tool()
+async def delete_meeting(
+    team_id: Annotated[str, Field(pattern=_UUID_RE, description="Team system_id (UUID) — from list_teams")],
+    meeting_id: Annotated[str, Field(pattern=_UUID_RE, description="Meeting system_id (UUID) — from list_meetings")],
+    ctx: Context,
+) -> dict:
+    """
+    Delete a meeting, its attendance, and every occurrence of a recurring one.
+
+    Permanent — this app has no trash. A recurring meeting goes as a whole; there
+    is no way to remove a single occurrence, because there are no per-occurrence
+    exceptions in the model.
+
+    This and delete_absence are the only destructive team tools: teams, members,
+    pattern versions and project assignments are removed by a human in the web UI.
+    Capacity for the affected days goes back up immediately, but no sprint changes
+    until someone pushes.
+    Returns {"deleted": meeting_id}.
+    """
+
+    async def attempt() -> None:
+        meeting = await _meeting_with_etag(team_id, meeting_id)
+        await call_backend(
+            "DELETE",
+            f"/api/v1/teams/{team_id}/meetings/{meeting_id}",
+            headers={"If-Match": meeting["etag"]},
+        )
+
+    try:
+        await attempt()
+    except MCPBackendError as exc:
+        if exc.code != "STALE":
+            raise
+        await attempt()
+    return {"deleted": meeting_id}
+
+
+_MEETING_ENTRIES = (
+    "One object per meeting definition. Each takes title, kind, start_date, "
+    "duration_minutes and half, plus whatever that kind needs: end_date for a "
+    "'range'; weekday for 'weekly'; weekday and interval_weeks for 'interval'. "
+    "Attendance is member_names (a list of names as list_members reports them) or "
+    "all_members: true."
+)
+
+
+@teams_mcp.tool()
+async def bulk_create_meetings(
+    team_id: Annotated[str, Field(pattern=_UUID_RE, description="Team system_id (UUID) — from list_teams")],
+    window_from: Annotated[str, Field(description="First day of the window being replaced (YYYY-MM-DD)")],
+    window_to: Annotated[str, Field(description="Last day of the window being replaced (YYYY-MM-DD)")],
+    entries: Annotated[list[dict], Field(max_length=100, description=_MEETING_ENTRIES)],
+    ctx: Context,
+    dry_run: Annotated[
+        bool,
+        Field(
+            default=False,
+            description=(
+                "Report what would be created and replaced without writing anything. "
+                "Worth a call first: the input is free text a model interpreted."
+            ),
+        ),
+    ] = False,
+) -> dict:
+    """
+    Replace a team's meetings anchored inside a date window, in one transaction.
+
+    The import path for the meeting calendar, which lives on the same wiki page
+    the absences do — there is no CSV import for teams.
+
+    **Replace, not append**: every meeting the team has anchored inside
+    [window_from, window_to] is replaced by `entries`, so re-running an unchanged
+    import writes the same rows and a meeting deleted from the source disappears
+    here too. Membership is decided by a meeting's start_date, so a stand-up
+    anchored last year survives a window covering next month even though it occurs
+    inside it — pick a window matching the section you read.
+
+    Remember that recurrence collapses occurrences: a daily stand-up is five
+    weekly entries, not one per day, and a team holds at most 100 definitions.
+    Every unresolved attendee name is reported **at once**, and nothing is written
+    when there are any. Members are never created implicitly.
+    Returns created/deleted counts and every meeting written.
+    """
+    return await call_backend(
+        "POST",
+        f"/api/v1/teams/{team_id}/meetings/bulk",
+        json={
+            "window_from": window_from,
+            "window_to": window_to,
+            "dry_run": dry_run,
+            "entries": entries,
+        },
     )

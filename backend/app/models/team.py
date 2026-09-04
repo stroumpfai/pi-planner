@@ -77,7 +77,8 @@ class Team(Base):
         "Absence", back_populates="team", cascade=_CASCADE
     )
     meetings: Mapped[list[Meeting]] = relationship(
-        "Meeting", back_populates="team", cascade=_CASCADE
+        "Meeting", back_populates="team", cascade=_CASCADE,
+        order_by="Meeting.order_index",
     )
     projects: Mapped[list[TeamProject]] = relationship(
         "TeamProject", back_populates="team", cascade=_CASCADE,
@@ -268,6 +269,10 @@ class Meeting(Base):
     # Minutes, not hours: a five-minute stand-up is 5, and no float count of hours
     # reads well at 0.0833 (teams.md §3.5). 5–480, in steps of 5.
     duration_minutes: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Column order in the attendance matrix, set by the team. Not chronological:
+    # a matrix has no time axis, and the order people want is the one they read
+    # their week in — stand-up first, the quarterly workshop last (§7.5).
+    order_index: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"), default=0)
 
     created_at: Mapped[datetime] = mapped_column(default=_utcnow)
     modified_at: Mapped[datetime] = mapped_column(default=_utcnow, onupdate=_utcnow)

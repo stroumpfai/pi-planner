@@ -30,12 +30,16 @@ from app.schemas.team_capacity import (
     TeamCapacityResponse,
 )
 from app.services.absences import build_lookup, load_absences
+from app.services.meetings import build_lookup as build_meeting_lookup
+from app.services.meetings import load_meetings
 from app.services.team_capacity import (
     AbsenceLookup,
+    MeetingLookup,
     Member,
     MemberCapacity,
     compute_member_capacity,
     no_absences,
+    no_meetings,
     pattern_version_from_row,
     round_half_up,
 )
@@ -201,11 +205,19 @@ async def build_report(
     # overlapping entries union rather than sum: two absences on the same
     # afternoon cost one half-day, never two (§3.4).
     absent: AbsenceLookup = no_absences
+    # Meetings are expanded over the same span and for the same reason, but they
+    # **sum** where absences union: two meetings booked at once cost two meetings,
+    # and it is the engine's per-day clamp — not this lookup — that stops the total
+    # exceeding the hours a member actually has (§5.4 step 4).
+    booked: MeetingLookup = no_meetings
     dated = [c for c in columns if c.start_date is not None and c.end_date is not None]
     if dated:
         span_start = min(c.start_date for c in dated if c.start_date is not None)
         span_end = max(c.end_date for c in dated if c.end_date is not None)
         absent = build_lookup(await load_absences(db, team.system_id), span_start, span_end)
+        booked = build_meeting_lookup(
+            await load_meetings(db, team.system_id), span_start, span_end
+        )
 
     rows: list[MemberCapacityRow] = []
     per_sprint: list[list[CapacityBreakdown]] = [[] for _ in columns]
@@ -218,14 +230,13 @@ async def build_report(
                 cells.append(None)
                 continue
             assert column.start_date is not None and column.end_date is not None
-            # Meetings are step 6's seam; until then the engine's no-op lookup
-            # applies and the chain is contracted → absences → focus.
             capacity = compute_member_capacity(
                 member,
                 team.normal_day_hours,
                 column.start_date,
                 column.end_date,
                 absent=absent,
+                meetings=booked,
             )
             breakdown = _breakdown(capacity)
             per_sprint[index].append(breakdown)

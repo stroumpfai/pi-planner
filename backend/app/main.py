@@ -31,6 +31,7 @@ from app.routes import (
     events,
     features,
     groups,
+    meetings,
     pbis,
     pi_events,
     pis,
@@ -102,6 +103,7 @@ for _router in [
     teams.router,
     team_members.router,
     absences.router,
+    meetings.router,
     team_projects.router,
 ]:
     app.include_router(_router)

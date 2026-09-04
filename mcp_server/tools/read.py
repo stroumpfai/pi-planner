@@ -400,6 +400,54 @@ async def list_absences(
 
 
 @read_mcp.tool()
+async def list_meetings(
+    team_id: Annotated[str, Field(description="Team system_id (UUID) — from list_teams")],
+    ctx: Context,
+    date_from: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description=(
+                "Expand occurrences from this date (YYYY-MM-DD). Defaults to the start "
+                "of the current month."
+            ),
+        ),
+    ] = None,
+    date_to: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description="Expand occurrences up to this date (YYYY-MM-DD). Defaults to a year out.",
+        ),
+    ] = None,
+) -> dict:
+    """
+    List a team's meetings, with who attends and the days each one falls on.
+
+    A meeting is **one row with an attendee set**, and a recurring one is one row
+    rather than one per occurrence — a daily stand-up is one weekly rule per
+    weekday. Every rule the team holds is returned; only the **occurrences** are
+    windowed, so a meeting outside the window still appears with an empty
+    `occurrences` list.
+
+    Each meeting carries its schedule rule (kind, dates, weekday, interval_weeks),
+    a plain-language `summary`, the `half` an occurrence starts in,
+    `duration_minutes`, `member_ids` for the attendees, `order_index` (the team's
+    own column order in the Meetings view), and the `etag` a write must quote.
+
+    What a meeting costs is not simply its length: it consumes from the half it
+    starts in, spills into the rest of that day, and stops at the hours that
+    survived absences. Meetings are subtracted **before** focus.
+    """
+    params = {}
+    if date_from:
+        params["from"] = date_from
+    if date_to:
+        params["to"] = date_to
+    return await call_backend("GET", f"/api/v1/teams/{team_id}/meetings", params=params or None)
+
+
+@read_mcp.tool()
 async def get_team_capacity(
     team_id: Annotated[str, Field(description="Team system_id (UUID) — from list_teams")],
     ctx: Context,
