@@ -196,3 +196,125 @@ describe('TeamCapacityView', () => {
     expect(screen.queryByText('Q2-2026.1')).not.toBeInTheDocument()
   })
 })
+
+/**
+ * Eight fortnightly sprints from 6 April 2026 — a calendar with more than one
+ * page in it, and one that crosses three month ends.
+ */
+const calendar = () => {
+  const sprints = Array.from({ length: 8 }, (_, index) => {
+    const start = new Date(Date.UTC(2026, 3, 6) + index * 14 * 86_400_000)
+    const end = new Date(start.getTime() + 11 * 86_400_000)
+    return sprint({
+      sprint_id: `s-${index + 1}`,
+      sprint_number: index + 1,
+      label: `Q2-2026.${index + 1}`,
+      start_date: start.toISOString().slice(0, 10),
+      end_date: end.toISOString().slice(0, 10),
+    })
+  })
+  return report({
+    sprints,
+    members: [{ member_id: 'm-1', name: 'Marta Lindqvist', cells: sprints.map(() => alice) }],
+    team: sprints.map(() => alice),
+    projects: [],
+  })
+}
+
+describe('TeamCapacityView minimap', () => {
+  const onOpenProjects = vi.fn()
+
+  beforeEach(() => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    // The strip opens on today and re-anchors onto the sprints; pinning the
+    // clock is what makes "which twelve months" an assertion rather than a bet.
+    vi.setSystemTime(new Date('2026-04-01T09:00:00Z'))
+    vi.clearAllMocks()
+    mockApi.get.mockResolvedValue({ data: calendar(), headers: {} })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  const draw = () =>
+    render(<TeamCapacityView teamId="t-1" onOpenProjects={onOpenProjects} />, { wrapper: wrapper() })
+
+  it('draws a year of bars, each one saying what its month lost', async () => {
+    draw()
+    await screen.findByText('Marta Lindqvist')
+
+    expect(screen.getAllByRole('button', { name: /^Show \w+ \d{4}/ })).toHaveLength(12)
+    // Alice loses 11 h a sprint to absences and meetings — 1.375 PD at an 8 h
+    // day. April holds one whole sprint and eleven twelfths of the next, so its
+    // bar is 2.6 PD: a sprint straddling a month end is split, not charged whole
+    // to the month it starts in.
+    expect(screen.getByRole('button', { name: 'Show Apr 2026 — 2.6 person-days lost' })).toBeInTheDocument()
+    // Past the end of the calendar nothing is lost, rather than nothing known.
+    expect(screen.getByRole('button', { name: 'Show Sep 2026 — nothing lost' })).toBeInTheDocument()
+  })
+
+  it('frames the months the visible sprints start in', async () => {
+    draw()
+    await screen.findByText('Marta Lindqvist')
+
+    expect(screen.getByRole('button', { name: /Showing Apr 2026 to Sep 2026/ })).toBeInTheDocument()
+  })
+
+  it('moves the table to the sprint a clicked month names', async () => {
+    const user = userEvent.setup()
+    draw()
+    await screen.findByText('Marta Lindqvist')
+
+    // July holds sprint 7 (29 Jun – 10 Jul). Six columns from there would run
+    // off the end, so the window backs up to the last full page — which is what
+    // puts sprint 7 on screen rather than a page of blanks after it.
+    await user.click(screen.getByRole('button', { name: /^Show Jul 2026/ }))
+
+    await waitFor(() => expect(screen.getByText('Q2-2026.7')).toBeInTheDocument())
+    expect(screen.queryByText('Q2-2026.1')).not.toBeInTheDocument()
+    // The frame answers with the month clicked, not with the month sprint 7
+    // happens to start in: 29 June to 10 July is the sprint July asks for, and
+    // a frame over June would read as the click having missed by one.
+    expect(screen.getByRole('button', { name: /Showing Jul 2026 to Dec 2026/ })).toBeInTheDocument()
+  })
+
+  it('lands on the nearest sprint for a month the calendar does not reach', async () => {
+    const user = userEvent.setup()
+    draw()
+    await screen.findByText('Marta Lindqvist')
+
+    // Nothing runs in 2027. The edge of the data is the honest answer, and the
+    // frame follows the table there rather than hovering over empty months.
+    await user.click(screen.getByRole('button', { name: /^Show Feb 2027/ }))
+
+    await waitFor(() => expect(screen.getByText('Q2-2026.8')).toBeInTheDocument())
+    // Nothing on screen reaches 2027, so the frame stays on the table rather
+    // than hovering over the empty months that were asked for.
+    expect(screen.getByRole('button', { name: /Showing May 2026 to Oct 2026/ })).toBeInTheDocument()
+  })
+
+  it('jumps to a month too far away to drag to', async () => {
+    const user = userEvent.setup()
+    draw()
+    await screen.findByText('Marta Lindqvist')
+
+    await user.selectOptions(screen.getByLabelText('Jump to month'), '2026-07')
+
+    await waitFor(() => expect(screen.getByText('Q2-2026.7')).toBeInTheDocument())
+  })
+
+  it('keeps the frame on the window the arrows moved', async () => {
+    const user = userEvent.setup()
+    draw()
+    await screen.findByText('Marta Lindqvist')
+
+    await user.click(screen.getByRole('button', { name: 'Later sprints' }))
+
+    // Sprints 3–8 start in May: the frame is derived from the table, never
+    // stored beside it, so paging moves it without a second code path.
+    await waitFor(() =>
+      expect(screen.getByRole('button', { name: /Showing May 2026 to Oct 2026/ })).toBeInTheDocument(),
+    )
+  })
+})

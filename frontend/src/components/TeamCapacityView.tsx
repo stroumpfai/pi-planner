@@ -1,8 +1,27 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CapacityCell } from '@/components/CapacityCell'
+import { TimelineMinimap } from '@/components/TimelineMinimap'
 import { useTeamCapacity } from '@/hooks/useTeamProjects'
 import type { ProjectCapacityRow } from '@/types'
+import {
+  bestSprintIndex,
+  frameMonthFor,
+  monthlyLostCapacity,
+  sprintOffsetFor,
+  windowHoldsMonth,
+} from '@/utils/capacityMinimap'
+import { COMPACT_SELECT } from '@/utils/compactSelect'
 import { fmt1, sprintDateRange, sprintLabel } from '@/utils/sprintLabels'
+import {
+  DEFAULT_STRIP_MONTHS,
+  addMonths,
+  monthLabel,
+  monthOf,
+  monthsFrom,
+  stripStartFor,
+  type YearMonth,
+} from '@/utils/timelineMonths'
+import { todayIso } from '@/utils/workingDays'
 
 interface Props {
   readonly teamId: string
@@ -12,6 +31,20 @@ interface Props {
 
 /** Six columns at a time — enough for a PI and a bit, and still readable (§7.6). */
 const COLUMNS = 6
+
+/**
+ * The months the minimap's frame covers.
+ *
+ * Six, to say roughly what six sprint columns are worth, and **fixed** rather
+ * than measured off the sprints inside the window: a frame that breathed as the
+ * reader paged — narrow over a dense PI, wide over a sparse one — would move
+ * for two reasons at once, and the one it is there to show is the position.
+ */
+const FRAME_MONTHS = 6
+
+/** How far the jump reaches either side of today, as in the absences view (§7.4). */
+const JUMP_BACK_MONTHS = 12
+const JUMP_MONTHS = 36
 
 /**
  * Capacity per member, per sprint (teams.md §7.6).
@@ -27,6 +60,72 @@ export function TeamCapacityView({ teamId, onOpenProjects }: Props) {
   const { data, isLoading } = useTeamCapacity(teamId)
   const [offset, setOffset] = useState(0)
   const [expanded, setExpanded] = useState<string | null>(null)
+
+  // The strip opens on today and slides to the sprints once they arrive — see
+  // the re-anchoring effect below. Guessing the calendar's own first month here
+  // is not possible: the report has not been read yet.
+  const [minimapStart, setMinimapStart] = useState<YearMonth>(() => monthOf(todayIso()))
+  const [stripMonths, setStripMonths] = useState(DEFAULT_STRIP_MONTHS)
+
+  /**
+   * The month the reader named, while the table still reaches it.
+   *
+   * The frame has to answer a click with the month that was clicked. Deriving
+   * it from the window instead puts it a month out whenever the best matching
+   * sprint starts in the month before — 29 June to 10 July is the sprint July
+   * asks for, and anchoring on its start date would answer a click on July with
+   * a frame over June. `null` is "nobody named one": the arrows moved the table
+   * and the frame follows it.
+   */
+  const [named, setNamed] = useState<YearMonth | null>(null)
+
+  const sprints = useMemo(() => data?.sprints ?? [], [data])
+  const months = useMemo(() => monthsFrom(minimapStart, stripMonths), [minimapStart, stripMonths])
+
+  // The bars: person-days absences and meetings took out of each month (§7.6).
+  const density = useMemo(
+    () => monthlyLostCapacity(sprints, data?.team ?? [], data?.normal_day_hours ?? 0, months),
+    [sprints, data, months],
+  )
+
+  /** Where the frame sits: the month named, or the one the window starts in. */
+  const frameStart = useMemo(() => {
+    const windowed = sprints.slice(offset, offset + COLUMNS)
+    if (named && windowHoldsMonth(windowed, named)) return named
+    return frameMonthFor(sprints, offset, monthOf(todayIso()))
+  }, [sprints, offset, named])
+
+  /**
+   * Move the table to the sprint a month names.
+   *
+   * Every way of moving the viewport — a bar, the frame, the jump — arrives
+   * here, so all three land on the same sprint for the same month. The strip
+   * then follows the *sprint*, not the click: asking for a month in the gap
+   * between two PIs and being shown the nearest sprint is the honest answer,
+   * and leaving the frame hovering over the empty months instead would claim
+   * the table is somewhere it is not.
+   */
+  const showMonth = useCallback(
+    (target: YearMonth) => {
+      const index = bestSprintIndex(sprints, target)
+      if (index < 0) return
+      const next = sprintOffsetFor(index, sprints.length, COLUMNS)
+      setOffset(next)
+      setNamed(target)
+      const anchor = windowHoldsMonth(sprints.slice(next, next + COLUMNS), target)
+        ? target
+        : frameMonthFor(sprints, next, target)
+      setMinimapStart((current) => stripStartFor(current, anchor, stripMonths, FRAME_MONTHS))
+    },
+    [sprints, stripMonths],
+  )
+
+  // The arrows and a resized strip move the frame too, and either can leave it
+  // outside the months on screen. Re-anchor on where the table already is
+  // rather than moving the reader.
+  useEffect(() => {
+    setMinimapStart((current) => stripStartFor(current, frameStart, stripMonths, FRAME_MONTHS))
+  }, [frameStart, stripMonths])
 
   if (isLoading) {
     return <p className="p-6 text-sm text-gray-400 dark:text-gray-500">Computing capacity…</p>
@@ -62,7 +161,10 @@ export function TeamCapacityView({ teamId, onOpenProjects }: Props) {
       <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => setOffset(Math.max(0, offset - COLUMNS))}
+          onClick={() => {
+            setNamed(null)
+            setOffset(Math.max(0, offset - COLUMNS))
+          }}
           disabled={atStart}
           aria-label="Earlier sprints"
           className="px-3 py-1 text-sm rounded-lg bg-canvas shadow-soft-sm text-gray-600 dark:text-gray-300 disabled:opacity-30 hover:shadow-soft-hover"
@@ -71,7 +173,10 @@ export function TeamCapacityView({ teamId, onOpenProjects }: Props) {
         </button>
         <button
           type="button"
-          onClick={() => setOffset(Math.min(Math.max(0, data.sprints.length - COLUMNS), offset + COLUMNS))}
+          onClick={() => {
+            setNamed(null)
+            setOffset(Math.min(Math.max(0, data.sprints.length - COLUMNS), offset + COLUMNS))
+          }}
           disabled={atEnd}
           aria-label="Later sprints"
           className="px-3 py-1 text-sm rounded-lg bg-canvas shadow-soft-sm text-gray-600 dark:text-gray-300 disabled:opacity-30 hover:shadow-soft-hover"
@@ -81,6 +186,60 @@ export function TeamCapacityView({ teamId, onOpenProjects }: Props) {
         <p className="text-xs text-gray-400 dark:text-gray-500">
           A person-day is {fmt1(data.normal_day_hours)} h of work for everyone — not anyone&rsquo;s own
           day. Click a figure to see how it was reached.
+        </p>
+      </div>
+
+      {/* The same strip the absences view carries, over the same months and with
+          the same three ways to move — what differs is what a bar counts and
+          what a month resolves to (§7.4, §7.6). */}
+      <div className="bg-canvas shadow-soft rounded-xl p-4">
+        <TimelineMinimap
+          windowStart={minimapStart}
+          frameStart={frameStart}
+          frameMonths={FRAME_MONTHS}
+          density={density}
+          describeDensity={(value) =>
+            value > 0 ? `${fmt1(value)} person-days lost` : 'nothing lost'
+          }
+          onFrameStart={showMonth}
+          stripMonths={stripMonths}
+          onStripMonths={setStripMonths}
+          hint={
+            <>
+              <p>Lost to absences</p>
+              <p className="text-gray-500 dark:text-gray-400">and meetings</p>
+            </>
+          }
+        >
+          {/* The fallback for a sprint too far to drag to — quiet on purpose,
+              since the frame and the bars are the primary controls (§7.4). */}
+          <label className="flex items-baseline gap-1 text-[11px] text-gray-400 dark:text-gray-500">
+            Jump to
+            <select
+              aria-label="Jump to month"
+              value={`${frameStart.year}-${String(frameStart.month).padStart(2, '0')}`}
+              onChange={(event) => showMonth(monthOf(`${event.target.value}-01`))}
+              className="min-w-0 flex-1 rounded border-0 bg-transparent py-0.5 pl-1 text-[11px] text-gray-600 dark:text-gray-300 hover:bg-band/60 focus:ring-1 focus:ring-blue-500"
+              style={COMPACT_SELECT}
+            >
+              {monthsFrom(addMonths(monthOf(todayIso()), -JUMP_BACK_MONTHS), JUMP_MONTHS).map(
+                (month) => (
+                  <option
+                    key={`${month.year}-${month.month}`}
+                    value={`${month.year}-${String(month.month).padStart(2, '0')}`}
+                  >
+                    {monthLabel(month)}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+        </TimelineMinimap>
+
+        <p className="sr-only" aria-live="polite">
+          {window.length > 0
+            ? `Showing ${window[0].label} to ${window[window.length - 1].label}`
+            : 'No sprints to show'}
         </p>
       </div>
 

@@ -1,13 +1,40 @@
 import type { Absence, TeamMember } from '@/types'
+import { daysBetween, pad, shiftDays, type YearMonth } from '@/utils/timelineMonths'
 import { HALVES, WEEKDAYS, type Half, type HalfDayKey, type Weekday } from '@/utils/workingDays'
 
 /**
- * The half-day grid's arithmetic (teams.md §7.4).
- *
- * Dates here are ISO strings throughout, never `Date` objects. A `Date` carries
- * a time and a timezone, and both are wrong for this view: 25 December is the
- * same cell for everyone looking at it, and a UTC round-trip an hour either side
- * of midnight would slide the whole grid by a day.
+ * The month arithmetic this grid is built on lives in `timelineMonths`, shared
+ * with the capacity view's strip. Re-exported here because it is part of what
+ * "the absence grid's arithmetic" means to a reader of this module, and because
+ * splitting a caller's imports across two files to reach one calendar would be
+ * a worse seam than the one duplication it saves.
+ */
+export {
+  DEFAULT_FRAME_MONTHS,
+  DEFAULT_STRIP_MONTHS,
+  MAX_STRIP_YEARS,
+  MIN_MONTH_COLUMN,
+  MIN_STRIP_YEARS,
+  addMonths,
+  daysApart,
+  daysBetween,
+  firstDay,
+  lastDay,
+  monthLabel,
+  monthOf,
+  monthsBetween,
+  monthsFrom,
+  shiftDays,
+  stripMonthsFor,
+  stripStartFor,
+  windowOf,
+} from '@/utils/timelineMonths'
+export type { YearMonth } from '@/utils/timelineMonths'
+
+/**
+ * The half-day grid's arithmetic (teams.md §7.4) — what one cell is, which
+ * absence covers it, and what a drag across it means. The calendar underneath
+ * it all is `timelineMonths`, re-exported above.
  */
 
 /**
@@ -32,84 +59,6 @@ export const GRID_MONTHS = 6
  */
 export const MIN_DAY_WIDTH = 6
 
-/**
- * The strip spans whole years — one, two or three (§7.4).
- *
- * Whole years because the year markers have to mean something: a strip of
- * twenty-nine months ends in a marker spanning five, which reads as a rendering
- * accident rather than as a year. Snapping down is also the conservative
- * direction — a column never falls below what a month abbreviation needs.
- */
-export const MIN_MONTH_COLUMN = 64
-export const MIN_STRIP_YEARS = 1
-export const MAX_STRIP_YEARS = 3
-
-/** What the strip spans before anything has been measured, and on a narrow screen. */
-export const DEFAULT_STRIP_MONTHS = MIN_STRIP_YEARS * 12
-
-/**
- * How many months of density a track that wide can carry.
- *
- * Zero and NaN both mean "not measured yet" — the first render, and every render
- * in a test environment with no layout — and both answer with the default rather
- * than with nothing, so the strip is never momentarily empty.
- *
- * Below `12 × MIN_MONTH_COLUMN` the two rules collide and **the year wins**: the
- * strip is the navigation control and the window absences are fetched over, so
- * it spans a year even when that squeezes the columns under their floor.
- */
-export function stripMonthsFor(trackWidth: number): number {
-  if (!Number.isFinite(trackWidth) || trackWidth <= 0) return DEFAULT_STRIP_MONTHS
-  const columns = Math.floor(trackWidth / MIN_MONTH_COLUMN)
-  const years = Math.max(MIN_STRIP_YEARS, Math.min(MAX_STRIP_YEARS, Math.floor(columns / 12)))
-  return years * 12
-}
-
-const MONTH_NAMES = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-] as const
-
-/** A month, identified the way the pickers and the URL-free state hold it. */
-export interface YearMonth {
-  readonly year: number
-  /** 1-based, as it reads: January is 1. */
-  readonly month: number
-}
-
-export const monthOf = (iso: string): YearMonth => ({
-  year: Number(iso.slice(0, 4)),
-  month: Number(iso.slice(5, 7)),
-})
-
-export function addMonths({ year, month }: YearMonth, count: number): YearMonth {
-  const zeroBased = year * 12 + (month - 1) + count
-  return { year: Math.floor(zeroBased / 12), month: (zeroBased % 12) + 1 }
-}
-
-const pad = (value: number) => String(value).padStart(2, '0')
-
-export const firstDay = ({ year, month }: YearMonth): string => `${year}-${pad(month)}-01`
-
-export function lastDay(ym: YearMonth): string {
-  const next = addMonths(ym, 1)
-  return shiftDays(firstDay(next), -1)
-}
-
-export const monthLabel = ({ year, month }: YearMonth, withYear = true): string =>
-  withYear ? `${MONTH_NAMES[month - 1]} ${year}` : MONTH_NAMES[month - 1]
-
-/** Days between two ISO dates, inclusive. Pure string arithmetic via UTC. */
-export function shiftDays(iso: string, days: number): string {
-  const at = Date.UTC(Number(iso.slice(0, 4)), Number(iso.slice(5, 7)) - 1, Number(iso.slice(8, 10)))
-  return new Date(at + days * 86_400_000).toISOString().slice(0, 10)
-}
-
-export function daysBetween(from: string, to: string): string[] {
-  const out: string[] = []
-  for (let day = from; day <= to; day = shiftDays(day, 1)) out.push(day)
-  return out
-}
-
 /** 0 = Monday … 6 = Sunday, matching the backend's `weekday` field. */
 export function weekdayIndex(iso: string): number {
   const at = new Date(
@@ -132,39 +81,6 @@ export const isWeekendDay = (iso: string) => weekdayIndex(iso) >= 5
  * would walk the month labels off the days they name.
  */
 export const isWeekStart = (iso: string) => weekdayIndex(iso) === 0
-
-/** The window a set of months covers, as the read's `from` / `to`. */
-export function windowOf(start: YearMonth, months: number): { from: string; to: string } {
-  return { from: firstDay(start), to: lastDay(addMonths(start, months - 1)) }
-}
-
-export const monthsFrom = (start: YearMonth, count: number): YearMonth[] =>
-  Array.from({ length: count }, (_, index) => addMonths(start, index))
-
-/** Whole months from *from* to *to*, signed. */
-export const monthsBetween = (from: YearMonth, to: YearMonth): number =>
-  (to.year - from.year) * 12 + (to.month - from.month)
-
-/**
- * Where the minimap's year has to sit for the grid to start on *target*.
- *
- * The strip stays put whenever it already contains the frame, and slides by the
- * least it can when it does not — so clicking a month always puts **that month
- * first** in the calendar, instead of being silently clamped to somewhere near
- * it. A jump that lands somewhere the user did not ask for is worse than no
- * jump at all.
- */
-export function stripStartFor(
-  current: YearMonth,
-  target: YearMonth,
-  stripMonths: number,
-): YearMonth {
-  const offset = monthsBetween(current, target)
-  const last = stripMonths - GRID_MONTHS
-  if (offset < 0) return target
-  if (offset > last) return addMonths(target, -last)
-  return current
-}
 
 /**
  * What one half-day cell is, in the order the vocabulary resolves.

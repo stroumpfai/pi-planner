@@ -854,6 +854,13 @@ nothing prunes one. Three consequences for the view:
   rather than explained. Drag the frame, or click a month bar, to move the grid. The minimap
   carries no member identity — names live in the grid's row labels.
 
+The minimap is **one control, used twice** — the capacity view carries the same strip over the
+same months (§7.6). What a view supplies is a number per month and what a month resolves to;
+everything else — the measured span, the bars, the frame, the date jump — is shared. The frame
+sits **over** six of the strip's months, so a press on it that never travels is passed through
+to the month underneath: dragging moves the window, clicking picks a month, and the six months
+the frame covers are not the six a mouse cannot reach.
+
 The one bound is a **sanity check, not a horizon**: a date more than 10 years out is almost
 always a typo'd year, so it warns and asks for confirmation. It never refuses.
 
@@ -925,6 +932,29 @@ With a project selected, a second line shows the share-adjusted figure and the r
 Available in the project's unit. Cells expand to a breakdown: contracted half-days → absences
 → meetings → focus, i.e. the §5.4 steps in order, so a surprising number can be traced to its
 cause.
+
+**The same minimap sits above the table** (§7.4), because a sprint calendar runs as far ahead
+as the absences do and paging six columns at a time is no better a way to reach next August.
+Two things differ, both of them the view's own:
+
+- **A bar counts the person-days absences and meetings took out of that month.** Not the
+  capacity left — a strip whose bars all stand at "a full team" would mark nothing. Focus is
+  excluded: it is a standing property of how a team works, not something that happened in
+  March, and folding it in would raise every bar in proportion while saying nothing about
+  where to look. A sprint straddling a month end is **split across both months in proportion
+  to the days**, so two adjacent bars are comparable.
+- **A month resolves to the best matching sprint**, since months and sprints do not line up: a
+  sprint **overlapping** the month, the earliest if several; failing that the **nearest** one.
+  The chosen sprint leads the six columns, except at the end of the calendar where the window
+  backs up to the last full page rather than showing blanks.
+
+The frame then sits on **the month that was named**, for as long as the sprints on screen still
+reach it. Deriving it from the window instead puts it a month out whenever the matching sprint
+starts in the month before — 29 June to 10 July is the sprint July asks for, and a frame over
+June reads as the click having missed by one. When nobody named a month, or the window has
+clamped away from the one that was, the frame follows the *table*: being shown the nearest
+sprint to a month in the gap between two PIs is the honest answer, and leaving the frame over
+the empty months would claim the table is somewhere it is not.
 
 ---
 

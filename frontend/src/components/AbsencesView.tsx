@@ -72,7 +72,7 @@ export function AbsencesView({ teamId }: Props) {
   const showMonth = useCallback(
     (target: YearMonth) => {
       setGridStart(target)
-      setMinimapStart((current) => stripStartFor(current, target, stripMonths))
+      setMinimapStart((current) => stripStartFor(current, target, stripMonths, GRID_MONTHS))
     },
     [stripMonths],
   )
@@ -81,7 +81,7 @@ export function AbsencesView({ teamId }: Props) {
   // columns on a wide screen, one when the window is dragged narrow. Re-anchor
   // on the months already on screen rather than moving the reader.
   useEffect(() => {
-    setMinimapStart((current) => stripStartFor(current, gridStart, stripMonths))
+    setMinimapStart((current) => stripStartFor(current, gridStart, stripMonths, GRID_MONTHS))
   }, [stripMonths, gridStart])
 
   // Members are read as of the grid's first day: the tint marking a non-working

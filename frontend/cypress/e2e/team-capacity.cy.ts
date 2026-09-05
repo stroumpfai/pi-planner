@@ -141,3 +141,129 @@ describe('Team capacity', () => {
     cy.contains('This team serves no project yet').should('be.visible')
   })
 })
+
+/** Date every sprint of a PI as consecutive Mon–Fri fortnights from *firstDay*. */
+function dateSprints(piId: string, firstDay: string) {
+  cy.request('GET', `/api/v1/pis/${piId}/sprints`).then((res) => {
+    for (const sprint of res.body) {
+      const start = new Date(`${firstDay}T00:00:00Z`)
+      start.setUTCDate(start.getUTCDate() + sprint.sprint_index * 14)
+      const end = new Date(start)
+      end.setUTCDate(end.getUTCDate() + 11)
+      cy.request('PATCH', `/api/v1/sprints/${sprint.system_id}`, {
+        start_date: start.toISOString().slice(0, 10),
+        end_date: end.toISOString().slice(0, 10),
+      })
+    }
+  })
+}
+
+/**
+ * Click a month bar the frame is sitting on, the way a mouse would: on the
+ * frame, at that month's own x.
+ */
+function clickThroughFrame(bar: string) {
+  cy.get(`button[aria-label^="${bar}"]`).then(($bar) => {
+    const month = $bar[0].getBoundingClientRect()
+    cy.get('button[aria-label^="Showing "]').then(($frame) => {
+      const frame = $frame[0].getBoundingClientRect()
+      cy.wrap($frame).click(month.left + month.width / 2 - frame.left, frame.height / 2)
+    })
+  })
+}
+
+/** The anchor assignment, plus a second PI so the table has more than one page. */
+function seedTwoDatedPIs() {
+  cy.request('GET', '/api/v1/teams').then((teams) => {
+    cy.request('GET', '/api/v1/projects/').then((projects) => {
+      const projectId = projects.body[0].system_id
+      cy.request('POST', `/api/v1/teams/${teams.body[0].system_id}/projects`, {
+        project_id: projectId,
+      })
+      cy.request('GET', `/api/v1/projects/${projectId}/pis`).then((pis) => {
+        dateSprints(pis.body[0].system_id, '2026-04-06')
+      })
+      cy.request('POST', `/api/v1/projects/${projectId}/pis`, {
+        name: 'Q3-2026',
+        start_date: '2026-06-29',
+      }).then((pi) => dateSprints(pi.body.system_id, '2026-06-29'))
+    })
+  })
+}
+
+describe('Team capacity minimap', () => {
+  beforeEach(() => {
+    cy.resetDb()
+    cy.login()
+    seedTeamAndProject()
+    seedTwoDatedPIs()
+    cy.openTeam('Platform')
+    capacityTab('Capacity').click()
+  })
+
+  it('moves the table to the sprint a month names, and the frame with it', () => {
+    // Ten sprints, six columns: the first page starts at the first of them, and
+    // the frame covers the six months from there.
+    cy.contains('Q2-2026.1').should('be.visible')
+    cy.get('button[aria-label^="Showing Apr 2026 to Sep 2026"]').should('exist')
+
+    // August is *under* the frame, so the mouse lands on the frame — which is
+    // exactly the gesture being tested: a press that never travels is passed
+    // through to the month beneath it, or the six months the frame covers would
+    // be the six a mouse cannot reach.
+    clickThroughFrame('Show Aug 2026')
+
+    // August opens in Q3-2026.3 (27 Jul – 7 Aug); six columns from there would
+    // run off the end, so the window backs up to the last full page.
+    cy.contains('Q3-2026.3').should('be.visible')
+    cy.contains('Q2-2026.1').should('not.exist')
+    cy.get('button[aria-label^="Showing Aug 2026 to Jan 2027"]').should('exist')
+
+    // And back, from a bar outside the frame this time.
+    cy.get('button[aria-label^="Show Apr 2026"]').click()
+    cy.contains('Q2-2026.1').should('be.visible')
+    cy.get('button[aria-label^="Showing Apr 2026 to Sep 2026"]').should('exist')
+
+    // July's sprint starts on 29 June, so the frame must still answer July —
+    // anchoring it on that sprint's start date is what read as a click landing
+    // a month early.
+    clickThroughFrame('Show Jul 2026')
+    cy.contains('Q3-2026.1').should('be.visible')
+    cy.get('button[aria-label^="Showing Jul 2026 to Dec 2026"]').should('exist')
+
+    // The arrows are not a month anyone named, so the frame goes back to
+    // following the table: sprints 3–8 start in May.
+    cy.get('button[aria-label="Earlier sprints"]').click()
+    cy.get('button[aria-label^="Showing Apr 2026 to Sep 2026"]').should('exist')
+  })
+
+  it('counts an absence into the month that holds it, and jumps there', () => {
+    // A full week off inside Q3-2026.1 (29 Jun – 10 Jul): five days at 8 h is
+    // 5 PD, and 3 of those days fall in July.
+    cy.request('GET', '/api/v1/teams').then((teams) => {
+      const teamId = teams.body[0].system_id
+      cy.request('GET', `/api/v1/teams/${teamId}/members`).then((members) => {
+        cy.request('POST', `/api/v1/teams/${teamId}/absences`, {
+          kind: 'range',
+          label: 'Summer leave',
+          start_date: '2026-06-29',
+          end_date: '2026-07-03',
+          member_ids: [members.body[0].system_id],
+        })
+      })
+    })
+    cy.reload()
+    cy.openTeam('Platform')
+    capacityTab('Capacity').click()
+
+    // The sprint is 12 calendar days — 2 in June, 10 in July — so the 5 PD it
+    // lost is spread 0.8 / 4.2 rather than charged whole to the month it starts
+    // in. The bar is per month; the sprint straddles the end.
+    cy.get('button[aria-label="Show Jun 2026 — 0.8 person-days lost"]').should('exist')
+    cy.get('button[aria-label="Show Jul 2026 — 4.2 person-days lost"]').should('exist')
+    cy.get('button[aria-label="Show Aug 2026 — nothing lost"]').should('exist')
+
+    cy.get('select[aria-label="Jump to month"]').select('2026-07')
+    cy.contains('Q3-2026.1').should('be.visible')
+  })
+})
