@@ -133,7 +133,11 @@ export function WorkingDaysView({ teamId, focusMemberId = null }: Props) {
           <p className="text-sm">Nobody on this team yet — add a member to give them a pattern.</p>
         </div>
       ) : (
-        <ul className="divide-y divide-white/60 shadow-soft rounded-xl bg-canvas">
+        // As wide as a week plus its controls, not as wide as the page — the
+        // same rule as the meetings matrix. Rows all take the card's width, so
+        // `ml-auto` still lines the version timelines up with one another; it
+        // just does it against the card's edge instead of the window's.
+        <ul className="w-fit max-w-full divide-y divide-white/60 shadow-soft rounded-xl bg-canvas">
           {/* The column headers are controls, not captions: one click sets a
               weekday for the whole team, which is how a team-wide change like
               "nobody works Fridays" is entered (§7.3). */}

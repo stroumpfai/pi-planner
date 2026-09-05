@@ -4,9 +4,17 @@ import { CSS } from '@dnd-kit/utilities'
 import type { TeamMember } from '@/types'
 import { fmtDate } from '@/utils/dates'
 
-/** The column template the design fixes for the Members table (design §3). */
-export const MEMBER_COLUMNS = 'grid-cols-[22px_1.3fr_.7fr_.6fr_1.1fr_.8fr_.7fr_30px]'
-export const MEMBER_COLUMNS_READER = 'grid-cols-[1.3fr_.7fr_.6fr_1.1fr_.8fr_.7fr]'
+/**
+ * The column template the design fixes for the Members table (design §3).
+ *
+ * Fixed widths rather than `fr`, because the card is only as wide as its
+ * columns: a fraction has nothing to be a fraction *of* until a width is
+ * settled, and under intrinsic sizing one long cell would drag every other
+ * column out with it. These are the design's proportions, resolved once — and
+ * they are what makes `truncate` on the cells mean anything.
+ */
+export const MEMBER_COLUMNS = 'grid-cols-[22px_13rem_7rem_6rem_9.5rem_10rem_4rem_30px]'
+export const MEMBER_COLUMNS_READER = 'grid-cols-[13rem_7rem_6rem_9.5rem_10rem_4rem]'
 
 interface Props {
   readonly member: TeamMember

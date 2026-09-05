@@ -56,18 +56,23 @@ export function TeamProjectsView({ teamId }: Props) {
 
   return (
     <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
-          {rows.length === 1 ? '1 project served' : `${rows.length} projects served`}
-        </h3>
+      {/* The header every team view now shares: the view named, the one thing
+          you can add to it beside the name, and the count as a caption on the
+          far side rather than a heading standing in for a title. */}
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Projects</h2>
         {canEdit && (
           <button
+            type="button"
             onClick={() => setAssigning(true)}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
+            className="px-3 py-1.5 text-xs rounded-lg bg-canvas shadow-soft-sm text-blue-600 hover:shadow-soft-hover"
           >
             + Assign project
           </button>
         )}
+        <p className="ml-auto text-xs text-gray-400 dark:text-gray-500">
+          {rows.length === 1 ? '1 project served' : `${rows.length} projects served`}
+        </p>
       </div>
 
       {totalShare > 100 && (
@@ -90,10 +95,16 @@ export function TeamProjectsView({ teamId }: Props) {
           </p>
         </div>
       ) : (
-        <ul className="divide-y divide-white/60 shadow-soft rounded-xl bg-canvas">
+        // Sized to its rows, like the other team cards. The rows still take the
+        // card's whole width, so Edit / Unassign and the Total share one right
+        // edge — it is just the card's edge now, not the window's.
+        <ul className="w-fit max-w-full divide-y divide-white/60 shadow-soft rounded-xl bg-canvas">
           {rows.map((row) => (
             <li key={row.project_id} className="px-4 py-3 flex items-center gap-4 hover:bg-band/40">
-              <div className="flex-1 min-w-0">
+              {/* The ceiling is what keeps `truncate` meaningful once the card
+                  is sized by its content: without it one long project name
+                  would set the width of the whole list. */}
+              <div className="flex-1 min-w-0 max-w-[32rem]">
                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                   {row.project_name}{' '}
                   <span className="text-gray-500 dark:text-gray-400 font-normal">{row.share_pct}%</span>

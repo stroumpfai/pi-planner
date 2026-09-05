@@ -87,18 +87,26 @@ export function TeamMembersView({ teamId, onOpenWorkingDays }: Props) {
 
   return (
     <div className="p-6 space-y-4">
-      <div className="flex items-center justify-between">
-        <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400">
-          {rows.length === 1 ? '1 member' : `${rows.length} members`}
-        </h3>
+      {/* The Meetings header, exactly: what the view is, the one thing you can
+          add to it, and then the caption pushed to the far side. The add button
+          belongs next to the title rather than across the page from it — it acts
+          on this view, and at the right edge it read as a page-level action. The
+          count moves into the caption slot, which is where a fact about the list
+          rather than a control belongs. */}
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Members</h2>
         {canEdit && (
           <button
+            type="button"
             onClick={() => setAdding(true)}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
+            className="px-3 py-1.5 text-xs rounded-lg bg-canvas shadow-soft-sm text-blue-600 hover:shadow-soft-hover"
           >
             + Add member
           </button>
         )}
+        <p className="ml-auto text-xs text-gray-400 dark:text-gray-500">
+          {rows.length === 1 ? '1 member' : `${rows.length} members`}
+        </p>
       </div>
 
       {isLoading ? (
@@ -118,7 +126,9 @@ export function TeamMembersView({ teamId, onOpenWorkingDays }: Props) {
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
           <SortableContext items={rows.map((m) => m.system_id)} strategy={verticalListSortingStrategy}>
-            <div className="shadow-soft rounded-xl bg-canvas overflow-hidden">
+            {/* Sized to its columns, like the meetings matrix and the working
+                days list: the card ends where the last column does. */}
+            <div className="w-fit max-w-full shadow-soft rounded-xl bg-canvas overflow-hidden">
               {/* The uppercase rule the design puts above every table — without it
                   "8.0 h · since 01.09.26" is a chip with nothing naming it. */}
               <div

@@ -256,18 +256,23 @@ export function MeetingsView({ teamId }: Props) {
         </div>
       ) : (
         <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
-          <div className="overflow-x-auto bg-canvas shadow-soft rounded-xl">
-            <table className="w-full text-sm">
+          {/* The card is as wide as its columns, not as wide as the page: a
+              matrix whose width is the number of meetings says how many there
+              are at a glance, where a stretched one leaves the reader to find
+              the last column somewhere off to the right. `max-w-full` keeps the
+              scroller in play once there are more meetings than fit. */}
+          <div className="w-fit max-w-full overflow-x-auto bg-canvas shadow-soft rounded-xl">
+            <table className="text-sm">
               <thead>
                 <tr className="bg-band/40 border-b-2 border-gray-700 dark:border-gray-300">
-                  {/* The names column takes the slack. Under `table-layout:
-                      auto` a width is only a hint, and spare room goes to
-                      whichever column will accept it — so the one column with no
-                      fixed size is named here, and every other column keeps the
-                      width it asked for. */}
+                  {/* No column takes the slack, because there is none to take:
+                      the table is shrink-to-fit, so every column is the width it
+                      asked for and the names column is the width of the longest
+                      name — with a floor, so a team of Als still gets a column
+                      that reads as one. */}
                   <th
                     scope="col"
-                    className="align-bottom px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 w-full min-w-[11rem]"
+                    className="align-bottom px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 min-w-[11rem]"
                   >
                     Member
                   </th>
@@ -325,7 +330,10 @@ export function MeetingsView({ teamId }: Props) {
                         disabled={!canEdit}
                         onClick={() => void toggleMemberRow(member.system_id)}
                         title={canEdit ? 'Attends every meeting / none' : undefined}
-                        className="text-sm font-medium text-gray-900 dark:text-gray-100 disabled:cursor-default hover:enabled:text-blue-600 truncate max-w-full"
+                        // A ceiling on the one column that is sized by its
+                        // content: without it a single pasted 200-character name
+                        // would set the width of the whole table.
+                        className="block truncate max-w-[16rem] text-sm font-medium text-gray-900 dark:text-gray-100 disabled:cursor-default hover:enabled:text-blue-600"
                       >
                         {member.name}
                       </button>

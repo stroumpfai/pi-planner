@@ -205,6 +205,28 @@ describe('Meetings', () => {
     })
   })
 
+  it('sizes the card to its columns and packs them against the left', () => {
+    seedMeeting({ title: 'Stand-up', start_date: '2026-04-06', duration_minutes: 15 })
+    cy.reload()
+    cy.openTeam('Platform')
+    meetingsTab('Meetings').click()
+
+    // Two members and one meeting is a small table, and it should look like one:
+    // stretched to the window, the load column ends up an inch from the page edge
+    // with a field of empty canvas between it and the names. Layout again — only
+    // a real browser can tell a shrink-to-fit table from a full-width one.
+    cy.get('table').then(($table) => {
+      const table = $table[0].getBoundingClientRect()
+      const card = $table[0].parentElement!.getBoundingClientRect()
+
+      // The card ends where the last column does, and both start at the left.
+      expect(Math.abs(card.right - table.right)).to.be.lessThan(2)
+      expect(Math.abs(card.left - table.left)).to.be.lessThan(2)
+      // And that is nowhere near the width of the page.
+      expect(card.width).to.be.lessThan(Cypress.config('viewportWidth') * 0.7)
+    })
+  })
+
   it('keeps paired controls level however their labels wrap', () => {
     cy.contains('button', /^\+ Add meeting$/).click()
     meetingDialog().contains('button', /^Interval$/).click()
