@@ -75,6 +75,44 @@ def require_if_match(
 IfMatch = Annotated[str, Depends(require_if_match)]
 
 
+def optional_if_match(
+    if_match: Annotated[str | None, Header(alias="If-Match")] = None,
+) -> str | None:
+    """``If-Match`` for a route that only sometimes overwrites an existing row.
+
+    A create cannot quote an ETag for a row that does not exist yet, so the header
+    cannot be mandatory at the door. Routes taking this must still call
+    :func:`require_if_match_present` on whichever branch turns out to be an edit —
+    otherwise the upsert is the one way back to last-write-wins.
+    """
+    if if_match is not None and if_match.strip() == "*":
+        raise HTTPException(
+            status_code=status.HTTP_428_PRECONDITION_REQUIRED,
+            detail={
+                "error": "IF_MATCH_REQUIRED",
+                "message": "If-Match must quote the ETag from the row's last read, not '*'.",
+            },
+        )
+    return if_match
+
+
+def require_if_match_present(if_match: str | None, message: str) -> str:
+    """Turn a missing optional ``If-Match`` into the same 428 the door would give.
+
+    ``message`` says *why* the header is suddenly required, because the caller
+    reached here by posting what it believed was a create.
+    """
+    if not if_match:
+        raise HTTPException(
+            status_code=status.HTTP_428_PRECONDITION_REQUIRED,
+            detail={"error": "IF_MATCH_REQUIRED", "message": message},
+        )
+    return if_match
+
+
+OptionalIfMatch = Annotated[str | None, Depends(optional_if_match)]
+
+
 def check_if_match(if_match: str, modified_at: datetime, current: Any) -> None:
     """Reject a write whose ``If-Match`` no longer matches the stored row.
 

@@ -506,60 +506,72 @@ async def preview_team_capacity(
     """
     Show what pushing this team's capacity would write into one project's sprints.
 
-    A **read**, deliberately: "what would this do" should be answerable without
-    holding a write capability, and it is the review step of the update flow.
-    Nothing is written — the push itself is a separate, explicit act.
+    The review step of the update flow. Nothing is written — the push itself is a
+    separate, explicit act — but this is the same computation the push runs, over
+    **this project's own sprint calendar**, so the rows name the sprints that
+    would actually change. (The Capacity view counts in the team's anchor
+    project's columns instead; the two agree only where alignment holds.)
+    Only sprints of a `draft` or `in_progress` PI appear: a closed PI keeps the
+    numbers it was closed with, so listing it would invite the question of why it
+    did not move.
 
     Per sprint it returns the label, the dates, the Available the sprint holds
     now, the value the team's capacity produces (PD → the project's unit), and the
     integer that value rounds to — half-up, per sprint independently, which is the
     single rounding in the whole chain.
-    `proposed` is null for a sprint without both dates, and the whole preview is
-    empty of proposals when the project's available_source is `manual`: nothing is
-    meant to flow into a manual project. Switch it to `factor` with
+    `proposed_available` is null for a sprint without both dates, and the whole
+    preview is empty of proposals when the project's available_source is `manual`:
+    nothing is meant to flow into a manual project. Switch it to `factor` with
     update_assignment first, and set units_per_pd — a wrong factor shows up here
     as visibly wrong integers, which is the point of previewing.
+
+    Reads the project rather than the team, so it needs edit rights on it and
+    fails with 409 while another user holds its edit lock.
     """
     params = {}
     if date_from:
-        params["from"] = date_from
+        params["window_from"] = date_from
     if date_to:
-        params["to"] = date_to
-    report = await call_backend("GET", f"/api/v1/teams/{team_id}/capacity", params=params or None)
+        params["window_to"] = date_to
+    preview = await call_backend(
+        "GET",
+        f"/api/v1/projects/{project_id}/team-capacity/preview",
+        params=params or None,
+    )
 
-    row = next((p for p in report["projects"] if p["project_id"] == project_id), None)
-    if row is None:
-        served = ", ".join(repr(p["name"]) for p in report["projects"]) or "(none)"
+    if preview["team_id"] != team_id:
         raise ValueError(
-            f"This team does not serve project {project_id}. It serves: {served}. "
+            f"Project {project_id} is served by team {preview['team_name']} "
+            f"({preview['team_id']}), not by team {team_id}. "
             "Assign it with assign_project first."
         )
 
-    sprints = []
-    for index, sprint in enumerate(report["sprints"]):
-        sprints.append(
-            {
-                "sprint_id": sprint["sprint_id"],
-                "label": sprint["label"],
-                "pi_name": sprint["pi_name"],
-                "pi_state": sprint["pi_state"],
-                "start_date": sprint["start_date"],
-                "end_date": sprint["end_date"],
-                "current_available": sprint["available"],
-                "team_person_days": (report["team"][index] or {}).get("person_days"),
-                "share_adjusted_person_days": row["person_days"][index],
-                "in_project_units": row["units"][index],
-                "proposed_available": row["proposed_available"][index],
-            }
-        )
-
     return {
-        "team_id": team_id,
-        "project_id": project_id,
-        "project_name": row["name"],
-        "effort_unit": row["effort_unit"],
-        "share_pct": row["share_pct"],
-        "available_source": row["available_source"],
-        "units_per_pd": row["units_per_pd"],
-        "sprints": sprints,
+        "team_id": preview["team_id"],
+        "team_name": preview["team_name"],
+        "project_id": preview["project_id"],
+        "project_name": preview["project_name"],
+        "effort_unit": preview["effort_unit"],
+        "share_pct": preview["share_pct"],
+        "available_source": preview["available_source"],
+        "units_per_pd": preview["units_per_pd"],
+        "changed_count": preview["changed_count"],
+        "total_delta": preview["total_delta"],
+        "sprints": [
+            {
+                "sprint_id": row["sprint_id"],
+                "label": row["label"],
+                "pi_name": row["pi_name"],
+                "pi_state": row["pi_state"],
+                "start_date": row["start_date"],
+                "end_date": row["end_date"],
+                "current_available": row["current_available"],
+                "team_person_days": row["team_person_days"],
+                "share_adjusted_person_days": row["share_adjusted_person_days"],
+                "in_project_units": row["in_project_units"],
+                "proposed_available": row["proposed_available"],
+                "delta": row["delta"],
+            }
+            for row in preview["sprints"]
+        ],
     }

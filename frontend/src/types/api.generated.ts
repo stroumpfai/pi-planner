@@ -395,6 +395,12 @@ export interface paths {
      * cannot be expressed. The body carries the whole pattern, so this is a
      * replacement and not a merge: there is no half of someone else's edit for it to
      * keep by accident.
+     *
+     * Which makes that branch a full overwrite of a row someone else may have moved,
+     * so it carries the same ``If-Match`` contract as the equivalent ``PATCH``
+     * (§4.2): without the header it is **428**, against a stale one **412**. Only
+     * the create branch may go without, because there is no ETag to quote for a
+     * version that does not exist yet.
      */
     post: operations["create_pattern_version_api_v1_teams__team_id__members__member_id__working_days_post"];
   };
@@ -5461,9 +5467,18 @@ export interface operations {
    * cannot be expressed. The body carries the whole pattern, so this is a
    * replacement and not a merge: there is no half of someone else's edit for it to
    * keep by accident.
+   *
+   * Which makes that branch a full overwrite of a row someone else may have moved,
+   * so it carries the same ``If-Match`` contract as the equivalent ``PATCH``
+   * (§4.2): without the header it is **428**, against a stale one **412**. Only
+   * the create branch may go without, because there is no ETag to quote for a
+   * version that does not exist yet.
    */
   create_pattern_version_api_v1_teams__team_id__members__member_id__working_days_post: {
     parameters: {
+      header?: {
+        "If-Match"?: string | null;
+      };
       path: {
         team_id: string;
         member_id: string;

@@ -343,6 +343,13 @@ VERSION = {
     "etag": '"2026-01-01T00:00:00+00:00"',
 }
 
+def _versions_mock(mock_backend, payload=None):
+    """The working-days read the upsert takes its If-Match baseline from."""
+    return mock_backend.get(
+        f"/api/v1/teams/{TEAM_ID}/members/{MEMBER_ID}/working-days"
+    ).mock(return_value=httpx.Response(200, json=payload if payload is not None else [VERSION]))
+
+
 MEMBER = {
     "system_id": MEMBER_ID,
     "team_id": TEAM_ID,
@@ -491,6 +498,7 @@ async def test_add_pattern_version_carries_over_what_it_is_not_told(
     mock_backend, mock_ctx, patch_get_http_request
 ):
     """"Drop to 6 hours from September" is one argument and changes nothing else."""
+    _versions_mock(mock_backend)
     _list_members_mock(mock_backend)
     post = mock_backend.post(
         f"/api/v1/teams/{TEAM_ID}/members/{MEMBER_ID}/working-days"
@@ -517,6 +525,7 @@ async def test_add_pattern_version_carries_over_what_it_is_not_told(
 async def test_add_pattern_version_reads_the_pattern_of_the_date_it_changes(
     mock_backend, mock_ctx, patch_get_http_request
 ):
+    _versions_mock(mock_backend)
     _list_members_mock(mock_backend)
     mock_backend.post(f"/api/v1/teams/{TEAM_ID}/members/{MEMBER_ID}/working-days").mock(
         return_value=httpx.Response(201, json=VERSION)
@@ -530,6 +539,7 @@ async def test_add_pattern_version_reads_the_pattern_of_the_date_it_changes(
 async def test_add_pattern_version_replaces_the_days_when_told(
     mock_backend, mock_ctx, patch_get_http_request
 ):
+    _versions_mock(mock_backend)
     _list_members_mock(mock_backend)
     mock_backend.post(f"/api/v1/teams/{TEAM_ID}/members/{MEMBER_ID}/working-days").mock(
         return_value=httpx.Response(201, json=VERSION)
@@ -546,9 +556,11 @@ async def test_add_pattern_version_replaces_the_days_when_told(
     assert (body["tue_am"], body["thu_pm"]) == (True, True)
 
 
-async def test_add_pattern_version_takes_no_if_match(mock_backend, mock_ctx, patch_get_http_request):
-    """Posting onto an existing date edits that version; the body is the whole
-    pattern, so there is no half of someone else's edit to keep (§3.3)."""
+async def test_add_pattern_version_on_a_free_date_takes_no_if_match(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    """A create cannot clobber, so there is no ETag for it to quote (§4.2)."""
+    _versions_mock(mock_backend)
     _list_members_mock(mock_backend)
     mock_backend.post(f"/api/v1/teams/{TEAM_ID}/members/{MEMBER_ID}/working-days").mock(
         return_value=httpx.Response(201, json=VERSION)
@@ -558,6 +570,41 @@ async def test_add_pattern_version_takes_no_if_match(mock_backend, mock_ctx, pat
     )
     post = [c for c in mock_backend.calls if c.request.method == "POST"][-1]
     assert "If-Match" not in post.request.headers
+
+
+async def test_add_pattern_version_onto_a_taken_date_quotes_that_versions_etag(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    """That branch replaces a row someone else may have moved, so it is a write
+    like any other and carries If-Match (§4.2)."""
+    _versions_mock(mock_backend)
+    _list_members_mock(mock_backend)
+    mock_backend.post(f"/api/v1/teams/{TEAM_ID}/members/{MEMBER_ID}/working-days").mock(
+        return_value=httpx.Response(201, json=VERSION)
+    )
+    await add_pattern_version(
+        team_id=TEAM_ID, member_name="Aïcha Ben Salah", effective_from="2026-01-01", ctx=mock_ctx
+    )
+    post = [c for c in mock_backend.calls if c.request.method == "POST"][-1]
+    assert post.request.headers["If-Match"] == VERSION["etag"]
+
+
+async def test_add_pattern_version_takes_the_tag_from_a_read_taken_now(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    """Not from `effective_version`, which is the row in force *on* that date —
+    a different row unless one starts exactly there."""
+    moved = {**VERSION, "etag": '"2026-08-30T09:15:00+00:00"'}
+    _versions_mock(mock_backend, payload=[moved])
+    _list_members_mock(mock_backend)
+    mock_backend.post(f"/api/v1/teams/{TEAM_ID}/members/{MEMBER_ID}/working-days").mock(
+        return_value=httpx.Response(201, json=moved)
+    )
+    await add_pattern_version(
+        team_id=TEAM_ID, member_name="Aïcha Ben Salah", effective_from="2026-01-01", ctx=mock_ctx
+    )
+    post = [c for c in mock_backend.calls if c.request.method == "POST"][-1]
+    assert post.request.headers["If-Match"] == moved["etag"]
 
 
 # --- capacity and assignment ------------------------------------------------
@@ -594,6 +641,39 @@ CAPACITY = {
     ],
 }
 
+# The push preview, as /projects/{id}/team-capacity/preview returns it: the
+# *project's own* sprints, already filtered to draft/in_progress PIs.
+PREVIEW = {
+    "project_id": PROJECT_ID,
+    "project_name": "ISK Portal",
+    "effort_unit": "pts",
+    "team_id": TEAM_ID,
+    "team_name": "Platform",
+    "share_pct": 70,
+    "available_source": "factor",
+    "units_per_pd": 1.5,
+    "changed_count": 1,
+    "total_delta": 2,
+    "sprints": [
+        {
+            "sprint_id": "s-1", "pi_id": "pi-1", "pi_name": "Q2-2026", "pi_state": "draft",
+            "sprint_number": 1, "label": "Q2-2026.1",
+            "start_date": "2026-04-01", "end_date": "2026-04-14",
+            "current_available": 12, "proposed_available": 14, "delta": 2,
+            "team_person_days": 13.15, "share_adjusted_person_days": 9.205,
+            "in_project_units": 13.8075, "available_pushed_at": None,
+        },
+        {
+            "sprint_id": "s-2", "pi_id": "pi-1", "pi_name": "Q2-2026", "pi_state": "draft",
+            "sprint_number": 2, "label": "Q2-2026.2",
+            "start_date": None, "end_date": None,
+            "current_available": 0, "proposed_available": None, "delta": None,
+            "team_person_days": None, "share_adjusted_person_days": None,
+            "in_project_units": None, "available_pushed_at": None,
+        },
+    ],
+}
+
 ASSIGNMENT = {
     "system_id": "a-1",
     "team_id": TEAM_ID,
@@ -616,6 +696,12 @@ def _capacity_mock(mock_backend, payload=None):
     )
 
 
+def _preview_mock(mock_backend, payload=None, project_id=PROJECT_ID):
+    return mock_backend.get(
+        path__startswith=f"/api/v1/projects/{project_id}/team-capacity/preview"
+    ).mock(return_value=httpx.Response(200, json=payload or PREVIEW))
+
+
 async def test_get_team_capacity_returns_the_report(mock_backend, mock_ctx, patch_get_http_request):
     _capacity_mock(mock_backend)
     result = await get_team_capacity(team_id=TEAM_ID, ctx=mock_ctx)
@@ -632,8 +718,8 @@ async def test_get_team_capacity_passes_the_window_through(mock_backend, mock_ct
 
 
 async def test_preview_reads_and_writes_nothing(mock_backend, mock_ctx, patch_get_http_request):
-    # "What would this do" must be answerable without a write capability (§8.2).
-    _capacity_mock(mock_backend)
+    # "What would this do" must be answerable without writing anything (§8.2).
+    _preview_mock(mock_backend)
     result = await preview_team_capacity(team_id=TEAM_ID, project_id=PROJECT_ID, ctx=mock_ctx)
 
     assert [c.request.method for c in mock_backend.calls] == ["GET"]
@@ -644,25 +730,46 @@ async def test_preview_reads_and_writes_nothing(mock_backend, mock_ctx, patch_ge
     # The integer it would write, beside the float behind it (§6.4).
     assert first["proposed_available"] == 14
     assert first["in_project_units"] == 13.8075
+    assert first["delta"] == 2
+
+
+async def test_preview_reads_the_projects_own_sprint_calendar(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    # Not the team's anchor calendar: for a non-anchor project the two disagree,
+    # and the sprint_ids returned must be the ones a push would write.
+    other = "00000000-0000-4000-8000-0000000000aa"
+    route = _preview_mock(
+        mock_backend,
+        payload={**PREVIEW, "project_id": other, "project_name": "Rollout"},
+        project_id=other,
+    )
+    result = await preview_team_capacity(team_id=TEAM_ID, project_id=other, ctx=mock_ctx)
+
+    assert route.called
+    assert result["project_id"] == other
+    assert result["project_name"] == "Rollout"
+    # The team capacity report — the anchor's columns — is never consulted.
+    assert all("/capacity" not in c.request.url.path for c in mock_backend.calls)
 
 
 async def test_preview_leaves_an_undated_sprint_unproposed(mock_backend, mock_ctx, patch_get_http_request):
-    _capacity_mock(mock_backend)
+    _preview_mock(mock_backend)
     result = await preview_team_capacity(team_id=TEAM_ID, project_id=PROJECT_ID, ctx=mock_ctx)
     second = result["sprints"][1]
     assert second["proposed_available"] is None
     assert second["team_person_days"] is None
 
 
-async def test_preview_of_a_project_the_team_does_not_serve_says_what_it_does(
+async def test_preview_of_a_project_another_team_serves_says_what_it_does(
     mock_backend, mock_ctx, patch_get_http_request
 ):
-    _capacity_mock(mock_backend)
+    _preview_mock(mock_backend)
     with pytest.raises(ValueError) as exc:
         await preview_team_capacity(
-            team_id=TEAM_ID, project_id="00000000-0000-4000-8000-000000000000", ctx=mock_ctx
+            team_id="00000000-0000-4000-8000-00000000000b", project_id=PROJECT_ID, ctx=mock_ctx
         )
-    assert "ISK Portal" in str(exc.value)
+    assert "Platform" in str(exc.value)
     assert "assign_project" in str(exc.value)
 
 

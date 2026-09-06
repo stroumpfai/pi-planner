@@ -210,6 +210,55 @@ describe('PushProjectsModal', () => {
     expect(await screen.findByText('✓ no change')).toBeInTheDocument()
   })
 
+  it('reads a rejected single-project apply as locked, not as a generic error', async () => {
+    // The single-project path throws rather than returning a result row, and the
+    // lock's 409 carries no `detail.error` — so it has to be recognised by
+    // `locked_by`, or the row loses the holder, the expiry and Retry this one.
+    respondWith({ 'p-1': preview(), 'p-2': preview({ project_id: 'p-2', project_name: 'Data Exchange' }) })
+    mockApi.post.mockRejectedValue({
+      response: {
+        status: 409,
+        data: {
+          detail: {
+            message: 'Project is being edited by mfranck',
+            locked_by: 'mfranck',
+            expires_at: '2026-04-20T14:32:00Z',
+          },
+        },
+      },
+    })
+    open([assignment(), assignment({ project_id: 'p-2', project_name: 'Data Exchange' })])
+
+    await userEvent.click(await screen.findByRole('checkbox', { name: /Data Exchange/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Apply to 1 project' }))
+
+    expect(await screen.findByText(/locked by mfranck until/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Retry this one' })).toBeInTheDocument()
+  })
+
+  it('still reads a business 409 on that path as the refusal it is', async () => {
+    respondWith({ 'p-1': preview(), 'p-2': preview({ project_id: 'p-2', project_name: 'Data Exchange' }) })
+    mockApi.post.mockRejectedValue({
+      response: {
+        status: 409,
+        data: {
+          detail: {
+            error: 'SPRINT_DATES_MISALIGNED',
+            message: 'Sprint 1 does not line up with Data Exchange.',
+          },
+        },
+      },
+    })
+    open([assignment(), assignment({ project_id: 'p-2', project_name: 'Data Exchange' })])
+
+    await userEvent.click(await screen.findByRole('checkbox', { name: /Data Exchange/ }))
+    await userEvent.click(screen.getByRole('button', { name: 'Apply to 1 project' }))
+
+    expect(await screen.findByText(/does not line up/)).toBeInTheDocument()
+    // Retrying a misalignment changes nothing, so it is not offered.
+    expect(screen.queryByRole('button', { name: 'Retry this one' })).not.toBeInTheDocument()
+  })
+
   it('leaves the successful rows alone when one project is locked', async () => {
     mockApi.post.mockResolvedValue({
       data: {

@@ -107,12 +107,24 @@ export const useReorderMembers = (teamId: string) => {
   })
 }
 
-/** Date a contract change. Posting onto an existing date edits that version (§3.3). */
+/**
+ * Date a contract change. Posting onto an existing date edits that version (§3.3).
+ *
+ * `etag` is that version's, and is required whenever the date is already taken:
+ * replacing a row someone else may have moved is a write like any other (§4.2).
+ */
 export const useAddPatternVersion = (teamId: string) => {
   const qc = useQueryClient()
   return useMutation({
-    mutationFn: ({ memberId, body }: { memberId: string; body: PatternVersionCreate }) =>
-      teamMembersApi.addVersion(teamId, memberId, body),
+    mutationFn: ({
+      memberId,
+      body,
+      etag,
+    }: {
+      memberId: string
+      body: PatternVersionCreate
+      etag?: string
+    }) => teamMembersApi.addVersion(teamId, memberId, body, etag),
     onSuccess: () => invalidateTeam(qc, teamId),
   })
 }

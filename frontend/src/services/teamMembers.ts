@@ -109,9 +109,20 @@ export const teamMembersApi = {
    *
    * The body is the whole pattern, because posting onto an existing
    * `effective_from` edits that version rather than creating a duplicate (§3.3).
+   * That branch is an overwrite, so pass the existing version's `etag`: without
+   * it the server answers 428, and against a stale one 412, exactly as
+   * `updateVersion` does. Omit it only when the date is genuinely free — there is
+   * no ETag to quote for a version that does not exist yet.
    */
-  addVersion: (teamId: string, memberId: string, body: PatternVersionCreate) =>
-    api.post<PatternVersion>(versionsUrl(teamId, memberId), body).then((r) => r.data),
+  addVersion: (
+    teamId: string,
+    memberId: string,
+    body: PatternVersionCreate,
+    etag?: string,
+  ) =>
+    api
+      .post<PatternVersion>(versionsUrl(teamId, memberId), body, etag ? ifMatch(etag) : undefined)
+      .then((r) => r.data),
 
   updateVersion: (
     teamId: string,

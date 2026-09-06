@@ -23,6 +23,7 @@ interface StaleDetail extends ApiErrorDetail {
 export type AssignmentErrorCode =
   | 'PROJECT_ALREADY_ASSIGNED'
   | 'PROJECT_LIMIT_REACHED'
+  | 'SPRINT_DATES_MISALIGNED'
   | 'STALE'
   | 'IF_MATCH_REQUIRED'
 
@@ -31,12 +32,44 @@ export function assignmentErrorCode(err: unknown): AssignmentErrorCode | null {
   switch (detail?.error) {
     case 'PROJECT_ALREADY_ASSIGNED':
     case 'PROJECT_LIMIT_REACHED':
+    case 'SPRINT_DATES_MISALIGNED':
     case 'STALE':
     case 'IF_MATCH_REQUIRED':
       return detail.error
     default:
       return null
   }
+}
+
+/** One sprint that does not line up, as the 409 describes it (§6.8). */
+export interface SprintConflict {
+  readonly sprint_number: number
+  readonly project_name: string
+  readonly pi_name: string
+  readonly start_date: string
+  readonly end_date: string
+  readonly other_project_id: string
+  readonly other_project_name: string
+  readonly other_pi_name: string
+  readonly other_start_date: string
+  readonly other_end_date: string
+}
+
+interface MisalignedDetail extends ApiErrorDetail {
+  error: 'SPRINT_DATES_MISALIGNED'
+  conflicts: SprintConflict[]
+}
+
+/**
+ * The sprints behind a `SPRINT_DATES_MISALIGNED` 409.
+ *
+ * Worth surfacing rather than collapsing into "try again": alignment is a
+ * standing fact about the two calendars, so retrying changes nothing and the
+ * only way forward is to move the dates this list names.
+ */
+export function sprintConflicts(err: unknown): SprintConflict[] {
+  const detail = errorDetail<MisalignedDetail>(err)
+  return detail?.error === 'SPRINT_DATES_MISALIGNED' ? (detail.conflicts ?? []) : []
 }
 
 export function staleAssignment(err: unknown): TeamAssignment | null {

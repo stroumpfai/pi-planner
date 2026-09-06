@@ -48,10 +48,19 @@ async def _versions(client, team_id: str, member_id: str) -> list[dict]:
     return resp.json()
 
 
-async def _add_version(client, team_id: str, member_id: str, **fields) -> dict:
-    resp = await client.post(f"{_members_url(team_id)}/{member_id}/working-days", json=fields)
+async def _add_version(client, team_id: str, member_id: str, etag: str | None = None, **fields) -> dict:
+    resp = await _post_version(client, team_id, member_id, etag=etag, **fields)
     assert resp.status_code == 201, resp.text
     return resp.json()
+
+
+async def _post_version(client, team_id: str, member_id: str, etag: str | None = None, **fields):
+    """The raw response, for the cases where the status is the point."""
+    return await client.post(
+        f"{_members_url(team_id)}/{member_id}/working-days",
+        json=fields,
+        headers={"If-Match": etag} if etag else None,
+    )
 
 
 @pytest.fixture
@@ -218,13 +227,55 @@ async def test_a_date_before_the_first_version_still_resolves(client, team):
 async def test_adding_a_version_on_an_existing_date_edits_it(client, team, member):
     first = member["effective_version"]
     edited = await _add_version(
-        client, team["system_id"], member["system_id"],
+        client, team["system_id"], member["system_id"], etag=first["etag"],
         effective_from=first["effective_from"], hours_per_day=6.0, focus=0.75,
     )
 
     assert edited["system_id"] == first["system_id"]
     assert (edited["hours_per_day"], edited["focus"]) == (6.0, 0.75)
     assert len(await _versions(client, team["system_id"], member["system_id"])) == 1
+
+
+async def test_replacing_a_version_without_if_match_is_refused(client, team, member):
+    # The overwrite branch of the upsert is a write like any other (§4.2): without
+    # the header it is the same 428 the PATCH gives, not a silent lost update.
+    first = member["effective_version"]
+    resp = await _post_version(
+        client, team["system_id"], member["system_id"],
+        effective_from=first["effective_from"], hours_per_day=6.0,
+    )
+
+    assert resp.status_code == 428
+    assert resp.json()["detail"]["error"] == "IF_MATCH_REQUIRED"
+    unchanged = (await _versions(client, team["system_id"], member["system_id"]))[0]
+    assert unchanged["hours_per_day"] == first["hours_per_day"]
+
+
+async def test_replacing_a_version_with_a_stale_if_match_is_refused(client, team, member):
+    first = member["effective_version"]
+    await _add_version(
+        client, team["system_id"], member["system_id"], etag=first["etag"],
+        effective_from=first["effective_from"], hours_per_day=7.0,
+    )
+
+    # The second editor still holds the tag from before that edit.
+    resp = await _post_version(
+        client, team["system_id"], member["system_id"], etag=first["etag"],
+        effective_from=first["effective_from"], hours_per_day=6.0,
+    )
+
+    assert resp.status_code == 412
+    assert resp.json()["detail"]["error"] == "STALE"
+    assert (await _versions(client, team["system_id"], member["system_id"]))[0]["hours_per_day"] == 7.0
+
+
+async def test_adding_a_version_on_a_free_date_needs_no_if_match(client, team, member):
+    # A create cannot clobber, so there is no ETag it could be made to quote.
+    created = await _add_version(
+        client, team["system_id"], member["system_id"],
+        effective_from="2026-09-01", hours_per_day=6.0,
+    )
+    assert created["effective_from"] == "2026-09-01"
 
 
 async def test_versions_come_back_in_date_order(client, team, member):

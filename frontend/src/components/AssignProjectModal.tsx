@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useProjects } from '@/hooks/useProjects'
 import { useAssignProject } from '@/hooks/useTeamProjects'
-import { assignmentErrorCode } from '@/services/teamProjects'
+import { assignmentErrorCode, sprintConflicts, type SprintConflict } from '@/services/teamProjects'
 import { errorDetail } from '@/services/api'
 import type { TeamAssignment } from '@/types'
 
@@ -36,6 +36,7 @@ export function AssignProjectModal({ open, teamId, assigned, onClose }: Props) {
   const [source, setSource] = useState<'manual' | 'factor'>('manual')
   const [unitsPerPd, setUnitsPerPd] = useState('1')
   const [error, setError] = useState<string | null>(null)
+  const [conflicts, setConflicts] = useState<readonly SprintConflict[]>([])
 
   // A project already served by *this* team is filtered out here; one served by
   // another team is not, because the API's refusal names the holder and that is
@@ -53,12 +54,14 @@ export function AssignProjectModal({ open, teamId, assigned, onClose }: Props) {
     setSource('manual')
     setUnitsPerPd('1')
     setError(null)
+    setConflicts([])
     onClose()
   }
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     setError(null)
+    setConflicts([])
     if (projectId === '') {
       setError('Choose a project to assign.')
       return
@@ -73,11 +76,17 @@ export function AssignProjectModal({ open, teamId, assigned, onClose }: Props) {
       close()
     } catch (err) {
       const code = assignmentErrorCode(err)
-      setError(
-        code === 'PROJECT_ALREADY_ASSIGNED' || code === 'PROJECT_LIMIT_REACHED'
-          ? (errorDetail(err)?.message ?? 'That project cannot be assigned.')
-          : 'Could not assign the project — please try again.',
-      )
+      if (
+        code === 'PROJECT_ALREADY_ASSIGNED' ||
+        code === 'PROJECT_LIMIT_REACHED' ||
+        code === 'SPRINT_DATES_MISALIGNED'
+      ) {
+        setError(errorDetail(err)?.message ?? 'That project cannot be assigned.')
+        // Retrying cannot fix misalignment, so name the sprints that have to move.
+        setConflicts(sprintConflicts(err))
+      } else {
+        setError('Could not assign the project — please try again.')
+      }
     }
   }
 
@@ -195,6 +204,17 @@ export function AssignProjectModal({ open, teamId, assigned, onClose }: Props) {
             )}
 
             {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
+            {conflicts.length > 0 && (
+              <ul className="text-xs text-red-600 dark:text-red-400 space-y-1 pl-4 list-disc">
+                {conflicts.map((c) => (
+                  <li key={`${c.pi_name}-${c.sprint_number}-${c.other_project_id}`}>
+                    Sprint {c.sprint_number} of {c.pi_name} runs {c.start_date} to {c.end_date},
+                    but {c.other_project_name}&rsquo;s {c.other_pi_name} runs {c.other_start_date}{' '}
+                    to {c.other_end_date}.
+                  </li>
+                ))}
+              </ul>
+            )}
 
             <div className="flex justify-end gap-3 pt-2">
               <button

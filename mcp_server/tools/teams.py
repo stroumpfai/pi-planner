@@ -504,7 +504,8 @@ async def add_pattern_version(
     A version holds from its effective_from until the day before the next one,
     and the latest holds indefinitely. There is no end date to supply, and no way
     to leave a gap. Posting a version onto a date that already has one **edits
-    that version**.
+    that version** — which is an overwrite, so it fails with 412 if somebody
+    changed that version between this call reading it and writing it.
 
     Fields you omit are carried over from the pattern in force on effective_from,
     so "drop to 6 hours from 1 September" is one argument and changes nothing
@@ -528,11 +529,19 @@ async def add_pattern_version(
     if note is not None:
         body["note"] = note
 
-    return await call_backend(
-        "POST",
-        f"/api/v1/teams/{team_id}/members/{member['system_id']}/working-days",
-        json=body,
-    )
+    versions_url = f"/api/v1/teams/{team_id}/members/{member['system_id']}/working-days"
+
+    # Posting onto a taken date replaces that version, which is an overwrite and
+    # so carries If-Match like any other (§4.2). The tag has to come from a read
+    # taken now: `effective_version` above is whatever was in force *on*
+    # effective_from, which is a different row unless one starts exactly there.
+    versions = (await call_backend("GET", versions_url)).get("items", [])
+    replaced = next((v for v in versions if v["effective_from"] == effective_from), None)
+    # Passed only when there is a row to overwrite: a create quotes no ETag, and
+    # an explicit headers=None would reach the client as one.
+    extra = {"headers": {"If-Match": replaced["etag"]}} if replaced else {}
+
+    return await call_backend("POST", versions_url, json=body, **extra)
 
 
 # ── Project assignment ────────────────────────────────────────────────────────

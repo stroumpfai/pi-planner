@@ -44,7 +44,14 @@ from app.schemas import (
     PatternVersionResponse,
     PatternVersionUpdate,
 )
-from app.services.concurrency import IfMatch, check_if_match, etag_for, set_etag
+from app.services.concurrency import (
+    IfMatch,
+    OptionalIfMatch,
+    check_if_match,
+    etag_for,
+    require_if_match_present,
+    set_etag,
+)
 from app.services.events import broadcaster, team_channel
 from app.services.team_capacity import resolve_version
 
@@ -412,6 +419,7 @@ async def create_pattern_version(
     body: PatternVersionCreate,
     response: Response,
     db: Annotated[AsyncSession, Depends(get_session)],
+    if_match: OptionalIfMatch,
     _: Annotated[User, Depends(require_editor_or_above)],
 ) -> PatternVersionResponse:
     """Add a version, or replace the one already on that date.
@@ -421,6 +429,12 @@ async def create_pattern_version(
     cannot be expressed. The body carries the whole pattern, so this is a
     replacement and not a merge: there is no half of someone else's edit for it to
     keep by accident.
+
+    Which makes that branch a full overwrite of a row someone else may have moved,
+    so it carries the same ``If-Match`` contract as the equivalent ``PATCH``
+    (§4.2): without the header it is **428**, against a stale one **412**. Only
+    the create branch may go without, because there is no ETag to quote for a
+    version that does not exist yet.
     """
     member = await _member_or_404(db, team_id, member_id)
     fields = body.model_dump(exclude={"effective_from"})
@@ -429,6 +443,16 @@ async def create_pattern_version(
         (v for v in member.pattern_versions if v.effective_from == body.effective_from), None
     )
     if existing is not None:
+        check_if_match(
+            require_if_match_present(
+                if_match,
+                f"A working-pattern version already starts on {body.effective_from}. "
+                "Posting onto it replaces it, so this write must carry the If-Match "
+                "header from that version's last read.",
+            ),
+            existing.modified_at,
+            _version_response(existing),
+        )
         _apply_pattern(existing, fields)
         existing.modified_at = _now()
         version = existing

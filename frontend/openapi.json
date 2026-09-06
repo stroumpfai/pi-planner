@@ -6035,7 +6035,7 @@
           "team-members"
         ],
         "summary": "Create Pattern Version",
-        "description": "Add a version, or replace the one already on that date.\n\nPosting onto an existing ``effective_from`` **edits** that version rather than\ncreating a duplicate (\u00a73.3) \u2014 one date, one version, so a gap or an overlap\ncannot be expressed. The body carries the whole pattern, so this is a\nreplacement and not a merge: there is no half of someone else's edit for it to\nkeep by accident.",
+        "description": "Add a version, or replace the one already on that date.\n\nPosting onto an existing ``effective_from`` **edits** that version rather than\ncreating a duplicate (\u00a73.3) \u2014 one date, one version, so a gap or an overlap\ncannot be expressed. The body carries the whole pattern, so this is a\nreplacement and not a merge: there is no half of someone else's edit for it to\nkeep by accident.\n\nWhich makes that branch a full overwrite of a row someone else may have moved,\nso it carries the same ``If-Match`` contract as the equivalent ``PATCH``\n(\u00a74.2): without the header it is **428**, against a stale one **412**. Only\nthe create branch may go without, because there is no ETag to quote for a\nversion that does not exist yet.",
         "operationId": "create_pattern_version_api_v1_teams__team_id__members__member_id__working_days_post",
         "parameters": [
           {
@@ -6054,6 +6054,22 @@
             "schema": {
               "type": "string",
               "title": "Member Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
             }
           },
           {

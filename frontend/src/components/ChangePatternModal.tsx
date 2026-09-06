@@ -2,7 +2,7 @@ import { useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { DateInput } from '@/components/DateInput'
 import { HalfDayToggles } from '@/components/HalfDayToggles'
-import { useAddPatternVersion } from '@/hooks/useTeamMembers'
+import { useAddPatternVersion, useMemberVersions } from '@/hooks/useTeamMembers'
 import { memberErrorCode } from '@/services/teamMembers'
 import { errorDetail } from '@/services/api'
 import type { TeamMember } from '@/types'
@@ -38,6 +38,7 @@ interface Props {
  */
 export function ChangePatternModal({ open, teamId, member, defaultDate, onClose, onSaved }: Props) {
   const add = useAddPatternVersion(teamId)
+  const { data: versions } = useMemberVersions(teamId, open ? member.system_id : null)
   const current = member.effective_version
 
   const [effectiveFrom, setEffectiveFrom] = useState(defaultDate)
@@ -49,7 +50,10 @@ export function ChangePatternModal({ open, teamId, member, defaultDate, onClose,
 
   const today = todayIso()
   const isBackdated = effectiveFrom !== '' && effectiveFrom < today
-  const replaces = (member.version_dates ?? []).includes(effectiveFrom)
+  // The version this save would overwrite, if the date is already taken. Its
+  // ETag is the precondition the write has to quote (§4.2).
+  const replaced = versions?.find((v) => v.effective_from === effectiveFrom)
+  const replaces = replaced != null || (member.version_dates ?? []).includes(effectiveFrom)
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -68,15 +72,24 @@ export function ChangePatternModal({ open, teamId, member, defaultDate, onClose,
           focus: Number(focus),
           note: note.trim() || null,
         },
+        etag: replaced?.etag,
       })
       onSaved(effectiveFrom)
     } catch (err) {
       const code = memberErrorCode(err)
-      setError(
-        code === 'PATTERN_VERSION_LIMIT_REACHED'
-          ? (errorDetail(err)?.message ?? 'This member already holds the maximum number of versions.')
-          : 'Could not save the change — please try again.',
-      )
+      if (code === 'PATTERN_VERSION_LIMIT_REACHED') {
+        setError(
+          errorDetail(err)?.message ?? 'This member already holds the maximum number of versions.',
+        )
+      } else if (code === 'STALE' || code === 'IF_MATCH_REQUIRED') {
+        // Someone else moved the version on this date while the form was open.
+        setError(
+          'The version on that date changed while you had this open. Close and reopen the ' +
+            'form to see the current values before replacing it.',
+        )
+      } else {
+        setError('Could not save the change — please try again.')
+      }
     }
   }
 

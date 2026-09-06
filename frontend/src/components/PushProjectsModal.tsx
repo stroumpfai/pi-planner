@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useApplyPush, usePushPreviews, usePushTeam } from '@/hooks/useTeamPush'
-import { pushErrorCode, pushErrorMessage } from '@/services/teamPush'
+import { pushErrorCode, pushErrorMessage, pushLockHolder } from '@/services/teamPush'
 import { fmtDate, fmtDateTime } from '@/utils/dates'
 import type { ProjectPushResult, PushPreview, PushSprintRow, TeamAssignment } from '@/types'
 
@@ -215,11 +215,32 @@ export function PushProjectsModal({ open, teamId, teamName, assignments, onClose
   )
 }
 
-/** A rejected apply, rendered as the result row it is rather than thrown away. */
+/**
+ * A rejected apply, rendered as the result row it is rather than thrown away.
+ *
+ * The lock 409 has to be recognised here, because it is the only failure the
+ * dialog can offer *Retry this one* for. It carries no `detail.error`, so
+ * `pushErrorCode` sees nothing and the row would otherwise land on `error` —
+ * losing the holder, the expiry and the retry button that the all-projects path
+ * gives the same failure.
+ */
 function failedRow(
   row: { project_id: string; project_name: string },
   err: unknown,
 ): ProjectPushResult {
+  const lock = pushLockHolder(err)
+  if (lock) {
+    return {
+      project_id: row.project_id,
+      project_name: row.project_name,
+      status: 'locked',
+      updated_sprints: 0,
+      total_delta: 0,
+      message: pushErrorMessage(err),
+      locked_by: lock.locked_by,
+      locked_until: lock.locked_until,
+    }
+  }
   const code = pushErrorCode(err)
   return {
     project_id: row.project_id,
@@ -228,15 +249,9 @@ function failedRow(
     updated_sprints: 0,
     total_delta: 0,
     message: pushErrorMessage(err) ?? 'Could not update this project.',
-    locked_by: lockHolder(err),
+    locked_by: null,
     locked_until: null,
   }
-}
-
-function lockHolder(err: unknown): string | null {
-  const detail = (err as { response?: { data?: { detail?: { locked_by?: string } } } } | undefined)
-    ?.response?.data?.detail
-  return detail?.locked_by ?? null
 }
 
 // The design's review table (1d): sprint · Current · Proposed · Δ · behind it.
