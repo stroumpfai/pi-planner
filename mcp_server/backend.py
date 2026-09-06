@@ -99,6 +99,14 @@ def _raise_for_error(r: httpx.Response) -> None:
     """Classify error responses into typed MCPBackendError exceptions."""
     if r.status_code == 409:
         _raise_409(r)
+    if r.status_code == 412:
+        _raise_412(r)
+    if r.status_code == 428:
+        raise MCPBackendError(
+            428,
+            "IF_MATCH_REQUIRED",
+            "This team write must carry the If-Match header from the row's last read.",
+        )
     if r.status_code == 403:
         raise MCPBackendError(403, "FORBIDDEN", "Your role does not permit this action.")
     if r.status_code == 422:
@@ -127,3 +135,22 @@ def _raise_409(r: httpx.Response) -> None:
     expires_at = detail_dict.get("expires_at", "")
     retry_hint = f" Lock expires at {expires_at}." if expires_at else " Try again in a few minutes."
     raise MCPBackendError(409, "LOCKED", f"Project is being edited by {locked_by}.{retry_hint}")
+
+
+def _raise_412(r: httpx.Response) -> None:
+    """Raise STALE for a team row that changed under the caller (teams.md §4.2).
+
+    Distinct from LOCKED: 409 means someone else is editing this *project* and the
+    write should be retried later; 412 means this *row* moved, and the caller has
+    to re-read it and decide. Without this branch the fall-through to
+    raise_for_status() would surface a raw httpx error to the agent.
+    """
+    body = {}
+    try:
+        body = r.json()
+    except Exception:
+        pass
+    detail = body.get("detail")
+    detail_dict = detail if isinstance(detail, dict) else {}
+    message = detail_dict.get("message", "This row changed since you read it.")
+    raise MCPBackendError(412, "STALE", f"{message} Re-read it and reapply your change.")

@@ -23,6 +23,7 @@ from app.config import settings
 from app.database import AsyncSessionLocal, get_session
 from app.middleware.mcp_activity import MCPActivityMiddleware
 from app.routes import (
+    absences,
     api_keys,
     auth,
     csv_import,
@@ -30,6 +31,7 @@ from app.routes import (
     events,
     features,
     groups,
+    meetings,
     pbis,
     pi_events,
     pis,
@@ -38,6 +40,10 @@ from app.routes import (
     projects,
     sprints,
     swimlines,
+    team_members,
+    team_projects,
+    team_push,
+    teams,
     test_utils,
     users,
 )
@@ -95,6 +101,12 @@ for _router in [
     events.router,
     csv_import.router,
     api_keys.router,
+    teams.router,
+    team_members.router,
+    absences.router,
+    meetings.router,
+    team_projects.router,
+    team_push.router,
 ]:
     app.include_router(_router)
 

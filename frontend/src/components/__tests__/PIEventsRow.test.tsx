@@ -13,7 +13,7 @@ const makeSprint = (index: number, start?: string, end?: string): Sprint => ({
   system_id: `s-${index}`,
   pi_id: 'pi-1',
   sprint_index: index,
-  capacity: 10,
+  available: 10,
   effort: 0,
   start_date: start ?? null,
   end_date: end ?? null,

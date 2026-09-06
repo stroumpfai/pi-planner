@@ -1,25 +1,38 @@
 import { useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useUpdateSprint } from '@/hooks/useSprints'
+import { fmtDateTime } from '@/utils/dates'
 import { DateInput } from './DateInput'
-import type { Sprint } from '@/types'
+import type { ProjectPushStatus, Sprint } from '@/types'
 
 interface Props {
   readonly open: boolean
   readonly sprint: Sprint
   readonly piId: string
   readonly onClose: () => void
+  /** The project's team, when one derives its Available (teams.md §6.4). */
+  readonly pushStatus?: ProjectPushStatus | null
 }
 
-export function SprintCapacityModal({ open, sprint, piId, onClose }: Props) {
-  const [capacity, setCapacity] = useState(String(sprint.capacity ?? 0))
+/**
+ * Edit one sprint's budget and dates.
+ *
+ * **Available goes read-only when a team derives it** (§6.4). The dates do not:
+ * no team write touches them, and taking the only editor for them away would cost
+ * the board something teams never claimed. Writing a derived Available here would
+ * earn a 409 `AVAILABLE_IS_DERIVED` and, if it somehow landed, be reverted by the
+ * next push with nothing in between to show the plan changed twice.
+ */
+export function SprintCapacityModal({ open, sprint, piId, onClose, pushStatus }: Props) {
+  const [available, setAvailable] = useState(String(sprint.available ?? 0))
   const [startDate, setStartDate] = useState(sprint.start_date ?? '')
   const [endDate, setEndDate] = useState(sprint.end_date ?? '')
   const [error, setError] = useState<string | null>(null)
   const update = useUpdateSprint(piId)
+  const derived = pushStatus != null && pushStatus.available_source !== 'manual'
 
   function handleClose() {
-    setCapacity(String(sprint.capacity ?? 0))
+    setAvailable(String(sprint.available ?? 0))
     setStartDate(sprint.start_date ?? '')
     setEndDate(sprint.end_date ?? '')
     setError(null)
@@ -28,9 +41,9 @@ export function SprintCapacityModal({ open, sprint, piId, onClose }: Props) {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    const val = Number.parseInt(capacity, 10)
-    if (Number.isNaN(val) || val < 0) {
-      setError('Capacity must be 0 or greater')
+    const val = Number.parseInt(available, 10)
+    if (!derived && (Number.isNaN(val) || val < 0)) {
+      setError('Available must be 0 or greater')
       return
     }
     setError(null)
@@ -38,7 +51,9 @@ export function SprintCapacityModal({ open, sprint, piId, onClose }: Props) {
       await update.mutateAsync({
         sprintId: sprint.system_id,
         body: {
-          capacity: val || 1,
+          // Omitted entirely on a derived sprint: sending the value back
+          // unchanged would still be a write the API refuses.
+          ...(derived ? {} : { available: val }),
           start_date: startDate || null,
           end_date: endDate || null,
         },
@@ -65,18 +80,29 @@ export function SprintCapacityModal({ open, sprint, piId, onClose }: Props) {
           </Dialog.Title>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label htmlFor="sprint-capacity" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Capacity (story points)
+              <label htmlFor="sprint-available" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+                Available (story points)
               </label>
               <input
-                id="sprint-capacity"
+                id="sprint-available"
                 type="number"
                 min="0"
-                value={capacity}
-                onChange={(e) => setCapacity(e.target.value)}
-                autoFocus
-                className={inputClass}
+                value={available}
+                onChange={(e) => setAvailable(e.target.value)}
+                autoFocus={!derived}
+                readOnly={derived}
+                aria-readonly={derived || undefined}
+                className={derived ? `${inputClass} bg-band/60 text-gray-500 dark:text-gray-400` : inputClass}
               />
+              {derived && (
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Derived from team {pushStatus.team_name} —{' '}
+                  {sprint.available_pushed_at
+                    ? `pushed ${fmtDateTime(sprint.available_pushed_at)}`
+                    : 'never pushed'}
+                  . Change it by updating projects from the team. The dates below are still yours.
+                </p>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-3">

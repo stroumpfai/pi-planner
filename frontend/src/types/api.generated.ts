@@ -272,6 +272,16 @@ export interface paths {
     /** Project Events */
     get: operations["project_events_api_v1_projects__project_id__events_get"];
   };
+  "/api/v1/teams/{team_id}/events": {
+    /**
+     * Team Events
+     * @description Live team updates.
+     *
+     * Team data is its own aggregate, edited without the project lock, so readers
+     * watch it on its own channel rather than on any project's (teams.md §4).
+     */
+    get: operations["team_events_api_v1_teams__team_id__events_get"];
+  };
   "/api/v1/projects/{project_id}/import/csv": {
     /** Import Csv */
     post: operations["import_csv_api_v1_projects__project_id__import_csv_post"];
@@ -313,6 +323,295 @@ export interface paths {
      * Returns the username and role associated with the key.
      */
     post: operations["verify_key_api_v1_api_keys_admin_verify_post"];
+  };
+  "/api/v1/teams": {
+    /** List Teams */
+    get: operations["list_teams_api_v1_teams_get"];
+    /** Create Team */
+    post: operations["create_team_api_v1_teams_post"];
+  };
+  "/api/v1/teams/{team_id}": {
+    /** Get Team */
+    get: operations["get_team_api_v1_teams__team_id__get"];
+    /** Delete Team */
+    delete: operations["delete_team_api_v1_teams__team_id__delete"];
+    /** Update Team */
+    patch: operations["update_team_api_v1_teams__team_id__patch"];
+  };
+  "/api/v1/teams/{team_id}/members": {
+    /** List Members */
+    get: operations["list_members_api_v1_teams__team_id__members_get"];
+    /**
+     * Create Member
+     * @description Create a member together with their first working pattern.
+     *
+     * One transaction, because the two cannot be separated (§3.3). The version's
+     * ``effective_from`` defaults to the member's ``active_from``, or today when
+     * that is blank — the date their contract starts being true.
+     */
+    post: operations["create_member_api_v1_teams__team_id__members_post"];
+  };
+  "/api/v1/teams/{team_id}/members/reorder": {
+    /**
+     * Reorder Members
+     * @description Set the display order from a list of member ids.
+     *
+     * No ``If-Match``: order is not a field anyone edits in a form, and a reorder
+     * carries none of the values a stale write would overwrite. Ids belonging to
+     * another team are ignored rather than rejected — the list is a preference, and
+     * a partial one is still an improvement on the old order.
+     */
+    post: operations["reorder_members_api_v1_teams__team_id__members_reorder_post"];
+  };
+  "/api/v1/teams/{team_id}/members/{member_id}": {
+    /**
+     * Delete Member
+     * @description Delete a member, and with them every absence, attendance and version.
+     *
+     * The cascade is the reason the response carries the counts: the confirm dialog
+     * states what goes before it goes (§10), and setting ``active_to`` is the
+     * non-destructive alternative when someone has merely left.
+     */
+    delete: operations["delete_member_api_v1_teams__team_id__members__member_id__delete"];
+    /** Update Member */
+    patch: operations["update_member_api_v1_teams__team_id__members__member_id__patch"];
+  };
+  "/api/v1/teams/{team_id}/members/{member_id}/working-days": {
+    /**
+     * List Pattern Versions
+     * @description Every version this member owns, ascending.
+     *
+     * Intervals are half-open and derived: each version holds until the day before
+     * the next one's ``effective_from``, and the latest holds indefinitely — which
+     * is why no end date is returned (§3.3).
+     */
+    get: operations["list_pattern_versions_api_v1_teams__team_id__members__member_id__working_days_get"];
+    /**
+     * Create Pattern Version
+     * @description Add a version, or replace the one already on that date.
+     *
+     * Posting onto an existing ``effective_from`` **edits** that version rather than
+     * creating a duplicate (§3.3) — one date, one version, so a gap or an overlap
+     * cannot be expressed. The body carries the whole pattern, so this is a
+     * replacement and not a merge: there is no half of someone else's edit for it to
+     * keep by accident.
+     *
+     * Which makes that branch a full overwrite of a row someone else may have moved,
+     * so it carries the same ``If-Match`` contract as the equivalent ``PATCH``
+     * (§4.2): without the header it is **428**, against a stale one **412**. Only
+     * the create branch may go without, because there is no ETag to quote for a
+     * version that does not exist yet.
+     */
+    post: operations["create_pattern_version_api_v1_teams__team_id__members__member_id__working_days_post"];
+  };
+  "/api/v1/teams/{team_id}/members/{member_id}/working-days/{version_id}": {
+    /**
+     * Delete Pattern Version
+     * @description Delete a version; its interval merges into the preceding one.
+     *
+     * The merge needs no work because intervals are derived — with the row gone, the
+     * version before it simply holds until the next one. The **earliest cannot be
+     * deleted**: something has to define the beginning, and every date before the
+     * first ``effective_from`` resolves to it (§3.3).
+     */
+    delete: operations["delete_pattern_version_api_v1_teams__team_id__members__member_id__working_days__version_id__delete"];
+    /** Update Pattern Version */
+    patch: operations["update_pattern_version_api_v1_teams__team_id__members__member_id__working_days__version_id__patch"];
+  };
+  "/api/v1/teams/{team_id}/absences": {
+    /**
+     * List Absences
+     * @description Every absence rule the team holds, with its occurrences inside the window.
+     *
+     * The rules are always returned in full; only the expansion is windowed. A rule
+     * with no occurrence in view still appears — the minimap's density bars are
+     * drawn from rows the grid is not currently showing (§7.4).
+     */
+    get: operations["list_absences_api_v1_teams__team_id__absences_get"];
+    /**
+     * Create Absences
+     * @description One rule, one record per named member, in one transaction (§3.4).
+     *
+     * Returns them all — the caller selected several people and needs every id
+     * back, not the first. No `If-Match`: a create cannot clobber (§4.2).
+     */
+    post: operations["create_absences_api_v1_teams__team_id__absences_post"];
+  };
+  "/api/v1/teams/{team_id}/absences/{absence_id}": {
+    /**
+     * Delete Absence
+     * @description Delete the whole series — permanently, as everywhere in this app (§10).
+     */
+    delete: operations["delete_absence_api_v1_teams__team_id__absences__absence_id__delete"];
+    /**
+     * Update Absence
+     * @description Edit the **whole series**. There is no per-occurrence exception (§3.4).
+     *
+     * The patch is merged onto the stored row and the result validated as a rule,
+     * so a partial edit cannot leave a weekly entry without a weekday.
+     */
+    patch: operations["update_absence_api_v1_teams__team_id__absences__absence_id__patch"];
+  };
+  "/api/v1/teams/{team_id}/absences/bulk": {
+    /**
+     * Bulk Absences
+     * @description Replace the absences anchored inside a window, in one transaction (§8.2.7).
+     *
+     * The bulk path exists because the planning inputs live on a wiki page read by
+     * a model, not in a CSV: thirteen months for twenty people is thousands of
+     * rows, and a per-row call would be unusable and would half-apply on failure.
+     *
+     * **Replace, not merge.** The page is re-read on a schedule, so appending would
+     * double everything; and only replacement survives an entry being *deleted*
+     * from the page. Membership of the window is decided by `start_date`, so a
+     * recurring rule anchored last year is left alone even though it reaches into
+     * the window.
+     *
+     * Unresolved member names are collected and returned **all at once**, and
+     * nothing is written when there are any: spelling variants arrive in groups,
+     * and members are never created implicitly (§8.2.4).
+     */
+    post: operations["bulk_absences_api_v1_teams__team_id__absences_bulk_post"];
+  };
+  "/api/v1/teams/{team_id}/meetings": {
+    /**
+     * List Meetings
+     * @description Every meeting the team holds, with its occurrences inside the window.
+     *
+     * The rules are always returned in full; only the expansion is windowed. A
+     * meeting with no occurrence in the selected sprint keeps its column and
+     * contributes nothing, rather than disappearing from a matrix whose other
+     * columns are unchanged (§7.5).
+     */
+    get: operations["list_meetings_api_v1_teams__team_id__meetings_get"];
+    /**
+     * Create Meeting
+     * @description One meeting, one row, with its attendees (§3.5).
+     *
+     * The attendee list may be empty — a meeting nobody attends costs nothing, and
+     * entering the schedule first and ticking attendance afterwards in the matrix
+     * is the order people work in. No `If-Match`: a create cannot clobber (§4.2).
+     */
+    post: operations["create_meeting_api_v1_teams__team_id__meetings_post"];
+  };
+  "/api/v1/teams/{team_id}/meetings/reorder": {
+    /**
+     * Reorder Meetings
+     * @description Set the column order from a list of meeting ids (§7.5).
+     *
+     * No `If-Match`, on the same reasoning as the member reorder: order is not a
+     * field anyone edits in a form, and a reorder carries none of the values a stale
+     * write would overwrite. Ids belonging to another team are ignored rather than
+     * rejected — the list is a preference, and a partial one still beats the order
+     * it replaces.
+     */
+    post: operations["reorder_meetings_api_v1_teams__team_id__meetings_reorder_post"];
+  };
+  "/api/v1/teams/{team_id}/meetings/{meeting_id}": {
+    /**
+     * Delete Meeting
+     * @description Delete the meeting and its attendance — permanently, as everywhere (§10).
+     */
+    delete: operations["delete_meeting_api_v1_teams__team_id__meetings__meeting_id__delete"];
+    /**
+     * Update Meeting
+     * @description Edit the **whole series**, and optionally who attends it.
+     *
+     * The patch is merged onto the stored row and the result validated as a rule, so
+     * a partial edit cannot leave a weekly meeting without a weekday. Omitting
+     * `member_ids` leaves attendance alone; sending it replaces the set, which is
+     * how a matrix cell toggle arrives.
+     */
+    patch: operations["update_meeting_api_v1_teams__team_id__meetings__meeting_id__patch"];
+  };
+  "/api/v1/teams/{team_id}/meetings/bulk": {
+    /**
+     * Bulk Meetings
+     * @description Replace the meetings anchored inside a date window, in one transaction.
+     *
+     * The same import path absences use, for the same reason: the meeting calendar
+     * lives on a wiki page read by a model, not in a CSV (§8.2.7).
+     *
+     * **Replace, not merge.** Everything anchored inside `[window_from, window_to]`
+     * is replaced by `entries`, so re-running an unchanged import writes the same
+     * rows and a meeting deleted from the page disappears here too. Membership is
+     * decided by `start_date`, so a stand-up anchored last year survives a window
+     * covering next month — pick a window matching the section you read.
+     *
+     * Unresolved attendee names are collected and returned **all at once**, and
+     * nothing is written when there are any; members are never created implicitly
+     * (§8.2.4).
+     */
+    post: operations["bulk_meetings_api_v1_teams__team_id__meetings_bulk_post"];
+  };
+  "/api/v1/teams/{team_id}/projects": {
+    /**
+     * List Team Projects
+     * @description The projects this team serves, **anchor first**.
+     *
+     * Order is by assignment time and is not a preference: the earliest assignment
+     * is the anchor whose sprint calendar the team's own views count in (§6.8).
+     */
+    get: operations["list_team_projects_api_v1_teams__team_id__projects_get"];
+    /** Assign Project */
+    post: operations["assign_project_api_v1_teams__team_id__projects_post"];
+  };
+  "/api/v1/teams/{team_id}/projects/{project_id}": {
+    /**
+     * Unassign Project
+     * @description Stop serving a project. **Nothing is written to the project** (§6.1).
+     */
+    delete: operations["unassign_project_api_v1_teams__team_id__projects__project_id__delete"];
+    /** Update Assignment */
+    patch: operations["update_assignment_api_v1_teams__team_id__projects__project_id__patch"];
+  };
+  "/api/v1/teams/{team_id}/capacity": {
+    /**
+     * Get Team Capacity
+     * @description Capacity per member, per sprint, for the team's anchor project calendar.
+     *
+     * A read, and only a read: nothing here writes a sprint. The number reaches a
+     * project through an explicit push (§6.7), which is why this endpoint is
+     * available to anyone who can see the team.
+     */
+    get: operations["get_team_capacity_api_v1_teams__team_id__capacity_get"];
+  };
+  "/api/v1/team-capacity/status": {
+    /**
+     * Team Capacity Status
+     * @description How far each served project has drifted from its team (§6.6).
+     *
+     * One route serves both surfaces — the home page reads them all, the PI board
+     * header reads one — because the answer is the same computation either way and
+     * a second endpoint would only differ in its ``where``.
+     */
+    get: operations["team_capacity_status_api_v1_team_capacity_status_get"];
+  };
+  "/api/v1/projects/{project_id}/team-capacity/preview": {
+    /**
+     * Preview Push
+     * @description What a push would write. Writes nothing.
+     */
+    get: operations["preview_push_api_v1_projects__project_id__team_capacity_preview_get"];
+  };
+  "/api/v1/projects/{project_id}/team-capacity/apply": {
+    /**
+     * Apply Push
+     * @description Write the proposed values. Idempotent — an unchanged push writes nothing.
+     */
+    post: operations["apply_push_api_v1_projects__project_id__team_capacity_apply_post"];
+  };
+  "/api/v1/teams/{team_id}/push": {
+    /**
+     * Push Team
+     * @description Push into every project this team serves — **per project, not atomic**.
+     *
+     * A project someone else is editing fails on its own row and the others still
+     * apply. Projects are independent aggregates; the alignment between them is on
+     * dates (§6.8), which a push never changes, so there is nothing a partial
+     * result can leave inconsistent.
+     */
+    post: operations["push_team_api_v1_teams__team_id__push_post"];
   };
   "/health": {
     /** Health */
@@ -388,6 +687,149 @@ export interface components {
       /** Key Id */
       key_id: string;
     };
+    /**
+     * AbsenceCreate
+     * @description One rule, applied to one or more members.
+     *
+     * The multi-select is an input convenience, not a shared object: the result is
+     * one record each. Editing "everyone's Christmas" for the one person who is
+     * working that day must not force a delete and recreate (§3.4).
+     */
+    AbsenceCreate: {
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: "range" | "weekly" | "interval";
+      /** Label */
+      label?: string | null;
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /** End Date */
+      end_date?: string | null;
+      /**
+       * Start Half
+       * @default am
+       * @enum {string}
+       */
+      start_half?: "am" | "pm";
+      /**
+       * End Half
+       * @default pm
+       * @enum {string}
+       */
+      end_half?: "am" | "pm";
+      /** Weekday */
+      weekday?: number | null;
+      /** Halves */
+      halves?: (("am" | "pm")[]) | null;
+      /** Interval Weeks */
+      interval_weeks?: number | null;
+      /** Member Ids */
+      member_ids: string[];
+    };
+    /**
+     * AbsenceOccurrence
+     * @description One day this absence touches, and which halves of it.
+     *
+     * Expanded by the server inside the requested window so the grid and the
+     * capacity figures are drawn from the same generator (§3.4).
+     */
+    AbsenceOccurrence: {
+      /**
+       * Date
+       * Format: date
+       */
+      date: string;
+      /** Halves */
+      halves: ("am" | "pm")[];
+    };
+    /** AbsenceResponse */
+    AbsenceResponse: {
+      /** System Id */
+      system_id: string;
+      /** Team Id */
+      team_id: string;
+      /** Member Id */
+      member_id: string;
+      /** Label */
+      label: string | null;
+      /** Kind */
+      kind: string;
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /** End Date */
+      end_date: string | null;
+      /** Start Half */
+      start_half: string;
+      /** End Half */
+      end_half: string;
+      /** Weekday */
+      weekday: number | null;
+      /** Halves */
+      halves: (("am" | "pm")[]) | null;
+      /** Interval Weeks */
+      interval_weeks: number | null;
+      /**
+       * Summary
+       * @default
+       */
+      summary?: string;
+      /**
+       * Occurrences
+       * @default []
+       */
+      occurrences?: components["schemas"]["AbsenceOccurrence"][];
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Modified At
+       * Format: date-time
+       */
+      modified_at: string;
+      /**
+       * Etag
+       * @default
+       */
+      etag?: string;
+    };
+    /**
+     * AbsenceUpdate
+     * @description A patch. Every field optional; the merged result is validated as a whole.
+     *
+     * ``member_id`` is deliberately absent — moving an absence to another person is
+     * a delete and a create, and letting it slide across in a patch would make the
+     * 412 banner's "yours / theirs" compare two different people's rows.
+     */
+    AbsenceUpdate: {
+      /** Label */
+      label?: string | null;
+      /** Kind */
+      kind?: ("range" | "weekly" | "interval") | null;
+      /** Start Date */
+      start_date?: string | null;
+      /** End Date */
+      end_date?: string | null;
+      /** Start Half */
+      start_half?: ("am" | "pm") | null;
+      /** End Half */
+      end_half?: ("am" | "pm") | null;
+      /** Weekday */
+      weekday?: number | null;
+      /** Halves */
+      halves?: (("am" | "pm")[]) | null;
+      /** Interval Weeks */
+      interval_weeks?: number | null;
+    };
     /** ActivityLogResponse */
     ActivityLogResponse: {
       /** Id */
@@ -427,10 +869,280 @@ export interface components {
       /** File */
       file: string;
     };
+    /**
+     * BulkAbsenceEntry
+     * @description One line of a bulk import, addressing members **by name**.
+     *
+     * Names rather than ids because the source is a wiki page read by a model, and
+     * it has never seen a UUID. Unknown names are reported, never created (§8.2.4).
+     */
+    BulkAbsenceEntry: {
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: "range" | "weekly" | "interval";
+      /** Label */
+      label?: string | null;
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /** End Date */
+      end_date?: string | null;
+      /**
+       * Start Half
+       * @default am
+       * @enum {string}
+       */
+      start_half?: "am" | "pm";
+      /**
+       * End Half
+       * @default pm
+       * @enum {string}
+       */
+      end_half?: "am" | "pm";
+      /** Weekday */
+      weekday?: number | null;
+      /** Halves */
+      halves?: (("am" | "pm")[]) | null;
+      /** Interval Weeks */
+      interval_weeks?: number | null;
+      /** Member Names */
+      member_names: string[];
+    };
+    /**
+     * BulkAbsenceRequest
+     * @description Replace this team's absences anchored inside a window (§8.2.7).
+     *
+     * **Replacement, not merge.** The source page is re-read on a schedule, so a
+     * second run must not double every absence — and only replacement survives an
+     * entry being *deleted* from the page, which a merge would keep forever.
+     *
+     * Membership of the window is decided by ``start_date``: an absence anchored
+     * inside it is replaced, one anchored outside is untouched even if it happens
+     * to overlap. Anything else would silently delete a recurring rule that has run
+     * since last year.
+     */
+    BulkAbsenceRequest: {
+      /**
+       * Window From
+       * Format: date
+       */
+      window_from: string;
+      /**
+       * Window To
+       * Format: date
+       */
+      window_to: string;
+      /** Entries */
+      entries?: components["schemas"]["BulkAbsenceEntry"][];
+      /**
+       * Dry Run
+       * @default false
+       */
+      dry_run?: boolean;
+    };
+    /**
+     * BulkAbsenceResult
+     * @description What a bulk write did, or would do.
+     *
+     * ``unresolved_names`` collects **every** unknown name rather than raising on
+     * the first: spelling variants arrive in groups, and a batch that reports one
+     * per round-trip is a batch nobody finishes (§8.2.7).
+     */
+    BulkAbsenceResult: {
+      /** Dry Run */
+      dry_run: boolean;
+      /**
+       * Window From
+       * Format: date
+       */
+      window_from: string;
+      /**
+       * Window To
+       * Format: date
+       */
+      window_to: string;
+      /** Created */
+      created: number;
+      /** Deleted */
+      deleted: number;
+      /**
+       * Unresolved Names
+       * @default []
+       */
+      unresolved_names?: string[];
+      /**
+       * Absences
+       * @default []
+       */
+      absences?: components["schemas"]["AbsenceResponse"][];
+    };
     /** BulkDeleteResponse */
     BulkDeleteResponse: {
       /** Deleted Features */
       deleted_features: number;
+    };
+    /**
+     * BulkMeetingEntry
+     * @description One line of a bulk import, addressing attendees **by name**.
+     *
+     * Names rather than ids because the source is a wiki page read by a model, and
+     * it has never seen a UUID. Unknown names are reported, never created (§8.2.4).
+     */
+    BulkMeetingEntry: {
+      /** Title */
+      title: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: "range" | "weekly" | "interval";
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /** End Date */
+      end_date?: string | null;
+      /** Weekday */
+      weekday?: number | null;
+      /** Interval Weeks */
+      interval_weeks?: number | null;
+      /**
+       * Half
+       * @default am
+       * @enum {string}
+       */
+      half?: "am" | "pm";
+      /** Duration Minutes */
+      duration_minutes: number;
+      /** Member Names */
+      member_names?: string[];
+      /**
+       * All Members
+       * @default false
+       */
+      all_members?: boolean;
+    };
+    /**
+     * BulkMeetingRequest
+     * @description Replace this team's meetings anchored inside a window (§8.2.7).
+     *
+     * **Replacement, not merge**, on the same rule absences use: membership of the
+     * window is decided by `start_date`, so a stand-up anchored last year survives
+     * a window covering next month even though it occurs inside it.
+     */
+    BulkMeetingRequest: {
+      /**
+       * Window From
+       * Format: date
+       */
+      window_from: string;
+      /**
+       * Window To
+       * Format: date
+       */
+      window_to: string;
+      /** Entries */
+      entries?: components["schemas"]["BulkMeetingEntry"][];
+      /**
+       * Dry Run
+       * @default false
+       */
+      dry_run?: boolean;
+    };
+    /**
+     * BulkMeetingResult
+     * @description What a bulk write did, or would do.
+     *
+     * `unresolved_names` collects **every** unknown attendee rather than raising on
+     * the first: spelling variants arrive in groups (§8.2.7).
+     */
+    BulkMeetingResult: {
+      /** Dry Run */
+      dry_run: boolean;
+      /**
+       * Window From
+       * Format: date
+       */
+      window_from: string;
+      /**
+       * Window To
+       * Format: date
+       */
+      window_to: string;
+      /** Created */
+      created: number;
+      /** Deleted */
+      deleted: number;
+      /**
+       * Unresolved Names
+       * @default []
+       */
+      unresolved_names?: string[];
+      /**
+       * Meetings
+       * @default []
+       */
+      meetings?: components["schemas"]["MeetingResponse"][];
+    };
+    /**
+     * CapacityBreakdown
+     * @description One member's capacity in one sprint, as the §5.4 steps produced it.
+     *
+     * The fields are the steps in order, because that is what an expanded cell
+     * renders: contracted → absences → meetings → focus → ÷ normal_day_hours. The
+     * collapsed cell shows the last two; the chain is what makes a surprising
+     * number traceable to its cause.
+     */
+    CapacityBreakdown: {
+      /** Contracted Half Days */
+      contracted_half_days: number;
+      /** Contracted Hours */
+      contracted_hours: number;
+      /** Absent Half Days */
+      absent_half_days: number;
+      /** Hours After Absences */
+      hours_after_absences: number;
+      /** Meeting Hours */
+      meeting_hours: number;
+      /** Hours After Meetings */
+      hours_after_meetings: number;
+      /** Net Hours */
+      net_hours: number;
+      /** Person Days */
+      person_days: number;
+      /** Present Days */
+      present_days: number;
+    };
+    /**
+     * CapacitySprint
+     * @description A column: one sprint of the team's anchor project (§7.0.1).
+     */
+    CapacitySprint: {
+      /** Sprint Id */
+      sprint_id: string;
+      /** Pi Id */
+      pi_id: string;
+      /** Pi Name */
+      pi_name: string;
+      /** Pi State */
+      pi_state: string;
+      /** Sprint Number */
+      sprint_number: number;
+      /** Label */
+      label: string;
+      /** Start Date */
+      start_date: string | null;
+      /** End Date */
+      end_date: string | null;
+      /** Computable */
+      computable: boolean;
+      /** Available */
+      available: number;
     };
     /** ChangePassword */
     ChangePassword: {
@@ -643,6 +1355,100 @@ export interface components {
       /** State Id */
       state_id?: string | null;
     };
+    /**
+     * FirstPatternVersion
+     * @description The version created with the member, in the same transaction.
+     *
+     * ``effective_from`` is optional here alone: it defaults to the member's
+     * ``active_from``, or today when that is blank, which is what the create-member
+     * form does (§3.3).
+     */
+    FirstPatternVersion: {
+      /**
+       * Mon Am
+       * @default true
+       */
+      mon_am?: boolean;
+      /**
+       * Mon Pm
+       * @default true
+       */
+      mon_pm?: boolean;
+      /**
+       * Tue Am
+       * @default true
+       */
+      tue_am?: boolean;
+      /**
+       * Tue Pm
+       * @default true
+       */
+      tue_pm?: boolean;
+      /**
+       * Wed Am
+       * @default true
+       */
+      wed_am?: boolean;
+      /**
+       * Wed Pm
+       * @default true
+       */
+      wed_pm?: boolean;
+      /**
+       * Thu Am
+       * @default true
+       */
+      thu_am?: boolean;
+      /**
+       * Thu Pm
+       * @default true
+       */
+      thu_pm?: boolean;
+      /**
+       * Fri Am
+       * @default true
+       */
+      fri_am?: boolean;
+      /**
+       * Fri Pm
+       * @default true
+       */
+      fri_pm?: boolean;
+      /**
+       * Sat Am
+       * @default false
+       */
+      sat_am?: boolean;
+      /**
+       * Sat Pm
+       * @default false
+       */
+      sat_pm?: boolean;
+      /**
+       * Sun Am
+       * @default false
+       */
+      sun_am?: boolean;
+      /**
+       * Sun Pm
+       * @default false
+       */
+      sun_pm?: boolean;
+      /**
+       * Hours Per Day
+       * @default 8
+       */
+      hours_per_day?: number;
+      /**
+       * Focus
+       * @default 1
+       */
+      focus?: number;
+      /** Note */
+      note?: string | null;
+      /** Effective From */
+      effective_from?: string | null;
+    };
     /** GroupCreate */
     GroupCreate: {
       /** Name */
@@ -717,6 +1523,251 @@ export interface components {
        * @default false
        */
       remember_me?: boolean;
+    };
+    /**
+     * MeetingCreate
+     * @description One meeting, with the people who attend it.
+     *
+     * The attendee list may be **empty**: a meeting nobody attends is allowed and
+     * costs nothing (§11). That is what lets the schedule be entered first and
+     * attendance ticked afterwards in the matrix, which is the order people work in.
+     */
+    MeetingCreate: {
+      /** Title */
+      title: string;
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: "range" | "weekly" | "interval";
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /** End Date */
+      end_date?: string | null;
+      /** Weekday */
+      weekday?: number | null;
+      /** Interval Weeks */
+      interval_weeks?: number | null;
+      /**
+       * Half
+       * @default am
+       * @enum {string}
+       */
+      half?: "am" | "pm";
+      /** Duration Minutes */
+      duration_minutes: number;
+      /** Member Ids */
+      member_ids?: string[];
+    };
+    /**
+     * MeetingReorder
+     * @description Column order for the matrix, as a list of meeting ids (§7.5).
+     */
+    MeetingReorder: {
+      /** Order */
+      order: string[];
+    };
+    /** MeetingResponse */
+    MeetingResponse: {
+      /** System Id */
+      system_id: string;
+      /** Team Id */
+      team_id: string;
+      /** Title */
+      title: string;
+      /** Kind */
+      kind: string;
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /** End Date */
+      end_date: string | null;
+      /** Weekday */
+      weekday: number | null;
+      /** Interval Weeks */
+      interval_weeks: number | null;
+      /** Half */
+      half: string;
+      /** Duration Minutes */
+      duration_minutes: number;
+      /** Order Index */
+      order_index: number;
+      /**
+       * Member Ids
+       * @default []
+       */
+      member_ids?: string[];
+      /**
+       * Summary
+       * @default
+       */
+      summary?: string;
+      /**
+       * Occurrences
+       * @default []
+       */
+      occurrences?: string[];
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Modified At
+       * Format: date-time
+       */
+      modified_at: string;
+      /**
+       * Etag
+       * @default
+       */
+      etag?: string;
+    };
+    /**
+     * MeetingUpdate
+     * @description A patch. Every field optional; the merged result is validated as a whole.
+     *
+     * `member_ids` **replaces** the attendee set when present and is left alone when
+     * absent — which is what makes a matrix cell toggle a single ordinary PATCH
+     * rather than a pair of add/remove endpoints.
+     */
+    MeetingUpdate: {
+      /** Title */
+      title?: string | null;
+      /** Kind */
+      kind?: ("range" | "weekly" | "interval") | null;
+      /** Start Date */
+      start_date?: string | null;
+      /** End Date */
+      end_date?: string | null;
+      /** Weekday */
+      weekday?: number | null;
+      /** Interval Weeks */
+      interval_weeks?: number | null;
+      /** Half */
+      half?: ("am" | "pm") | null;
+      /** Duration Minutes */
+      duration_minutes?: number | null;
+      /** Member Ids */
+      member_ids?: string[] | null;
+    };
+    /** MemberCapacityRow */
+    MemberCapacityRow: {
+      /** Member Id */
+      member_id: string;
+      /** Name */
+      name: string;
+      /** Cells */
+      cells: (components["schemas"]["CapacityBreakdown"] | null)[];
+    };
+    /**
+     * MemberCreate
+     * @description A member and their first working pattern, created together.
+     *
+     * They cannot be separated: a member with no version has no contracted
+     * half-days, which computes as zero capacity and reads as a bug rather than as
+     * missing data (§3.3).
+     */
+    MemberCreate: {
+      /** Name */
+      name: string;
+      /** Role */
+      role?: string | null;
+      /** Organisation */
+      organisation?: string | null;
+      /** Active From */
+      active_from?: string | null;
+      /** Active To */
+      active_to?: string | null;
+      pattern?: components["schemas"]["FirstPatternVersion"];
+    };
+    /** MemberReorder */
+    MemberReorder: {
+      /** Order */
+      order: string[];
+    };
+    /**
+     * MemberResponse
+     * @description A member as every team view reads them.
+     *
+     * ``effective_version`` is the version in force on the requested ``as_of`` date,
+     * which is what makes one endpoint serve both views: Members shows today's
+     * hours and focus read-only, and Working days shows the same fields for any date
+     * the picker names (§7.2, §7.3).
+     */
+    MemberResponse: {
+      /** System Id */
+      system_id: string;
+      /** Team Id */
+      team_id: string;
+      /** Name */
+      name: string;
+      /** Role */
+      role: string | null;
+      /** Organisation */
+      organisation: string | null;
+      /** Active From */
+      active_from: string | null;
+      /** Active To */
+      active_to: string | null;
+      /** Order Index */
+      order_index: number;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Modified At
+       * Format: date-time
+       */
+      modified_at: string;
+      /**
+       * Etag
+       * @default
+       */
+      etag?: string;
+      effective_version?: components["schemas"]["PatternVersionResponse"] | null;
+      /**
+       * Version Dates
+       * @default []
+       */
+      version_dates?: string[];
+      /**
+       * Absence Count
+       * @default 0
+       */
+      absence_count?: number;
+      /**
+       * Meeting Count
+       * @default 0
+       */
+      meeting_count?: number;
+    };
+    /**
+     * MemberUpdate
+     * @description Identity and validity only.
+     *
+     * Hours and focus are absent on purpose: changing them means dating a new
+     * version, not overwriting a field, so they are reachable only through the
+     * working-days endpoints (§3.3, §7.2).
+     */
+    MemberUpdate: {
+      /** Name */
+      name?: string | null;
+      /** Role */
+      role?: string | null;
+      /** Organisation */
+      organisation?: string | null;
+      /** Active From */
+      active_from?: string | null;
+      /** Active To */
+      active_to?: string | null;
     };
     /**
      * OrphanLocation
@@ -910,10 +1961,10 @@ export interface components {
        */
       total_effort?: number;
       /**
-       * Total Capacity
+       * Total Available
        * @default 0
        */
-      total_capacity?: number;
+      total_available?: number;
       /**
        * Created At
        * Format: date-time
@@ -942,6 +1993,212 @@ export interface components {
     PasswordReset: {
       /** New Password */
       new_password: string;
+    };
+    /**
+     * PatternVersionCreate
+     * @description A new version, or an edit of the one already on that date.
+     *
+     * Posting a version whose ``effective_from`` already exists **edits** it rather
+     * than creating a duplicate (§3.3) — one date, one version, and no way to
+     * express a gap or an overlap.
+     */
+    PatternVersionCreate: {
+      /**
+       * Mon Am
+       * @default true
+       */
+      mon_am?: boolean;
+      /**
+       * Mon Pm
+       * @default true
+       */
+      mon_pm?: boolean;
+      /**
+       * Tue Am
+       * @default true
+       */
+      tue_am?: boolean;
+      /**
+       * Tue Pm
+       * @default true
+       */
+      tue_pm?: boolean;
+      /**
+       * Wed Am
+       * @default true
+       */
+      wed_am?: boolean;
+      /**
+       * Wed Pm
+       * @default true
+       */
+      wed_pm?: boolean;
+      /**
+       * Thu Am
+       * @default true
+       */
+      thu_am?: boolean;
+      /**
+       * Thu Pm
+       * @default true
+       */
+      thu_pm?: boolean;
+      /**
+       * Fri Am
+       * @default true
+       */
+      fri_am?: boolean;
+      /**
+       * Fri Pm
+       * @default true
+       */
+      fri_pm?: boolean;
+      /**
+       * Sat Am
+       * @default false
+       */
+      sat_am?: boolean;
+      /**
+       * Sat Pm
+       * @default false
+       */
+      sat_pm?: boolean;
+      /**
+       * Sun Am
+       * @default false
+       */
+      sun_am?: boolean;
+      /**
+       * Sun Pm
+       * @default false
+       */
+      sun_pm?: boolean;
+      /**
+       * Hours Per Day
+       * @default 8
+       */
+      hours_per_day?: number;
+      /**
+       * Focus
+       * @default 1
+       */
+      focus?: number;
+      /** Note */
+      note?: string | null;
+      /**
+       * Effective From
+       * Format: date
+       */
+      effective_from: string;
+    };
+    /**
+     * PatternVersionResponse
+     * @description A stored version.
+     *
+     * The fields are declared here rather than inherited from ``PatternFields``
+     * because a stored row always has all fourteen booleans, a day length and a
+     * focus — none of them optional. Inheriting the defaults would publish them as
+     * optional in the schema, and the generated client would then make every reader
+     * invent a fallback for a value the row is guaranteed to carry.
+     */
+    PatternVersionResponse: {
+      /** System Id */
+      system_id: string;
+      /** Member Id */
+      member_id: string;
+      /**
+       * Effective From
+       * Format: date
+       */
+      effective_from: string;
+      /** Mon Am */
+      mon_am: boolean;
+      /** Mon Pm */
+      mon_pm: boolean;
+      /** Tue Am */
+      tue_am: boolean;
+      /** Tue Pm */
+      tue_pm: boolean;
+      /** Wed Am */
+      wed_am: boolean;
+      /** Wed Pm */
+      wed_pm: boolean;
+      /** Thu Am */
+      thu_am: boolean;
+      /** Thu Pm */
+      thu_pm: boolean;
+      /** Fri Am */
+      fri_am: boolean;
+      /** Fri Pm */
+      fri_pm: boolean;
+      /** Sat Am */
+      sat_am: boolean;
+      /** Sat Pm */
+      sat_pm: boolean;
+      /** Sun Am */
+      sun_am: boolean;
+      /** Sun Pm */
+      sun_pm: boolean;
+      /** Hours Per Day */
+      hours_per_day: number;
+      /** Focus */
+      focus: number;
+      /** Note */
+      note: string | null;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Modified At
+       * Format: date-time
+       */
+      modified_at: string;
+      /**
+       * Etag
+       * @default
+       */
+      etag?: string;
+    };
+    /** PatternVersionUpdate */
+    PatternVersionUpdate: {
+      /** Mon Am */
+      mon_am?: boolean | null;
+      /** Mon Pm */
+      mon_pm?: boolean | null;
+      /** Tue Am */
+      tue_am?: boolean | null;
+      /** Tue Pm */
+      tue_pm?: boolean | null;
+      /** Wed Am */
+      wed_am?: boolean | null;
+      /** Wed Pm */
+      wed_pm?: boolean | null;
+      /** Thu Am */
+      thu_am?: boolean | null;
+      /** Thu Pm */
+      thu_pm?: boolean | null;
+      /** Fri Am */
+      fri_am?: boolean | null;
+      /** Fri Pm */
+      fri_pm?: boolean | null;
+      /** Sat Am */
+      sat_am?: boolean | null;
+      /** Sat Pm */
+      sat_pm?: boolean | null;
+      /** Sun Am */
+      sun_am?: boolean | null;
+      /** Sun Pm */
+      sun_pm?: boolean | null;
+      /** Hours Per Day */
+      hours_per_day?: number | null;
+      /** Focus */
+      focus?: number | null;
+      /** Note */
+      note?: string | null;
+      /** Effective From */
+      effective_from?: string | null;
     };
     /** PlaceStoryRequest */
     PlaceStoryRequest: {
@@ -980,6 +2237,30 @@ export interface components {
       /** Detail */
       detail?: string | null;
     };
+    /**
+     * ProjectCapacityRow
+     * @description A served project: the team's PD after its share, in the project's own unit.
+     */
+    ProjectCapacityRow: {
+      /** Project Id */
+      project_id: string;
+      /** Name */
+      name: string;
+      /** Effort Unit */
+      effort_unit: string;
+      /** Share Pct */
+      share_pct: number;
+      /** Available Source */
+      available_source: string;
+      /** Units Per Pd */
+      units_per_pd: number;
+      /** Person Days */
+      person_days: (number | null)[];
+      /** Units */
+      units: (number | null)[];
+      /** Proposed Available */
+      proposed_available: (number | null)[];
+    };
     /** ProjectCreate */
     ProjectCreate: {
       /** Name */
@@ -990,6 +2271,57 @@ export interface components {
       azure_devops_url?: string | null;
       /** Work Item Path Template */
       work_item_path_template?: string | null;
+    };
+    /**
+     * ProjectPushResult
+     * @description One row of the per-project result list (§6.7).
+     *
+     * ``status`` is one of ``updated`` · ``no_change`` · ``locked`` · ``manual`` ·
+     * ``no_team`` · ``error``. A locked row carries the holder and the expiry so the
+     * dialog can offer *Retry this one* against a real time.
+     */
+    ProjectPushResult: {
+      /** Project Id */
+      project_id: string;
+      /** Project Name */
+      project_name: string;
+      /** Status */
+      status: string;
+      /** Updated Sprints */
+      updated_sprints: number;
+      /** Total Delta */
+      total_delta: number;
+      /** Message */
+      message?: string | null;
+      /** Locked By */
+      locked_by?: string | null;
+      /** Locked Until */
+      locked_until?: string | null;
+    };
+    /**
+     * ProjectPushStatus
+     * @description Whether one project's sprints still agree with its team (§6.6).
+     *
+     * A `manual` project is never stale — nothing is meant to flow into it — and
+     * reports ``stale_sprints`` 0 with the source that says why.
+     */
+    ProjectPushStatus: {
+      /** Project Id */
+      project_id: string;
+      /** Project Name */
+      project_name: string;
+      /** Team Id */
+      team_id: string;
+      /** Team Name */
+      team_name: string;
+      /** Share Pct */
+      share_pct: number;
+      /** Available Source */
+      available_source: string;
+      /** Stale Sprints */
+      stale_sprints: number;
+      /** Last Pushed At */
+      last_pushed_at: string | null;
     };
     /** ProjectResponse */
     ProjectResponse: {
@@ -1087,6 +2419,70 @@ export interface components {
       effort_unit?: string | null;
     };
     /**
+     * PushPreview
+     * @description Everything a push into one project would do. Writes nothing.
+     */
+    PushPreview: {
+      /** Project Id */
+      project_id: string;
+      /** Project Name */
+      project_name: string;
+      /** Effort Unit */
+      effort_unit: string;
+      /** Team Id */
+      team_id: string;
+      /** Team Name */
+      team_name: string;
+      /** Share Pct */
+      share_pct: number;
+      /** Available Source */
+      available_source: string;
+      /** Units Per Pd */
+      units_per_pd: number;
+      /** Sprints */
+      sprints: components["schemas"]["PushSprintRow"][];
+      /** Changed Count */
+      changed_count: number;
+      /** Total Delta */
+      total_delta: number;
+    };
+    /**
+     * PushSprintRow
+     * @description One sprint's line in the review table: current · proposed · Δ · behind it.
+     */
+    PushSprintRow: {
+      /** Sprint Id */
+      sprint_id: string;
+      /** Pi Id */
+      pi_id: string;
+      /** Pi Name */
+      pi_name: string;
+      /** Pi State */
+      pi_state: string;
+      /** Sprint Number */
+      sprint_number: number;
+      /** Label */
+      label: string;
+      /** Start Date */
+      start_date: string | null;
+      /** End Date */
+      end_date: string | null;
+      /** Current Available */
+      current_available: number;
+      /** Proposed Available */
+      proposed_available: number | null;
+      /** Delta */
+      delta: number | null;
+      /** Team Person Days */
+      team_person_days: number | null;
+      /** Share Adjusted Person Days */
+      share_adjusted_person_days: number | null;
+      /** In Project Units */
+      in_project_units: number | null;
+      /** Available Pushed At */
+      available_pushed_at: string | null;
+    };
+    /**
      * Role
      * @enum {string}
      */
@@ -1154,8 +2550,10 @@ export interface components {
       pi_id: string;
       /** Sprint Index */
       sprint_index: number | null;
-      /** Capacity */
-      capacity: number;
+      /** Available */
+      available: number;
+      /** Available Pushed At */
+      available_pushed_at?: string | null;
       /**
        * Effort
        * @default 0
@@ -1178,8 +2576,8 @@ export interface components {
     };
     /** SprintUpdate */
     SprintUpdate: {
-      /** Capacity */
-      capacity?: number | null;
+      /** Available */
+      available?: number | null;
       /** Start Date */
       start_date?: string | null;
       /** End Date */
@@ -1216,10 +2614,10 @@ export interface components {
        */
       effort?: number;
       /**
-       * Capacity
+       * Available
        * @default 0
        */
-      capacity?: number;
+      available?: number;
       /**
        * Created At
        * Format: date-time
@@ -1237,6 +2635,167 @@ export interface components {
       name?: string | null;
       /** Order Index */
       order_index?: number | null;
+    };
+    /** TeamCapacityResponse */
+    TeamCapacityResponse: {
+      /** Team Id */
+      team_id: string;
+      /** Normal Day Hours */
+      normal_day_hours: number;
+      /** Anchor Project Id */
+      anchor_project_id: string | null;
+      /** Sprints */
+      sprints: components["schemas"]["CapacitySprint"][];
+      /** Members */
+      members: components["schemas"]["MemberCapacityRow"][];
+      /** Team */
+      team: (components["schemas"]["CapacityBreakdown"] | null)[];
+      /** Projects */
+      projects: components["schemas"]["ProjectCapacityRow"][];
+    };
+    /** TeamCreate */
+    TeamCreate: {
+      /** Name */
+      name: string;
+      /** Description */
+      description?: string | null;
+      /**
+       * Normal Day Hours
+       * @default 8
+       */
+      normal_day_hours?: number;
+    };
+    /** TeamProjectCreate */
+    TeamProjectCreate: {
+      /** Project Id */
+      project_id: string;
+      /**
+       * Share Pct
+       * @default 100
+       */
+      share_pct?: number;
+      /**
+       * Available Source
+       * @default manual
+       * @enum {string}
+       */
+      available_source?: "manual" | "factor";
+      /**
+       * Units Per Pd
+       * @default 1
+       */
+      units_per_pd?: number;
+    };
+    /**
+     * TeamProjectResponse
+     * @description One project this team serves, and how its PD reaches that project.
+     */
+    TeamProjectResponse: {
+      /** System Id */
+      system_id: string;
+      /** Team Id */
+      team_id: string;
+      /** Project Id */
+      project_id: string;
+      /** Project Name */
+      project_name: string;
+      /** Effort Unit */
+      effort_unit: string;
+      /** Share Pct */
+      share_pct: number;
+      /** Available Source */
+      available_source: string;
+      /** Units Per Pd */
+      units_per_pd: number;
+      /**
+       * Is Anchor
+       * @default false
+       */
+      is_anchor?: boolean;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Modified At
+       * Format: date-time
+       */
+      modified_at: string;
+      /**
+       * Etag
+       * @default
+       */
+      etag?: string;
+    };
+    /** TeamProjectUpdate */
+    TeamProjectUpdate: {
+      /** Share Pct */
+      share_pct?: number | null;
+      /** Available Source */
+      available_source?: ("manual" | "factor") | null;
+      /** Units Per Pd */
+      units_per_pd?: number | null;
+    };
+    /** TeamPushResponse */
+    TeamPushResponse: {
+      /** Team Id */
+      team_id: string;
+      /** Results */
+      results: components["schemas"]["ProjectPushResult"][];
+    };
+    /**
+     * TeamResponse
+     * @description A team, with the two counts the landing page reads.
+     *
+     * Teams are not planning items: the dual-ID system does not apply, so there is
+     * no ``id`` beside ``system_id`` here (§3.1).
+     */
+    TeamResponse: {
+      /** System Id */
+      system_id: string;
+      /** Name */
+      name: string;
+      /** Description */
+      description: string | null;
+      /** Normal Day Hours */
+      normal_day_hours: number;
+      /**
+       * Member Count
+       * @default 0
+       */
+      member_count?: number;
+      /**
+       * Project Ids
+       * @default []
+       */
+      project_ids?: string[];
+      /**
+       * Project Shares
+       * @default {}
+       */
+      project_shares?: {
+        [key: string]: number;
+      };
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Modified At
+       * Format: date-time
+       */
+      modified_at: string;
+    };
+    /** TeamUpdate */
+    TeamUpdate: {
+      /** Name */
+      name?: string | null;
+      /** Description */
+      description?: string | null;
+      /** Normal Day Hours */
+      normal_day_hours?: number | null;
     };
     /** TokenResponse */
     TokenResponse: {
@@ -3300,6 +4859,37 @@ export interface operations {
       };
     };
   };
+  /**
+   * Team Events
+   * @description Live team updates.
+   *
+   * Team data is its own aggregate, edited without the project lock, so readers
+   * watch it on its own channel rather than on any project's (teams.md §4).
+   */
+  team_events_api_v1_teams__team_id__events_get: {
+    parameters: {
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   /** Import Csv */
   import_csv_api_v1_projects__project_id__import_csv_post: {
     parameters: {
@@ -3520,6 +5110,1223 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["APIKeyVerifyResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** List Teams */
+  list_teams_api_v1_teams_get: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TeamResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Create Team */
+  create_team_api_v1_teams_post: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TeamCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["TeamResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Get Team */
+  get_team_api_v1_teams__team_id__get: {
+    parameters: {
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TeamResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Delete Team */
+  delete_team_api_v1_teams__team_id__delete: {
+    parameters: {
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Update Team */
+  update_team_api_v1_teams__team_id__patch: {
+    parameters: {
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TeamUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TeamResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** List Members */
+  list_members_api_v1_teams__team_id__members_get: {
+    parameters: {
+      query?: {
+        /** @description Show the pattern version in force on this date. Defaults to today. */
+        as_of?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MemberResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Member
+   * @description Create a member together with their first working pattern.
+   *
+   * One transaction, because the two cannot be separated (§3.3). The version's
+   * ``effective_from`` defaults to the member's ``active_from``, or today when
+   * that is blank — the date their contract starts being true.
+   */
+  create_member_api_v1_teams__team_id__members_post: {
+    parameters: {
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MemberCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["MemberResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Reorder Members
+   * @description Set the display order from a list of member ids.
+   *
+   * No ``If-Match``: order is not a field anyone edits in a form, and a reorder
+   * carries none of the values a stale write would overwrite. Ids belonging to
+   * another team are ignored rather than rejected — the list is a preference, and
+   * a partial one is still an improvement on the old order.
+   */
+  reorder_members_api_v1_teams__team_id__members_reorder_post: {
+    parameters: {
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MemberReorder"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MemberResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Delete Member
+   * @description Delete a member, and with them every absence, attendance and version.
+   *
+   * The cascade is the reason the response carries the counts: the confirm dialog
+   * states what goes before it goes (§10), and setting ``active_to`` is the
+   * non-destructive alternative when someone has merely left.
+   */
+  delete_member_api_v1_teams__team_id__members__member_id__delete: {
+    parameters: {
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        team_id: string;
+        member_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Update Member */
+  update_member_api_v1_teams__team_id__members__member_id__patch: {
+    parameters: {
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        team_id: string;
+        member_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MemberUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MemberResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Pattern Versions
+   * @description Every version this member owns, ascending.
+   *
+   * Intervals are half-open and derived: each version holds until the day before
+   * the next one's ``effective_from``, and the latest holds indefinitely — which
+   * is why no end date is returned (§3.3).
+   */
+  list_pattern_versions_api_v1_teams__team_id__members__member_id__working_days_get: {
+    parameters: {
+      path: {
+        team_id: string;
+        member_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PatternVersionResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Pattern Version
+   * @description Add a version, or replace the one already on that date.
+   *
+   * Posting onto an existing ``effective_from`` **edits** that version rather than
+   * creating a duplicate (§3.3) — one date, one version, so a gap or an overlap
+   * cannot be expressed. The body carries the whole pattern, so this is a
+   * replacement and not a merge: there is no half of someone else's edit for it to
+   * keep by accident.
+   *
+   * Which makes that branch a full overwrite of a row someone else may have moved,
+   * so it carries the same ``If-Match`` contract as the equivalent ``PATCH``
+   * (§4.2): without the header it is **428**, against a stale one **412**. Only
+   * the create branch may go without, because there is no ETag to quote for a
+   * version that does not exist yet.
+   */
+  create_pattern_version_api_v1_teams__team_id__members__member_id__working_days_post: {
+    parameters: {
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        team_id: string;
+        member_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PatternVersionCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["PatternVersionResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Delete Pattern Version
+   * @description Delete a version; its interval merges into the preceding one.
+   *
+   * The merge needs no work because intervals are derived — with the row gone, the
+   * version before it simply holds until the next one. The **earliest cannot be
+   * deleted**: something has to define the beginning, and every date before the
+   * first ``effective_from`` resolves to it (§3.3).
+   */
+  delete_pattern_version_api_v1_teams__team_id__members__member_id__working_days__version_id__delete: {
+    parameters: {
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        team_id: string;
+        member_id: string;
+        version_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Update Pattern Version */
+  update_pattern_version_api_v1_teams__team_id__members__member_id__working_days__version_id__patch: {
+    parameters: {
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        team_id: string;
+        member_id: string;
+        version_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PatternVersionUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PatternVersionResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Absences
+   * @description Every absence rule the team holds, with its occurrences inside the window.
+   *
+   * The rules are always returned in full; only the expansion is windowed. A rule
+   * with no occurrence in view still appears — the minimap's density bars are
+   * drawn from rows the grid is not currently showing (§7.4).
+   */
+  list_absences_api_v1_teams__team_id__absences_get: {
+    parameters: {
+      query?: {
+        /** @description Expand occurrences from this date */
+        from?: string | null;
+        /** @description Expand occurrences up to this date */
+        to?: string | null;
+        /** @description Only this member's absences */
+        member_id?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["AbsenceResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Absences
+   * @description One rule, one record per named member, in one transaction (§3.4).
+   *
+   * Returns them all — the caller selected several people and needs every id
+   * back, not the first. No `If-Match`: a create cannot clobber (§4.2).
+   */
+  create_absences_api_v1_teams__team_id__absences_post: {
+    parameters: {
+      query?: {
+        /** @description Expand occurrences from this date */
+        from?: string | null;
+        /** @description Expand occurrences up to this date */
+        to?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AbsenceCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["AbsenceResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Delete Absence
+   * @description Delete the whole series — permanently, as everywhere in this app (§10).
+   */
+  delete_absence_api_v1_teams__team_id__absences__absence_id__delete: {
+    parameters: {
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        team_id: string;
+        absence_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Update Absence
+   * @description Edit the **whole series**. There is no per-occurrence exception (§3.4).
+   *
+   * The patch is merged onto the stored row and the result validated as a rule,
+   * so a partial edit cannot leave a weekly entry without a weekday.
+   */
+  update_absence_api_v1_teams__team_id__absences__absence_id__patch: {
+    parameters: {
+      query?: {
+        /** @description Expand occurrences from this date */
+        from?: string | null;
+        /** @description Expand occurrences up to this date */
+        to?: string | null;
+      };
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        team_id: string;
+        absence_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["AbsenceUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["AbsenceResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Bulk Absences
+   * @description Replace the absences anchored inside a window, in one transaction (§8.2.7).
+   *
+   * The bulk path exists because the planning inputs live on a wiki page read by
+   * a model, not in a CSV: thirteen months for twenty people is thousands of
+   * rows, and a per-row call would be unusable and would half-apply on failure.
+   *
+   * **Replace, not merge.** The page is re-read on a schedule, so appending would
+   * double everything; and only replacement survives an entry being *deleted*
+   * from the page. Membership of the window is decided by `start_date`, so a
+   * recurring rule anchored last year is left alone even though it reaches into
+   * the window.
+   *
+   * Unresolved member names are collected and returned **all at once**, and
+   * nothing is written when there are any: spelling variants arrive in groups,
+   * and members are never created implicitly (§8.2.4).
+   */
+  bulk_absences_api_v1_teams__team_id__absences_bulk_post: {
+    parameters: {
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BulkAbsenceRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["BulkAbsenceResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Meetings
+   * @description Every meeting the team holds, with its occurrences inside the window.
+   *
+   * The rules are always returned in full; only the expansion is windowed. A
+   * meeting with no occurrence in the selected sprint keeps its column and
+   * contributes nothing, rather than disappearing from a matrix whose other
+   * columns are unchanged (§7.5).
+   */
+  list_meetings_api_v1_teams__team_id__meetings_get: {
+    parameters: {
+      query?: {
+        /** @description Expand occurrences from this date */
+        from?: string | null;
+        /** @description Expand occurrences up to this date */
+        to?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MeetingResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Create Meeting
+   * @description One meeting, one row, with its attendees (§3.5).
+   *
+   * The attendee list may be empty — a meeting nobody attends costs nothing, and
+   * entering the schedule first and ticking attendance afterwards in the matrix
+   * is the order people work in. No `If-Match`: a create cannot clobber (§4.2).
+   */
+  create_meeting_api_v1_teams__team_id__meetings_post: {
+    parameters: {
+      query?: {
+        /** @description Expand occurrences from this date */
+        from?: string | null;
+        /** @description Expand occurrences up to this date */
+        to?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MeetingCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["MeetingResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Reorder Meetings
+   * @description Set the column order from a list of meeting ids (§7.5).
+   *
+   * No `If-Match`, on the same reasoning as the member reorder: order is not a
+   * field anyone edits in a form, and a reorder carries none of the values a stale
+   * write would overwrite. Ids belonging to another team are ignored rather than
+   * rejected — the list is a preference, and a partial one still beats the order
+   * it replaces.
+   */
+  reorder_meetings_api_v1_teams__team_id__meetings_reorder_post: {
+    parameters: {
+      query?: {
+        /** @description Expand occurrences from this date */
+        from?: string | null;
+        /** @description Expand occurrences up to this date */
+        to?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MeetingReorder"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MeetingResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Delete Meeting
+   * @description Delete the meeting and its attendance — permanently, as everywhere (§10).
+   */
+  delete_meeting_api_v1_teams__team_id__meetings__meeting_id__delete: {
+    parameters: {
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        team_id: string;
+        meeting_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Update Meeting
+   * @description Edit the **whole series**, and optionally who attends it.
+   *
+   * The patch is merged onto the stored row and the result validated as a rule, so
+   * a partial edit cannot leave a weekly meeting without a weekday. Omitting
+   * `member_ids` leaves attendance alone; sending it replaces the set, which is
+   * how a matrix cell toggle arrives.
+   */
+  update_meeting_api_v1_teams__team_id__meetings__meeting_id__patch: {
+    parameters: {
+      query?: {
+        /** @description Expand occurrences from this date */
+        from?: string | null;
+        /** @description Expand occurrences up to this date */
+        to?: string | null;
+      };
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        team_id: string;
+        meeting_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["MeetingUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["MeetingResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Bulk Meetings
+   * @description Replace the meetings anchored inside a date window, in one transaction.
+   *
+   * The same import path absences use, for the same reason: the meeting calendar
+   * lives on a wiki page read by a model, not in a CSV (§8.2.7).
+   *
+   * **Replace, not merge.** Everything anchored inside `[window_from, window_to]`
+   * is replaced by `entries`, so re-running an unchanged import writes the same
+   * rows and a meeting deleted from the page disappears here too. Membership is
+   * decided by `start_date`, so a stand-up anchored last year survives a window
+   * covering next month — pick a window matching the section you read.
+   *
+   * Unresolved attendee names are collected and returned **all at once**, and
+   * nothing is written when there are any; members are never created implicitly
+   * (§8.2.4).
+   */
+  bulk_meetings_api_v1_teams__team_id__meetings_bulk_post: {
+    parameters: {
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BulkMeetingRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["BulkMeetingResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * List Team Projects
+   * @description The projects this team serves, **anchor first**.
+   *
+   * Order is by assignment time and is not a preference: the earliest assignment
+   * is the anchor whose sprint calendar the team's own views count in (§6.8).
+   */
+  list_team_projects_api_v1_teams__team_id__projects_get: {
+    parameters: {
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TeamProjectResponse"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Assign Project */
+  assign_project_api_v1_teams__team_id__projects_post: {
+    parameters: {
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TeamProjectCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["TeamProjectResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Unassign Project
+   * @description Stop serving a project. **Nothing is written to the project** (§6.1).
+   */
+  unassign_project_api_v1_teams__team_id__projects__project_id__delete: {
+    parameters: {
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        team_id: string;
+        project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Update Assignment */
+  update_assignment_api_v1_teams__team_id__projects__project_id__patch: {
+    parameters: {
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        team_id: string;
+        project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["TeamProjectUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TeamProjectResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Team Capacity
+   * @description Capacity per member, per sprint, for the team's anchor project calendar.
+   *
+   * A read, and only a read: nothing here writes a sprint. The number reaches a
+   * project through an explicit push (§6.7), which is why this endpoint is
+   * available to anyone who can see the team.
+   */
+  get_team_capacity_api_v1_teams__team_id__capacity_get: {
+    parameters: {
+      query?: {
+        /** @description Only sprints ending on or after this date */
+        from?: string | null;
+        /** @description Only sprints starting on or before this date */
+        to?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TeamCapacityResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Team Capacity Status
+   * @description How far each served project has drifted from its team (§6.6).
+   *
+   * One route serves both surfaces — the home page reads them all, the PI board
+   * header reads one — because the answer is the same computation either way and
+   * a second endpoint would only differ in its ``where``.
+   */
+  team_capacity_status_api_v1_team_capacity_status_get: {
+    parameters: {
+      query?: {
+        /** @description Limit to one project; omit for every served project */
+        project_id?: string | null;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProjectPushStatus"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Preview Push
+   * @description What a push would write. Writes nothing.
+   */
+  preview_push_api_v1_projects__project_id__team_capacity_preview_get: {
+    parameters: {
+      query?: {
+        /** @description Only sprints ending on or after this date */
+        from?: string | null;
+        /** @description Only sprints starting on or before this date */
+        to?: string | null;
+      };
+      path: {
+        project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PushPreview"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Apply Push
+   * @description Write the proposed values. Idempotent — an unchanged push writes nothing.
+   */
+  apply_push_api_v1_projects__project_id__team_capacity_apply_post: {
+    parameters: {
+      query?: {
+        /** @description Only sprints ending on or after this date */
+        from?: string | null;
+        /** @description Only sprints starting on or before this date */
+        to?: string | null;
+      };
+      path: {
+        project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProjectPushResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Push Team
+   * @description Push into every project this team serves — **per project, not atomic**.
+   *
+   * A project someone else is editing fails on its own row and the others still
+   * apply. Projects are independent aggregates; the alignment between them is on
+   * dates (§6.8), which a push never changes, so there is nothing a partial
+   * result can leave inconsistent.
+   */
+  push_team_api_v1_teams__team_id__push_post: {
+    parameters: {
+      query?: {
+        /** @description Only sprints ending on or after this date */
+        from?: string | null;
+        /** @description Only sprints starting on or before this date */
+        to?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TeamPushResponse"];
         };
       };
       /** @description Validation Error */

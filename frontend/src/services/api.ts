@@ -1,4 +1,4 @@
-import axios, { type AxiosError } from 'axios'
+import axios, { type AxiosError, type AxiosResponse } from 'axios'
 import { useAuthStore } from '@/stores/authStore'
 import { toast } from '@/stores/toastStore'
 
@@ -36,3 +36,41 @@ api.interceptors.response.use(
     return Promise.reject(error)
   },
 )
+
+/** The body FastAPI wraps our business errors in: `{ detail: { error, message, … } }`. */
+export interface ApiErrorDetail {
+  error: string
+  message: string
+}
+
+/**
+ * The `detail` object of a business error, or `null` for anything else.
+ *
+ * The interceptor above deliberately leaves these alone — a 409 carrying
+ * `detail.error` is a rule the caller has to explain in its own words ("that name
+ * is taken"), not a generic toast. This is how a caller gets at it without every
+ * service re-deriving the same cast.
+ */
+export function errorDetail<T extends ApiErrorDetail = ApiErrorDetail>(err: unknown): T | null {
+  const detail = (err as AxiosError<{ detail?: unknown }> | undefined)?.response?.data?.detail
+  if (detail !== null && typeof detail === 'object' && 'error' in detail) {
+    return detail as T
+  }
+  return null
+}
+
+/**
+ * The strong `ETag` a team read carries, which the matching write must quote back
+ * in `If-Match` (teams.md §4.2).
+ *
+ * Missing is a hard error rather than an empty string: sending no `If-Match` earns
+ * a 428, and sending `""` earns a 412 — both of which would read as a server bug
+ * far from the read that actually failed to produce a tag.
+ */
+export function etagOf(response: AxiosResponse): string {
+  const etag: unknown = response.headers['etag']
+  if (typeof etag !== 'string' || etag === '') {
+    throw new Error('Response carried no ETag; this row cannot be written to safely')
+  }
+  return etag
+}

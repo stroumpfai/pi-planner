@@ -30,13 +30,13 @@ const defaultProps = {
 }
 
 const PIS = [
-  { system_id: 'pi-1', project_id: 'p-1', name: 'PI 1', description: null, state: 'in_progress', start_date: null, end_date: null, created_at: '', modified_at: '', total_effort: 0, total_capacity: 0 },
-  { system_id: 'pi-2', project_id: 'p-1', name: 'PI 2', description: null, state: 'draft', start_date: null, end_date: null, created_at: '', modified_at: '', total_effort: 0, total_capacity: 0 },
+  { system_id: 'pi-1', project_id: 'p-1', name: 'PI 1', description: null, state: 'in_progress', start_date: null, end_date: null, created_at: '', modified_at: '', total_effort: 0, total_available: 0 },
+  { system_id: 'pi-2', project_id: 'p-1', name: 'PI 2', description: null, state: 'draft', start_date: null, end_date: null, created_at: '', modified_at: '', total_effort: 0, total_available: 0 },
 ]
 
 const SWIMLINES = [
-  { system_id: 'sw-2a', pi_id: 'pi-2', name: 'Team Alpha', order_index: 0, created_at: '', modified_at: '', effort: 0, capacity: 0 },
-  { system_id: 'sw-2b', pi_id: 'pi-2', name: 'Team Beta', order_index: 1, created_at: '', modified_at: '', effort: 0, capacity: 0 },
+  { system_id: 'sw-2a', pi_id: 'pi-2', name: 'Team Alpha', order_index: 0, created_at: '', modified_at: '', effort: 0, available: 0 },
+  { system_id: 'sw-2b', pi_id: 'pi-2', name: 'Team Beta', order_index: 1, created_at: '', modified_at: '', effort: 0, available: 0 },
 ]
 
 beforeEach(() => {

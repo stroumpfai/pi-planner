@@ -26,7 +26,7 @@ const makeSwimlane = (): Swimline => ({
   name: 'Team Alpha',
   order_index: 1,
   effort: 0,
-  capacity: 0,
+  available: 0,
   created_at: '2026-01-01T00:00:00Z',
   modified_at: '2026-01-01T00:00:00Z',
 })
@@ -35,7 +35,7 @@ const makeSprint = (index: number): Sprint => ({
   system_id: `s-${index}`,
   pi_id: 'pi-1',
   sprint_index: index,
-  capacity: 10,
+  available: 10,
   effort: 0,
   start_date: null,
   end_date: null,

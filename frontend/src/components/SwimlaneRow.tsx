@@ -169,7 +169,7 @@ export function SwimlaneRow({ swimline, sprints, features, projectId, piId }: Pr
           {featureCount}
         </span>
         <div className="flex-1 max-w-28">
-          <CapacityBar used={swimline.effort} capacity={swimline.capacity} unit={effortUnit} />
+          <CapacityBar used={swimline.effort} available={swimline.available} unit={effortUnit} />
         </div>
         {isEditing && (
           <>

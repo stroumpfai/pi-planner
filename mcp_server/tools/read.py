@@ -43,7 +43,7 @@ async def list_pis(
     """
     List all PIs (Program Increments) for a project.
 
-    Returns each PI with total_effort and total_capacity summaries, state
+    Returns each PI with total_effort and total_available summaries, state
     (draft | in_progress | closed), and date ranges. Use get_pi for detailed
     sprint-level breakdown of a single PI.
     """
@@ -56,10 +56,10 @@ async def get_pi(
     ctx: Context,
 ) -> dict:
     """
-    Get a single PI with effort and capacity summary.
+    Get a single PI with effort and Available summary.
 
     Returns state, dates, total_effort (sum of all PBI efforts in this PI),
-    and total_capacity (sum of sprint capacities).
+    and total_available (sum of sprint Available budgets).
     Use list_pis first to find the pi_id.
     """
     return await call_backend("GET", f"/api/v1/pis/{pi_id}")
@@ -71,10 +71,10 @@ async def list_sprints(
     ctx: Context,
 ) -> dict:
     """
-    List all sprints in a PI with their effort totals and capacity.
+    List all sprints in a PI with their effort totals and Available budget.
 
-    Returns 5 sprints (sprint_index 0–4) each with capacity, current effort,
-    and optional date range. Use this to understand capacity utilisation before
+    Returns 5 sprints (sprint_index 0–4) each with available, current effort,
+    and optional date range. Use this to understand utilisation before
     assigning PBIs to sprints.
     """
     return await call_backend("GET", f"/api/v1/pis/{pi_id}/sprints")
@@ -89,7 +89,7 @@ async def list_swimlines(
     List all swimlines in a PI with effort per swimline.
 
     Swimlines are horizontal rows on the PI board, each representing a team or
-    value stream. Returns system_id, name, order_index, effort, and capacity.
+    value stream. Returns system_id, name, order_index, effort, and available.
     Use get_edit_lock_status before creating or reordering swimlines.
     """
     return await call_backend("GET", f"/api/v1/pis/{pi_id}/swimlines")
@@ -273,3 +273,305 @@ async def get_edit_lock_status(
     multiple operations.
     """
     return await call_backend("GET", f"/api/v1/projects/{project_id}/edit-lock")
+
+
+# --- Teams -----------------------------------------------------------------
+# Teams are a top-level container like projects, so they are addressed by
+# system_id, not by name: list_teams is the one call that discovers them, exactly
+# as list_projects does. (Name resolution — resolve_state_id in states.py — is for
+# records *inside* a container the agent has already identified.)
+
+
+@read_mcp.tool()
+async def list_teams(ctx: Context) -> dict:
+    """
+    List all teams.
+
+    Call this first to discover teams and their system_id values, which every
+    other team call needs. Returns each team with name, description,
+    normal_day_hours (the divisor turning hours into person-days), member_count,
+    project_ids (the projects this team serves) and timestamps.
+    Teams are not planning items: there is no user-facing id beside system_id.
+    """
+    return await call_backend("GET", "/api/v1/teams")
+
+
+@read_mcp.tool()
+async def get_team(
+    team_id: Annotated[str, Field(description="Team system_id (UUID) — from list_teams")],
+    ctx: Context,
+) -> dict:
+    """
+    Get a single team by ID.
+
+    Returns name, description, normal_day_hours, member_count, project_ids and
+    timestamps. Use list_teams first to find the team_id.
+    """
+    return await call_backend("GET", f"/api/v1/teams/{team_id}")
+
+
+@read_mcp.tool()
+async def list_members(
+    team_id: Annotated[str, Field(description="Team system_id (UUID) — from list_teams")],
+    ctx: Context,
+    as_of: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description=(
+                "Show each member's working pattern as it stands on this date "
+                "(YYYY-MM-DD). Defaults to today."
+            ),
+        ),
+    ] = None,
+) -> dict:
+    """
+    List a team's members, with the working pattern in force on a given date.
+
+    Members are the people capacity is computed from. Each carries name, role and
+    organisation (free text, never computed on), active_from / active_to (their
+    membership window — half-days outside it count for nothing), order_index, and:
+
+    - effective_version: the working pattern in force on `as_of` — 14 half-day
+      booleans (mon_am … sun_pm), hours_per_day, focus, and the effective_from
+      date it started applying from.
+    - version_dates: every date this member's contract changed on.
+    - absence_count / meeting_count: what deleting them would take with them.
+
+    A member always has at least one version, and the earliest extends backwards
+    without limit, so every date resolves. Pass `as_of` to see a past or future
+    contract — the same member reads differently before and after a change.
+    Use the `name` values here for the member_name argument of the write tools.
+    """
+    params = {"as_of": as_of} if as_of else None
+    return await call_backend("GET", f"/api/v1/teams/{team_id}/members", params=params)
+
+
+@read_mcp.tool()
+async def list_absences(
+    team_id: Annotated[str, Field(description="Team system_id (UUID) — from list_teams")],
+    ctx: Context,
+    date_from: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description=(
+                "Expand occurrences from this date (YYYY-MM-DD). Defaults to the start "
+                "of the current month."
+            ),
+        ),
+    ] = None,
+    date_to: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description="Expand occurrences up to this date (YYYY-MM-DD). Defaults to a year out.",
+        ),
+    ] = None,
+    member_id: Annotated[
+        str | None, Field(default=None, description="Only this member's absences")
+    ] = None,
+) -> dict:
+    """
+    List a team's absences, with the days each one actually covers.
+
+    Every rule the team holds is returned; only the **occurrences** are windowed.
+    A rule with no occurrence in the window still appears with an empty
+    `occurrences` list — it exists, it is simply not in view.
+
+    Each absence carries its schedule rule (kind, dates, weekday, halves,
+    interval_weeks), a plain-language `summary` of it, the expanded occurrences
+    inside the window, and the `etag` a write must quote.
+
+    Absences reduce contracted half-days before focus. Overlaps count **once**,
+    and an absence on a half-day the member does not work has no effect. There is
+    no absence category, and `label` is never interpreted.
+    Recurring entries have no per-occurrence exceptions: an occurrence you see
+    here can only be removed by changing or deleting the whole series.
+    """
+    params = {}
+    if date_from:
+        params["from"] = date_from
+    if date_to:
+        params["to"] = date_to
+    if member_id:
+        params["member_id"] = member_id
+    return await call_backend("GET", f"/api/v1/teams/{team_id}/absences", params=params or None)
+
+
+@read_mcp.tool()
+async def list_meetings(
+    team_id: Annotated[str, Field(description="Team system_id (UUID) — from list_teams")],
+    ctx: Context,
+    date_from: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description=(
+                "Expand occurrences from this date (YYYY-MM-DD). Defaults to the start "
+                "of the current month."
+            ),
+        ),
+    ] = None,
+    date_to: Annotated[
+        str | None,
+        Field(
+            default=None,
+            description="Expand occurrences up to this date (YYYY-MM-DD). Defaults to a year out.",
+        ),
+    ] = None,
+) -> dict:
+    """
+    List a team's meetings, with who attends and the days each one falls on.
+
+    A meeting is **one row with an attendee set**, and a recurring one is one row
+    rather than one per occurrence — a daily stand-up is one weekly rule per
+    weekday. Every rule the team holds is returned; only the **occurrences** are
+    windowed, so a meeting outside the window still appears with an empty
+    `occurrences` list.
+
+    Each meeting carries its schedule rule (kind, dates, weekday, interval_weeks),
+    a plain-language `summary`, the `half` an occurrence starts in,
+    `duration_minutes`, `member_ids` for the attendees, `order_index` (the team's
+    own column order in the Meetings view), and the `etag` a write must quote.
+
+    What a meeting costs is not simply its length: it consumes from the half it
+    starts in, spills into the rest of that day, and stops at the hours that
+    survived absences. Meetings are subtracted **before** focus.
+    """
+    params = {}
+    if date_from:
+        params["from"] = date_from
+    if date_to:
+        params["to"] = date_to
+    return await call_backend("GET", f"/api/v1/teams/{team_id}/meetings", params=params or None)
+
+
+@read_mcp.tool()
+async def get_team_capacity(
+    team_id: Annotated[str, Field(description="Team system_id (UUID) — from list_teams")],
+    ctx: Context,
+    date_from: Annotated[
+        str | None,
+        Field(default=None, description="Only sprints ending on or after this date (YYYY-MM-DD)"),
+    ] = None,
+    date_to: Annotated[
+        str | None,
+        Field(default=None, description="Only sprints starting on or before this date (YYYY-MM-DD)"),
+    ] = None,
+) -> dict:
+    """
+    Compute a team's capacity per member, per sprint.
+
+    The sprint calendar comes from the team's **anchor project** — the first
+    project assigned to it. A team serving no project has no calendar and returns
+    no sprints rather than inventing months.
+
+    Each cell is the chain from spec §5.4 in order: contracted half-days →
+    absences → meetings → focus → ÷ normal_day_hours. A person-day is the team's
+    normal_day_hours of work for everyone, never the member's own day, so a
+    6 h/day part-timer's full day is 0.75 PD.
+    A sprint missing either date returns **null**, not 0 — unknown and empty are
+    different, and a zero would read as a team that does no work.
+    `present_days` answers a different question from `person_days`: someone can be
+    around for 9 days and contribute 6.3 PD.
+
+    Also returns one row per served project with the share-adjusted PD, the value
+    in that project's own effort unit, and — for `factor` projects — the integer a
+    push would write. Reading this changes nothing: capacity reaches a project
+    only through an explicit push.
+    """
+    params = {}
+    if date_from:
+        params["from"] = date_from
+    if date_to:
+        params["to"] = date_to
+    return await call_backend("GET", f"/api/v1/teams/{team_id}/capacity", params=params or None)
+
+
+@read_mcp.tool()
+async def preview_team_capacity(
+    team_id: Annotated[str, Field(description="Team system_id (UUID) — from list_teams")],
+    project_id: Annotated[str, Field(description="Project system_id (UUID) this team serves")],
+    ctx: Context,
+    date_from: Annotated[
+        str | None,
+        Field(default=None, description="Only sprints ending on or after this date (YYYY-MM-DD)"),
+    ] = None,
+    date_to: Annotated[
+        str | None,
+        Field(default=None, description="Only sprints starting on or before this date (YYYY-MM-DD)"),
+    ] = None,
+) -> dict:
+    """
+    Show what pushing this team's capacity would write into one project's sprints.
+
+    The review step of the update flow. Nothing is written — the push itself is a
+    separate, explicit act — but this is the same computation the push runs, over
+    **this project's own sprint calendar**, so the rows name the sprints that
+    would actually change. (The Capacity view counts in the team's anchor
+    project's columns instead; the two agree only where alignment holds.)
+    Only sprints of a `draft` or `in_progress` PI appear: a closed PI keeps the
+    numbers it was closed with, so listing it would invite the question of why it
+    did not move.
+
+    Per sprint it returns the label, the dates, the Available the sprint holds
+    now, the value the team's capacity produces (PD → the project's unit), and the
+    integer that value rounds to — half-up, per sprint independently, which is the
+    single rounding in the whole chain.
+    `proposed_available` is null for a sprint without both dates, and the whole
+    preview is empty of proposals when the project's available_source is `manual`:
+    nothing is meant to flow into a manual project. Switch it to `factor` with
+    update_assignment first, and set units_per_pd — a wrong factor shows up here
+    as visibly wrong integers, which is the point of previewing.
+
+    Reads the project rather than the team, so it needs edit rights on it and
+    fails with 409 while another user holds its edit lock.
+    """
+    params = {}
+    if date_from:
+        params["window_from"] = date_from
+    if date_to:
+        params["window_to"] = date_to
+    preview = await call_backend(
+        "GET",
+        f"/api/v1/projects/{project_id}/team-capacity/preview",
+        params=params or None,
+    )
+
+    if preview["team_id"] != team_id:
+        raise ValueError(
+            f"Project {project_id} is served by team {preview['team_name']} "
+            f"({preview['team_id']}), not by team {team_id}. "
+            "Assign it with assign_project first."
+        )
+
+    return {
+        "team_id": preview["team_id"],
+        "team_name": preview["team_name"],
+        "project_id": preview["project_id"],
+        "project_name": preview["project_name"],
+        "effort_unit": preview["effort_unit"],
+        "share_pct": preview["share_pct"],
+        "available_source": preview["available_source"],
+        "units_per_pd": preview["units_per_pd"],
+        "changed_count": preview["changed_count"],
+        "total_delta": preview["total_delta"],
+        "sprints": [
+            {
+                "sprint_id": row["sprint_id"],
+                "label": row["label"],
+                "pi_name": row["pi_name"],
+                "pi_state": row["pi_state"],
+                "start_date": row["start_date"],
+                "end_date": row["end_date"],
+                "current_available": row["current_available"],
+                "team_person_days": row["team_person_days"],
+                "share_adjusted_person_days": row["share_adjusted_person_days"],
+                "in_project_units": row["in_project_units"],
+                "proposed_available": row["proposed_available"],
+                "delta": row["delta"],
+            }
+            for row in preview["sprints"]
+        ],
+    }

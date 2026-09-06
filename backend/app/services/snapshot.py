@@ -20,6 +20,19 @@ def _opt_date(value: str | None) -> date | None:
     return date.fromisoformat(value) if value else None
 
 
+def sprint_available(payload: dict[str, Any]) -> int:
+    """Read a serialized sprint's budget, old key or new.
+
+    Snapshots and project exports are stored JSON and are never rewritten, so every
+    one taken before the ``capacity`` -> ``available`` rename (teams.md 6.2) carries
+    ``capacity`` forever. This fallback is permanent, not a migration step.
+    """
+    value = payload.get("available")
+    if value is None:
+        value = payload.get("capacity")
+    return int(value or 0)
+
+
 def restore_pi_structures(db: AsyncSession, proj_data: dict[str, Any], project_id: str) -> None:
     for pi in proj_data["pis"]:
         db.add(PI(
@@ -43,7 +56,7 @@ def restore_pi_structures(db: AsyncSession, proj_data: dict[str, Any], project_i
                 system_id=s["system_id"],
                 pi_id=pi["system_id"],
                 sprint_index=s.get("sprint_index"),
-                capacity=s.get("capacity") or 0,
+                available=sprint_available(s),
                 start_date=_opt_date(s.get("start_date")),
                 end_date=_opt_date(s.get("end_date")),
             ))
@@ -234,7 +247,7 @@ async def serialize_project(db: AsyncSession, project: Project) -> dict[str, Any
                 {
                     "system_id": s.system_id,
                     "sprint_index": s.sprint_index,
-                    "capacity": s.capacity,
+                    "available": s.available,
                     "start_date": s.start_date.isoformat() if s.start_date else None,
                     "end_date": s.end_date.isoformat() if s.end_date else None,
                 }

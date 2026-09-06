@@ -23,7 +23,7 @@ class SwimlineResponse(BaseModel):
     name: str
     order_index: int | None
     effort: float = 0
-    capacity: int = 0
+    available: int = 0
     created_at: UtcDatetime
     modified_at: UtcDatetime
 

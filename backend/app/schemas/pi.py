@@ -33,7 +33,7 @@ class PIResponse(BaseModel):
     start_date: date | None
     end_date: date | None
     total_effort: float = 0
-    total_capacity: int = 0
+    total_available: int = 0
     created_at: UtcDatetime
     modified_at: UtcDatetime
 

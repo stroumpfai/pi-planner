@@ -50,9 +50,9 @@ const continuationFeature: Feature = {
 }
 
 const PIS = [
-  { system_id: 'pi-1', project_id: 'p-1', name: 'PI 1', description: null, state: 'in_progress', start_date: null, end_date: null, created_at: '', modified_at: '', total_effort: 0, total_capacity: 0 },
-  { system_id: 'pi-2', project_id: 'p-1', name: 'PI 2', description: null, state: 'draft', start_date: null, end_date: null, created_at: '', modified_at: '', total_effort: 0, total_capacity: 0 },
-  { system_id: 'pi-3', project_id: 'p-1', name: 'PI 3', description: null, state: 'draft', start_date: null, end_date: null, created_at: '', modified_at: '', total_effort: 0, total_capacity: 0 },
+  { system_id: 'pi-1', project_id: 'p-1', name: 'PI 1', description: null, state: 'in_progress', start_date: null, end_date: null, created_at: '', modified_at: '', total_effort: 0, total_available: 0 },
+  { system_id: 'pi-2', project_id: 'p-1', name: 'PI 2', description: null, state: 'draft', start_date: null, end_date: null, created_at: '', modified_at: '', total_effort: 0, total_available: 0 },
+  { system_id: 'pi-3', project_id: 'p-1', name: 'PI 3', description: null, state: 'draft', start_date: null, end_date: null, created_at: '', modified_at: '', total_effort: 0, total_available: 0 },
 ]
 
 function mockCommonHooks(allFeatures: Feature[]) {

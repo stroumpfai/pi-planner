@@ -12,6 +12,15 @@ from app.models.project_state import ProjectState
 from app.models.session import Session
 from app.models.sprint import Sprint
 from app.models.swimline import Swimline
+from app.models.team import (
+    Absence,
+    Meeting,
+    MeetingAttendee,
+    MemberPatternVersion,
+    Team,
+    TeamMember,
+    TeamProject,
+)
 from app.models.user import User
 
 __all__ = [
@@ -31,4 +40,11 @@ __all__ = [
     "ActorType",
     "ProjectSnapshot",
     "ProjectState",
+    "Team",
+    "TeamMember",
+    "MemberPatternVersion",
+    "Absence",
+    "Meeting",
+    "MeetingAttendee",
+    "TeamProject",
 ]

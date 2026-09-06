@@ -2,7 +2,7 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createElement } from 'react'
-import { useSSE } from '../useSSE'
+import { useSSE, useTeamSSE } from '../useSSE'
 import { useToastStore } from '@/stores/toastStore'
 import { useAuthStore } from '@/stores/authStore'
 
@@ -134,6 +134,16 @@ describe('useSSE', () => {
     expect(qc.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['pis'] })
   })
 
+  it('sprint:available:pushed refreshes the numbers and the staleness badges', () => {
+    // A push moves what every watcher sees, not only the pusher's own screen.
+    const { qc, wrapper } = makeWrapper()
+    vi.spyOn(qc, 'invalidateQueries')
+    renderHook(() => useSSE('p-1'), { wrapper })
+    MockEventSource.instance!.emit('sprint:available:pushed')
+    expect(qc.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['pis'] })
+    expect(qc.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['teamCapacityStatus'] })
+  })
+
   it('project:updated event invalidates projects query', () => {
     const { qc, wrapper } = makeWrapper()
     vi.spyOn(qc, 'invalidateQueries')
@@ -214,5 +224,39 @@ describe('useSSE', () => {
     MockEventSource.instance!.emit('import:completed', { actor: 'importer', created: 3, updated: 0, removed: 0 })
 
     expect(useToastStore.getState().toasts).toHaveLength(0)
+  })
+})
+
+
+describe('useTeamSSE', () => {
+  it('subscribes to the team channel, not a project one', () => {
+    const { wrapper } = makeWrapper()
+    renderHook(() => useTeamSSE('t-1'), { wrapper })
+    expect(MockEventSource.instance?.url).toBe('/api/v1/teams/t-1/events')
+  })
+
+  it('does not construct EventSource when teamId is null', () => {
+    const { wrapper } = makeWrapper()
+    renderHook(() => useTeamSSE(null), { wrapper })
+    expect(MockEventSource.instance).toBeNull()
+  })
+
+  it('a team event invalidates the team queries', () => {
+    const { qc, wrapper } = makeWrapper()
+    const spy = vi.spyOn(qc, 'invalidateQueries')
+    renderHook(() => useTeamSSE('t-1'), { wrapper })
+
+    MockEventSource.instance!.emit('team:updated')
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['teams'] })
+    expect(spy).toHaveBeenCalledWith({ queryKey: ['team', 't-1'] })
+  })
+
+  it('ignores events from outside the team aggregate', () => {
+    const { qc, wrapper } = makeWrapper()
+    const spy = vi.spyOn(qc, 'invalidateQueries')
+    renderHook(() => useTeamSSE('t-1'), { wrapper })
+
+    MockEventSource.instance!.emit('sprint:capacity_changed')
+    expect(spy).not.toHaveBeenCalled()
   })
 })

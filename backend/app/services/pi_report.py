@@ -2,7 +2,7 @@
 sprint-breakdown reports for a planned PI, in Markdown or PDF.
 
 The reports are derived entirely from existing planning data (effort estimates,
-sprint capacity, item placement, item States, PI/sprint dates, PI events) — no
+sprint Available, item placement, item States, PI/sprint dates, PI events) — no
 schema change. Data-gathering is kept separate from rendering: the
 `build_*_model` functions produce plain dataclasses that the Markdown and PDF
 renderers consume, so the two output formats never drift.
@@ -28,7 +28,7 @@ from app.models.project_state import ProjectState
 from app.models.sprint import Sprint
 from app.models.swimline import Swimline
 from app.services.effort import (
-    pi_effort_and_capacity,
+    pi_effort_and_available,
     sprint_efforts_for_pi,
     sprint_utilization,
     swimline_efforts,
@@ -101,7 +101,7 @@ class SwimlaneLoad:
 class SprintLoad:
     number: int
     effort: float
-    capacity: int
+    available: int
     status: str            # from sprint_utilization
 
 
@@ -121,7 +121,7 @@ class ReadoutModel:
     end_date: date | None
     effort_unit: str
     total_effort: float
-    total_capacity: int
+    total_available: int
     swimlanes: list[SwimlaneLoad]
     sprints: list[SprintLoad]
     milestones: list[Milestone]
@@ -132,7 +132,7 @@ class ReadoutModel:
 
     @property
     def utilization(self) -> float:
-        return self.total_effort / self.total_capacity if self.total_capacity else 0.0
+        return self.total_effort / self.total_available if self.total_available else 0.0
 
 
 @dataclass
@@ -206,8 +206,8 @@ async def _sprint_loads(db: AsyncSession, pi_id: str) -> list[SprintLoad]:
     for pos, sprint in enumerate(sprints):
         idx = sprint.sprint_index if sprint.sprint_index is not None else pos
         effort = efforts.get(idx, 0.0)
-        _, status = sprint_utilization(effort, sprint.capacity)
-        loads.append(SprintLoad(number=idx + 1, effort=effort, capacity=sprint.capacity, status=status))
+        _, status = sprint_utilization(effort, sprint.available)
+        loads.append(SprintLoad(number=idx + 1, effort=effort, available=sprint.available, status=status))
     return loads
 
 
@@ -227,8 +227,8 @@ async def build_readiness_model(db: AsyncSession, pi: PI, show_ids: bool) -> Rea
 
     # 2. Over-capacity sprints
     over = [
-        f"Sprint {s.number}: {_num(s.effort)} / {s.capacity} "
-        f"(over by {_num(s.effort - s.capacity)})"
+        f"Sprint {s.number}: {_num(s.effort)} / {s.available} "
+        f"(over by {_num(s.effort - s.available)})"
         for s in await _sprint_loads(db, pi.system_id)
         if s.status == "over"
     ]
@@ -315,7 +315,7 @@ async def _user_id_issues(db: AsyncSession, project_id: str) -> list[str]:
 
 
 async def build_readout_model(db: AsyncSession, pi: PI) -> ReadoutModel:
-    total_effort, total_capacity = await pi_effort_and_capacity(db, pi.system_id)
+    total_effort, total_available = await pi_effort_and_available(db, pi.system_id)
     effort_unit = await _effort_unit(db, pi)
 
     swimlines_result = await db.execute(
@@ -347,7 +347,7 @@ async def build_readout_model(db: AsyncSession, pi: PI) -> ReadoutModel:
         end_date=pi.end_date,
         effort_unit=effort_unit,
         total_effort=total_effort,
-        total_capacity=total_capacity,
+        total_available=total_available,
         swimlanes=swimlane_loads,
         sprints=sprints,
         milestones=milestones,
@@ -527,7 +527,7 @@ def render_readout_markdown(model: ReadoutModel) -> str:
         "",
         f"- **Dates:** {_fmt_date(model.start_date)} → {_fmt_date(model.end_date)}",
         f"- **State:** {model.state}",
-        f"- **Committed load:** {_num(model.total_effort)} / {model.total_capacity} {u} "
+        f"- **Committed load:** {_num(model.total_effort)} / {model.total_available} {u} "
         f"({model.utilization * 100:.0f}% utilization)",
         "",
         "## Objectives",
@@ -545,12 +545,12 @@ def render_readout_markdown(model: ReadoutModel) -> str:
     else:
         lines += ["| _No teams_ | 0 |"]
 
-    lines += ["", "## Sprint capacity", "", "| Sprint | Load | Capacity | Status |",
-              "|--------|------|----------|--------|"]
+    lines += ["", "## Load vs Available", "", "| Sprint | Load | Available | Status |",
+              "|--------|------|-----------|--------|"]
     if model.sprints:
         for s in model.sprints:
             lines.append(
-                f"| Sprint {s.number} | {_num(s.effort)} | {s.capacity} | {_STATUS_LABEL[s.status]} |"
+                f"| Sprint {s.number} | {_num(s.effort)} | {s.available} | {_STATUS_LABEL[s.status]} |"
             )
     else:
         lines += ["| _No sprints_ | 0 | 0 | — |"]
@@ -643,7 +643,7 @@ def render_breakdown_markdown(model: BreakdownModel, show_ids: bool, show_states
 # ── PDF renderers (ReportLab) ────────────────────────────────────────────────
 
 def _sprint_chart_png(model: ReadoutModel) -> bytes | None:
-    """A small horizontal load-vs-capacity bar chart for the readout PDF."""
+    """A small horizontal load-vs-Available bar chart for the readout PDF."""
     if not model.sprints:
         return None
     from matplotlib.backends.backend_agg import FigureCanvasAgg
@@ -654,7 +654,7 @@ def _sprint_chart_png(model: ReadoutModel) -> bytes | None:
     ax = fig.add_subplot(111)
     labels = [f"Sprint {s.number}" for s in model.sprints]
     y = range(len(model.sprints))
-    ax.barh(list(y), [s.capacity for s in model.sprints], color="#e5e7eb", label="Capacity")
+    ax.barh(list(y), [s.available for s in model.sprints], color="#e5e7eb", label="Available")
     ax.barh(list(y), [s.effort for s in model.sprints],
             color=[_STATUS_COLOR[s.status] for s in model.sprints], height=0.5, label="Load")
     ax.set_yticks(list(y))
@@ -723,7 +723,7 @@ def render_readout_pdf(model: ReadoutModel) -> bytes:
                   styles["Normal"]),
         Paragraph(f"<b>State:</b> {_esc(model.state)}", styles["Normal"]),
         Paragraph(
-            f"<b>Committed load:</b> {_num(model.total_effort)} / {model.total_capacity} {u} "
+            f"<b>Committed load:</b> {_num(model.total_effort)} / {model.total_available} {u} "
             f"({model.utilization * 100:.0f}% utilization)",
             styles["Normal"],
         ),
@@ -743,7 +743,7 @@ def render_readout_pdf(model: ReadoutModel) -> bytes:
     story.append(_grid(Table(team_rows, hAlign="LEFT")))
     story.append(Spacer(1, 12))
 
-    story.append(Paragraph("Sprint capacity", styles["Heading2"]))
+    story.append(Paragraph("Load vs Available", styles["Heading2"]))
     chart = _sprint_chart_png(model)
     if chart is not None:
         from reportlab.lib.utils import ImageReader

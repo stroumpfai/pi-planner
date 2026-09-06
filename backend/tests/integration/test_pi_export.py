@@ -29,10 +29,10 @@ async def planned_pi(client: AsyncClient) -> dict:
     )).json()
     pi_id = pi["system_id"]
 
-    # Set capacity on sprint 0
+    # Set Available on sprint 0
     sprints = (await client.get(f"/api/v1/pis/{pi_id}/sprints")).json()
     sprint_0 = next(s for s in sprints if s["sprint_index"] == 0)
-    await client.patch(f"/api/v1/sprints/{sprint_0['system_id']}", json={"capacity": 20})
+    await client.patch(f"/api/v1/sprints/{sprint_0['system_id']}", json={"available": 20})
 
     # Create swimline
     sl = (await client.post(
@@ -456,8 +456,8 @@ async def planned_grid(client: AsyncClient) -> dict:
     sprints = (await client.get(f"/api/v1/pis/{pi_id}/sprints")).json()
     s0 = next(s for s in sprints if s["sprint_index"] == 0)
     s1 = next(s for s in sprints if s["sprint_index"] == 1)
-    await client.patch(f"/api/v1/sprints/{s0['system_id']}", json={"capacity": 10})
-    await client.patch(f"/api/v1/sprints/{s1['system_id']}", json={"capacity": 8})
+    await client.patch(f"/api/v1/sprints/{s0['system_id']}", json={"available": 10})
+    await client.patch(f"/api/v1/sprints/{s1['system_id']}", json={"available": 8})
 
     alpha = (await client.post(f"/api/v1/pis/{pi_id}/swimlines", json={"name": "Team Alpha"})).json()
     beta = (await client.post(f"/api/v1/pis/{pi_id}/swimlines", json={"name": "Team Beta"})).json()

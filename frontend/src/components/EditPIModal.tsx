@@ -4,6 +4,7 @@ import { Controller, useForm } from 'react-hook-form'
 import { useQueryClient } from '@tanstack/react-query'
 import { useUpdatePI } from '@/hooks/usePIs'
 import { useSprints } from '@/hooks/useSprints'
+import { useTeamCapacityStatus, statusFor } from '@/hooks/useTeamPush'
 import { sprintsApi } from '@/services/sprints'
 import { DateInput } from './DateInput'
 import type { PI, Sprint } from '@/types'
@@ -18,7 +19,7 @@ type PIFormValues = {
 type SprintRow = {
   system_id: string
   sprint_index: number
-  capacity: string
+  available: string
   start_date: string
   end_date: string
 }
@@ -34,7 +35,7 @@ function toSprintRow(s: Sprint): SprintRow {
   return {
     system_id: s.system_id,
     sprint_index: s.sprint_index ?? 0,
-    capacity: String(s.capacity ?? 0),
+    available: String(s.available ?? 0),
     start_date: s.start_date ?? '',
     end_date: s.end_date ?? '',
   }
@@ -43,8 +44,16 @@ function toSprintRow(s: Sprint): SprintRow {
 export function EditPIModal({ open, pi, projectId, onClose }: Props) {
   const updatePI = useUpdatePI(projectId)
   const { data: sprints } = useSprints(pi.system_id)
+  const { data: pushStatuses } = useTeamCapacityStatus(projectId)
   const [sprintRows, setSprintRows] = useState<SprintRow[]>([])
+  const [error, setError] = useState<string | null>(null)
   const qc = useQueryClient()
+
+  // Available is the team's to write when one derives it (teams.md §6.4); the
+  // dates stay ours. Sending it back — even unchanged — earns a 409
+  // AVAILABLE_IS_DERIVED that would take this dialog's date edits down with it.
+  const derived = statusFor(pushStatuses, projectId)
+  const availableIsDerived = derived != null && derived.available_source !== 'manual'
 
   // Sync sprint rows whenever the fetched sprints change or modal opens
   useEffect(() => {
@@ -61,36 +70,46 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
       },
     })
 
-  const handleClose = () => { reset(); onClose() }
+  const handleClose = () => { reset(); setError(null); onClose() }
 
   function updateSprintRow(index: number, field: keyof Omit<SprintRow, 'system_id' | 'sprint_index'>, value: string) {
     setSprintRows((rows) => rows.map((r, i) => i === index ? { ...r, [field]: value } : r))
   }
 
   const onSubmit = async (values: PIFormValues) => {
-    await updatePI.mutateAsync({
-      piId: pi.system_id,
-      body: {
-        name: values.name,
-        description: values.description || null,
-        start_date: values.start_date || null,
-        end_date: values.end_date || null,
-      },
-    })
+    setError(null)
+    try {
+      await updatePI.mutateAsync({
+        piId: pi.system_id,
+        body: {
+          name: values.name,
+          description: values.description || null,
+          start_date: values.start_date || null,
+          end_date: values.end_date || null,
+        },
+      })
 
-    await Promise.all(
-      sprintRows.map((row) =>
-        sprintsApi.update(row.system_id, {
-          capacity: Number.parseInt(row.capacity, 10) || 1,
-          start_date: row.start_date || null,
-          end_date: row.end_date || null,
-        })
+      await Promise.all(
+        sprintRows.map((row) =>
+          sprintsApi.update(row.system_id, {
+            ...(availableIsDerived
+              ? {}
+              : { available: Number.parseInt(row.available, 10) || 0 }),
+            start_date: row.start_date || null,
+            end_date: row.end_date || null,
+          })
+        )
       )
-    )
-
-    qc.invalidateQueries({ queryKey: ['sprints', pi.system_id] })
-    qc.invalidateQueries({ queryKey: ['swimlines'] })
-    qc.invalidateQueries({ queryKey: ['pis'] })
+    } catch {
+      // The PI header may already have saved, so keep the dialog open on its
+      // current values rather than closing over a half-applied edit.
+      setError('Could not save every change. Check the sprint dates and try again.')
+      return
+    } finally {
+      qc.invalidateQueries({ queryKey: ['sprints', pi.system_id] })
+      qc.invalidateQueries({ queryKey: ['swimlines'] })
+      qc.invalidateQueries({ queryKey: ['pis'] })
+    }
 
     onClose()
   }
@@ -165,12 +184,18 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
             {sprintRows.length > 0 && (
               <div>
                 <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Sprints</h3>
+                {availableIsDerived && (
+                  <p className="mb-2 text-xs text-gray-500 dark:text-gray-400">
+                    Available is derived from team {derived.team_name}. Change it by updating
+                    projects from the team — the dates below are still yours.
+                  </p>
+                )}
                 <div className="border border-gray-200 dark:border-gray-700 rounded-md overflow-hidden">
                   <table className="w-full text-sm">
                     <thead className="bg-gray-50 dark:bg-gray-700 text-xs text-gray-500 dark:text-gray-400 uppercase">
                       <tr>
                         <th className="px-3 py-2 text-left w-20">Sprint</th>
-                        <th className="px-3 py-2 text-left w-24">Capacity</th>
+                        <th className="px-3 py-2 text-left w-24">Available</th>
                         <th className="px-3 py-2 text-left">Start date</th>
                         <th className="px-3 py-2 text-left">End date</th>
                       </tr>
@@ -185,9 +210,15 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
                             <input
                               type="number"
                               min="0"
-                              value={row.capacity}
-                              onChange={(e) => updateSprintRow(i, 'capacity', e.target.value)}
-                              className="w-20 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              value={row.available}
+                              onChange={(e) => updateSprintRow(i, 'available', e.target.value)}
+                              readOnly={availableIsDerived}
+                              aria-readonly={availableIsDerived || undefined}
+                              className={
+                                availableIsDerived
+                                  ? 'w-20 border border-gray-300 dark:border-gray-600 bg-band/60 text-gray-500 dark:text-gray-400 rounded px-2 py-1 text-sm focus:outline-none'
+                                  : 'w-20 border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500'
+                              }
                             />
                           </td>
                           <td className="px-3 py-2">
@@ -212,6 +243,10 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
                   </table>
                 </div>
               </div>
+            )}
+
+            {error && (
+              <p role="alert" className="text-sm text-red-600 dark:text-red-400">{error}</p>
             )}
 
             <div className="flex justify-end gap-3 pt-2">

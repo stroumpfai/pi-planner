@@ -1,4 +1,4 @@
-"""Tests for M8 effort & capacity computed fields."""
+"""Tests for M8 effort & Available computed fields."""
 import pytest
 from pytest import approx
 
@@ -101,7 +101,7 @@ async def test_sprint_effort_isolated_per_sprint(client, project, pi, swimline, 
     assert by_index[2] == 0
 
 
-# ── Swimline effort & capacity ─────────────────────────────────────────────────
+# ── Swimline effort & available ─────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_swimline_effort_zero_initially(client, pi, swimline):
@@ -122,27 +122,27 @@ async def test_swimline_effort_sums_all_groups(client, project, pi, swimline, fe
 
 
 @pytest.mark.asyncio
-async def test_swimline_capacity_equals_total_pi_sprint_capacity(client, pi, swimline):
-    # Default: 5 sprints × 0 capacity each = 0
+async def test_swimline_available_equals_total_pi_sprint_available(client, pi, swimline):
+    # Default: 5 sprints × 0 available each = 0
     sw = (await client.get(f"/api/v1/swimlines/{swimline['system_id']}")).json()
-    assert sw["capacity"] == 0
+    assert sw["available"] == 0
 
     # Set sprint capacities
     sprints = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()
     for sprint in sprints[:2]:
-        await client.patch(f"/api/v1/sprints/{sprint['system_id']}", json={"capacity": 10})
+        await client.patch(f"/api/v1/sprints/{sprint['system_id']}", json={"available": 10})
 
     sw_after = (await client.get(f"/api/v1/swimlines/{swimline['system_id']}")).json()
-    assert sw_after["capacity"] == 20  # 2 × 10 + 3 × 0
+    assert sw_after["available"] == 20  # 2 × 10 + 3 × 0
 
 
-# ── PI total effort & capacity ─────────────────────────────────────────────────
+# ── PI total effort & available ─────────────────────────────────────────────────
 
 @pytest.mark.asyncio
 async def test_pi_total_effort_zero_initially(client, pi):
     resp = (await client.get(f"/api/v1/pis/{pi['system_id']}")).json()
     assert resp["total_effort"] == 0
-    assert resp["total_capacity"] == 0
+    assert resp["total_available"] == 0
 
 
 @pytest.mark.asyncio
@@ -157,38 +157,38 @@ async def test_pi_total_effort_sums_all_swimlines(client, project, pi, swimline,
 
 
 @pytest.mark.asyncio
-async def test_pi_total_capacity_sums_sprints(client, pi):
+async def test_pi_total_available_sums_sprints(client, pi):
     sprints = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()
     for sprint in sprints:
-        await client.patch(f"/api/v1/sprints/{sprint['system_id']}", json={"capacity": 10})
+        await client.patch(f"/api/v1/sprints/{sprint['system_id']}", json={"available": 10})
 
     resp = (await client.get(f"/api/v1/pis/{pi['system_id']}")).json()
-    assert resp["total_capacity"] == 50  # 5 sprints × 10
+    assert resp["total_available"] == 50  # 5 sprints × 10
 
 
 @pytest.mark.asyncio
-async def test_sprint_capacity_zero_no_crash(client, pi):
+async def test_sprint_available_zero_no_crash(client, pi):
     # Capacity = 0 (default), effort = 0 → should not crash
     resp = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()
     for sprint in resp:
-        assert sprint["capacity"] == 0
+        assert sprint["available"] == 0
         assert sprint["effort"] == 0
 
 
 # ── Sprint PATCH broadcasts ────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
-async def test_patch_sprint_capacity_returns_effort(client, project, pi, swimline, feature):
+async def test_patch_sprint_available_returns_effort(client, project, pi, swimline, feature):
     pbi = await _make_pbi(client, project, feature, 5)
     await _make_group(client, swimline, feature, pbi_ids=[pbi["system_id"]], sprint_index=0)
 
     sprints = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()
     s0 = next(s for s in sprints if s["sprint_index"] == 0)
 
-    resp = await client.patch(f"/api/v1/sprints/{s0['system_id']}", json={"capacity": 20})
+    resp = await client.patch(f"/api/v1/sprints/{s0['system_id']}", json={"available": 20})
     assert resp.status_code == 200
     data = resp.json()
-    assert data["capacity"] == 20
+    assert data["available"] == 20
     assert data["effort"] == 5
 
 

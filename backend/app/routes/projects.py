@@ -24,7 +24,7 @@ from app.models.swimline import Swimline
 from app.models.user import User
 from app.schemas import ProjectCreate, ProjectResponse, ProjectUpdate
 from app.services.events import broadcaster
-from app.services.snapshot import serialize_project
+from app.services.snapshot import serialize_project, sprint_available
 
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
 
@@ -235,7 +235,7 @@ def _add_pi_structures(
                 system_id=id_map[s["system_id"]],
                 pi_id=new_pi_id,
                 sprint_index=s.get("sprint_index"),
-                capacity=s.get("capacity") or 0,
+                available=sprint_available(s),
                 start_date=_opt_date(s.get("start_date")),
                 end_date=_opt_date(s.get("end_date")),
             ))

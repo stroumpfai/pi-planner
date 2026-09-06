@@ -14,3 +14,20 @@ Object.defineProperty(window, 'matchMedia', {
     dispatchEvent: vi.fn(),
   })),
 })
+
+/**
+ * jsdom has no ResizeObserver, and components that measure themselves must not
+ * crash for want of one. It never fires: jsdom has no layout to observe, so the
+ * one thing a test can control is the initial `getBoundingClientRect`, and a
+ * callback that never runs is the honest simulation of a page that never
+ * reflows.
+ */
+class ResizeObserverStub implements ResizeObserver {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+}
+
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  globalThis.ResizeObserver = ResizeObserverStub
+}

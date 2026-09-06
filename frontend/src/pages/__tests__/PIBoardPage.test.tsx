@@ -82,7 +82,7 @@ const fakePi = {
   name: 'PI 2024.1',
   state: 'in_progress' as const,
   total_effort: 10,
-  total_capacity: 20,
+  total_available: 20,
   project_id: 'proj-1',
   description: null,
   start_date: null,
@@ -96,7 +96,7 @@ const fakeSprint = {
   pi_id: 'pi-1',
   name: 'Sprint 1',
   sprint_index: 0,
-  capacity: 20,
+  available: 20,
   effort: 5,
   start_date: '2026-01-05',
   end_date: '2026-01-16',
@@ -312,7 +312,7 @@ describe('PIBoardPage export buttons', () => {
     expect(screen.queryByRole('button', { name: /add first swimlane/i })).not.toBeInTheDocument()
   })
 
-  it('opens and closes the capacity editor from a sprint column', async () => {
+  it('opens and closes the Available editor from a sprint column', async () => {
     board.sprints = [fakeSprint]
     useAuthStore.setState({
       user: { username: 'testuser', role: 'admin', display_name: 'Test User', ...stamps },
@@ -321,19 +321,19 @@ describe('PIBoardPage export buttons', () => {
     render(<PIBoardPage projectId="proj-1" piId="pi-1" />, { wrapper: makeWrapper() })
 
     // Both controls are glyph buttons ("✎", "+"), so the title is the only label.
-    await userEvent.click(await screen.findByTitle('Edit capacity'))
+    await userEvent.click(await screen.findByTitle('Edit Available'))
     const dialog = await screen.findByRole('dialog')
     await userEvent.click(within(dialog).getByRole('button', { name: /cancel/i }))
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
   })
 
-  it('offers no capacity editor without the edit lock', async () => {
+  it('offers no Available editor without the edit lock', async () => {
     board.sprints = [fakeSprint]
     render(<PIBoardPage projectId="proj-1" piId="pi-1" />, { wrapper: makeWrapper() })
 
     expect(await screen.findByText('Sprint 1')).toBeInTheDocument()
-    expect(screen.queryByTitle('Edit capacity')).not.toBeInTheDocument()
+    expect(screen.queryByTitle('Edit Available')).not.toBeInTheDocument()
   })
 
   it('opens and closes the PI event editor', async () => {

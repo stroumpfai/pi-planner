@@ -6,7 +6,56 @@ export type Project = components['schemas']['ProjectResponse']
 export type ProjectCreate = components['schemas']['ProjectCreate']
 export type ProjectUpdate = components['schemas']['ProjectUpdate']
 
-export type PI = components['schemas']['PIResponse'] & { total_effort: number; total_capacity: number }
+export type Team = components['schemas']['TeamResponse']
+export type TeamCreate = components['schemas']['TeamCreate']
+export type TeamUpdate = components['schemas']['TeamUpdate']
+
+export type TeamMember = components['schemas']['MemberResponse']
+export type TeamMemberCreate = components['schemas']['MemberCreate']
+export type TeamMemberUpdate = components['schemas']['MemberUpdate']
+/** One dated version of a member's contract. Intervals are derived, so there is
+ *  no end date here — a version holds until the next one's `effective_from`. */
+export type PatternVersion = components['schemas']['PatternVersionResponse']
+export type PatternVersionCreate = components['schemas']['PatternVersionCreate']
+export type PatternVersionUpdate = components['schemas']['PatternVersionUpdate']
+/** The first version, written with the member in one transaction (§3.3). */
+export type FirstPatternVersion = components['schemas']['FirstPatternVersion']
+
+export type TeamAssignment = components['schemas']['TeamProjectResponse']
+export type TeamAssignmentCreate = components['schemas']['TeamProjectCreate']
+export type TeamAssignmentUpdate = components['schemas']['TeamProjectUpdate']
+export type TeamCapacity = components['schemas']['TeamCapacityResponse']
+export type CapacitySprint = components['schemas']['CapacitySprint']
+/** One member's capacity in one sprint, as the §5.4 steps produced it. */
+export type CapacityBreakdown = components['schemas']['CapacityBreakdown']
+export type ProjectCapacityRow = components['schemas']['ProjectCapacityRow']
+
+/** What a push into one project would write, per sprint (§6.7). */
+export type PushPreview = components['schemas']['PushPreview']
+/** One line of the review table: current · proposed · Δ · the PD behind it. */
+export type PushSprintRow = components['schemas']['PushSprintRow']
+/** One row of the per-project result list. Partial success is the normal outcome. */
+export type ProjectPushResult = components['schemas']['ProjectPushResult']
+export type TeamPushResponse = components['schemas']['TeamPushResponse']
+/** Whether one project's sprints still agree with its team (§6.6). */
+export type ProjectPushStatus = components['schemas']['ProjectPushStatus']
+
+/** One absence rule, with its occurrences expanded inside the window that was read. */
+export type Absence = components['schemas']['AbsenceResponse']
+export type AbsenceCreate = components['schemas']['AbsenceCreate']
+export type AbsenceUpdate = components['schemas']['AbsenceUpdate']
+/** One day an absence touches, and which halves of it. */
+export type AbsenceOccurrence = components['schemas']['AbsenceOccurrence']
+/** The three schedule shapes absences and meetings share (§3.4). */
+export type ScheduleKind = NonNullable<AbsenceCreate['kind']>
+
+/** One meeting: a schedule rule, where it starts, how long it runs, and who is in
+ *  it. A recurring meeting is one row, never one per occurrence (§3.5). */
+export type Meeting = components['schemas']['MeetingResponse']
+export type MeetingCreate = components['schemas']['MeetingCreate']
+export type MeetingUpdate = components['schemas']['MeetingUpdate']
+
+export type PI = components['schemas']['PIResponse'] & { total_effort: number; total_available: number }
 export type PICreate = components['schemas']['PICreate']
 export type PIUpdate = components['schemas']['PIUpdate']
 export type PIState = 'draft' | 'in_progress' | 'closed'
@@ -16,14 +65,14 @@ export type PIEventCreate = components['schemas']['PIEventCreate']
 export type PIEventUpdate = components['schemas']['PIEventUpdate']
 export type PIEventType = PIEvent['event_type']
 
-export type Swimline = components['schemas']['SwimlineResponse'] & { effort: number; capacity: number }
+export type Swimline = components['schemas']['SwimlineResponse'] & { effort: number; available: number }
 export type SwimlineCreate = components['schemas']['SwimlineCreate']
 export type SwimlineUpdate = components['schemas']['SwimlineUpdate']
 
 export type Sprint = components['schemas']['SprintResponse'] & { effort: number }
 export interface SprintCreate {
   sprint_index: number
-  capacity: number
+  available: number
   start_date?: string | null
   end_date?: string | null
 }

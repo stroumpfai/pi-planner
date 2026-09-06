@@ -50,10 +50,10 @@ describe('useUpdateSprint', () => {
     const { result } = renderHook(() => useUpdateSprint('pi-1'), { wrapper })
 
     await act(async () => {
-      await result.current.mutateAsync({ sprintId: 's-1', body: { capacity: 10 } })
+      await result.current.mutateAsync({ sprintId: 's-1', body: { available: 10 } })
     })
 
-    expect(mockSprints.update).toHaveBeenCalledWith('s-1', { capacity: 10 })
+    expect(mockSprints.update).toHaveBeenCalledWith('s-1', { available: 10 })
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['sprints', 'pi-1'] })
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['swimlines'] })
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['pis'] })

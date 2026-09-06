@@ -26,7 +26,7 @@ from app.models.project_state import ProjectState
 from app.models.sprint import Sprint
 from app.models.swimline import Swimline
 from app.services.effort import (
-    pi_effort_and_capacity,
+    pi_effort_and_available,
     sprint_efforts_for_pi,
     sprint_swimline_efforts,
     sprint_swimline_item_counts,
@@ -176,8 +176,8 @@ _UTIL_COLORS: dict[str, str] = {
 }
 
 
-def _capacity_bar_color(used: float, capacity: int) -> str:
-    _, status = sprint_utilization(used, capacity)
+def _capacity_bar_color(used: float, available: int) -> str:
+    _, status = sprint_utilization(used, available)
     return _UTIL_COLORS[status]
 
 
@@ -196,7 +196,7 @@ def _draw_sprint_header(
     for i in range(num_sprints):
         matching = [s for s in sprints if s.sprint_index == i]
         sprint = matching[0] if matching else None
-        cap = (sprint.capacity or 0) if sprint else 0
+        cap = (sprint.available or 0) if sprint else 0
         used = sprint_efforts.get(i, 0.0)
         pct = used / cap if cap > 0 else 0.0
 
@@ -251,10 +251,10 @@ def _draw_events(
 
 
 def _apply_title(fig: Figure, pi: PI, opts: PNGExportOptions,
-                 effort: float, capacity: int, effort_unit: str) -> None:
+                 effort: float, available: int, effort_unit: str) -> None:
     if opts.show_pi_effort:
-        pct = round(effort / capacity * 100) if capacity > 0 else 0
-        title = f"{pi.name}  ·  Total: {effort:g} / {capacity} {effort_unit}  ({pct}%)"
+        pct = round(effort / available * 100) if available > 0 else 0
+        title = f"{pi.name}  ·  Total: {effort:g} / {available} {effort_unit}  ({pct}%)"
     else:
         title = pi.name
     fig.suptitle(title, fontsize=10, fontweight="bold")
@@ -327,7 +327,7 @@ async def export_pi_png(db: AsyncSession, pi: PI, opts: PNGExportOptions | None 
     if opts is None:
         opts = PNGExportOptions()
 
-    effort, capacity = await pi_effort_and_capacity(db, pi.system_id)
+    effort, available = await pi_effort_and_available(db, pi.system_id)
     sprint_efforts = await sprint_efforts_for_pi(db, pi.system_id)
 
     project = await db.get(Project, pi.project_id)
@@ -360,7 +360,7 @@ async def export_pi_png(db: AsyncSession, pi: PI, opts: PNGExportOptions | None 
     ]
 
     ctx = _RenderContext(
-        pi=pi, opts=opts, effort=effort, capacity=capacity, effort_unit=effort_unit,
+        pi=pi, opts=opts, effort=effort, available=available, effort_unit=effort_unit,
         sprints=sprints, num_sprints=num_sprints, swimlines=swimlines,
         events=events, dated_sprints=dated_sprints, sprint_efforts=sprint_efforts,
     )
@@ -394,7 +394,7 @@ class _RenderContext:
     pi: PI
     opts: PNGExportOptions
     effort: float
-    capacity: int
+    available: int
     effort_unit: str
     sprints: Sequence[Sprint]
     num_sprints: int
@@ -408,8 +408,8 @@ async def _build_roadmap_figure(
     db: AsyncSession, ctx: _RenderContext, sl_efforts: dict[str, float]
 ) -> bytes:
     """Roadmap layout: swimlanes as horizontal bars across a sprint x-axis."""
-    opts, num_sprints, capacity, effort_unit = (
-        ctx.opts, ctx.num_sprints, ctx.capacity, ctx.effort_unit,
+    opts, num_sprints, available, effort_unit = (
+        ctx.opts, ctx.num_sprints, ctx.available, ctx.effort_unit,
     )
 
     spans: dict[str, tuple[int, int]] = {}
@@ -447,7 +447,7 @@ async def _build_roadmap_figure(
     for i, swimline in enumerate(swimlines):
         y = y_positions[i]
         sl_effort = sl_efforts.get(swimline.system_id, 0.0)
-        ratio = min(sl_effort / capacity, 1.0) if capacity > 0 else 0.3
+        ratio = min(sl_effort / available, 1.0) if available > 0 else 0.3
         bar_color, text_color = _swimlane_bar_color(ratio)
 
         span = spans[swimline.system_id]
@@ -483,7 +483,7 @@ async def _build_roadmap_figure(
     for i in range(1, num_sprints):
         ax.axvline(x=float(i), color="#e2e8f0", linewidth=0.8, zorder=0)
 
-    _apply_title(fig, ctx.pi, opts, ctx.effort, capacity, effort_unit)
+    _apply_title(fig, ctx.pi, opts, ctx.effort, available, effort_unit)
 
     if ax_footer is not None:
         _apply_footer(ax_footer)
@@ -546,7 +546,7 @@ def _build_list_figure(
     if opts.show_events:
         _draw_events(ax, ctx.events, ctx.dated_sprints, num_sprints, 0.0)
 
-    _apply_title(fig, ctx.pi, opts, ctx.effort, ctx.capacity, ctx.effort_unit)
+    _apply_title(fig, ctx.pi, opts, ctx.effort, ctx.available, ctx.effort_unit)
 
     if ax_footer is not None:
         _apply_footer(ax_footer)
@@ -633,7 +633,7 @@ def _draw_list_bands(ax: Axes, bands: list[_ListBand]) -> None:
             ax.axhline(y=y, color="#e2e8f0", linewidth=0.8, zorder=0)
 
 
-# Text colour per capacity status, chosen for contrast against the _UTIL_COLORS fill.
+# Text colour per utilization status, chosen for contrast against the _UTIL_COLORS fill.
 _HEATMAP_TEXT_COLORS: dict[str, str] = {
     "no_capacity": "#1f2937",  # gray fill  -> dark text
     "over": "white",           # red fill   -> white text
@@ -664,13 +664,13 @@ def _draw_grid_header(
 def _build_heatmap_figure(
     ctx: _RenderContext, cell_efforts: dict[tuple[int, str], float]
 ) -> bytes:
-    """Heatmap layout: swimlane (team) × sprint grid coloured by capacity utilization.
+    """Heatmap layout: swimlane (team) × sprint grid coloured by Available utilization.
 
-    Each cell shows a team's placed load / that sprint's capacity, coloured by the
-    shared capacity thresholds (``sprint_utilization`` / ``_UTIL_COLORS``). A right-hand
-    column totals per team; a bottom row totals per sprint (load vs. capacity — the real
-    over-commit check). Cell capacity is the *whole sprint's* capacity, since the model
-    holds a single capacity per sprint, not one per team.
+    Each cell shows a team's placed load / that sprint's Available, coloured by the
+    shared utilization thresholds (``sprint_utilization`` / ``_UTIL_COLORS``). A right-hand
+    column totals per team; a bottom row totals per sprint (load vs. Available — the real
+    over-commit check). Cell Available is the *whole sprint's* Available, since the model
+    holds a single Available per sprint, not one per team.
     """
     opts = ctx.opts
     num_sprints = ctx.num_sprints
@@ -678,7 +678,7 @@ def _build_heatmap_figure(
     n_lanes = len(swimlines)
     n_rows = n_lanes + 1  # team rows + a bottom totals row
 
-    cap_by_index = {s.sprint_index: (s.capacity or 0) for s in ctx.sprints}
+    cap_by_index = {s.sprint_index: (s.available or 0) for s in ctx.sprints}
 
     LABEL_W = 2.2   # left gutter for team names, in column (data) units
     COL_W_IN = 1.4  # inches per column
@@ -723,7 +723,7 @@ def _build_heatmap_figure(
             load = cell_efforts.get((j, swimline.system_id), 0.0)
             team_total += load
             if load > 0:
-                # colour by utilization; the number is just the load (capacity is
+                # colour by utilization; the number is just the load (Available is
                 # implied by the column and shown in the bottom Total row)
                 _, status = sprint_utilization(load, cap_by_index.get(j, 0))
                 draw_cell(j, row, _UTIL_COLORS[status], f"{load:g}",
@@ -731,10 +731,10 @@ def _build_heatmap_figure(
             else:
                 # empty cell: a faint outlined box, no number, so it recedes
                 draw_cell(j, row, "#f8fafc", "", "#1f2937", edgecolor="#e2e8f0")
-        # per-team total (no single sprint capacity to compare against)
+        # per-team total (no single sprint Available to compare against)
         draw_cell(num_sprints, row, "#f1f5f9", f"{team_total:g}", "#1f2937", bold=True)
 
-    # bottom totals row: per-sprint load vs capacity (the real over-commit check)
+    # bottom totals row: per-sprint load vs Available (the real over-commit check)
     ax.text(-0.12, 0.5, "Total", ha="right", va="center", fontsize=8,
             fontweight="bold", color="#1f2937", clip_on=False)
     for j in range(num_sprints):
@@ -744,11 +744,11 @@ def _build_heatmap_figure(
         draw_cell(j, n_lanes, _UTIL_COLORS[status], f"{sprint_total:g}/{cap}",
                   _HEATMAP_TEXT_COLORS[status], bold=True)
     # grand-total corner cell
-    _, gstatus = sprint_utilization(ctx.effort, ctx.capacity)
+    _, gstatus = sprint_utilization(ctx.effort, ctx.available)
     draw_cell(num_sprints, n_lanes, _UTIL_COLORS[gstatus],
-              f"{ctx.effort:g}/{ctx.capacity}", _HEATMAP_TEXT_COLORS[gstatus], bold=True)
+              f"{ctx.effort:g}/{ctx.available}", _HEATMAP_TEXT_COLORS[gstatus], bold=True)
 
-    _apply_title(fig, ctx.pi, opts, ctx.effort, ctx.capacity, ctx.effort_unit)
+    _apply_title(fig, ctx.pi, opts, ctx.effort, ctx.available, ctx.effort_unit)
 
     if ax_footer is not None:
         _apply_footer(ax_footer)
@@ -855,7 +855,7 @@ def _build_composition_figure(
         draw_count_cell(j, n_lanes, col_pbi, col_bug, total=True)
     draw_count_cell(num_sprints, n_lanes, grand_pbi, grand_bug, total=True)
 
-    _apply_title(fig, ctx.pi, opts, ctx.effort, ctx.capacity, ctx.effort_unit)
+    _apply_title(fig, ctx.pi, opts, ctx.effort, ctx.available, ctx.effort_unit)
 
     if ax_footer is not None:
         _apply_footer(ax_footer)

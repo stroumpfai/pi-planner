@@ -27,7 +27,7 @@ SWIMLINE_RESP = {
     "name": "Team Alpha",
     "order_index": 0,
     "effort": 0,
-    "capacity": 100,
+    "available": 100,
 }
 
 

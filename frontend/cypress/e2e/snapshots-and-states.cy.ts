@@ -12,7 +12,7 @@ describe('Project snapshots', () => {
 
   function openSnapshots() {
     cy.visit('/')
-    cy.contains('li', 'Snapshot Test').contains('button', /^Snapshots$/).click()
+    cy.contains('li', 'Snapshot Test').find('button[aria-label="Snapshots"]').click()
     cy.get('[role="dialog"]').should('be.visible')
   }
 
@@ -58,7 +58,7 @@ describe('Project State lists', () => {
 
   function openStatesEditor() {
     cy.visit('/')
-    cy.contains('li', 'States Test').contains('button', /^Edit$/).click()
+    cy.contains('li', 'States Test').find('button[aria-label="Edit"]').click()
     cy.contains('button', /manage states/i).click()
     cy.get('[data-testid="state-list-feature"]').should('be.visible')
   }

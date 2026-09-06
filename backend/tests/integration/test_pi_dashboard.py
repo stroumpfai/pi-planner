@@ -18,7 +18,7 @@ async def planned_pi(client: AsyncClient) -> dict:
 
     sprints = (await client.get(f"/api/v1/pis/{pi_id}/sprints")).json()
     sprint_0 = next(s for s in sprints if s["sprint_index"] == 0)
-    await client.patch(f"/api/v1/sprints/{sprint_0['system_id']}", json={"capacity": 20})
+    await client.patch(f"/api/v1/sprints/{sprint_0['system_id']}", json={"available": 20})
 
     sl = (await client.post(
         f"/api/v1/pis/{pi_id}/swimlines", json={"name": "Team Alpha"},
@@ -57,8 +57,8 @@ async def test_dashboard_basic(client: AsyncClient, planned_pi: dict) -> None:
     body = resp.text
     assert body.lstrip().startswith("<!doctype html>")
     assert "PI 2024.1" in body
-    assert "Capacity by sprint" in body
-    assert "Capacity vs. load" in body
+    assert "Load vs Available by sprint" in body
+    assert "Available vs. load" in body
     assert "Backlog composition" in body
     assert "Team Alpha" in body
 
@@ -66,7 +66,7 @@ async def test_dashboard_basic(client: AsyncClient, planned_pi: dict) -> None:
 @pytest.mark.asyncio
 async def test_dashboard_over_capacity_is_red(client: AsyncClient, planned_pi: dict) -> None:
     # Shrink sprint 0 capacity below the placed load (3) so it renders over-capacity.
-    await client.patch(f"/api/v1/sprints/{planned_pi['sprint_0_id']}", json={"capacity": 1})
+    await client.patch(f"/api/v1/sprints/{planned_pi['sprint_0_id']}", json={"available": 1})
     resp = await client.get(f"/api/v1/pis/{planned_pi['pi_id']}/export/html")
     body = resp.text
     assert "#ef4444" in body  # _UTIL_COLORS["over"] — the shared over-capacity red

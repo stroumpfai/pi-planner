@@ -9,22 +9,21 @@ type SSEEvent = {
   data?: Record<string, unknown>
 }
 
-export function useSSE(projectId: string | null) {
-  const qc = useQueryClient()
+/** Subscribe to one SSE channel, dispatching each event to *onEvent*. */
+function useEventStream(url: string | null, onEvent: (event: SSEEvent) => void) {
   const esRef = useRef<EventSource | null>(null)
+  const handlerRef = useRef(onEvent)
+  handlerRef.current = onEvent
 
   useEffect(() => {
-    if (!projectId) return
+    if (!url) return
 
-    const es = new EventSource(`/api/v1/projects/${projectId}/events`, {
-      withCredentials: true,
-    })
+    const es = new EventSource(url, { withCredentials: true })
     esRef.current = es
 
     es.onmessage = (e) => {
       try {
-        const event: SSEEvent = JSON.parse(e.data as string)
-        handleSSEEvent(event, projectId, qc)
+        handlerRef.current(JSON.parse(e.data as string) as SSEEvent)
       } catch {
         // ignore malformed events
       }
@@ -38,7 +37,53 @@ export function useSSE(projectId: string | null) {
       es.close()
       esRef.current = null
     }
-  }, [projectId, qc])
+  }, [url])
+}
+
+export function useSSE(projectId: string | null) {
+  const qc = useQueryClient()
+  useEventStream(
+    projectId ? `/api/v1/projects/${projectId}/events` : null,
+    (event) => handleSSEEvent(event, projectId as string, qc),
+  )
+}
+
+/** Live team updates.
+ *
+ * Team data is its own aggregate on its own channel: it is edited without the
+ * project lock and changes nothing a project can see until someone pushes
+ * (teams.md §4). Readers watch it here the same way they watch a board.
+ */
+export function useTeamSSE(teamId: string | null) {
+  const qc = useQueryClient()
+  useEventStream(
+    teamId ? `/api/v1/teams/${teamId}/events` : null,
+    (event) => handleTeamSSEEvent(event, teamId as string, qc),
+  )
+}
+
+function handleTeamSSEEvent(
+  event: SSEEvent,
+  teamId: string,
+  qc: ReturnType<typeof useQueryClient>,
+) {
+  // Every team event refetches the team's own data. The channel carries nothing
+  // else, so naming each type would buy nothing the prefix does not already say.
+  if (!event.type.startsWith('team:') && !event.type.startsWith('member:')) return
+  qc.invalidateQueries({ queryKey: ['teams'] })
+  qc.invalidateQueries({ queryKey: ['team', teamId] })
+  // Members are cached per as-of date, so the prefix invalidates every date the
+  // views are holding rather than only today's.
+  qc.invalidateQueries({ queryKey: ['teamMembers', teamId] })
+  qc.invalidateQueries({ queryKey: ['patternVersions', teamId] })
+  qc.invalidateQueries({ queryKey: ['teamProjects', teamId] })
+  // Absences are cached per window, so the prefix reaches every span on screen.
+  qc.invalidateQueries({ queryKey: ['absences', teamId] })
+  // Meetings likewise: the matrix's window is whichever sprint is selected.
+  qc.invalidateQueries({ queryKey: ['meetings', teamId] })
+  // Capacity is computed on read from all of the above, so every team event
+  // moves it — including one that changed no member at all, like a share.
+  qc.invalidateQueries({ queryKey: ['teamCapacity', teamId] })
 }
 
 function handleSSEEvent(
@@ -112,6 +157,17 @@ function handleSSEEvent(
       qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'sprints' })
       qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'swimlines' })
       qc.invalidateQueries({ queryKey: ['pis'] })
+      break
+
+    // A team push wrote Available on this project (teams.md §6.7). It moves the
+    // same numbers a hand-typed capacity does, plus the staleness the badges
+    // read — which has just gone to zero for everyone watching, not only for the
+    // person who pushed.
+    case 'sprint:available:pushed':
+      qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'sprints' })
+      qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'swimlines' })
+      qc.invalidateQueries({ queryKey: ['pis'] })
+      qc.invalidateQueries({ queryKey: ['teamCapacityStatus'] })
       break
 
     // ── Projects ──────────────────────────────────────────────────────────

@@ -68,7 +68,7 @@ async def test_create_pi_auto_creates_5_sprints(client, project):
     sprints = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()
     assert len(sprints) == 5
     assert [s["sprint_index"] for s in sprints] == [0, 1, 2, 3, 4]
-    assert all(s["capacity"] == 0 for s in sprints)
+    assert all(s["available"] == 0 for s in sprints)
 
 
 @pytest.mark.asyncio
@@ -181,12 +181,32 @@ async def test_list_sprints_ordered_by_index(client, pi):
 
 
 @pytest.mark.asyncio
-async def test_update_sprint_capacity(client, pi):
+async def test_update_sprint_available(client, pi):
     sprints = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()
     sprint_id = sprints[0]["system_id"]
-    resp = await client.patch(f"/api/v1/sprints/{sprint_id}", json={"capacity": 42})
+    resp = await client.patch(f"/api/v1/sprints/{sprint_id}", json={"available": 42})
     assert resp.status_code == 200
-    assert resp.json()["capacity"] == 42
+    assert resp.json()["available"] == 42
+
+
+@pytest.mark.asyncio
+async def test_update_sprint_available_accepts_zero(client, pi):
+    """A sprint spanning a shutdown has no budget; the API must be able to say so."""
+    sprints = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()
+    sprint_id = sprints[0]["system_id"]
+    await client.patch(f"/api/v1/sprints/{sprint_id}", json={"available": 20})
+    resp = await client.patch(f"/api/v1/sprints/{sprint_id}", json={"available": 0})
+    assert resp.status_code == 200
+    assert resp.json()["available"] == 0
+
+
+@pytest.mark.asyncio
+async def test_update_sprint_available_rejects_negative(client, pi):
+    sprints = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()
+    resp = await client.patch(
+        f"/api/v1/sprints/{sprints[0]['system_id']}", json={"available": -1}
+    )
+    assert resp.status_code == 422
 
 
 @pytest.mark.asyncio
@@ -206,7 +226,7 @@ async def test_update_sprint_in_closed_pi_rejected(client, pi):
     await client.patch(f"/api/v1/pis/{pi['system_id']}", json={"state": "in_progress"})
     await client.patch(f"/api/v1/pis/{pi['system_id']}", json={"state": "closed"})
     sprints = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()
-    resp = await client.patch(f"/api/v1/sprints/{sprints[0]['system_id']}", json={"capacity": 99})
+    resp = await client.patch(f"/api/v1/sprints/{sprints[0]['system_id']}", json={"available": 99})
     assert resp.status_code == 403
 
 
@@ -259,17 +279,17 @@ async def test_transition_in_progress_to_closed(client, pi):
 
 
 @pytest.mark.asyncio
-async def test_pi_effort_and_capacity_returned(client, project):
+async def test_pi_effort_and_available_returned(client, project):
     pid = project["system_id"]
     pi = (await client.post(f"/api/v1/projects/{pid}/pis", json={"name": "PI-Effort"})).json()
     data = (await client.get(f"/api/v1/pis/{pi['system_id']}")).json()
     assert "total_effort" in data
-    assert "total_capacity" in data
+    assert "total_available" in data
     assert data["total_effort"] == 0
-    assert data["total_capacity"] == 0
+    assert data["total_available"] == 0
 
 
 @pytest.mark.asyncio
 async def test_sprint_not_found(client):
-    resp = await client.patch("/api/v1/sprints/nonexistent", json={"capacity": 5})
+    resp = await client.patch("/api/v1/sprints/nonexistent", json={"available": 5})
     assert resp.status_code == 404

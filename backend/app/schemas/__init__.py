@@ -1,3 +1,14 @@
+from app.schemas.absence import (
+    MAX_ABSENCES_PER_MEMBER,
+    AbsenceCreate,
+    AbsenceOccurrence,
+    AbsenceResponse,
+    AbsenceUpdate,
+    BulkAbsenceEntry,
+    BulkAbsenceRequest,
+    BulkAbsenceResult,
+    ScheduleFields,
+)
 from app.schemas.auth import (
     ChangePassword,
     LoginRequest,
@@ -18,6 +29,17 @@ from app.schemas.feature import (
     FeatureUpdate,
 )
 from app.schemas.group import GroupCreate, GroupResponse, GroupUpdate, PlaceStoryRequest, PlaceStoryResponse
+from app.schemas.meeting import (
+    MAX_MEETINGS_PER_TEAM,
+    BulkMeetingEntry,
+    BulkMeetingRequest,
+    BulkMeetingResult,
+    MeetingCreate,
+    MeetingFields,
+    MeetingReorder,
+    MeetingResponse,
+    MeetingUpdate,
+)
 from app.schemas.pbi import PBICreate, PBIResponse, PBIUpdate
 from app.schemas.pi import PICreate, PIResponse, PIUpdate
 from app.schemas.pi_event import PIEventCreate, PIEventResponse, PIEventUpdate
@@ -25,6 +47,42 @@ from app.schemas.project import ProjectCreate, ProjectResponse, ProjectUpdate
 from app.schemas.snapshot import SnapshotCreate, SnapshotDiffResponse, SnapshotResponse
 from app.schemas.sprint import SprintCreate, SprintResponse, SprintUpdate
 from app.schemas.swimline import SwimlineCreate, SwimlineReorder, SwimlineResponse, SwimlineUpdate
+from app.schemas.team import (
+    HALF_DAY_FIELDS,
+    MAX_MEMBERS_PER_TEAM,
+    MAX_PATTERN_VERSIONS_PER_MEMBER,
+    MAX_PROJECTS_PER_TEAM,
+    MAX_TEAMS,
+    FirstPatternVersion,
+    MemberCreate,
+    MemberReorder,
+    MemberResponse,
+    MemberUpdate,
+    PatternVersionCreate,
+    PatternVersionResponse,
+    PatternVersionUpdate,
+    TeamCreate,
+    TeamProjectCreate,
+    TeamProjectResponse,
+    TeamProjectUpdate,
+    TeamResponse,
+    TeamUpdate,
+)
+from app.schemas.team_capacity import (
+    CapacityBreakdown,
+    CapacitySprint,
+    MemberCapacityRow,
+    ProjectCapacityRow,
+    TeamCapacityResponse,
+)
+from app.schemas.team_push import (
+    PUSHABLE_PI_STATES,
+    ProjectPushResult,
+    ProjectPushStatus,
+    PushPreview,
+    PushSprintRow,
+    TeamPushResponse,
+)
 
 __all__ = [
     "ProjectCreate", "ProjectUpdate", "ProjectResponse",
@@ -41,4 +99,18 @@ __all__ = [
     "SnapshotCreate", "SnapshotDiffResponse", "SnapshotResponse",
     "ApiResponse", "ApiError",
     "CsvRow", "CsvImportRequest", "CsvImportError", "CsvImportResult",
+    "TeamCreate", "TeamUpdate", "TeamResponse", "MAX_TEAMS",
+    "MemberCreate", "MemberUpdate", "MemberResponse", "MemberReorder",
+    "FirstPatternVersion", "PatternVersionCreate", "PatternVersionUpdate",
+    "PatternVersionResponse", "HALF_DAY_FIELDS",
+    "MAX_MEMBERS_PER_TEAM", "MAX_PATTERN_VERSIONS_PER_MEMBER",
+    "TeamProjectCreate", "TeamProjectUpdate", "TeamProjectResponse", "MAX_PROJECTS_PER_TEAM",
+    "CapacityBreakdown", "CapacitySprint", "MemberCapacityRow", "ProjectCapacityRow",
+    "TeamCapacityResponse",
+    "PushSprintRow", "PushPreview", "ProjectPushResult", "TeamPushResponse",
+    "ProjectPushStatus", "PUSHABLE_PI_STATES",
+    "ScheduleFields", "AbsenceCreate", "AbsenceUpdate", "AbsenceResponse", "AbsenceOccurrence",
+    "BulkAbsenceEntry", "BulkAbsenceRequest", "BulkAbsenceResult", "MAX_ABSENCES_PER_MEMBER",
+    "MeetingFields", "MeetingCreate", "MeetingUpdate", "MeetingResponse", "MeetingReorder",
+    "BulkMeetingEntry", "BulkMeetingRequest", "BulkMeetingResult", "MAX_MEETINGS_PER_TEAM",
 ]
