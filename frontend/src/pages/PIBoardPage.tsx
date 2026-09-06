@@ -21,6 +21,7 @@ import { useSwimlinesForPI, useReorderSwimlines } from '@/hooks/useSwimlinesAndG
 import { groupsApi } from '@/services/groups'
 import { pbisApi } from '@/services/pbis'
 import { useSprints } from '@/hooks/useSprints'
+import { statusFor, useTeamCapacityStatus } from '@/hooks/useTeamPush'
 import { useFeatures, useUpdateFeature } from '@/hooks/useFeatures'
 import { useAuthStore } from '@/stores/authStore'
 import { useSettingsStore } from '@/stores/settingsStore'
@@ -34,6 +35,7 @@ import { SwimlaneRow } from '@/components/SwimlaneRow'
 import { CreateSwimlaneModal } from '@/components/CreateSwimlaneModal'
 import { SprintCapacityModal } from '@/components/SprintCapacityModal'
 import { SprintColumnHeader } from '@/components/SprintColumnHeader'
+import { StalenessBadge } from '@/components/StalenessBadge'
 import { CapacityBar } from '@/components/CapacityBar'
 import { BacklogPanel } from '@/components/BacklogPanel'
 import { PIEventsRow } from '@/components/PIEventsRow'
@@ -161,11 +163,15 @@ export function PIBoardPage({ projectId, piId }: Props) {
   const { data: swimlines } = useSwimlinesForPI(piId)
   const { data: sprints, isLoading: sprintsLoading } = useSprints(piId)
   const { data: features } = useFeatures(projectId)
+  // The team behind this project's Available, if one derives it (§6.6). Readers
+  // see it too: staleness is information, not an action.
+  const { data: pushStatuses } = useTeamCapacityStatus(projectId)
 
   const updateFeature = useUpdateFeature(projectId)
   const reorderSwimlines = useReorderSwimlines(piId)
   const qc = useQueryClient()
 
+  const pushStatus = statusFor(pushStatuses, projectId)
   const pi = pis?.find((p) => p.system_id === piId)
   const isClosedPI = pi?.state === 'closed'
   const canEdit = isEditing && !isClosedPI
@@ -319,6 +325,9 @@ export function PIBoardPage({ projectId, piId }: Props) {
             <div className="flex items-center gap-2 flex-shrink-0">
               <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-200">{pi?.name ?? 'PI Board'}</h2>
               {pi?.state && <PIStateBadgeInline state={pi.state} />}
+              {/* Where a planner learns the board is behind its team. It opens
+                  nothing here — the push lives with the team that moved (§6.7). */}
+              <StalenessBadge status={pushStatus} showPushedAt />
             </div>
             {pi && (
               <div className="flex-1 max-w-xs">
@@ -421,6 +430,7 @@ export function PIBoardPage({ projectId, piId }: Props) {
                     usedEffort={sprint.effort ?? 0}
                     unit={effortUnit}
                     onEditCapacity={canEdit ? () => setEditCapacitySprint(sprint) : undefined}
+                    pushStatus={pushStatus}
                   />
                 </div>
               ))}
@@ -473,6 +483,7 @@ export function PIBoardPage({ projectId, piId }: Props) {
           open
           sprint={editCapacitySprint}
           piId={piId}
+          pushStatus={pushStatus}
           onClose={() => setEditCapacitySprint(null)}
         />
       )}

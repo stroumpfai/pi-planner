@@ -23,6 +23,7 @@ from mcp_server.tools.teams import (
     assign_project,
     create_member,
     create_team,
+    push_team_capacity,
     teams_mcp,
     update_assignment,
     update_member,
@@ -743,3 +744,113 @@ async def test_there_is_no_unassign_tool(mock_backend, mock_ctx, patch_get_http_
     names = {t.name for t in await teams_mcp.list_tools()}
     assert "unassign_project" not in names
     assert "delete_assignment" not in names
+
+
+# --- push_team_capacity: the one team tool that writes project data ----------
+
+
+PUSH_RESULT = {
+    "project_id": PROJECT_ID,
+    "project_name": "ISK Portal",
+    "status": "updated",
+    "updated_sprints": 3,
+    "total_delta": 6,
+    "message": None,
+    "locked_by": None,
+    "locked_until": None,
+}
+
+
+def _served_mock(mock_backend, rows=None):
+    return mock_backend.get(f"/api/v1/teams/{TEAM_ID}/projects").mock(
+        return_value=httpx.Response(200, json=rows if rows is not None else [ASSIGNMENT])
+    )
+
+
+async def test_push_acquires_and_releases_the_project_lock(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    """The exception to the module's rule (§8.2, WP-7H).
+
+    Every other team tool is outside the single-writer lock by construction. This
+    one writes sprint Available — an ordinary project write wearing a team's name
+    — so acquiring makes an agent's push atomic against a human editor.
+    """
+    _served_mock(mock_backend)
+    mock_backend.post(f"/api/v1/projects/{PROJECT_ID}/edit-lock/acquire").mock(
+        return_value=httpx.Response(200, json={"locked_by_username": "testuser"})
+    )
+    mock_backend.post(f"/api/v1/projects/{PROJECT_ID}/edit-lock/release").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    mock_backend.post(f"/api/v1/projects/{PROJECT_ID}/team-capacity/apply").mock(
+        return_value=httpx.Response(200, json=PUSH_RESULT)
+    )
+
+    result = await push_team_capacity(team_id=TEAM_ID, project_id=PROJECT_ID, ctx=mock_ctx)
+
+    assert result["updated_sprints"] == 3
+    lock_calls = [str(c.request.url) for c in mock_backend.calls if "edit-lock" in str(c.request.url)]
+    assert any("acquire" in url for url in lock_calls)
+    assert any("release" in url for url in lock_calls)
+
+
+async def test_push_passes_a_window_through_as_query_parameters(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    _served_mock(mock_backend)
+    mock_backend.post(path__startswith=f"/api/v1/projects/{PROJECT_ID}/edit-lock").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    route = mock_backend.post(
+        path__startswith=f"/api/v1/projects/{PROJECT_ID}/team-capacity/apply"
+    ).mock(return_value=httpx.Response(200, json=PUSH_RESULT))
+
+    await push_team_capacity(
+        team_id=TEAM_ID,
+        project_id=PROJECT_ID,
+        date_from="2026-04-06",
+        date_to="2026-05-01",
+        ctx=mock_ctx,
+    )
+
+    url = str(route.calls.last.request.url)
+    assert "from=2026-04-06" in url and "to=2026-05-01" in url
+
+
+async def test_push_refuses_a_project_the_team_does_not_serve(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    """A wrong team_id would otherwise push the right numbers from the wrong name."""
+    _served_mock(mock_backend, rows=[])
+
+    with pytest.raises(ValueError, match="does not serve project"):
+        await push_team_capacity(team_id=TEAM_ID, project_id=PROJECT_ID, ctx=mock_ctx)
+
+    # And nothing was locked or written on the way to finding out.
+    assert not [c for c in mock_backend.calls if "edit-lock" in str(c.request.url)]
+
+
+async def test_push_surfaces_a_manual_project_as_a_conflict(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    """Silently doing nothing would look like a bug (§6.7)."""
+    _served_mock(mock_backend)
+    mock_backend.post(path__startswith=f"/api/v1/projects/{PROJECT_ID}/edit-lock").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    mock_backend.post(f"/api/v1/projects/{PROJECT_ID}/team-capacity/apply").mock(
+        return_value=httpx.Response(
+            409,
+            json={
+                "detail": {
+                    "error": "AVAILABLE_SOURCE_IS_MANUAL",
+                    "message": "'ISK Portal' types its Available by hand.",
+                }
+            },
+        )
+    )
+
+    with pytest.raises(MCPBackendError) as excinfo:
+        await push_team_capacity(team_id=TEAM_ID, project_id=PROJECT_ID, ctx=mock_ctx)
+    assert "by hand" in str(excinfo.value)

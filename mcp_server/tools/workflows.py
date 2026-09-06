@@ -169,6 +169,10 @@ async def set_sprint_capacities(
     A value may be 0: a sprint spanning a shutdown genuinely has no budget.
     Fetches sprint IDs from the backend, then acquires the lock once and updates all sprints.
     More efficient than calling update_sprint 5 times separately.
+
+    **Refused on a project whose Available is derived from a team** (409
+    AVAILABLE_IS_DERIVED): use push_team_capacity, which writes the numbers the
+    team actually produces rather than numbers the next push would revert.
     Returns {"sprints": [list of SprintResponse]}.
     """
     # Read sprint IDs first (no lock needed)

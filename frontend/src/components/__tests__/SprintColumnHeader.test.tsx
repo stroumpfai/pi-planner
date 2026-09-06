@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { SprintColumnHeader } from '../SprintColumnHeader'
-import type { Sprint } from '@/types'
+import type { ProjectPushStatus, Sprint } from '@/types'
 
 const makeSprint = (overrides: Partial<Sprint> = {}): Sprint => ({
   system_id: 's-1',
@@ -14,6 +14,18 @@ const makeSprint = (overrides: Partial<Sprint> = {}): Sprint => ({
   created_at: '2026-01-01T00:00:00Z',
   modified_at: '2026-01-01T00:00:00Z',
   ...overrides,
+})
+
+const derived = (over: Partial<ProjectPushStatus> = {}): ProjectPushStatus => ({
+  project_id: 'p-1',
+  project_name: 'ISK Portal',
+  team_id: 't-1',
+  team_name: 'Platform',
+  share_pct: 70,
+  available_source: 'factor',
+  stale_sprints: 0,
+  last_pushed_at: '2026-04-20T09:30:00Z',
+  ...over,
 })
 
 describe('SprintColumnHeader', () => {
@@ -52,5 +64,57 @@ describe('SprintColumnHeader', () => {
   it('hides edit button when onEditCapacity not provided', () => {
     render(<SprintColumnHeader sprint={makeSprint()} usedEffort={0} />)
     expect(screen.queryByTitle('Edit Available')).not.toBeInTheDocument()
+  })
+
+  // ── Derived Available (teams.md §6.4, §6.6) ────────────────────────────────
+
+  it('names the team a derived Available came from', () => {
+    render(
+      <SprintColumnHeader
+        sprint={makeSprint({ available: 21, available_pushed_at: '2026-04-20T09:30:00Z' })}
+        usedEffort={0}
+        pushStatus={derived()}
+      />,
+    )
+    expect(screen.getByText(/Platform/)).toBeInTheDocument()
+    expect(screen.getByText(/pushed Apr 20, 2026/)).toBeInTheDocument()
+  })
+
+  it('keeps the pencil on a derived sprint, because the dates are still editable', () => {
+    // Only Available is derived; no team write touches a sprint's dates, and the
+    // dialog behind the pencil is their only editor.
+    render(
+      <SprintColumnHeader
+        sprint={makeSprint({ available: 21 })}
+        usedEffort={0}
+        onEditCapacity={vi.fn()}
+        pushStatus={derived()}
+      />,
+    )
+    expect(screen.queryByTitle('Edit Available')).not.toBeInTheDocument()
+    expect(screen.getByTitle('Edit sprint dates')).toBeInTheDocument()
+  })
+
+  it('says so when a derived sprint has never been pushed', () => {
+    render(
+      <SprintColumnHeader
+        sprint={makeSprint({ available: 0, available_pushed_at: null })}
+        usedEffort={0}
+        pushStatus={derived({ last_pushed_at: null })}
+      />,
+    )
+    expect(screen.getByText('never pushed')).toBeInTheDocument()
+  })
+
+  it('keeps the pencil on a manual project, which is every project until someone opts in', () => {
+    render(
+      <SprintColumnHeader
+        sprint={makeSprint()}
+        usedEffort={0}
+        onEditCapacity={vi.fn()}
+        pushStatus={derived({ available_source: 'manual' })}
+      />,
+    )
+    expect(screen.getByTitle('Edit Available')).toBeInTheDocument()
   })
 })

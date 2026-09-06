@@ -3,13 +3,18 @@
 Three things here deliberately break the pattern every other write module in this
 package follows. Each looks like an omission unless you read the spec.
 
-**1. No `edit_lock()` wrapper.** Every other write tool wraps its call in
-`async with edit_lock(project_id)`. Team writes take no lock: they live at
-`/api/v1/teams/…`, carry no `project_id`, and are outside the single-writer lock
-*by construction* (§4.1) — `require_edit_lock` on the backend resolves nothing for
-these paths. The context manager is not merely unnecessary here, it is unusable:
-there is no project to lock. Concurrency is `If-Match`, per row (§4.2), handled
-below.
+**1. No `edit_lock()` wrapper — with exactly one exception.** Every other write
+tool wraps its call in `async with edit_lock(project_id)`. Team writes take no
+lock: they live at `/api/v1/teams/…`, carry no `project_id`, and are outside the
+single-writer lock *by construction* (§4.1) — `require_edit_lock` on the backend
+resolves nothing for these paths. The context manager is not merely unnecessary
+here, it is unusable: there is no project to lock. Concurrency is `If-Match`, per
+row (§4.2), handled below.
+
+The exception is `push_team_capacity`, at the bottom of this file. It is the one
+team tool that writes **project** data — sprint Available — so it is an ordinary
+project write wearing a team's name, and acquiring the lock is what makes an
+agent's push atomic against a human editor.
 
 **2. No `delete_team`.** Deletions in this app are permanent, and what an agent may
 delete is drawn where the codebase already draws it: leaf records yes, top-level
@@ -35,6 +40,7 @@ from fastmcp import Context, FastMCP
 from pydantic import Field
 
 from mcp_server.backend import MCPBackendError, call_backend, call_backend_raw
+from mcp_server.lock import edit_lock
 
 teams_mcp = FastMCP("teams")
 
@@ -1361,3 +1367,66 @@ async def bulk_create_meetings(
             "entries": entries,
         },
     )
+
+
+@teams_mcp.tool()
+async def push_team_capacity(
+    team_id: Annotated[str, Field(pattern=_UUID_RE, description="Team system_id (UUID) — from list_teams")],
+    project_id: Annotated[
+        str,
+        Field(pattern=_UUID_RE, description="Project system_id (UUID) this team serves"),
+    ],
+    ctx: Context,
+    date_from: Annotated[
+        str | None,
+        Field(default=None, description="Only sprints ending on or after this date (YYYY-MM-DD)"),
+    ] = None,
+    date_to: Annotated[
+        str | None,
+        Field(default=None, description="Only sprints starting on or before this date (YYYY-MM-DD)"),
+    ] = None,
+) -> dict:
+    """
+    Write a team's computed capacity into one project's sprint Available values.
+
+    **Preview first.** `preview_team_capacity` shows exactly the integers this
+    writes and never writes anything; a wrong `units_per_pd` shows up there as
+    visibly wrong numbers, which is the whole reason the push is review-then-apply.
+
+    Writes **only** `available`, and only on sprints of `draft` or `in_progress`
+    PIs. A closed PI keeps the numbers it was closed with. Rounding is half-up per
+    sprint independently — so a PI's total is the sum of the stored integers, not
+    the rounded sum of the floats.
+
+    **Idempotent**: pushing twice with nothing changed writes nothing and reports
+    `no_change`. A project whose `available_source` is `manual` is a 409
+    (`AVAILABLE_SOURCE_IS_MANUAL`) rather than a silent no-op — switch it to
+    `factor` with update_assignment first.
+
+    Unlike every other team tool this one acquires the project's edit lock, because
+    it writes project data: it fails with 409 if a human editor holds the lock.
+    Returns the per-project result: status, sprints updated, and the total delta.
+    """
+    # The push endpoint derives the team from the project, so a wrong team_id
+    # would otherwise push the *right* numbers from a team the agent did not
+    # name. Checking here turns that into a message rather than a surprise.
+    served = await call_backend("GET", f"/api/v1/teams/{team_id}/projects")
+    names = {row["project_id"]: row["project_name"] for row in served.get("items", [])}
+    if project_id not in names:
+        listed = ", ".join(repr(name) for name in names.values()) or "(none)"
+        raise ValueError(
+            f"This team does not serve project {project_id}. It serves: {listed}. "
+            "Assign it with assign_project first."
+        )
+
+    params = []
+    if date_from:
+        params.append(f"from={date_from}")
+    if date_to:
+        params.append(f"to={date_to}")
+    query = ("?" + "&".join(params)) if params else ""
+
+    async with edit_lock(project_id):
+        return await call_backend(
+            "POST", f"/api/v1/projects/{project_id}/team-capacity/apply{query}"
+        )

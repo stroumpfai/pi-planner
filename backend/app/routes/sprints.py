@@ -11,8 +11,10 @@ from app.models.pi import PI
 from app.models.sprint import Sprint
 from app.models.user import User
 from app.schemas import SprintResponse, SprintUpdate
+from app.services import team_push
 from app.services.effort import sprint_efforts_for_pi
 from app.services.events import broadcaster
+from app.services.sprint_alignment import conflicts_for_project, sibling_project_ids
 
 router = APIRouter(tags=["sprints"])
 
@@ -22,6 +24,58 @@ async def _get_or_404(db: AsyncSession, sprint_id: str) -> Sprint:
     if not sprint:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Sprint not found")
     return sprint
+
+
+async def _refuse_derived_available(db: AsyncSession, project_id: str) -> None:
+    """Available is read-only wherever a team derives it (§6.4, WP-7D).
+
+    Without this an agent — or the sprint dialog — writes a number the next push
+    silently reverts, which is worse than a refusal: the value looks accepted
+    right up until it disappears. The same guard covers the MCP ``update_sprint``
+    and ``set_sprint_capacities`` tools, because both write through this route.
+    """
+    context = await team_push.load_context(db, project_id)
+    if context is None or context.is_manual:
+        return
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "error": "AVAILABLE_IS_DERIVED",
+            "message": (
+                f"Available for this project is derived from team '{context.team.name}'. "
+                "Push from the team to change it, or switch the assignment back to a "
+                "hand-typed budget."
+            ),
+            "team_id": context.team.system_id,
+            "team_name": context.team.name,
+        },
+    )
+
+
+async def _refuse_misalignment(db: AsyncSession, project_id: str) -> None:
+    """Sprint dates must match across the projects one team serves (§6.8, WP-7G).
+
+    Checked after the change is flushed, so the rule is stated once against the
+    would-be state rather than reimplemented against a pending diff. A team
+    serving a single project has no siblings and pays one cheap query for the
+    check; enforcement only begins once a second project is assigned.
+    """
+    siblings = await sibling_project_ids(db, project_id)
+    if not siblings:
+        return
+    await db.flush()
+    conflicts = await conflicts_for_project(db, project_id, sibling_ids=siblings)
+    if not conflicts:
+        return
+    await db.rollback()
+    raise HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "error": "SPRINT_DATES_MISALIGNED",
+            "message": conflicts[0].message(),
+            "conflicts": [conflict.as_dict() for conflict in conflicts],
+        },
+    )
 
 
 @router.get("/api/v1/pis/{pi_id}/sprints")
@@ -60,14 +114,23 @@ async def update_sprint(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Closed PIs are read-only")
 
     fields = body.model_fields_set
+    project_id = pi.project_id if pi else None
     if "available" in fields and body.available is not None:
+        if project_id:
+            await _refuse_derived_available(db, project_id)
         sprint.available = body.available
+        # A hand-typed value is not a pushed one, so the header stops claiming a
+        # push it no longer reflects. Only reachable on a `manual` project — the
+        # guard above turns every other case into a 409.
+        sprint.available_pushed_at = None
     if "start_date" in fields:
         sprint.start_date = body.start_date
     if "end_date" in fields:
         sprint.end_date = body.end_date
 
     sprint.modified_at = datetime.now(timezone.utc)
+    if project_id and fields & {"start_date", "end_date"}:
+        await _refuse_misalignment(db, project_id)
     await db.commit()
     await db.refresh(sprint)
 

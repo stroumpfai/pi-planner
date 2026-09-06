@@ -271,6 +271,13 @@ async def update_sprint(
     Acquires the edit lock for the duration of the update.
     Returns the updated SprintResponse including current effort and Available.
 
+    **Available may be read-only.** If a team serves this project with a
+    conversion factor, Available is derived and writing it here returns 409
+    AVAILABLE_IS_DERIVED — change it with push_team_capacity instead, or the next
+    push silently reverts what you wrote. Dates stay writable either way, though a
+    date breaking sprint alignment with another project the same team serves is
+    refused with 409 SPRINT_DATES_MISALIGNED.
+
     'capacity' is a deprecated alias of 'available', kept for one release so calls
     written before the rename keep working. Prefer 'available'.
     """

@@ -2,11 +2,13 @@ import { useMemo, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useProjects, useDeleteProject } from '@/hooks/useProjects'
 import { useTeams } from '@/hooks/useTeams'
+import { statusFor, useTeamCapacityStatus } from '@/hooks/useTeamPush'
 import { useUiStore } from '@/stores/uiStore'
 import { useAuthStore } from '@/stores/authStore'
 import { CreateProjectModal } from '@/components/CreateProjectModal'
 import { EditProjectModal } from '@/components/EditProjectModal'
 import { CreateTeamModal } from '@/components/CreateTeamModal'
+import { StalenessBadge } from '@/components/StalenessBadge'
 import { EditTeamModal } from '@/components/EditTeamModal'
 import { DeleteTeamDialog } from '@/components/DeleteTeamDialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -224,6 +226,9 @@ function plural(count: number, noun: string): string {
 export function ProjectListPage() {
   const { data: projects, isLoading } = useProjects()
   const { data: teams, isLoading: teamsLoading } = useTeams()
+  // Staleness sits on the project row, one glance from the team that moved — the
+  // whole reason projects and teams share this page (§6.6, §7.0).
+  const { data: pushStatuses } = useTeamCapacityStatus()
   const deleteProject = useDeleteProject()
   const setActiveProject = useUiStore((s) => s.setActiveProject)
   const setActiveTeam = useUiStore((s) => s.setActiveTeam)
@@ -346,19 +351,24 @@ export function ProjectListPage() {
                       </div>
 
                       {/* Team and share read down one line, and the staleness badge
-                          (Step 7) lands beneath them — which is why this column is a
-                          block and not inline text. */}
+                          lands beneath them — which is why this column is a block
+                          and not inline text. */}
                       <div className="min-w-0 text-xs pt-0.5">
                         {team ? (
-                          <p className="truncate">
-                            <span className="text-gray-700 dark:text-gray-300">{team.name}</span>
-                            {/* A team name alone reads as though the whole team were
-                                on this project; the share is what it actually gets. */}
-                            <span className="text-gray-400 dark:text-gray-500">
-                              {' · '}
-                              {team.project_shares?.[project.system_id] ?? 100}%
-                            </span>
-                          </p>
+                          <>
+                            <p className="truncate">
+                              <span className="text-gray-700 dark:text-gray-300">{team.name}</span>
+                              {/* A team name alone reads as though the whole team were
+                                  on this project; the share is what it actually gets. */}
+                              <span className="text-gray-400 dark:text-gray-500">
+                                {' · '}
+                                {team.project_shares?.[project.system_id] ?? 100}%
+                              </span>
+                            </p>
+                            <p className="mt-0.5">
+                              <StalenessBadge status={statusFor(pushStatuses, project.system_id)} />
+                            </p>
+                          </>
                         ) : (
                           <span className="text-gray-400 dark:text-gray-500">No team</span>
                         )}

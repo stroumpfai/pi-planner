@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { SprintCapacityModal } from '../SprintCapacityModal'
 import { useUpdateSprint } from '@/hooks/useSprints'
-import type { Sprint } from '@/types'
+import type { ProjectPushStatus, Sprint } from '@/types'
 
 vi.mock('@/hooks/useSprints')
 
@@ -28,6 +28,18 @@ const fakeSprint: Sprint = {
   created_at: '2026-01-01T00:00:00Z',
   modified_at: '2026-01-01T00:00:00Z',
 }
+
+const derivedStatus = (over: Partial<ProjectPushStatus> = {}): ProjectPushStatus => ({
+  project_id: 'p-1',
+  project_name: 'ISK Portal',
+  team_id: 't-1',
+  team_name: 'Platform',
+  share_pct: 70,
+  available_source: 'factor',
+  stale_sprints: 0,
+  last_pushed_at: '2026-04-20T09:30:00Z',
+  ...over,
+})
 
 const defaultProps = {
   open: true,
@@ -87,5 +99,50 @@ describe('SprintCapacityModal', () => {
     await waitFor(() =>
       expect(screen.getByText(/failed to update sprint/i)).toBeInTheDocument(),
     )
+  })
+  // ── A derived Available is read-only here (teams.md §6.4) ──────────────────
+
+  it('locks Available and names the team it came from', () => {
+    render(
+      <SprintCapacityModal
+        {...defaultProps}
+        sprint={{ ...fakeSprint, available: 21, available_pushed_at: '2026-04-20T09:30:00Z' }}
+        pushStatus={derivedStatus()}
+      />,
+      { wrapper: makeWrapper() },
+    )
+
+    expect(screen.getByLabelText(/^Available/)).toHaveAttribute('readonly')
+    expect(screen.getByText(/Derived from team Platform/)).toBeInTheDocument()
+    expect(screen.getByText(/pushed Apr 20, 2026/)).toBeInTheDocument()
+  })
+
+  it('saves the dates without touching Available on a derived sprint', async () => {
+    // Sending the value back unchanged would still be a write the API refuses
+    // with 409 AVAILABLE_IS_DERIVED, so the field is left out of the body.
+    mutateAsync.mockResolvedValue({})
+    render(
+      <SprintCapacityModal
+        {...defaultProps}
+        sprint={{ ...fakeSprint, available: 21 }}
+        pushStatus={derivedStatus()}
+      />,
+      { wrapper: makeWrapper() },
+    )
+
+    await userEvent.type(screen.getByLabelText('Start date'), '06.04.2026')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled())
+    expect(mutateAsync.mock.calls[0][0].body).not.toHaveProperty('available')
+    expect(mutateAsync.mock.calls[0][0].body.start_date).toBe('2026-04-06')
+  })
+
+  it('leaves Available editable on a manual project', () => {
+    render(
+      <SprintCapacityModal {...defaultProps} pushStatus={derivedStatus({ available_source: 'manual' })} />,
+      { wrapper: makeWrapper() },
+    )
+    expect(screen.getByLabelText(/^Available/)).not.toHaveAttribute('readonly')
   })
 })

@@ -115,6 +115,9 @@ EXPECTED_TEAMS_TOOLS = {
     "update_meeting",
     "delete_meeting",
     "bulk_create_meetings",
+    # The one team tool that writes project data, and so the one that takes the
+    # edit lock (§8.2, WP-7H).
+    "push_team_capacity",
 }
 
 EXPECTED_WORKFLOWS_TOOLS = {

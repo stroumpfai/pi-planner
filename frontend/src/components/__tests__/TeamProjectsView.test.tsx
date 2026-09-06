@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { TeamProjectsView } from '../TeamProjectsView'
 import * as apiModule from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
-import type { Project, TeamAssignment, User } from '@/types'
+import type { Project, ProjectPushStatus, TeamAssignment, User } from '@/types'
 
 vi.mock('@/services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof apiModule>()
@@ -40,14 +40,33 @@ const assignment = (over: Partial<TeamAssignment> = {}): TeamAssignment => ({
 const project = (id: string, name: string): Project =>
   ({ system_id: id, name, description: null, effort_unit: 'pts' } as Project)
 
-/** Assignments and the project list come off the same mocked axios instance. */
-function respondWith(assignments: TeamAssignment[], projects: Project[] = []) {
-  mockApi.get.mockImplementation((url: string) =>
-    Promise.resolve({
+const pushStatus = (over: Partial<ProjectPushStatus> = {}): ProjectPushStatus => ({
+  project_id: 'p-1',
+  project_name: 'ISK Portal',
+  team_id: 't-1',
+  team_name: 'Platform',
+  share_pct: 70,
+  available_source: 'factor',
+  stale_sprints: 0,
+  last_pushed_at: '2026-04-20T09:30:00Z',
+  ...over,
+})
+
+/** Assignments, the project list and the staleness read share one mocked axios. */
+function respondWith(
+  assignments: TeamAssignment[],
+  projects: Project[] = [],
+  statuses: ProjectPushStatus[] = [],
+) {
+  mockApi.get.mockImplementation((url: string) => {
+    if (url.startsWith('/team-capacity/status')) {
+      return Promise.resolve({ data: statuses, headers: {} })
+    }
+    return Promise.resolve({
       data: url.includes('/projects') && url.startsWith('/teams') ? assignments : projects,
       headers: {},
-    }),
-  )
+    })
+  })
 }
 
 describe('TeamProjectsView', () => {
@@ -58,7 +77,7 @@ describe('TeamProjectsView', () => {
   })
 
   it('marks the anchor, because it is why the capacity columns are those dates', async () => {
-    render(<TeamProjectsView teamId="t-1" />, { wrapper: wrapper() })
+    render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })
 
     // The last row is the shares total, so the assignment is the first one.
     const rows = await screen.findAllByRole('listitem')
@@ -69,7 +88,7 @@ describe('TeamProjectsView', () => {
   })
 
   it('totals the shares, because one share only means something against the others', async () => {
-    render(<TeamProjectsView teamId="t-1" />, { wrapper: wrapper() })
+    render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })
 
     const rows = await screen.findAllByRole('listitem')
     const total = within(rows[rows.length - 1])
@@ -84,7 +103,7 @@ describe('TeamProjectsView', () => {
       assignment({ share_pct: 70 }),
       assignment({ system_id: 'a-2', project_id: 'p-2', project_name: 'Data Exchange', share_pct: 60, is_anchor: false }),
     ])
-    render(<TeamProjectsView teamId="t-1" />, { wrapper: wrapper() })
+    render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })
 
     expect(await screen.findByRole('status')).toHaveTextContent(
       '⚠ Shares total 130% — this team is over-allocated. You can still save; the numbers will be optimistic.',
@@ -96,7 +115,7 @@ describe('TeamProjectsView', () => {
   it('says nothing when the shares are under 100%', async () => {
     // Slack and unassigned work are normal and are not flagged (§6.3).
     respondWith([assignment({ share_pct: 60 })])
-    render(<TeamProjectsView teamId="t-1" />, { wrapper: wrapper() })
+    render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })
 
     await screen.findByText('ISK Portal')
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
@@ -105,7 +124,7 @@ describe('TeamProjectsView', () => {
   it('assigns a project, and says the first one sets the calendar', async () => {
     respondWith([], [project('p-1', 'ISK Portal'), project('p-2', 'Data Exchange')])
     mockApi.post.mockResolvedValue({ data: assignment(), headers: {} })
-    render(<TeamProjectsView teamId="t-1" />, { wrapper: wrapper() })
+    render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })
 
     await userEvent.click(await screen.findByRole('button', { name: '+ Assign project' }))
     const dialog = within(screen.getByRole('dialog'))
@@ -126,7 +145,7 @@ describe('TeamProjectsView', () => {
   it('asks for a factor only once Available is derived', async () => {
     respondWith([], [project('p-1', 'ISK Portal')])
     mockApi.post.mockResolvedValue({ data: assignment(), headers: {} })
-    render(<TeamProjectsView teamId="t-1" />, { wrapper: wrapper() })
+    render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })
 
     await userEvent.click(await screen.findByRole('button', { name: '+ Assign project' }))
     const dialog = within(screen.getByRole('dialog'))
@@ -144,7 +163,7 @@ describe('TeamProjectsView', () => {
         data: { detail: { error: 'PROJECT_ALREADY_ASSIGNED', message: "'ISK Portal' is already served by 'Frontline'." } },
       },
     })
-    render(<TeamProjectsView teamId="t-1" />, { wrapper: wrapper() })
+    render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })
 
     await userEvent.click(await screen.findByRole('button', { name: '+ Assign project' }))
     const dialog = within(screen.getByRole('dialog'))
@@ -158,7 +177,7 @@ describe('TeamProjectsView', () => {
     // Available is always a value someone wrote, so removing the team removes
     // nothing and plans do not silently deflate (§6.1).
     mockApi.delete.mockResolvedValue({ data: null, headers: {} })
-    render(<TeamProjectsView teamId="t-1" />, { wrapper: wrapper() })
+    render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })
 
     await userEvent.click(await screen.findByRole('button', { name: 'Unassign' }))
     const dialog = within(screen.getByRole('dialog'))
@@ -173,10 +192,37 @@ describe('TeamProjectsView', () => {
 
   it('gives a reader the list and none of the controls', async () => {
     useAuthStore.setState({ user: { username: 'r', role: 'reader' } as User, isEditing: false })
-    render(<TeamProjectsView teamId="t-1" />, { wrapper: wrapper() })
+    render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })
 
     expect(await screen.findByText('ISK Portal')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: '+ Assign project' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Unassign' })).not.toBeInTheDocument()
+  })
+  // ── The push, and the staleness it resolves (§6.6, §6.7) ───────────────────
+
+  it('shows how far a project has drifted from the team', async () => {
+    respondWith([assignment({ available_source: 'factor' })], [], [pushStatus({ stale_sprints: 3 })])
+    render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })
+
+    expect(await screen.findByText('3 sprints differ from the team')).toBeInTheDocument()
+  })
+
+  it('offers the push, which is the only way the number reaches a project', async () => {
+    render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Update projects' }))
+    const dialog = within(screen.getByRole('dialog'))
+    expect(dialog.getByText(/Update projects from team Platform/)).toBeInTheDocument()
+    expect(dialog.getByText(/Nothing is written until you apply/)).toBeInTheDocument()
+  })
+
+  it('hides the push from a reader, who cannot write a project', async () => {
+    useAuthStore.setState({ user: { username: 'r', role: 'reader' } as User, isEditing: false })
+    respondWith([assignment({ available_source: 'factor' })], [], [pushStatus({ stale_sprints: 2 })])
+    render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })
+
+    // The badge stays: staleness is information, not an action (design §1).
+    expect(await screen.findByText('2 sprints differ from the team')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Update projects' })).not.toBeInTheDocument()
   })
 })

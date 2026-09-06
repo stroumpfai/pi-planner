@@ -570,6 +570,43 @@ export interface paths {
      */
     get: operations["get_team_capacity_api_v1_teams__team_id__capacity_get"];
   };
+  "/api/v1/team-capacity/status": {
+    /**
+     * Team Capacity Status
+     * @description How far each served project has drifted from its team (§6.6).
+     *
+     * One route serves both surfaces — the home page reads them all, the PI board
+     * header reads one — because the answer is the same computation either way and
+     * a second endpoint would only differ in its ``where``.
+     */
+    get: operations["team_capacity_status_api_v1_team_capacity_status_get"];
+  };
+  "/api/v1/projects/{project_id}/team-capacity/preview": {
+    /**
+     * Preview Push
+     * @description What a push would write. Writes nothing.
+     */
+    get: operations["preview_push_api_v1_projects__project_id__team_capacity_preview_get"];
+  };
+  "/api/v1/projects/{project_id}/team-capacity/apply": {
+    /**
+     * Apply Push
+     * @description Write the proposed values. Idempotent — an unchanged push writes nothing.
+     */
+    post: operations["apply_push_api_v1_projects__project_id__team_capacity_apply_post"];
+  };
+  "/api/v1/teams/{team_id}/push": {
+    /**
+     * Push Team
+     * @description Push into every project this team serves — **per project, not atomic**.
+     *
+     * A project someone else is editing fails on its own row and the others still
+     * apply. Projects are independent aggregates; the alignment between them is on
+     * dates (§6.8), which a push never changes, so there is nothing a partial
+     * result can leave inconsistent.
+     */
+    post: operations["push_team_api_v1_teams__team_id__push_post"];
+  };
   "/health": {
     /** Health */
     get: operations["health_health_get"];
@@ -2229,6 +2266,57 @@ export interface components {
       /** Work Item Path Template */
       work_item_path_template?: string | null;
     };
+    /**
+     * ProjectPushResult
+     * @description One row of the per-project result list (§6.7).
+     *
+     * ``status`` is one of ``updated`` · ``no_change`` · ``locked`` · ``manual`` ·
+     * ``no_team`` · ``error``. A locked row carries the holder and the expiry so the
+     * dialog can offer *Retry this one* against a real time.
+     */
+    ProjectPushResult: {
+      /** Project Id */
+      project_id: string;
+      /** Project Name */
+      project_name: string;
+      /** Status */
+      status: string;
+      /** Updated Sprints */
+      updated_sprints: number;
+      /** Total Delta */
+      total_delta: number;
+      /** Message */
+      message?: string | null;
+      /** Locked By */
+      locked_by?: string | null;
+      /** Locked Until */
+      locked_until?: string | null;
+    };
+    /**
+     * ProjectPushStatus
+     * @description Whether one project's sprints still agree with its team (§6.6).
+     *
+     * A `manual` project is never stale — nothing is meant to flow into it — and
+     * reports ``stale_sprints`` 0 with the source that says why.
+     */
+    ProjectPushStatus: {
+      /** Project Id */
+      project_id: string;
+      /** Project Name */
+      project_name: string;
+      /** Team Id */
+      team_id: string;
+      /** Team Name */
+      team_name: string;
+      /** Share Pct */
+      share_pct: number;
+      /** Available Source */
+      available_source: string;
+      /** Stale Sprints */
+      stale_sprints: number;
+      /** Last Pushed At */
+      last_pushed_at: string | null;
+    };
     /** ProjectResponse */
     ProjectResponse: {
       /** System Id */
@@ -2325,6 +2413,70 @@ export interface components {
       effort_unit?: string | null;
     };
     /**
+     * PushPreview
+     * @description Everything a push into one project would do. Writes nothing.
+     */
+    PushPreview: {
+      /** Project Id */
+      project_id: string;
+      /** Project Name */
+      project_name: string;
+      /** Effort Unit */
+      effort_unit: string;
+      /** Team Id */
+      team_id: string;
+      /** Team Name */
+      team_name: string;
+      /** Share Pct */
+      share_pct: number;
+      /** Available Source */
+      available_source: string;
+      /** Units Per Pd */
+      units_per_pd: number;
+      /** Sprints */
+      sprints: components["schemas"]["PushSprintRow"][];
+      /** Changed Count */
+      changed_count: number;
+      /** Total Delta */
+      total_delta: number;
+    };
+    /**
+     * PushSprintRow
+     * @description One sprint's line in the review table: current · proposed · Δ · behind it.
+     */
+    PushSprintRow: {
+      /** Sprint Id */
+      sprint_id: string;
+      /** Pi Id */
+      pi_id: string;
+      /** Pi Name */
+      pi_name: string;
+      /** Pi State */
+      pi_state: string;
+      /** Sprint Number */
+      sprint_number: number;
+      /** Label */
+      label: string;
+      /** Start Date */
+      start_date: string | null;
+      /** End Date */
+      end_date: string | null;
+      /** Current Available */
+      current_available: number;
+      /** Proposed Available */
+      proposed_available: number | null;
+      /** Delta */
+      delta: number | null;
+      /** Team Person Days */
+      team_person_days: number | null;
+      /** Share Adjusted Person Days */
+      share_adjusted_person_days: number | null;
+      /** In Project Units */
+      in_project_units: number | null;
+      /** Available Pushed At */
+      available_pushed_at: string | null;
+    };
+    /**
      * Role
      * @enum {string}
      */
@@ -2394,6 +2546,8 @@ export interface components {
       sprint_index: number | null;
       /** Available */
       available: number;
+      /** Available Pushed At */
+      available_pushed_at?: string | null;
       /**
        * Effort
        * @default 0
@@ -2576,6 +2730,13 @@ export interface components {
       available_source?: ("manual" | "factor") | null;
       /** Units Per Pd */
       units_per_pd?: number | null;
+    };
+    /** TeamPushResponse */
+    TeamPushResponse: {
+      /** Team Id */
+      team_id: string;
+      /** Results */
+      results: components["schemas"]["ProjectPushResult"][];
     };
     /**
      * TeamResponse
@@ -6011,6 +6172,146 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["TeamCapacityResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Team Capacity Status
+   * @description How far each served project has drifted from its team (§6.6).
+   *
+   * One route serves both surfaces — the home page reads them all, the PI board
+   * header reads one — because the answer is the same computation either way and
+   * a second endpoint would only differ in its ``where``.
+   */
+  team_capacity_status_api_v1_team_capacity_status_get: {
+    parameters: {
+      query?: {
+        /** @description Limit to one project; omit for every served project */
+        project_id?: string | null;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProjectPushStatus"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Preview Push
+   * @description What a push would write. Writes nothing.
+   */
+  preview_push_api_v1_projects__project_id__team_capacity_preview_get: {
+    parameters: {
+      query?: {
+        /** @description Only sprints ending on or after this date */
+        from?: string | null;
+        /** @description Only sprints starting on or before this date */
+        to?: string | null;
+      };
+      path: {
+        project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PushPreview"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Apply Push
+   * @description Write the proposed values. Idempotent — an unchanged push writes nothing.
+   */
+  apply_push_api_v1_projects__project_id__team_capacity_apply_post: {
+    parameters: {
+      query?: {
+        /** @description Only sprints ending on or after this date */
+        from?: string | null;
+        /** @description Only sprints starting on or before this date */
+        to?: string | null;
+      };
+      path: {
+        project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProjectPushResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Push Team
+   * @description Push into every project this team serves — **per project, not atomic**.
+   *
+   * A project someone else is editing fails on its own row and the others still
+   * apply. Projects are independent aggregates; the alignment between them is on
+   * dates (§6.8), which a push never changes, so there is nothing a partial
+   * result can leave inconsistent.
+   */
+  push_team_api_v1_teams__team_id__push_post: {
+    parameters: {
+      query?: {
+        /** @description Only sprints ending on or after this date */
+        from?: string | null;
+        /** @description Only sprints starting on or before this date */
+        to?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TeamPushResponse"];
         };
       };
       /** @description Validation Error */

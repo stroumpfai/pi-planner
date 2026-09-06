@@ -2,13 +2,17 @@ import { useState } from 'react'
 import { AssignProjectModal } from '@/components/AssignProjectModal'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EditAssignmentModal } from '@/components/EditAssignmentModal'
+import { PushProjectsModal } from '@/components/PushProjectsModal'
+import { StalenessBadge } from '@/components/StalenessBadge'
 import { useTeamProjects, useUnassignProject } from '@/hooks/useTeamProjects'
+import { statusFor, useTeamCapacityStatus } from '@/hooks/useTeamPush'
 import { assignmentErrorCode } from '@/services/teamProjects'
 import { useAuthStore } from '@/stores/authStore'
 import type { TeamAssignment } from '@/types'
 
 interface Props {
   readonly teamId: string
+  readonly teamName: string
 }
 
 /**
@@ -22,13 +26,20 @@ interface Props {
  * The first row is the **anchor**: its sprint calendar is what the Capacity view
  * counts in. That is worth a badge, because nothing else on screen would explain
  * why the columns are the dates they are.
+ *
+ * The second badge is staleness — how far each project has drifted from the team
+ * since its last push (§6.6). It sits here as well as on the home page because
+ * this is the one screen showing every project the team feeds at once, and it is
+ * the screen the push is launched from.
  */
-export function TeamProjectsView({ teamId }: Props) {
+export function TeamProjectsView({ teamId, teamName }: Props) {
   const { data: assignments, isLoading } = useTeamProjects(teamId)
+  const { data: statuses } = useTeamCapacityStatus()
   const canEdit = useAuthStore((s) => s.canEdit())
   const unassign = useUnassignProject(teamId)
 
   const [assigning, setAssigning] = useState(false)
+  const [pushing, setPushing] = useState(false)
   const [editing, setEditing] = useState<TeamAssignment | null>(null)
   const [unassigning, setUnassigning] = useState<TeamAssignment | null>(null)
   const [unassignError, setUnassignError] = useState<string | null>(null)
@@ -68,6 +79,18 @@ export function TeamProjectsView({ teamId }: Props) {
             className="px-3 py-1.5 text-xs rounded-lg bg-canvas shadow-soft-sm text-blue-600 hover:shadow-soft-hover"
           >
             + Assign project
+          </button>
+        )}
+        {/* The only way a team's number reaches a project. Never a side effect of
+            editing the team — that write would land in a project someone else may
+            be holding the lock on (§6.4). */}
+        {canEdit && rows.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setPushing(true)}
+            className="px-3 py-1.5 text-xs rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+          >
+            Update projects
           </button>
         )}
         <p className="ml-auto text-xs text-gray-400 dark:text-gray-500">
@@ -125,8 +148,7 @@ export function TeamProjectsView({ teamId }: Props) {
                 </p>
               </div>
 
-              {/* The staleness badge belongs beside this line — step 7, once a
-                  push exists for a project to be behind. */}
+              <StalenessBadge status={statusFor(statuses, row.project_id)} />
 
               {canEdit && (
                 <div className="flex items-center gap-3 shrink-0">
@@ -164,6 +186,16 @@ export function TeamProjectsView({ teamId }: Props) {
         assigned={rows}
         onClose={() => setAssigning(false)}
       />
+
+      {pushing && (
+        <PushProjectsModal
+          open
+          teamId={teamId}
+          teamName={teamName}
+          assignments={rows}
+          onClose={() => setPushing(false)}
+        />
+      )}
 
       {editing && (
         <EditAssignmentModal open teamId={teamId} assignment={editing} onClose={() => setEditing(null)} />

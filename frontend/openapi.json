@@ -7784,6 +7784,369 @@
         }
       }
     },
+    "/api/v1/team-capacity/status": {
+      "get": {
+        "tags": [
+          "team-push"
+        ],
+        "summary": "Team Capacity Status",
+        "description": "How far each served project has drifted from its team (\u00a76.6).\n\nOne route serves both surfaces \u2014 the home page reads them all, the PI board\nheader reads one \u2014 because the answer is the same computation either way and\na second endpoint would only differ in its ``where``.",
+        "operationId": "team_capacity_status_api_v1_team_capacity_status_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Limit to one project; omit for every served project",
+              "title": "Project Id"
+            },
+            "description": "Limit to one project; omit for every served project"
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ProjectPushStatus"
+                  },
+                  "title": "Response Team Capacity Status Api V1 Team Capacity Status Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/team-capacity/preview": {
+      "get": {
+        "tags": [
+          "team-push"
+        ],
+        "summary": "Preview Push",
+        "description": "What a push would write. Writes nothing.",
+        "operationId": "preview_push_api_v1_projects__project_id__team_capacity_preview_get",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only sprints ending on or after this date",
+              "title": "From"
+            },
+            "description": "Only sprints ending on or after this date"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only sprints starting on or before this date",
+              "title": "To"
+            },
+            "description": "Only sprints starting on or before this date"
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushPreview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/projects/{project_id}/team-capacity/apply": {
+      "post": {
+        "tags": [
+          "team-push"
+        ],
+        "summary": "Apply Push",
+        "description": "Write the proposed values. Idempotent \u2014 an unchanged push writes nothing.",
+        "operationId": "apply_push_api_v1_projects__project_id__team_capacity_apply_post",
+        "parameters": [
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only sprints ending on or after this date",
+              "title": "From"
+            },
+            "description": "Only sprints ending on or after this date"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only sprints starting on or before this date",
+              "title": "To"
+            },
+            "description": "Only sprints starting on or before this date"
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectPushResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{team_id}/push": {
+      "post": {
+        "tags": [
+          "team-push"
+        ],
+        "summary": "Push Team",
+        "description": "Push into every project this team serves \u2014 **per project, not atomic**.\n\nA project someone else is editing fails on its own row and the others still\napply. Projects are independent aggregates; the alignment between them is on\ndates (\u00a76.8), which a push never changes, so there is nothing a partial\nresult can leave inconsistent.",
+        "operationId": "push_team_api_v1_teams__team_id__push_post",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only sprints ending on or after this date",
+              "title": "From"
+            },
+            "description": "Only sprints ending on or after this date"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only sprints starting on or before this date",
+              "title": "To"
+            },
+            "description": "Only sprints starting on or before this date"
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamPushResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -12111,6 +12474,131 @@
         ],
         "title": "ProjectCreate"
       },
+      "ProjectPushResult": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "project_name": {
+            "type": "string",
+            "title": "Project Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "updated_sprints": {
+            "type": "integer",
+            "title": "Updated Sprints"
+          },
+          "total_delta": {
+            "type": "integer",
+            "title": "Total Delta"
+          },
+          "message": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message"
+          },
+          "locked_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked By"
+          },
+          "locked_until": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Locked Until"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "project_name",
+          "status",
+          "updated_sprints",
+          "total_delta"
+        ],
+        "title": "ProjectPushResult",
+        "description": "One row of the per-project result list (\u00a76.7).\n\n``status`` is one of ``updated`` \u00b7 ``no_change`` \u00b7 ``locked`` \u00b7 ``manual`` \u00b7\n``no_team`` \u00b7 ``error``. A locked row carries the holder and the expiry so the\ndialog can offer *Retry this one* against a real time."
+      },
+      "ProjectPushStatus": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "project_name": {
+            "type": "string",
+            "title": "Project Name"
+          },
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "team_name": {
+            "type": "string",
+            "title": "Team Name"
+          },
+          "share_pct": {
+            "type": "integer",
+            "title": "Share Pct"
+          },
+          "available_source": {
+            "type": "string",
+            "title": "Available Source"
+          },
+          "stale_sprints": {
+            "type": "integer",
+            "title": "Stale Sprints"
+          },
+          "last_pushed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Pushed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "project_name",
+          "team_id",
+          "team_name",
+          "share_pct",
+          "available_source",
+          "stale_sprints",
+          "last_pushed_at"
+        ],
+        "title": "ProjectPushStatus",
+        "description": "Whether one project's sprints still agree with its team (\u00a76.6).\n\nA `manual` project is never stale \u2014 nothing is meant to flow into it \u2014 and\nreports ``stale_sprints`` 0 with the source that says why."
+      },
       "ProjectResponse": {
         "properties": {
           "system_id": {
@@ -12377,6 +12865,216 @@
         "type": "object",
         "title": "ProjectUpdate"
       },
+      "PushPreview": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "project_name": {
+            "type": "string",
+            "title": "Project Name"
+          },
+          "effort_unit": {
+            "type": "string",
+            "title": "Effort Unit"
+          },
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "team_name": {
+            "type": "string",
+            "title": "Team Name"
+          },
+          "share_pct": {
+            "type": "integer",
+            "title": "Share Pct"
+          },
+          "available_source": {
+            "type": "string",
+            "title": "Available Source"
+          },
+          "units_per_pd": {
+            "type": "number",
+            "title": "Units Per Pd"
+          },
+          "sprints": {
+            "items": {
+              "$ref": "#/components/schemas/PushSprintRow"
+            },
+            "type": "array",
+            "title": "Sprints"
+          },
+          "changed_count": {
+            "type": "integer",
+            "title": "Changed Count"
+          },
+          "total_delta": {
+            "type": "integer",
+            "title": "Total Delta"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "project_name",
+          "effort_unit",
+          "team_id",
+          "team_name",
+          "share_pct",
+          "available_source",
+          "units_per_pd",
+          "sprints",
+          "changed_count",
+          "total_delta"
+        ],
+        "title": "PushPreview",
+        "description": "Everything a push into one project would do. Writes nothing."
+      },
+      "PushSprintRow": {
+        "properties": {
+          "sprint_id": {
+            "type": "string",
+            "title": "Sprint Id"
+          },
+          "pi_id": {
+            "type": "string",
+            "title": "Pi Id"
+          },
+          "pi_name": {
+            "type": "string",
+            "title": "Pi Name"
+          },
+          "pi_state": {
+            "type": "string",
+            "title": "Pi State"
+          },
+          "sprint_number": {
+            "type": "integer",
+            "title": "Sprint Number"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "current_available": {
+            "type": "integer",
+            "title": "Current Available"
+          },
+          "proposed_available": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Proposed Available"
+          },
+          "delta": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta"
+          },
+          "team_person_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Person Days"
+          },
+          "share_adjusted_person_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Adjusted Person Days"
+          },
+          "in_project_units": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "In Project Units"
+          },
+          "available_pushed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available Pushed At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sprint_id",
+          "pi_id",
+          "pi_name",
+          "pi_state",
+          "sprint_number",
+          "label",
+          "start_date",
+          "end_date",
+          "current_available",
+          "proposed_available",
+          "delta",
+          "team_person_days",
+          "share_adjusted_person_days",
+          "in_project_units",
+          "available_pushed_at"
+        ],
+        "title": "PushSprintRow",
+        "description": "One sprint's line in the review table: current \u00b7 proposed \u00b7 \u0394 \u00b7 behind it."
+      },
       "Role": {
         "type": "string",
         "enum": [
@@ -12510,6 +13208,18 @@
           "available": {
             "type": "integer",
             "title": "Available"
+          },
+          "available_pushed_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Available Pushed At"
           },
           "effort": {
             "type": "number",
@@ -12988,6 +13698,27 @@
         },
         "type": "object",
         "title": "TeamProjectUpdate"
+      },
+      "TeamPushResponse": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectPushResult"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "results"
+        ],
+        "title": "TeamPushResponse"
       },
       "TeamResponse": {
         "properties": {

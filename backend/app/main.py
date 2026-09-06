@@ -42,6 +42,7 @@ from app.routes import (
     swimlines,
     team_members,
     team_projects,
+    team_push,
     teams,
     test_utils,
     users,
@@ -105,6 +106,7 @@ for _router in [
     absences.router,
     meetings.router,
     team_projects.router,
+    team_push.router,
 ]:
     app.include_router(_router)
 

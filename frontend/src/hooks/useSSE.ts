@@ -159,6 +159,17 @@ function handleSSEEvent(
       qc.invalidateQueries({ queryKey: ['pis'] })
       break
 
+    // A team push wrote Available on this project (teams.md §6.7). It moves the
+    // same numbers a hand-typed capacity does, plus the staleness the badges
+    // read — which has just gone to zero for everyone watching, not only for the
+    // person who pushed.
+    case 'sprint:available:pushed':
+      qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'sprints' })
+      qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'swimlines' })
+      qc.invalidateQueries({ queryKey: ['pis'] })
+      qc.invalidateQueries({ queryKey: ['teamCapacityStatus'] })
+      break
+
     // ── Projects ──────────────────────────────────────────────────────────
     case 'project:updated':
     case 'project:deleted':

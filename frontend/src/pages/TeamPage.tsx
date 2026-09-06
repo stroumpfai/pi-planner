@@ -121,7 +121,9 @@ export const TeamPage: React.FC<Props> = ({ teamId }) => {
         {view === 'capacity' && (
           <TeamCapacityView teamId={teamId} onOpenProjects={() => setView('projects')} />
         )}
-        {view === 'projects' && <TeamProjectsView teamId={teamId} />}
+        {view === 'projects' && (
+          <TeamProjectsView teamId={teamId} teamName={team?.name ?? 'this team'} />
+        )}
       </div>
     </div>
   )

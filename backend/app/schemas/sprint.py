@@ -25,6 +25,10 @@ class SprintResponse(BaseModel):
     pi_id: str
     sprint_index: int | None
     available: int
+    # When a team push last wrote ``available``; null means never pushed. The
+    # sprint header needs it because the number alone cannot say where it came
+    # from — 14 pts typed and 14 pts derived read identically (teams.md §6.6).
+    available_pushed_at: UtcDatetime | None = None
     effort: float = 0
     start_date: date | None
     end_date: date | None

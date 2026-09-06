@@ -47,6 +47,7 @@ from app.schemas import (
 )
 from app.services.concurrency import IfMatch, check_if_match, etag_for, set_etag
 from app.services.events import broadcaster, team_channel
+from app.services.sprint_alignment import conflicts_for_project
 from app.services.team_capacity_report import build_report, load_assignments
 
 router = APIRouter(prefix="/api/v1/teams/{team_id}", tags=["team-projects"])
@@ -168,6 +169,33 @@ async def assign_project(
             detail={
                 "error": "PROJECT_LIMIT_REACHED",
                 "message": f"A team serves at most {MAX_PROJECTS_PER_TEAM} projects.",
+            },
+        )
+
+    # §6.8: alignment starts the moment a second project joins the team. Existing
+    # misalignment is reported here as a blocking list to fix, and is never
+    # rewritten automatically — moving somebody's sprint dates to satisfy a rule
+    # they have just met for the first time is the worst way to introduce it.
+    siblings = [
+        row
+        for row in (
+            await db.execute(
+                select(TeamProject.project_id).where(TeamProject.team_id == team_id)
+            )
+        ).scalars().all()
+        if row != body.project_id
+    ]
+    conflicts = await conflicts_for_project(db, body.project_id, sibling_ids=siblings)
+    if conflicts:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "SPRINT_DATES_MISALIGNED",
+                "message": (
+                    f"'{project.name}' cannot join this team yet: its sprint dates do not "
+                    f"match the projects already served. {conflicts[0].message()}"
+                ),
+                "conflicts": [conflict.as_dict() for conflict in conflicts],
             },
         )
 

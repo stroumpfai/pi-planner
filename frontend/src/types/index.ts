@@ -30,6 +30,16 @@ export type CapacitySprint = components['schemas']['CapacitySprint']
 export type CapacityBreakdown = components['schemas']['CapacityBreakdown']
 export type ProjectCapacityRow = components['schemas']['ProjectCapacityRow']
 
+/** What a push into one project would write, per sprint (§6.7). */
+export type PushPreview = components['schemas']['PushPreview']
+/** One line of the review table: current · proposed · Δ · the PD behind it. */
+export type PushSprintRow = components['schemas']['PushSprintRow']
+/** One row of the per-project result list. Partial success is the normal outcome. */
+export type ProjectPushResult = components['schemas']['ProjectPushResult']
+export type TeamPushResponse = components['schemas']['TeamPushResponse']
+/** Whether one project's sprints still agree with its team (§6.6). */
+export type ProjectPushStatus = components['schemas']['ProjectPushStatus']
+
 /** One absence rule, with its occurrences expanded inside the window that was read. */
 export type Absence = components['schemas']['AbsenceResponse']
 export type AbsenceCreate = components['schemas']['AbsenceCreate']

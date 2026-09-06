@@ -134,6 +134,16 @@ describe('useSSE', () => {
     expect(qc.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['pis'] })
   })
 
+  it('sprint:available:pushed refreshes the numbers and the staleness badges', () => {
+    // A push moves what every watcher sees, not only the pusher's own screen.
+    const { qc, wrapper } = makeWrapper()
+    vi.spyOn(qc, 'invalidateQueries')
+    renderHook(() => useSSE('p-1'), { wrapper })
+    MockEventSource.instance!.emit('sprint:available:pushed')
+    expect(qc.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['pis'] })
+    expect(qc.invalidateQueries).toHaveBeenCalledWith({ queryKey: ['teamCapacityStatus'] })
+  })
+
   it('project:updated event invalidates projects query', () => {
     const { qc, wrapper } = makeWrapper()
     vi.spyOn(qc, 'invalidateQueries')
