@@ -14,6 +14,7 @@ describe('PI planning journey', () => {
   // acquisition never sets — without it every write control stays disabled and
   // drag-and-drop drops are discarded by the board's canEdit guard.
   function openProjectAsEditor() {
+    cy.intercept('GET', '/api/v1/swimlines/*/groups').as('groups')
     cy.openProject('PI Test')
     cy.enterEditMode()
   }
@@ -58,19 +59,19 @@ describe('PI planning journey', () => {
     })
     openProjectAsEditor()
     cy.openPI('Q1-2026')
+    cy.wait('@groups')
 
-    // dnd-kit's PointerSensor needs >5px of movement to activate, and the drop
-    // zone's label changes once hovered, so resolve its coordinates up front and
-    // drive the pointer over <body> in viewport space.
-    cy.contains<HTMLElement>('Drop features here').then(($zone) => {
-      const rect = $zone[0].getBoundingClientRect()
-      const x = Math.round(rect.left + rect.width / 2)
-      const y = Math.round(rect.top + rect.height / 2)
-      cy.get('[data-testid="backlog-list"]').contains('Auth Feature').realMouseDown()
-      cy.get('body').realMouseMove(x - 150, y)
-      cy.get('body').realMouseMove(x, y)
-      cy.get('body').realMouseUp()
+    cy.get('[data-testid="backlog-list"]').contains<HTMLElement>('Auth Feature').then(($label) => {
+      const l = $label[0].getBoundingClientRect()
+      cy.wrap($label).realMouseDown()
+      cy.get('body').realMouseMove(Math.round(l.left + l.width / 2) + 20, Math.round(l.top + l.height / 2))
     })
+    cy.contains<HTMLElement>('Drop features here').then(($zone) => {
+      const r = $zone[0].getBoundingClientRect()
+      cy.get('body').realMouseMove(Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2))
+    })
+    cy.contains('Drop here').should('be.visible')
+    cy.get('body').realMouseUp()
 
     cy.get('[data-testid="backlog-list"]').should('not.contain', 'Auth Feature')
     cy.contains('Auth Feature').should('be.visible')
@@ -175,13 +176,15 @@ describe('PI planning journey', () => {
       cell(sprintIndex).then(($cell) => {
         const to = centre($cell[0])
         cy.get('body').realMouseMove(to.x + offset.x, to.y + offset.y)
-        cy.get('body').realMouseUp()
       })
+      cell(sprintIndex).should('have.class', 'ring-blue-200')
+      cy.get('body').realMouseUp()
     }
 
     it('drags a PBI into a sprint cell', () => {
       openProjectAsEditor()
       cy.openPI('Q1-2026')
+      cy.wait('@groups')
 
       // The drag handle lives in the card's PBI panel, behind the same toggle the
       // grouping journey uses.
@@ -202,6 +205,7 @@ describe('PI planning journey', () => {
       })
       openProjectAsEditor()
       cy.openPI('Q1-2026')
+      cy.wait('@groups')
       cell(0).should('contain', 'Payment Group')
 
       dragTo(() => cy.contains<HTMLElement>('Payment Group'), 2)
