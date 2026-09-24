@@ -12,6 +12,12 @@ import * as pisService from '@/services/pis'
 const stamps = { created_at: '2026-01-01T00:00:00Z', last_login_at: null, password_changed_at: null }
 
 // ── Heavy hooks ──────────────────────────────────────────────────────────────
+// No team serves these projects, so there is no push status to show.
+vi.mock('@/services/teamPush', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services/teamPush')>()
+  return { ...actual, teamPushApi: { ...actual.teamPushApi, status: vi.fn().mockResolvedValue([]) } }
+})
+
 vi.mock('@/hooks/usePIs', () => ({
   usePIs: () => ({ data: [{ ...fakePi, state: board.piState }] }),
 }))

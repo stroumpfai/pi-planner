@@ -16,6 +16,12 @@ const stamps = { created_at: '2026-01-01T00:00:00Z', last_login_at: null, passwo
 // payloads — no browser, and it still proves the handlers are wired up.
 const captured: { onDragStart?: (e: DragStartEvent) => void; onDragEnd?: (e: DragEndEvent) => void } = {}
 
+// No team serves these projects, so there is no push status to show.
+vi.mock('@/services/teamPush', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services/teamPush')>()
+  return { ...actual, teamPushApi: { ...actual.teamPushApi, status: vi.fn().mockResolvedValue([]) } }
+})
+
 vi.mock('@dnd-kit/core', async (importOriginal) => {
   const actual = await importOriginal<typeof dndCore>()
   return {

@@ -7,6 +7,20 @@ import * as featuresService from '@/services/features'
 import * as pbisService from '@/services/pbis'
 import { useAuthStore } from '@/stores/authStore'
 
+// Nothing here is about the project record: an unset one reads as 'pts', which
+// is what these specs assert on. Mocked so rendering never reaches the network.
+vi.mock('@/hooks/useProjects', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/hooks/useProjects')>()),
+  useProject: () => ({ data: undefined }),
+  useEffortUnit: () => 'pts',
+}))
+
+// No PIs: nothing to move a feature into.
+vi.mock('@/services/pis', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services/pis')>()
+  return { ...actual, pisApi: { ...actual.pisApi, list: vi.fn().mockResolvedValue([]) } }
+})
+
 vi.mock('@/services/features')
 vi.mock('@/services/pbis')
 vi.mock('@/components/ImportCSVModal', () => ({

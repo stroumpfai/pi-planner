@@ -9,6 +9,26 @@ import * as swimlineService from '@/services/swimlines'
 import * as featureService from '@/services/features'
 import type { Feature, Sprint, Swimline } from '@/types'
 
+// Nothing here is about the project record: an unset one reads as 'pts', which
+// is what these specs assert on. Mocked so rendering never reaches the network.
+vi.mock('@/hooks/useProjects', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/hooks/useProjects')>()),
+  useProject: () => ({ data: undefined }),
+  useEffortUnit: () => 'pts',
+}))
+
+// A swimlane with no groups yet.
+vi.mock('@/services/groups', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services/groups')>()
+  return { ...actual, groupsApi: { ...actual.groupsApi, list: vi.fn().mockResolvedValue([]) } }
+})
+
+// No PIs: nothing to move a feature into.
+vi.mock('@/services/pis', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services/pis')>()
+  return { ...actual, pisApi: { ...actual.pisApi, list: vi.fn().mockResolvedValue([]) } }
+})
+
 vi.mock('@/services/swimlines')
 vi.mock('@/services/features')
 vi.mock('@/services/pbis', () => ({ pbisApi: { list: vi.fn().mockResolvedValue([]) } }))

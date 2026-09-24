@@ -7,6 +7,16 @@ import userEvent from '@testing-library/user-event'
 
 const fakeUser = { username: 'admin', display_name: 'Admin', is_admin: true }
 
+// The header names the open project or team; these specs route on ids alone.
+vi.mock('@/hooks/useProjects', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/hooks/useProjects')>()),
+  useProject: () => ({ data: undefined }),
+}))
+vi.mock('@/hooks/useTeams', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/hooks/useTeams')>()),
+  useTeamRead: () => ({ data: undefined }),
+}))
+
 vi.mock('@/hooks/useAuth', () => ({
   useCurrentUser: vi.fn(),
   useLogout: vi.fn(),

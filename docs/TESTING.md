@@ -116,6 +116,15 @@ Components, hooks, stores, services and utils with the network mocked. Each spec
 declares its own `makeWrapper()` and data factories — there is no shared
 `test-utils`, by convention rather than accident, so a spec reads standalone.
 
+⚠️ **A spec that reaches the network fails.** `src/test-setup.ts` replaces the api
+client's adapter with one that rejects and records the request; `afterEach` then
+fails the test, naming it. Without that, an unmocked query goes to jsdom's origin,
+`http://localhost:3000`: refused on CI, so the spec passes, but answered with HTML
+on any machine running something on that port — which is how `PIBoardPage` came to
+fail on one laptop and nowhere else. When it fires, mock the hook or the service
+call in the spec; `useEffortUnit`/`useProject`, `statesApi.list` and
+`teamPushApi.status` are the usual culprits, since they sit under many components.
+
 ⚠️ **Keep `@testing-library/dom` deduped to a single copy** (`npm ls
 @testing-library/dom`). Testing Library registers its `act()` event wrapper on
 that package's module-level config, so a second copy — which is what

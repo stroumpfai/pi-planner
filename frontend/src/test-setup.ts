@@ -1,5 +1,5 @@
 import '@testing-library/jest-dom'
-import { vi } from 'vitest'
+import { afterEach, beforeEach, vi } from 'vitest'
 import { api } from '@/services/api'
 
 Object.defineProperty(window, 'matchMedia', {
@@ -34,20 +34,38 @@ if (typeof globalThis.ResizeObserver === 'undefined') {
 }
 
 /**
- * Unit tests never reach a server.
+ * Unit tests never reach a server, and a test that tries fails.
  *
  * An unmocked query would otherwise go to jsdom's origin, http://localhost:3000.
  * Where nothing listens there — CI — it is refused and the query simply errors;
  * on a machine running anything on that port it gets a 200 of HTML instead, and
- * a component expecting an array crashes on a string. Rejecting here makes every
- * machine behave like CI, and names the request that slipped through.
+ * a component expecting an array crashes on a string.
+ *
+ * Rejecting alone is not enough: React Query swallows the rejection, so a
+ * missing mock would pass unnoticed until something answered on that port. The
+ * request is recorded and the test that made it fails in `afterEach`, naming it.
+ * The fix is always in the spec — mock the hook, or seed the query cache.
  *
  * Guarded because a spec that mocks `@/services/api` wholesale hands this file
  * the mock, which has no defaults to set.
  */
+const unmocked: string[] = []
+
 if (api.defaults) {
-  api.defaults.adapter = (config) =>
-    Promise.reject(
-      new Error(`Unmocked request in a unit test: ${config.method?.toUpperCase()} ${config.url}`),
-    )
+  api.defaults.adapter = (config) => {
+    const request = `${config.method?.toUpperCase()} ${config.url}`
+    unmocked.push(request)
+    return Promise.reject(new Error(`Unmocked request in a unit test: ${request}`))
+  }
 }
+
+beforeEach(() => {
+  unmocked.length = 0
+})
+
+afterEach(() => {
+  if (unmocked.length === 0) return
+  const requests = [...new Set(unmocked)].join(', ')
+  unmocked.length = 0
+  throw new Error(`This test reached the network — mock it or seed the cache: ${requests}`)
+})

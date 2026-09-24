@@ -7,6 +7,14 @@ import { BacklogPanel } from '../BacklogPanel'
 import * as featuresService from '@/services/features'
 import type { Feature } from '@/types'
 
+// Nothing here is about the project record: an unset one reads as 'pts', which
+// is what these specs assert on. Mocked so rendering never reaches the network.
+vi.mock('@/hooks/useProjects', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/hooks/useProjects')>()),
+  useProject: () => ({ data: undefined }),
+  useEffortUnit: () => 'pts',
+}))
+
 vi.mock('@/services/features')
 
 const makeWrapper = () => {

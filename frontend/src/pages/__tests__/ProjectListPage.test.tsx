@@ -11,6 +11,18 @@ import type { Project, Team, User } from '@/types'
 
 const stamps = { created_at: '2026-01-01T00:00:00Z', last_login_at: null, password_changed_at: null }
 
+// No team serves these projects, so there is no push status to show.
+vi.mock('@/services/teamPush', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services/teamPush')>()
+  return { ...actual, teamPushApi: { ...actual.teamPushApi, status: vi.fn().mockResolvedValue([]) } }
+})
+
+// No snapshots taken.
+vi.mock('@/services/snapshots', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services/snapshots')>()
+  return { ...actual, snapshotsApi: { ...actual.snapshotsApi, list: vi.fn().mockResolvedValue([]) } }
+})
+
 vi.mock('@/services/projects')
 // Only the client is faked: the error readers (`teamErrorCode`, `blockingProjects`)
 // are the code under test wherever a 409 or 412 is asserted.

@@ -8,6 +8,20 @@ import { useAuthStore } from '@/stores/authStore'
 import * as pbisService from '@/services/pbis'
 import type { PBI } from '@/types'
 
+// Nothing here is about the project record: an unset one reads as 'pts', which
+// is what these specs assert on. Mocked so rendering never reaches the network.
+vi.mock('@/hooks/useProjects', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/hooks/useProjects')>()),
+  useProject: () => ({ data: undefined }),
+  useEffortUnit: () => 'pts',
+}))
+
+// An empty State List — the rows render their "(none)" State.
+vi.mock('@/services/states', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/services/states')>()
+  return { ...actual, statesApi: { ...actual.statesApi, list: vi.fn().mockResolvedValue([]) } }
+})
+
 vi.mock('@/services/pbis')
 const mockApi = vi.mocked(pbisService.pbisApi)
 
