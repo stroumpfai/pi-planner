@@ -75,6 +75,7 @@ async def load_members(db: AsyncSession, team_id: str) -> list[tuple[TeamMember,
                 ),
                 active_from=row.active_from,
                 active_to=row.active_to,
+                counts_towards_capacity=row.counts_towards_capacity,
             ),
         )
         for row in members
@@ -239,9 +240,20 @@ async def build_report(
                 meetings=booked,
             )
             breakdown = _breakdown(capacity)
-            per_sprint[index].append(breakdown)
+            # Shown, never totalled: someone tracked for their absences only
+            # would otherwise inflate the team, every project's share, and the
+            # minimap bars that read off the team row (§3.2, §7.6).
+            if member.counts_towards_capacity:
+                per_sprint[index].append(breakdown)
             cells.append(breakdown)
-        rows.append(MemberCapacityRow(member_id=row.system_id, name=row.name, cells=cells))
+        rows.append(
+            MemberCapacityRow(
+                member_id=row.system_id,
+                name=row.name,
+                counts_towards_capacity=member.counts_towards_capacity,
+                cells=cells,
+            )
+        )
 
     team_cells: list[CapacityBreakdown | None] = [
         _totalled(per_sprint[index]) if column.computable else None

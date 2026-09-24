@@ -56,6 +56,7 @@ someone who starts next month — and a login is not evidence of being on a team
 | `role` | Optional, max 50 chars — free text (`Dev`, `SW-Arch`, `Test`, `SM`, `PO`, `UX`…) |
 | `organisation` | Optional, max 50 chars — free text (`Dev`, `BIT`, `ASTRA`…) |
 | `active_from` / `active_to` | Optional dates; membership validity (see below) |
+| `counts_towards_capacity` | Boolean, default true — whether this member's capacity reaches the team total (see below) |
 | `order_index` | Display order, reorderable |
 | `modified_at` | Timestamp — the concurrency token (§4.2) |
 
@@ -77,6 +78,20 @@ several of them; a single team can hold people from three, and being able to say
 any need to model those as separate teams. Both are **not versioned**, unlike everything in
 §3.3: they do not affect a single computed number, so dating them would add versions that
 change nothing. The §3.3 rule is about inputs to capacity, and these are not inputs.
+
+`counts_towards_capacity` is for people the team **tracks for their absences only** — a PO,
+an SM, a stakeholder who brings no development capacity, but whose holidays still shape the
+plan. Such a member keeps everything else: a working pattern, absences, meetings, a row in
+every view. Their own capacity is still computed, and the Capacity view shows it (§7.6); it
+is simply **never added** to the team total, so it reaches no project's share, no push, and
+none of the minimap's bars.
+
+It is **not versioned**, although it is an input to capacity and §3.3 says those are dated.
+That is a deliberate exception (ADR 0005): it says what kind of entry this row *is*, not how
+much the person works, and it changes about as often as a name does. The cost is stated
+rather than hidden — flipping it restates every sprint, closed ones included. Someone whose
+job genuinely changes on a date is recorded the honest way: `active_to` on the old row, and a
+new member from the next day.
 
 `hours_per_day` is **not** here: it is a contract term and lives on the dated working
 pattern (§3.3), and neither is `focus`. Both are dated, because both change on a date. What
@@ -480,7 +495,8 @@ pay for it twice. Focus is for the diffuse losses — context switching, support
 interrupts.
 
 Team totals: `team_hours = Σ member net_hours`, and `team_PD = team_hours / normal_day_hours`
-— equivalently `Σ member_PD`, since the divisor is now shared.
+— equivalently `Σ member_PD`, since the divisor is now shared. Both sums run over the members
+with `counts_towards_capacity` set (§3.2); the others are computed, shown, and left out.
 
 ⚠️ **Morning and afternoon are assumed equal** (`hours_per_day / 2`). A member contracted for
 6 h as a 4 h morning and a 2 h afternoon cannot be expressed. Per-slot hours — 14 floats
@@ -821,7 +837,10 @@ rename / delete, and a row opens the team's views.
 
 ### 7.2 Members view
 One row per member: name, validity dates, and the **currently effective** focus and hours per
-day shown read-only, with the date they took effect. Editing either opens the working days
+day shown read-only, with the date they took effect. A member who does not count towards
+capacity (§3.2) carries a small "not counted" chip beside their name — a chip rather than a
+column, because nearly every row counts and a column of "yes" says nothing. The flag itself
+is set in the add and edit dialogs. Editing either opens the working days
 view (§7.3), because changing them means dating a new version — not overwriting a field.
 Inline add / remove, reorderable.
 
@@ -919,7 +938,10 @@ attends the stand-up" is one click. Adding a meeting adds a column.
 
 ### 7.6 Capacity view
 **6 sprint columns**, scrolling left and right through time. One row per member plus a team
-total. Each cell **leads with PD** and shows **hours** beneath it. The two are one number in
+total. Members who do not count towards capacity (§3.2) are **not hidden**: they sit below
+the team total and the project rows, under a "Not counted towards capacity" heading and
+greyed, so everything above the rule still sums to the total and nobody vanishes from one
+view while present in all the others. Each cell **leads with PD** and shows **hours** beneath it. The two are one number in
 two units (§5.2), so which leads is a question about the reader, not about accuracy: people
 plan and talk in person-days, and the spreadsheets this replaces have no hours in them at all.
 Hours stay directly beneath because they are the exact figure and the one that traces.

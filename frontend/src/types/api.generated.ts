@@ -1662,6 +1662,8 @@ export interface components {
       member_id: string;
       /** Name */
       name: string;
+      /** Counts Towards Capacity */
+      counts_towards_capacity: boolean;
       /** Cells */
       cells: (components["schemas"]["CapacityBreakdown"] | null)[];
     };
@@ -1684,6 +1686,11 @@ export interface components {
       active_from?: string | null;
       /** Active To */
       active_to?: string | null;
+      /**
+       * Counts Towards Capacity
+       * @default true
+       */
+      counts_towards_capacity?: boolean;
       pattern?: components["schemas"]["FirstPatternVersion"];
     };
     /** MemberReorder */
@@ -1715,6 +1722,8 @@ export interface components {
       active_from: string | null;
       /** Active To */
       active_to: string | null;
+      /** Counts Towards Capacity */
+      counts_towards_capacity: boolean;
       /** Order Index */
       order_index: number;
       /**
@@ -1768,6 +1777,8 @@ export interface components {
       active_from?: string | null;
       /** Active To */
       active_to?: string | null;
+      /** Counts Towards Capacity */
+      counts_towards_capacity?: boolean | null;
     };
     /**
      * OrphanLocation

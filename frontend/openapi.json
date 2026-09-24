@@ -10763,6 +10763,10 @@
             "type": "string",
             "title": "Name"
           },
+          "counts_towards_capacity": {
+            "type": "boolean",
+            "title": "Counts Towards Capacity"
+          },
           "cells": {
             "items": {
               "anyOf": [
@@ -10782,6 +10786,7 @@
         "required": [
           "member_id",
           "name",
+          "counts_towards_capacity",
           "cells"
         ],
         "title": "MemberCapacityRow"
@@ -10841,6 +10846,11 @@
               }
             ],
             "title": "Active To"
+          },
+          "counts_towards_capacity": {
+            "type": "boolean",
+            "title": "Counts Towards Capacity",
+            "default": true
           },
           "pattern": {
             "$ref": "#/components/schemas/FirstPatternVersion"
@@ -10929,6 +10939,10 @@
             ],
             "title": "Active To"
           },
+          "counts_towards_capacity": {
+            "type": "boolean",
+            "title": "Counts Towards Capacity"
+          },
           "order_index": {
             "type": "integer",
             "title": "Order Index"
@@ -10987,6 +11001,7 @@
           "organisation",
           "active_from",
           "active_to",
+          "counts_towards_capacity",
           "order_index",
           "created_at",
           "modified_at"
@@ -11056,6 +11071,17 @@
               }
             ],
             "title": "Active To"
+          },
+          "counts_towards_capacity": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Counts Towards Capacity"
           }
         },
         "type": "object",

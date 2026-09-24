@@ -64,6 +64,30 @@ describe('Team members', () => {
     cy.contains('1 member').should('be.visible')
   })
 
+  it('adds someone for their absences only, and says so on their row', () => {
+    openPlatform()
+    seedMember('Rui Domingues')
+    cy.reload()
+    cy.openTeam('Platform')
+
+    cy.contains('button', /^\+ Add member$/).click()
+    memberDialog().find('input[name="name"]').type('Pia Moser')
+    memberDialog().find('#role').type('PO')
+    memberDialog().contains('label', /^Counts towards capacity$/).click()
+    memberDialog().contains('button', /^Add member$/).click()
+
+    // On the team, marked — and only her (§3.2).
+    memberRow('Pia Moser').should('contain', 'not counted')
+    memberRow('Rui Domingues').should('not.contain', 'not counted')
+
+    // And back on again from the edit dialog.
+    memberActions('Pia Moser')
+    cy.contains('[role="menuitem"]', /^Edit$/).click()
+    memberDialog().find('#edit-counts-towards-capacity').should('not.be.checked').check()
+    memberDialog().contains('button', /^Save$/).click()
+    memberRow('Pia Moser').should('not.contain', 'not counted')
+  })
+
   it('sends the hours chip to Working days instead of editing in place', () => {
     openPlatform()
     seedMember('Rui Domingues', { hours_per_day: 6 })

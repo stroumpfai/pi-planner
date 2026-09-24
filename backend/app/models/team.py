@@ -117,6 +117,15 @@ class TeamMember(Base):
     # what lets a leaver keep their absence history instead of being deleted.
     active_from: Mapped[date | None] = mapped_column(Date)
     active_to: Mapped[date | None] = mapped_column(Date)
+    # False for people whose absences the team documents but who bring no
+    # development capacity — a PO, an SM, a stakeholder. Their own capacity is
+    # still computed and shown; it just never reaches the team total, the
+    # projects' share, or a push. Deliberately undated, unlike every other input
+    # to capacity: it says what kind of entry this row is, not how much the
+    # person works (docs/adr/0005).
+    counts_towards_capacity: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("1"), default=True
+    )
     order_index: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(default=_utcnow)
     modified_at: Mapped[datetime] = mapped_column(default=_utcnow, onupdate=_utcnow)

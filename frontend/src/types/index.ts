@@ -28,6 +28,7 @@ export type TeamCapacity = components['schemas']['TeamCapacityResponse']
 export type CapacitySprint = components['schemas']['CapacitySprint']
 /** One member's capacity in one sprint, as the §5.4 steps produced it. */
 export type CapacityBreakdown = components['schemas']['CapacityBreakdown']
+export type MemberCapacityRow = components['schemas']['MemberCapacityRow']
 export type ProjectCapacityRow = components['schemas']['ProjectCapacityRow']
 
 /** What a push into one project would write, per sprint (§6.7). */

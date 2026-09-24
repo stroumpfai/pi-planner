@@ -139,3 +139,24 @@ def test_team_and_member_names_are_case_insensitively_unique(tmp_path):
         conn.execute(_insert_member("m1", "t1", "Alice", 0))
         with pytest.raises(sqlite3.IntegrityError):
             conn.execute(_insert_member("m2", "t1", "alice", 1))
+
+
+def test_existing_members_still_count_towards_capacity_after_upgrade(tmp_path):
+    """The flag arrives on for everyone, so no team's numbers move on upgrade."""
+    db_path = tmp_path / "counts.sqlite"
+    _alembic("f7a1c2d3e4b5", db_path)  # head before the flag was added
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(_insert_team("t1", "Platform"))
+        conn.execute(_insert_member("m1", "t1", "Alice", 0))
+
+    _alembic("head", db_path)
+
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT counts_towards_capacity FROM team_members WHERE system_id = 'm1'"
+        ).fetchone()
+        assert row[0] == 1
+        # Adding the column must not have dropped the case-insensitive name index.
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(_insert_member("m2", "t1", "alice", 1))

@@ -76,6 +76,9 @@ class Member:
     versions: tuple[PatternVersion, ...]
     active_from: date | None = None
     active_to: date | None = None
+    # False for someone tracked for their absences only. Their own capacity is
+    # still computed — the view shows it — but no team total includes it (§3.2).
+    counts_towards_capacity: bool = True
 
     def is_active_on(self, day: date) -> bool:
         if self.active_from is not None and day < self.active_from:
@@ -292,8 +295,13 @@ def compute_team_capacity(
 ) -> TeamCapacity:
     """Team totals over a window.
 
-    ``team_PD = team_hours / normal_day_hours`` and ``Σ member_PD`` are the same
-    number, because the divisor is shared. They agree by construction (§5.2).
+    ``team_PD = team_hours / normal_day_hours`` and ``Σ member_PD`` over the
+    *counting* members are the same number, because the divisor is shared. They
+    agree by construction (§5.2).
+
+    A member who does not count towards capacity is still computed and returned
+    in ``members`` — they are on the team, and their chain is worth reading — but
+    contributes nothing to the totals (§3.2).
     """
     result = TeamCapacity()
     for member in members:
@@ -301,7 +309,8 @@ def compute_team_capacity(
             member, normal_day_hours, start, end, absent=absent, meetings=meetings
         )
         result.members.append(capacity)
-        result.net_hours += capacity.net_hours
+        if member.counts_towards_capacity:
+            result.net_hours += capacity.net_hours
     result.person_days = result.net_hours / normal_day_hours
     return result
 

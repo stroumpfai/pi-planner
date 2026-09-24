@@ -267,6 +267,7 @@ async def create_member(
         organisation=body.organisation,
         active_from=body.active_from,
         active_to=body.active_to,
+        counts_towards_capacity=body.counts_towards_capacity,
         order_index=(highest + 1) if highest is not None else 0,
     )
     db.add(member)
@@ -336,6 +337,8 @@ async def update_member(
 
     if body.name is not None:
         member.name = body.name
+    if body.counts_towards_capacity is not None:
+        member.counts_towards_capacity = body.counts_towards_capacity
     for field in ("role", "organisation", "active_from", "active_to"):
         if field in body.model_fields_set:
             setattr(member, field, getattr(body, field))

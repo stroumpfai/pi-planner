@@ -323,6 +323,37 @@ def test_a_team_with_no_members_is_zero_not_an_error():
     assert team.net_hours == 0.0 and team.person_days == 0.0
 
 
+
+# ── members who do not count towards capacity (§3.2) ─────────────────────────
+
+
+def test_a_member_who_does_not_count_is_computed_but_never_totalled():
+    """A PO whose holidays the team tracks is on the team, not in its capacity.
+
+    Their chain is still returned — the Capacity view shows it — but the totals,
+    and so every project share and every push, are over the counting members.
+    """
+    dev = member("dev", pattern("mon-fri"))
+    po = member("po", pattern("mon-fri"), counts_towards_capacity=False)
+
+    team = compute_team_capacity([dev, po], 8.0, SPRINT_START, SPRINT_END)
+
+    by_id = {m.member_id: m for m in team.members}
+    assert by_id["po"].person_days == pytest.approx(10.0)
+    assert team.net_hours == pytest.approx(80.0)
+    assert team.person_days == pytest.approx(10.0)
+    # The shared-divisor identity still holds, over the members that count.
+    assert team.person_days == pytest.approx(by_id["dev"].person_days)
+
+
+def test_a_team_where_nobody_counts_totals_zero():
+    team = compute_team_capacity(
+        [member("po", pattern("mon-fri"), counts_towards_capacity=False)],
+        8.0, SPRINT_START, SPRINT_END,
+    )
+    assert len(team.members) == 1
+    assert team.net_hours == 0.0 and team.person_days == 0.0
+
 # ── rounding at the boundary (§6.4) ──────────────────────────────────────────
 
 

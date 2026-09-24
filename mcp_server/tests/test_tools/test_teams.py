@@ -453,6 +453,32 @@ async def test_update_member_resolves_the_name_and_quotes_its_etag(
     _assert_no_lock_calls(mock_backend)
 
 
+
+async def test_create_member_can_add_someone_for_their_absences_only(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    # False must reach the backend, not be dropped as a falsy "unset".
+    mock_backend.post(f"/api/v1/teams/{TEAM_ID}/members").mock(
+        return_value=httpx.Response(201, json={**MEMBER, "counts_towards_capacity": False})
+    )
+    await create_member(
+        team_id=TEAM_ID, name="Pia Moser", role="PO", counts_towards_capacity=False, ctx=mock_ctx
+    )
+    assert _last_call_body(mock_backend, "POST")["counts_towards_capacity"] is False
+
+
+async def test_update_member_can_stop_a_member_counting(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    _list_members_mock(mock_backend)
+    mock_backend.patch(f"/api/v1/teams/{TEAM_ID}/members/{MEMBER_ID}").mock(
+        return_value=httpx.Response(200, json={**MEMBER, "counts_towards_capacity": False})
+    )
+    await update_member(
+        team_id=TEAM_ID, member_name="Aïcha Ben Salah", counts_towards_capacity=False, ctx=mock_ctx
+    )
+    assert _last_call_body(mock_backend, "PATCH") == {"counts_towards_capacity": False}
+
 async def test_an_unknown_member_name_is_rejected_with_the_ones_that_exist(
     mock_backend, mock_ctx, patch_get_http_request
 ):

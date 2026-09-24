@@ -72,6 +72,9 @@ class CapacitySprint(BaseModel):
 class MemberCapacityRow(BaseModel):
     member_id: str
     name: str
+    # False when this member's cells are shown but left out of ``team`` and every
+    # project row — someone tracked for their absences only (§3.2).
+    counts_towards_capacity: bool
     # One entry per sprint in ``sprints``, positionally. Null where that sprint
     # cannot be computed.
     cells: list[CapacityBreakdown | None]
@@ -104,7 +107,8 @@ class TeamCapacityResponse(BaseModel):
     anchor_project_id: str | None
     sprints: list[CapacitySprint]
     members: list[MemberCapacityRow]
-    # Team totals per sprint. team_PD == Σ member_PD by construction, because the
-    # divisor is shared (§5.2).
+    # Team totals per sprint, over the members that count towards capacity.
+    # team_PD == Σ of their member_PD by construction, because the divisor is
+    # shared (§5.2).
     team: list[CapacityBreakdown | None]
     projects: list[ProjectCapacityRow]

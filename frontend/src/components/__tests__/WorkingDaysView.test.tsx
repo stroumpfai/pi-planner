@@ -49,6 +49,7 @@ const member = (over: Partial<TeamMember> = {}): TeamMember => ({
   organisation: 'BIT',
   active_from: null,
   active_to: null,
+  counts_towards_capacity: true,
   order_index: 0,
   created_at: '2026-01-01T00:00:00Z',
   modified_at: '2026-01-01T00:00:00Z',

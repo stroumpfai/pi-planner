@@ -100,6 +100,30 @@ describe('Team capacity', () => {
     cy.contains('→ 11 pts').should('be.visible')
   })
 
+  it('shows a member who does not count below the total, and leaves the total alone', () => {
+    cy.request('GET', '/api/v1/teams').then((teams) => {
+      const teamId = teams.body[0].system_id
+      cy.request('POST', `/api/v1/teams/${teamId}/members`, {
+        name: 'Pia Moser',
+        counts_towards_capacity: false,
+        pattern: { effective_from: '2026-01-01', hours_per_day: 4 },
+      })
+      cy.request('GET', '/api/v1/projects/').then((projects) => {
+        cy.request('POST', `/api/v1/teams/${teamId}/projects`, {
+          project_id: projects.body[0].system_id,
+        })
+      })
+    })
+    cy.reload()
+    cy.openTeam('Platform')
+    capacityTab('Capacity').click()
+
+    // Marta alone: 10 PD. Pia's 5 PD is shown, under its own heading, and not added (§3.2).
+    cy.contains('tr', /^Team/).should('contain', '10.0 PD')
+    cy.contains('th', 'Not counted towards capacity').should('be.visible')
+    cy.contains('tr', 'Pia Moser').should('contain', '5.0 PD')
+  })
+
   it('warns when the shares add up past the team', () => {
     cy.request('POST', '/api/v1/projects/', { name: 'Data Exchange' })
     cy.request('GET', '/api/v1/teams').then((teams) => {

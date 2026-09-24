@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CapacityCell } from '@/components/CapacityCell'
 import { TimelineMinimap } from '@/components/TimelineMinimap'
 import { useTeamCapacity } from '@/hooks/useTeamProjects'
-import type { ProjectCapacityRow } from '@/types'
+import type { CapacitySprint, MemberCapacityRow, ProjectCapacityRow } from '@/types'
 import {
   bestSprintIndex,
   frameMonthFor,
@@ -80,6 +80,10 @@ export function TeamCapacityView({ teamId, onOpenProjects }: Props) {
   const [named, setNamed] = useState<YearMonth | null>(null)
 
   const sprints = useMemo(() => data?.sprints ?? [], [data])
+  // Above the rule: the people the Team total is the sum of. Below it: people
+  // tracked for their absences only — shown, never totalled (§3.2, §7.6).
+  const counted = useMemo(() => data?.members.filter((m) => m.counts_towards_capacity) ?? [], [data])
+  const notCounted = useMemo(() => data?.members.filter((m) => !m.counts_towards_capacity) ?? [], [data])
   const months = useMemo(() => monthsFrom(minimapStart, stripMonths), [minimapStart, stripMonths])
 
   // The bars: person-days absences and meetings took out of each month (§7.6).
@@ -264,22 +268,16 @@ export function TeamCapacityView({ teamId, onOpenProjects }: Props) {
           </thead>
 
           <tbody className="divide-y divide-white/60">
-            {data.members.map((member) => (
-              <tr key={member.member_id} className="hover:bg-band/20">
-                <th scope="row" className="px-4 py-2 text-left text-sm font-medium text-gray-900 dark:text-gray-100">
-                  {member.name}
-                </th>
-                {indices.map((index) => (
-                  <CapacityCell
-                    key={data.sprints[index].sprint_id}
-                    breakdown={member.cells[index] ?? null}
-                    label={`${member.name}, ${data.sprints[index].label}`}
-                    normalDayHours={data.normal_day_hours}
-                    expanded={expanded === `${member.member_id}:${index}`}
-                    onToggle={() => toggle(`${member.member_id}:${index}`)}
-                  />
-                ))}
-              </tr>
+            {counted.map((member) => (
+              <MemberRow
+                key={member.member_id}
+                member={member}
+                sprints={data.sprints}
+                indices={indices}
+                normalDayHours={data.normal_day_hours}
+                expanded={expanded}
+                onToggle={toggle}
+              />
             ))}
 
             {data.members.length === 0 && (
@@ -312,10 +310,70 @@ export function TeamCapacityView({ teamId, onOpenProjects }: Props) {
             {data.projects.map((project) => (
               <ProjectRow key={project.project_id} project={project} indices={indices} />
             ))}
+
+            {notCounted.length > 0 && (
+              <tr>
+                <th
+                  scope="rowgroup"
+                  colSpan={window.length + 1}
+                  className="px-4 pt-5 pb-1 text-left text-xs font-medium text-gray-500 dark:text-gray-400"
+                >
+                  Not counted towards capacity
+                </th>
+              </tr>
+            )}
+            {notCounted.map((member) => (
+              <MemberRow
+                key={member.member_id}
+                member={member}
+                sprints={data.sprints}
+                indices={indices}
+                normalDayHours={data.normal_day_hours}
+                expanded={expanded}
+                onToggle={toggle}
+                muted
+              />
+            ))}
           </tbody>
         </table>
       </div>
     </div>
+  )
+}
+
+interface MemberRowProps {
+  readonly member: MemberCapacityRow
+  readonly sprints: readonly CapacitySprint[]
+  readonly indices: readonly number[]
+  readonly normalDayHours: number
+  readonly expanded: string | null
+  readonly onToggle: (key: string) => void
+  /** Greyed: this member's numbers are shown but not in the Team total. */
+  readonly muted?: boolean
+}
+
+function MemberRow({ member, sprints, indices, normalDayHours, expanded, onToggle, muted = false }: MemberRowProps) {
+  return (
+    <tr className={`hover:bg-band/20 ${muted ? 'opacity-60' : ''}`}>
+      <th
+        scope="row"
+        className={`px-4 py-2 text-left text-sm font-medium ${
+          muted ? 'text-gray-500 dark:text-gray-400' : 'text-gray-900 dark:text-gray-100'
+        }`}
+      >
+        {member.name}
+      </th>
+      {indices.map((index) => (
+        <CapacityCell
+          key={sprints[index].sprint_id}
+          breakdown={member.cells[index] ?? null}
+          label={`${member.name}, ${sprints[index].label}`}
+          normalDayHours={normalDayHours}
+          expanded={expanded === `${member.member_id}:${index}`}
+          onToggle={() => onToggle(`${member.member_id}:${index}`)}
+        />
+      ))}
+    </tr>
   )
 }
 

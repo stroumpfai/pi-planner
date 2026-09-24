@@ -330,7 +330,9 @@ async def list_members(
 
     Members are the people capacity is computed from. Each carries name, role and
     organisation (free text, never computed on), active_from / active_to (their
-    membership window — half-days outside it count for nothing), order_index, and:
+    membership window — half-days outside it count for nothing), order_index,
+    counts_towards_capacity (false for someone tracked for their absences only —
+    their capacity is shown but never totalled or pushed), and:
 
     - effective_version: the working pattern in force on `as_of` — 14 half-day
       booleans (mon_am … sun_pm), hours_per_day, focus, and the effective_from
@@ -475,6 +477,9 @@ async def get_team_capacity(
     different, and a zero would read as a team that does no work.
     `present_days` answers a different question from `person_days`: someone can be
     around for 9 days and contribute 6.3 PD.
+    A member row with counts_towards_capacity=false is someone tracked for their
+    absences only: their cells are computed, but the team row and every project
+    row leave them out.
 
     Also returns one row per served project with the share-adjusted PD, the value
     in that project's own effort unit, and — for `factor` projects — the integer a

@@ -79,7 +79,19 @@ export function TeamMemberRow({
         </button>
       )}
 
-      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{member.name}</p>
+      <div className="flex items-center gap-1.5 min-w-0">
+        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{member.name}</p>
+        {/* In the name cell rather than a column of its own: nearly every row
+            counts, and a column of "yes" would say nothing (§3.2). */}
+        {!member.counts_towards_capacity && (
+          <span
+            title="Absences are tracked, but this member's capacity is not in the team total"
+            className="flex-shrink-0 px-1.5 py-0.5 rounded bg-band text-[10px] text-gray-500 dark:text-gray-400 whitespace-nowrap"
+          >
+            not counted
+          </span>
+        )}
+      </div>
       <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{member.role ?? '—'}</p>
       <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{member.organisation ?? '—'}</p>
       <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{validity(member)}</p>

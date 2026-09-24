@@ -213,6 +213,9 @@ class MemberCreate(BaseModel):
     organisation: str | None = Field(None, max_length=50)
     active_from: date | None = None
     active_to: date | None = None
+    # Off for someone tracked for their absences only — their capacity is shown
+    # but never totalled, shared out to projects, or pushed (§3.2).
+    counts_towards_capacity: bool = True
     pattern: FirstPatternVersion = Field(default_factory=FirstPatternVersion)
 
     @model_validator(mode="after")
@@ -235,6 +238,7 @@ class MemberUpdate(BaseModel):
     organisation: str | None = Field(None, max_length=50)
     active_from: date | None = None
     active_to: date | None = None
+    counts_towards_capacity: bool | None = None
 
 
 class MemberReorder(BaseModel):
@@ -257,6 +261,7 @@ class MemberResponse(BaseModel):
     organisation: str | None
     active_from: date | None
     active_to: date | None
+    counts_towards_capacity: bool
     order_index: int
     created_at: UtcDatetime
     modified_at: UtcDatetime

@@ -304,6 +304,16 @@ async def create_member(
         str | None,
         Field(default=None, description="Last day on the team (YYYY-MM-DD). Blank means open-ended."),
     ] = None,
+    counts_towards_capacity: Annotated[
+        bool | None,
+        Field(
+            default=None,
+            description=(
+                "False for someone tracked for their absences only — a PO, SM or "
+                "stakeholder who brings no development capacity. Defaults to true."
+            ),
+        ),
+    ] = None,
     working_days: Annotated[
         list[str] | None,
         Field(
@@ -354,6 +364,10 @@ async def create_member(
     active_from / active_to bound the membership: half-days outside that window
     contribute nothing, which is how a joiner or a leaver is recorded without
     destroying the history a delete would take with it.
+    counts_towards_capacity=false adds someone whose absences the team wants on
+    record but who brings no development capacity (a PO, an SM): their own
+    capacity is still computed and shown, but never reaches the team total, a
+    project's share, or a push.
     Names are unique per team, case-insensitively (MEMBER_NAME_TAKEN); a team
     holds at most 50 members (MEMBER_LIMIT_REACHED). Call list_members first.
     Takes no edit lock — team writes are outside the single-writer lock.
@@ -378,6 +392,7 @@ async def create_member(
         ("organisation", organisation),
         ("active_from", active_from),
         ("active_to", active_to),
+        ("counts_towards_capacity", counts_towards_capacity),
     ):
         if value is not None:
             body[field] = value
@@ -407,6 +422,16 @@ async def update_member(
             description="New last day on the team (YYYY-MM-DD) — the non-destructive way to record a leaver",
         ),
     ] = None,
+    counts_towards_capacity: Annotated[
+        bool | None,
+        Field(
+            default=None,
+            description=(
+                "Whether this member's capacity reaches the team total. False keeps "
+                "them on the team for their absences only."
+            ),
+        ),
+    ] = None,
 ) -> dict:
     """
     Update a member's identity or their membership window.
@@ -420,6 +445,10 @@ async def update_member(
     Setting active_to is how a leaver is recorded: their absences, attendance and
     pattern history survive, and half-days after that date simply stop counting.
     Deleting the person would take all of it, and is not available here.
+
+    counts_towards_capacity is undated: flipping it restates every sprint,
+    past ones included. For someone whose job genuinely changed on a date, end
+    this membership with active_to and add them again instead.
 
     Concurrency works as it does in update_team: this reads the member and writes
     inside one call, quoting the ETag from that read. A STALE failure is retried
@@ -436,6 +465,7 @@ async def update_member(
         ("organisation", organisation),
         ("active_from", active_from),
         ("active_to", active_to),
+        ("counts_towards_capacity", counts_towards_capacity),
     ):
         if value is not None:
             body[field] = value

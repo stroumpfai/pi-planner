@@ -54,6 +54,7 @@ const member = (over: Partial<TeamMember> = {}): TeamMember => ({
   organisation: 'Dev',
   active_from: null,
   active_to: null,
+  counts_towards_capacity: true,
   order_index: 0,
   created_at: '2026-01-01T00:00:00Z',
   modified_at: '2026-01-01T00:00:00Z',
@@ -141,6 +142,38 @@ describe('TeamMembersView', () => {
     expect(mockApi.post).toHaveBeenCalledWith('/teams/t-1/members/reorder', {
       order: ['m-2', 'm-1'],
     })
+  })
+
+  it('marks a member who does not count towards capacity, and only them', async () => {
+    mockApi.get.mockResolvedValue({
+      data: [member(), member({ system_id: 'm-2', name: 'Pia Moser', counts_towards_capacity: false })],
+      headers: {},
+    })
+    render(<TeamMembersView teamId="t-1" onOpenWorkingDays={onOpenWorkingDays} />, { wrapper: wrapper() })
+
+    await screen.findByText('Pia Moser')
+    expect(screen.getAllByText('not counted')).toHaveLength(1)
+    const pia = screen.getByText('Pia Moser').closest('li')
+    expect(pia).not.toBeNull()
+    expect(within(pia as HTMLElement).getByText('not counted')).toBeInTheDocument()
+  })
+
+  it('switches a member off capacity from the edit dialog', async () => {
+    mockApi.patch.mockResolvedValue({ data: member({ counts_towards_capacity: false }), headers: {} })
+    render(<TeamMembersView teamId="t-1" onOpenWorkingDays={onOpenWorkingDays} />, { wrapper: wrapper() })
+
+    await userEvent.click(await screen.findByRole('button', { name: 'Actions for Aïcha Ben Salah' }))
+    await userEvent.click(screen.getByRole('menuitem', { name: 'Edit' }))
+    const dialog = screen.getByRole('dialog')
+    const counts = within(dialog).getByLabelText('Counts towards capacity')
+    expect(counts).toBeChecked()
+    await userEvent.click(counts)
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Save/ }))
+
+    await waitFor(() => expect(mockApi.patch).toHaveBeenCalled())
+    const [url, body] = mockApi.patch.mock.calls[0] as [string, Record<string, unknown>]
+    expect(url).toBe('/teams/t-1/members/m-1')
+    expect(body.counts_towards_capacity).toBe(false)
   })
 
   it('gives a reader the list and none of the controls', async () => {

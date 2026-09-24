@@ -28,6 +28,7 @@ const existing: TeamMember = {
   organisation: 'BIT',
   active_from: null,
   active_to: null,
+  counts_towards_capacity: true,
   order_index: 0,
   created_at: '2026-01-01T00:00:00Z',
   modified_at: '2026-01-01T00:00:00Z',
@@ -72,6 +73,20 @@ describe('AddMemberModal', () => {
     expect(pattern.sat_am).toBe(false)
     expect(pattern.hours_per_day).toBe(8)
     expect(pattern.focus).toBe(1)
+  })
+
+  it('counts a new member towards capacity unless told otherwise', async () => {
+    render(<AddMemberModal open teamId="t-1" members={[]} onClose={vi.fn()} />, { wrapper: wrapper() })
+
+    const counts = screen.getByLabelText('Counts towards capacity')
+    expect(counts).toBeChecked()
+    await userEvent.type(screen.getByLabelText(/^Name/), 'Pia Moser')
+    await userEvent.click(counts)
+    await userEvent.click(screen.getByRole('button', { name: 'Add member' }))
+
+    // Tracked for their absences only: shown in the Capacity view, never totalled (§3.2).
+    await waitFor(() => expect(mockApi.post).toHaveBeenCalled())
+    expect((mockApi.post.mock.calls[0][1] as Record<string, unknown>).counts_towards_capacity).toBe(false)
   })
 
   it('leaves the pattern start blank so the backend dates it to the joining day', async () => {

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
+import { CountsTowardsCapacityField } from '@/components/CountsTowardsCapacityField'
 import { DateInput } from '@/components/DateInput'
 import { TextCombobox } from '@/components/TextCombobox'
 import { useUpdateMember } from '@/hooks/useTeamMembers'
@@ -34,6 +35,7 @@ export function EditMemberModal({ open, teamId, member, members, onClose }: Prop
   const [organisation, setOrganisation] = useState(member.organisation ?? '')
   const [activeFrom, setActiveFrom] = useState(member.active_from ?? '')
   const [activeTo, setActiveTo] = useState(member.active_to ?? '')
+  const [counts, setCounts] = useState(member.counts_towards_capacity)
   const [nameError, setNameError] = useState<string | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -66,6 +68,7 @@ export function EditMemberModal({ open, teamId, member, members, onClose }: Prop
           organisation: organisation.trim() || null,
           active_from: activeFrom || null,
           active_to: activeTo || null,
+          counts_towards_capacity: counts,
         },
       })
       onClose()
@@ -152,6 +155,12 @@ export function EditMemberModal({ open, teamId, member, members, onClose }: Prop
                 />
               </div>
             </div>
+
+            <CountsTowardsCapacityField
+              id="edit-counts-towards-capacity"
+              checked={counts}
+              onChange={setCounts}
+            />
 
             <p className="text-xs text-gray-400 dark:text-gray-500">
               Hours per day and focus are set in Working days — they change from a date, so

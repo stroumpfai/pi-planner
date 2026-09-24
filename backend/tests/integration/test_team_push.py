@@ -276,6 +276,24 @@ async def test_an_absence_lowers_what_the_push_writes(client, served):
     assert body["sprints"][1]["proposed_available"] == 21
 
 
+
+async def test_a_member_who_does_not_count_is_never_pushed(client, served):
+    """Someone tracked for their absences only must not become points in a sprint."""
+    team_id = served["team"]["system_id"]
+    await client.post(
+        f"{_TEAMS}/{team_id}/members",
+        json={
+            "name": "Petra",
+            "counts_towards_capacity": False,
+            "pattern": {"effective_from": "2026-01-01"},
+        },
+    )
+
+    body = (await client.get(_preview_url(served["project"]["system_id"]))).json()
+    # Still Anna and Bruno only: 20 PD × 0.70 × 1.5 = 21.
+    assert body["sprints"][0]["proposed_available"] == 21
+    assert body["sprints"][0]["team_person_days"] == pytest.approx(20.0)
+
 # ── Refusals ──────────────────────────────────────────────────────────────────
 
 async def test_a_manual_project_refuses_both_endpoints(client, team_and_manual_project):

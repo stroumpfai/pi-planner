@@ -1,5 +1,6 @@
 import { useMemo, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
+import { CountsTowardsCapacityField } from '@/components/CountsTowardsCapacityField'
 import { DateInput } from '@/components/DateInput'
 import { HalfDayToggles } from '@/components/HalfDayToggles'
 import { TextCombobox } from '@/components/TextCombobox'
@@ -44,6 +45,7 @@ export function AddMemberModal({ open, teamId, members, onClose }: Props) {
   const [organisation, setOrganisation] = useState('')
   const [activeFrom, setActiveFrom] = useState('')
   const [activeTo, setActiveTo] = useState('')
+  const [counts, setCounts] = useState(true)
   const [halves, setHalves] = useState<HalfDayMap>(FULL_WEEK)
   const [hoursPerDay, setHoursPerDay] = useState('8')
   const [focus, setFocus] = useState('1')
@@ -62,7 +64,7 @@ export function AddMemberModal({ open, teamId, members, onClose }: Props) {
 
   const reset = () => {
     setName(''); setRole(''); setOrganisation('')
-    setActiveFrom(''); setActiveTo(''); setEffectiveFrom('')
+    setActiveFrom(''); setActiveTo(''); setEffectiveFrom(''); setCounts(true)
     setHalves(FULL_WEEK); setHoursPerDay('8'); setFocus('1'); setNote('')
     setNameError(null); setFormError(null)
   }
@@ -101,6 +103,7 @@ export function AddMemberModal({ open, teamId, members, onClose }: Props) {
         organisation: organisation.trim() || null,
         active_from: activeFrom || null,
         active_to: activeTo || null,
+        counts_towards_capacity: counts,
         pattern: {
           ...halves,
           hours_per_day: Number(hoursPerDay),
@@ -204,6 +207,8 @@ export function AddMemberModal({ open, teamId, members, onClose }: Props) {
                 />
               </div>
             </div>
+
+            <CountsTowardsCapacityField id="counts-towards-capacity" checked={counts} onChange={setCounts} />
 
             <fieldset className="pt-2 border-t border-gray-200 dark:border-gray-700">
               <legend className="text-sm font-medium text-gray-700 dark:text-gray-300 pt-2">Working days</legend>

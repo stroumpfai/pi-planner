@@ -52,7 +52,7 @@ const report = (over: Partial<TeamCapacity> = {}): TeamCapacity => ({
   normal_day_hours: 8,
   anchor_project_id: 'p-1',
   sprints: [sprint()],
-  members: [{ member_id: 'm-1', name: 'Marta Lindqvist', cells: [alice] }],
+  members: [{ member_id: 'm-1', name: 'Marta Lindqvist', counts_towards_capacity: true, cells: [alice] }],
   team: [alice],
   projects: [
     {
@@ -91,6 +91,36 @@ describe('TeamCapacityView', () => {
     expect(row.getByText('9.0 d present · 6.9 PD')).toBeInTheDocument()
   })
 
+  it('shows a member who does not count below the total, not in it', async () => {
+    // Tracked for their absences only (§3.2): their numbers are there to read,
+    // under their own heading after the Team and project rows.
+    mockApi.get.mockResolvedValue({
+      data: report({
+        members: [
+          { member_id: 'm-1', name: 'Marta Lindqvist', counts_towards_capacity: true, cells: [alice] },
+          { member_id: 'm-2', name: 'Pia Moser', counts_towards_capacity: false, cells: [alice] },
+        ],
+      }),
+      headers: {},
+    })
+    render(<TeamCapacityView teamId="t-1" onOpenProjects={onOpenProjects} />, { wrapper: wrapper() })
+
+    await screen.findByText('Pia Moser')
+    const names = screen.getAllByRole('rowheader').map((h) => h.textContent)
+    const team = names.indexOf('Team')
+    expect(names.indexOf('Marta Lindqvist')).toBeLessThan(team)
+    expect(names.indexOf('Pia Moser')).toBeGreaterThan(team)
+    expect(screen.getByRole('rowheader', { name: 'Not counted towards capacity' })).toBeInTheDocument()
+    expect(within(screen.getByRole('row', { name: /Pia Moser/ })).getByText('6.9 PD')).toBeInTheDocument()
+  })
+
+  it('adds no "not counted" heading when everyone counts', async () => {
+    render(<TeamCapacityView teamId="t-1" onOpenProjects={onOpenProjects} />, { wrapper: wrapper() })
+
+    await screen.findByText('Marta Lindqvist')
+    expect(screen.queryByText('Not counted towards capacity')).not.toBeInTheDocument()
+  })
+
   it('expands a cell into the chain that produced it', async () => {
     render(<TeamCapacityView teamId="t-1" onOpenProjects={onOpenProjects} />, { wrapper: wrapper() })
 
@@ -111,7 +141,7 @@ describe('TeamCapacityView', () => {
     mockApi.get.mockResolvedValue({
       data: report({
         sprints: [sprint(), sprint({ sprint_id: 's-2', sprint_number: 2, label: 'Q2-2026.2', start_date: null, end_date: null, computable: false })],
-        members: [{ member_id: 'm-1', name: 'Marta Lindqvist', cells: [alice, null] }],
+        members: [{ member_id: 'm-1', name: 'Marta Lindqvist', counts_towards_capacity: true, cells: [alice, null] }],
         team: [alice, null],
         projects: [
           {
@@ -179,7 +209,7 @@ describe('TeamCapacityView', () => {
     mockApi.get.mockResolvedValue({
       data: report({
         sprints,
-        members: [{ member_id: 'm-1', name: 'Marta Lindqvist', cells: sprints.map(() => alice) }],
+        members: [{ member_id: 'm-1', name: 'Marta Lindqvist', counts_towards_capacity: true, cells: sprints.map(() => alice) }],
         team: sprints.map(() => alice),
         projects: [],
       }),
@@ -215,7 +245,7 @@ const calendar = () => {
   })
   return report({
     sprints,
-    members: [{ member_id: 'm-1', name: 'Marta Lindqvist', cells: sprints.map(() => alice) }],
+    members: [{ member_id: 'm-1', name: 'Marta Lindqvist', counts_towards_capacity: true, cells: sprints.map(() => alice) }],
     team: sprints.map(() => alice),
     projects: [],
   })

@@ -445,6 +445,47 @@ async def test_a_patch_that_inverts_the_validity_window_is_refused(client, team)
     assert resp.status_code == 422
 
 
+
+# ── Counting towards capacity (§3.2) ──────────────────────────────────────────
+
+async def test_a_new_member_counts_towards_capacity_by_default(client, team, member):
+    assert member["counts_towards_capacity"] is True
+
+
+async def test_a_member_can_be_created_for_their_absences_only(client, team):
+    po = await _create_member(client, team["system_id"], "Pia", counts_towards_capacity=False)
+    assert po["counts_towards_capacity"] is False
+    # Still a full member: a pattern, so their absences have half-days to land on.
+    assert po["effective_version"] is not None
+
+
+async def test_the_flag_is_toggled_through_the_member_patch(client, team, member):
+    url = f"{_members_url(team['system_id'])}/{member['system_id']}"
+    off = await client.patch(
+        url, json={"counts_towards_capacity": False}, headers=_if_match(member["etag"])
+    )
+    assert off.status_code == 200
+    assert off.json()["counts_towards_capacity"] is False
+
+    # A patch that does not name it leaves it alone.
+    renamed = await client.patch(url, json={"role": "PO"}, headers=_if_match(off.json()["etag"]))
+    assert renamed.status_code == 200
+    assert renamed.json()["counts_towards_capacity"] is False
+
+    on = await client.patch(
+        url, json={"counts_towards_capacity": True}, headers=_if_match(renamed.json()["etag"])
+    )
+    assert on.json()["counts_towards_capacity"] is True
+
+
+async def test_a_reader_cannot_change_whether_a_member_counts(client, reader_client, team, member):
+    resp = await reader_client.patch(
+        f"{_members_url(team['system_id'])}/{member['system_id']}",
+        json={"counts_towards_capacity": False},
+        headers=_if_match(member["etag"]),
+    )
+    assert resp.status_code == 403
+
 # ── Order ─────────────────────────────────────────────────────────────────────
 
 async def test_members_list_in_their_display_order(client, team):

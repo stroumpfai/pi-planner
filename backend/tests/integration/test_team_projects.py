@@ -432,6 +432,37 @@ async def test_a_manual_project_proposes_nothing(client, team, project):
     assert row["proposed_available"][0] is None
 
 
+
+async def test_a_member_who_does_not_count_is_shown_but_not_totalled(client, team, project):
+    # A PO whose holidays the team tracks: their row is there, with its full
+    # chain, but the team total and every project share leave them out (§3.2).
+    await _pi_with_sprints(
+        client, project["system_id"],
+        "Q2-2026", [{"sprint_index": 0, "start_date": "2026-04-06", "end_date": "2026-04-17"}],
+    )
+    await _assign(
+        client, team["system_id"], project["system_id"],
+        available_source="factor", units_per_pd=1.0,
+    )
+    await _member(client, team["system_id"], "Alice")
+    po = await _member(client, team["system_id"], "Pia")
+    patched = await client.patch(
+        f"{_TEAMS}/{team['system_id']}/members/{po['system_id']}",
+        json={"counts_towards_capacity": False},
+        headers={"If-Match": po["etag"]},
+    )
+    assert patched.status_code == 200, patched.text
+
+    body = await _capacity(client, team["system_id"])
+
+    rows = {m["name"]: m for m in body["members"]}
+    assert rows["Alice"]["counts_towards_capacity"] is True
+    assert rows["Pia"]["counts_towards_capacity"] is False
+    assert rows["Pia"]["cells"][0]["person_days"] == pytest.approx(10.0)
+    assert body["team"][0]["person_days"] == pytest.approx(10.0)
+    assert body["team"][0]["contracted_half_days"] == 20
+    assert body["projects"][0]["proposed_available"][0] == 10
+
 async def test_capacity_counts_the_anchor_projects_calendar_only(client, team, project):
     # A second project's PIs are not columns: the anchor defines the calendar
     # every other project aligns to (§6.8, §7.0.1).
