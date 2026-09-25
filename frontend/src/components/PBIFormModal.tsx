@@ -1,9 +1,12 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Controller, useForm } from 'react-hook-form'
 import type { AxiosError } from 'axios'
 import type { PBI } from '@/types'
 import { EFFORT_VALUES } from '@/constants/effort'
+import { useStates } from '@/hooks/useStates'
+import { useUiStore } from '@/stores/uiStore'
+import { DateInput } from './DateInput'
 import { StateSelect } from './StateSelect'
 import { WorkItemLink } from './WorkItemLink'
 
@@ -15,6 +18,18 @@ export type PBIFormValues = {
   item_type: 'story' | 'bug'
   /** An entry in the State List matching item_type; null means no State. */
   state_id?: string | null
+  /**
+   * ISO YYYY-MM-DD. Present only when the user edited the date on a done item —
+   * otherwise omitted, so the server's own stamp on a State change stands.
+   */
+  completed_on?: string
+}
+
+/** Today in the browser's calendar, as ISO YYYY-MM-DD — a display prefill, never sent unedited. */
+function todayIso(): string {
+  const d = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
 interface Props {
@@ -28,22 +43,24 @@ interface Props {
 
 export function PBIFormModal({ open, pbi, defaultType = 'story', readOnly = false, onClose, onSubmit }: Props) {
   const isEdit = !!pbi
-  const { register, control, handleSubmit, reset, setError, watch, setValue, formState: { errors, isSubmitting } } =
-    useForm<PBIFormValues>({
-      defaultValues: pbi
-        ? { title: pbi.title, description: pbi.description ?? undefined, effort: pbi.effort, id: pbi.id, item_type: pbi.item_type ?? 'story', state_id: pbi.state_id ?? null }
-        : { item_type: defaultType, state_id: null },
-    })
+  const seed = (): PBIFormValues =>
+    pbi
+      ? { title: pbi.title, description: pbi.description ?? undefined, effort: pbi.effort, id: pbi.id, item_type: pbi.item_type ?? 'story', state_id: pbi.state_id ?? null, completed_on: pbi.completed_on ?? '' }
+      : { title: '', item_type: defaultType, state_id: null, completed_on: '' }
+  const { register, control, handleSubmit, reset, setError, clearErrors, watch, setValue, formState: { errors, isSubmitting } } =
+    useForm<PBIFormValues>({ defaultValues: seed() })
+  // Whether the user typed a date themselves. Only then is completed_on sent:
+  // a prefilled "today" is the browser's calendar, and the server stamps its own.
+  const [dateEdited, setDateEdited] = useState(false)
+  // Bumped to remount DateInput when a blanked date snaps back to its value.
+  const [dateInputKey, setDateInputKey] = useState(0)
 
   // Reseed the form each time the modal opens so it reflects the current PBI
   // (the shared modal in GroupCard swaps which PBI it edits without remounting).
   useEffect(() => {
     if (!open) return
-    reset(
-      pbi
-        ? { title: pbi.title, description: pbi.description ?? undefined, effort: pbi.effort, id: pbi.id, item_type: pbi.item_type ?? 'story', state_id: pbi.state_id ?? null }
-        : { item_type: defaultType, state_id: null },
-    )
+    reset(seed())
+    setDateEdited(false)
     // Keyed to pbi identity (not the object) so a background refetch while the
     // modal is open doesn't wipe in-progress edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -51,6 +68,21 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', readOnly = fals
 
   const itemType = watch('item_type')
   const effortValue = watch('effort')
+  const stateId = watch('state_id')
+  const completedOn = watch('completed_on') ?? ''
+
+  // Same project resolution as StateSelect, so both read one cached State List.
+  const activeProjectId = useUiStore((s) => s.activeProjectId)
+  // Only while open: a closed modal sits mounted in every list row.
+  const { data: allStates } = useStates(pbi?.project_id ?? activeProjectId ?? '', open)
+  const states = (allStates ?? []).filter((s) => s.item_type === itemType)
+  // Done-ness is the State's category, never its wording.
+  const isDoneState = (id: string | null | undefined) =>
+    !!id && states.find((s) => s.system_id === id)?.category === 'done'
+  const isDone = isDoneState(stateId)
+  // PBICreate carries no completed_on — the server stamps a new item created done —
+  // so on create the field only previews that and stays disabled.
+  const dateEnabled = isDone && isEdit && !readOnly
   const typeLabel = itemType === 'bug' ? 'Bug' : 'PBI'
   const actionLabel = isEdit ? 'Save Changes' : `Create ${typeLabel}`
   let dialogTitle = 'New story'
@@ -64,25 +96,59 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', readOnly = fals
   const switchType = (next: 'story' | 'bug') => {
     if (next === itemType) return
     setValue('item_type', next)
-    setValue('state_id', null)
+    changeState(null)
+  }
+
+  // The date follows the State: into done prefills, out of done clears. Neither is
+  // a user edit, so neither is sent. Returning to the saved done State shows the
+  // saved date, because the server keeps it (no not-done → done edge on save).
+  const changeState = (next: string | null) => {
+    setValue('state_id', next)
+    setDateEdited(false)
+    clearErrors('completed_on')
+    if (!isDoneState(next)) {
+      setValue('completed_on', '')
+    } else if (!completedOn) {
+      const savedDate = pbi && isDoneState(pbi.state_id) ? pbi.completed_on : null
+      setValue('completed_on', savedDate ?? todayIso())
+    }
+  }
+
+  const changeDate = (iso: string) => {
+    if (!iso) {
+      // The date can't be blanked while the item is done (leaving done clears it),
+      // so an emptied field snaps back to what it held.
+      setDateInputKey((k) => k + 1)
+      return
+    }
+    if (iso === completedOn) return
+    setValue('completed_on', iso)
+    setDateEdited(true)
+    clearErrors('completed_on')
   }
 
   const handleFormSubmit = async (values: PBIFormValues) => {
     try {
+      const { completed_on: completedOnValue, ...rest } = values
+      const sendDate = isEdit && dateEdited && isDoneState(values.state_id) && !!completedOnValue
       await onSubmit({
-        ...values,
+        ...rest,
         description: values.description || null,
         effort: values.effort ?? null,
         id: values.id || null,
         state_id: values.state_id ?? null,
+        ...(sendDate ? { completed_on: completedOnValue } : {}),
       })
       reset()
       onClose()
     } catch (err) {
-      const status = (err as AxiosError)?.response?.status
-      const detail = (err as AxiosError<{ detail?: { error?: string } }>)?.response?.data?.detail
-      if (status === 409 && detail?.error === 'ID_ALREADY_EXISTS') {
+      const response = (err as AxiosError<{ error?: string; detail?: { error?: string } }>)?.response
+      const status = response?.status
+      const code = response?.data?.detail?.error ?? response?.data?.error
+      if (status === 409 && code === 'ID_ALREADY_EXISTS') {
         setError('id', { message: `ID ${values.id} is already used in this project` })
+      } else if (status === 422 && code === 'NOT_COMPLETED') {
+        setError('completed_on', { message: 'Only a done item has a completion date' })
       }
     }
   }
@@ -208,19 +274,37 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', readOnly = fals
               </div>
             </div>
 
-            <Controller
-              name="state_id"
-              control={control}
-              render={({ field }) => (
-                <StateSelect
-                  itemType={itemType}
-                  projectId={pbi?.project_id}
-                  value={field.value ?? null}
-                  onChange={field.onChange}
-                  disabled={readOnly}
+            <div className="grid grid-cols-2 gap-4">
+              <Controller
+                name="state_id"
+                control={control}
+                render={({ field }) => (
+                  <StateSelect
+                    itemType={itemType}
+                    projectId={pbi?.project_id}
+                    value={field.value ?? null}
+                    onChange={changeState}
+                    disabled={readOnly}
+                  />
+                )}
+              />
+              {/* A nested fieldset disables DateInput without it needing a prop. */}
+              <fieldset disabled={!dateEnabled} className="min-w-0 border-0 p-0 m-0">
+                <label htmlFor="pbi-completed-on" className="block text-sm font-medium text-gray-700">
+                  Completed on
+                </label>
+                <DateInput
+                  key={dateInputKey}
+                  id="pbi-completed-on"
+                  value={completedOn}
+                  onChange={changeDate}
+                  className={inputClass}
                 />
-              )}
-            />
+                {errors.completed_on && (
+                  <p className="mt-1 text-xs text-red-600">{errors.completed_on.message}</p>
+                )}
+              </fieldset>
+            </div>
             </fieldset>
 
             {pbi && (
