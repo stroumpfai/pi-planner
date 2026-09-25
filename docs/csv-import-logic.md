@@ -76,6 +76,13 @@ new stories alone without re-sending the whole tree.
 Features, stories and bugs each have their own State list, so `Active` on a Bug
 and `Active` on a Feature are separate entries.
 
+A State that an import adds to a list arrives **uncategorised**. Whether `Done`,
+`Closed` or `Ready for Release` means *done* is set by hand in the States editor
+(Edit Project → Manage States…), never read from the word itself. Once a State is
+marked *done*, an import that moves a story or bug into it records today as the
+item's completion date, and one that moves it back out clears the date. Items
+already in a *done* State when it gets marked keep no date: nothing is backdated.
+
 ---
 
 ## What happens to each row
