@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Annotated
 
 from fastmcp import FastMCP, Context
@@ -6,6 +7,8 @@ from pydantic import Field
 from mcp_server.backend import call_backend
 
 read_mcp = FastMCP("read")
+
+_UUID_RE = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 
 
 @read_mcp.tool()
@@ -584,3 +587,59 @@ async def preview_team_capacity(
             for row in preview["sprints"]
         ],
     }
+
+
+@read_mcp.tool()
+async def get_team_achievement(
+    team_id: Annotated[
+        str, Field(pattern=_UUID_RE, description="Team system_id (UUID) — from list_teams")
+    ],
+    ctx: Context,
+    date_from: Annotated[
+        date | None,
+        Field(default=None, description="Only sprints ending on or after this date (YYYY-MM-DD)"),
+    ] = None,
+    date_to: Annotated[
+        date | None,
+        Field(default=None, description="Only sprints starting on or before this date (YYYY-MM-DD)"),
+    ] = None,
+) -> dict:
+    """
+    Report what a team achieved, per served project, per sprint — "how did we do".
+
+    The counterpart of get_team_capacity: the same team, the same sprint columns
+    (the anchor project's calendar), and every per-sprint list is positional over
+    `sprints`. Reading this changes nothing.
+
+    Per project, in the project's own effort unit:
+    - `committed`: points placed in the project's sprint on the column's dates,
+      whatever their State. What the plan said.
+    - `achieved`: points whose `completed_on` falls in the column's dates. What
+      happened. `achieved_items` lists the stories and bugs behind each cell.
+    - `pd_given`: team PD × share_pct / 100.
+    - `velocity`: achieved ÷ pd_given, in units per PD — the `units_per_pd`
+      factor, measured rather than typed.
+    Team row: `achieved_pd` (Σ achieved ÷ units_per_pd), `available_pd` (the
+    Capacity view's total) and `realised` = achieved_pd ÷ available_pd, i.e. the
+    measured velocity over the typed factor. It judges the plan, not the team.
+
+    **Null means unknown, never zero**: an undated sprint, an item type whose
+    State list has no done-category State (named in
+    `item_types_without_done_state`), no project sprint on the column's dates
+    (committed only), or 0 PD given. Do not report a null as 0.
+    A project with `in_pd_total` false (a `manual` assignment, whose factor is an
+    unset default) keeps its own rows but is excluded from the team PD total.
+
+    Footers per project: `outside_calendar_points` (completed in no sprint) and
+    `done_undated_count` (in a done State with no completion date — counted
+    nowhere). A completion date is recorded when an item enters a done-category
+    State, or comes from a CSV Closed Date; set categories with set_state_category.
+    """
+    params = {}
+    if date_from:
+        params["from"] = date_from.isoformat()
+    if date_to:
+        params["to"] = date_to.isoformat()
+    return await call_backend(
+        "GET", f"/api/v1/teams/{team_id}/achievement", params=params or None
+    )

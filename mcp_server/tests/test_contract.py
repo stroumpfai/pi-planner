@@ -41,6 +41,7 @@ EXPECTED_READ_TOOLS = {
     "list_members",
     "get_team_capacity",
     "preview_team_capacity",
+    "get_team_achievement",
 }
 
 EXPECTED_PROJECTS_TOOLS = {
