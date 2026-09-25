@@ -21,3 +21,5 @@ leaves behind (features `101` Authentication and `102` Reporting, stories
 | `07-type-change.csv` | Import after 01 | Story 202 offered as a promotion to a feature (unticked = row skipped); feature 101 reported as blocked and never demoted |
 | `08-reparent.csv` | Import after 01 | Story 201 reported as moved to Reporting. Unticked it stays put; ticked it moves and loses any sprint placement |
 | `09-errors.csv` | Import any time | 7 validation errors listed by line number, **Review changes** disabled, nothing written |
+| `10-closed-dates.csv` | Import after 01, then mark `Done` (story list) and `Resolved` (bug list) as *done* in Manage States, then import it again | First import: "Dates read as month/day/year", and rows 3, 4, 5 and 8 listed as completion dates ignored, because the States it just added aren't *done* yet. Second import: stories 201, 202 and 204 get 3 Sep, 16 Sep and 28 Aug 2026; bug 301 gets 18 Sep from its `Resolved Date` |
+| `11-dates-ambiguous.csv` | Import after 10 | The review asks for the date format. Day/month/year dates story 201 to 6 Mar 2026; month/day/year dates it to 3 Jun 2026 |

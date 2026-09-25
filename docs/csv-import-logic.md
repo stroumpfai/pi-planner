@@ -41,9 +41,13 @@ columns are ignored.
 | `Effort` | Story / bug effort | Only `0, 0.5, 1, 2, 3, 5, 8, 13, 21`. `0,5` and `0.5` both work. **Ignored on features** — a feature's effort is the sum of its stories. |
 | `Parent` | Which feature a story belongs to | See *Parent* below. |
 | `State` | The item's State, or the delete instruction | See *State* below. |
+| `Closed Date` | When a story or bug was completed | See *Completion dates* below. |
+| `Resolved Date` | Fallback for `Closed Date` | Used only where `Closed Date` is blank. |
 
-Not imported: **descriptions**, comments, assignees, dates, tags, area/iteration
-paths. An item's existing description in the planner is never overwritten by an
+Not imported: **descriptions**, comments, assignees, tags, area/iteration
+paths, and every other date (`Changed Date`, `Created Date`, …). Those other date
+columns are still worth exporting, because they help the import work out the
+file's date format (see below). An item's existing description in the planner is never overwritten by an
 import.
 
 ### Parent
@@ -82,6 +86,53 @@ A State that an import adds to a list arrives **uncategorised**. Whether `Done`,
 marked *done*, an import that moves a story or bug into it records today as the
 item's completion date, and one that moves it back out clears the date. Items
 already in a *done* State when it gets marked keep no date: nothing is backdated.
+
+### Completion dates
+
+Velocity needs to know **when** each story or bug was finished. Add the
+`Closed Date` column to your Azure DevOps query before exporting, and the import
+takes those dates instead of stamping today.
+
+| In the file | Effect |
+|---|---|
+| Neither `Closed Date` nor `Resolved Date` | Completion dates are left exactly as they are. |
+| A date in `Closed Date` (else `Resolved Date`) | Becomes the item's completion date, if its State is marked *done*. |
+| A date on an item whose State is **not** *done* | Ignored, and the row is listed in the review as a warning. |
+| Both cells blank | Clears the item's completion date. |
+
+`Resolved Date` is there for bugs. If your project counts a bug's `Resolved` State
+as *done*, Azure DevOps leaves `Closed Date` blank until the bug is closed, and the
+import falls back to `Resolved Date`. `Changed Date` is never used: it moves on
+every edit, so a story closed on 3 September and touched on the 22nd would count
+in the wrong sprint.
+
+Features take no completion date. Their effort is the sum of their stories, so
+counting them too would count every point twice.
+
+#### The date format
+
+Azure DevOps writes dates in the format of the computer that exported the file,
+not in a fixed one: `9/3/2026 3:06:02 PM` on one machine, `03.09.2026 15:06` on
+another. The import never assumes a format and never guesses one date at a time.
+A file comes from a single export, so it has a single format, and the import works
+that format out from **every** date in the file, in every date column.
+
+- **One format fits every date.** It is used, and the review names it along with
+  the date that decided it: *"Dates read as month/day/year (9/22/2026 settles
+  it)"*.
+- **Several formats fit.** This happens when every day in the file is 12 or lower,
+  so `6/3/2026` could be 3 June or 6 March. The import asks you to pick the format
+  and shows a few dates as they will be read, so a wrong pick is visible before
+  you confirm. The next import for the same project starts from your last answer.
+- **No single format fits.** The file is refused, and the dates that don't agree
+  are listed.
+
+This is why `Changed Date` is worth exporting even though it is never imported:
+every row has one, so it usually settles the format on its own.
+
+Accepted shapes: `2026-09-03`, `3.9.2026`, `9/3/2026` and `3/9/2026`, with or
+without leading zeros, and with or without a time (24-hour or AM/PM). The time is
+dropped.
 
 ---
 
@@ -202,13 +253,15 @@ imported** until the file is fixed and re-selected:
 - the same `ID` on two rows of the file;
 - `Parent` that names no ID, or one outside 1–999 999;
 - `Effort` that isn't a number, or isn't one of the allowed values;
+- dates that no single date format can read (see *The date format*);
 - a malformed CSV structure (reported against the line it occurs on).
 
 ## Not supported
 
 - **Assigning a PI, swimlane, sprint or group.** Board placement is done in the
   app, never by a file.
-- **Descriptions, assignees, dates, tags, links** — not read, not written.
+- **Descriptions, assignees, tags, links** — not read, not written. Of the
+  dates, only `Closed Date` and `Resolved Date` are imported.
 - **Effort on features** — always derived from the stories underneath.
 - **Deleting by omission.** An item missing from the CSV stays.
 - **Demoting a feature to a story.**
@@ -236,3 +289,5 @@ several of them are built to be applied *after* `01-basic.csv`.
 | `07-type-change.csv` | A story exported as a Feature (offered) and a feature exported as a story (blocked). |
 | `08-reparent.csv` | A story whose `Parent` changed — the opt-in move. |
 | `09-errors.csv` | One of each validation error. Nothing is imported. |
+| `10-closed-dates.csv` | A real Azure DevOps export shape: completion dates, a month/day/year format settled by `Changed Date`. |
+| `11-dates-ambiguous.csv` | Every day is 12 or lower, so the import asks for the date format. |
