@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { AbsencesView } from '@/components/AbsencesView'
+import { AchievementView } from '@/components/AchievementView'
 import { MeetingsView } from '@/components/MeetingsView'
 import { TeamCapacityView } from '@/components/TeamCapacityView'
 import { TeamMembersView } from '@/components/TeamMembersView'
@@ -12,7 +13,14 @@ interface Props {
   readonly teamId: string
 }
 
-type ViewId = 'members' | 'working-days' | 'absences' | 'meetings' | 'capacity' | 'projects'
+type ViewId =
+  | 'members'
+  | 'working-days'
+  | 'absences'
+  | 'meetings'
+  | 'capacity'
+  | 'achievement'
+  | 'projects'
 
 interface TeamView {
   readonly id: ViewId
@@ -21,23 +29,27 @@ interface TeamView {
   readonly pending?: boolean
 }
 
-/** The six views of a team, in the order the design fixes them. */
+/**
+ * The seven views of a team, in the order the design fixes them. Achievement
+ * sits beside Capacity: the same columns, the other half of the question.
+ */
 const VIEWS: readonly TeamView[] = [
   { id: 'members', label: 'Members' },
   { id: 'working-days', label: 'Working days' },
   { id: 'absences', label: 'Absences' },
   { id: 'meetings', label: 'Meetings' },
   { id: 'capacity', label: 'Capacity' },
+  { id: 'achievement', label: 'Achievement' },
   { id: 'projects', label: 'Projects' },
 ]
 
 /**
  * The team workspace: a left rail and one view (teams.md §7.0; design §2).
  *
- * A rail rather than a tab strip. Six destinations is past what a tab row reads
+ * A rail rather than a tab strip. Seven destinations is past what a tab row reads
  * well at, and the rail carries what a tab row has nowhere to put: which team you
  * are in, how many people are on it, and the way back out. It is the shell for
- * every team view, so all six are listed from the start; anything a later step
+ * every team view, so all seven are listed from the start; anything a later step
  * has yet to build is marked as such rather than omitted, because a rail that
  * grows items as steps land would keep moving under people who had learned it.
  *
@@ -120,6 +132,9 @@ export const TeamPage: React.FC<Props> = ({ teamId }) => {
             is sent to the view that gives it one rather than shown an empty grid. */}
         {view === 'capacity' && (
           <TeamCapacityView teamId={teamId} onOpenProjects={() => setView('projects')} />
+        )}
+        {view === 'achievement' && (
+          <AchievementView teamId={teamId} onOpenProjects={() => setView('projects')} />
         )}
         {view === 'projects' && (
           <TeamProjectsView teamId={teamId} teamName={team?.name ?? 'this team'} />
