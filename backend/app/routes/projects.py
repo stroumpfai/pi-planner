@@ -313,6 +313,9 @@ def _add_pbis(db: AsyncSession, proj_data: dict[str, Any], new_project_id: str, 
             swimlane_id=_remap(id_map, p.get("swimlane_id")),
             group_id=_remap(id_map, p.get("group_id")),
             state_id=_remap(id_map, p.get("state_id")),
+            # Absent in exports taken before completion dates existed: the item then
+            # arrives done-but-undated, as it was (team-achievement.md §9.2).
+            completed_on=_opt_date(p.get("completed_on")),
         ))
 
 

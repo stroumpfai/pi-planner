@@ -811,3 +811,52 @@ async def test_editor_can_delete_project(editor_client):
     pid = (await editor_client.post("/api/v1/projects/", json={"name": "Ed Del"})).json()["system_id"]
     resp = await editor_client.delete(f"/api/v1/projects/{pid}")
     assert resp.status_code == 204
+
+
+@pytest.mark.asyncio
+async def _project_with_feature(client, name: str) -> tuple[str, str]:
+    pid = (await client.post("/api/v1/projects/", json={"name": name})).json()["system_id"]
+    fid = (await client.post(
+        f"/api/v1/projects/{pid}/features", json={"title": "Auth"},
+    )).json()["system_id"]
+    return pid, fid
+
+
+@pytest.mark.asyncio
+async def test_export_import_round_trips_completion_date_and_category(client):
+    """An imported project keeps its history: dates and done-categories both survive."""
+    pid, fid = await _project_with_feature(client, "Dated")
+    done = (await client.post(
+        f"/api/v1/projects/{pid}/states/",
+        json={"item_type": "story", "value": "Done", "category": "done"},
+    )).json()
+    pbi = (await client.post(f"/api/v1/projects/{pid}/pbis", json={
+        "title": "Finished story",
+        "parent_feature_system_id": fid,
+        "state_id": done["system_id"],
+    })).json()
+    await client.patch(f"/api/v1/pbis/{pbi['system_id']}", json={"completed_on": "2026-09-03"})
+    export = (await client.get(f"/api/v1/projects/{pid}/export")).json()
+
+    new_pid = (await client.post("/api/v1/projects/import", files=[_upload(export)])).json()["system_id"]
+
+    [imported] = (await client.get(f"/api/v1/projects/{new_pid}/pbis")).json()
+    assert imported["completed_on"] == "2026-09-03"
+    [state] = (await client.get(f"/api/v1/projects/{new_pid}/states/")).json()
+    assert state["category"] == "done"
+
+
+@pytest.mark.asyncio
+async def test_import_of_an_export_without_completion_dates_leaves_items_undated(client):
+    pid, fid = await _project_with_feature(client, "Undated")
+    await client.post(f"/api/v1/projects/{pid}/pbis", json={
+        "title": "Old story", "parent_feature_system_id": fid,
+    })
+    export = (await client.get(f"/api/v1/projects/{pid}/export")).json()
+    for p in export["project"]["pbis"]:
+        p.pop("completed_on", None)  # as every export taken before this feature
+
+    new_pid = (await client.post("/api/v1/projects/import", files=[_upload(export)])).json()["system_id"]
+
+    [imported] = (await client.get(f"/api/v1/projects/{new_pid}/pbis")).json()
+    assert imported["completed_on"] is None
