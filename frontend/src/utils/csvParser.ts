@@ -1,5 +1,9 @@
 import Papa from 'papaparse'
 import { EFFORT_VALUES } from '@/constants/effort'
+import {
+  detectDateFormat, toIsoDate,
+  type DateCell, type DateFormat, type DateFormatDetection,
+} from '@/utils/dateFormat'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -13,6 +17,9 @@ export interface ParsedRow {
   effort: number | null
   parentId: number | null
   state: string           // raw State cell, trimmed; '' when blank
+  /** Raw, trimmed `Closed Date` cell, else `Resolved Date`, else ''. Never `Changed Date`.
+   *  Still in the exporting machine's format — read it with `completedOnFor`. */
+  completion: string
 }
 
 export interface ParseError {
@@ -33,6 +40,11 @@ export interface ParseResult {
   removedFeatureIds: number[]       // IDs of the Removed rows that are features
   childrenOfRemovedCount: number    // active child rows a full removal would drop
   hasStateColumn: boolean // false when the file has no State header at all
+  /** True when the header has `Closed Date` or `Resolved Date`: the import then owns
+   *  every row's completion date (a blank pair clears it). False leaves them alone. */
+  hasCompletionColumns: boolean
+  /** The file's one date format, judged from every cell of every `*Date` column. */
+  dateFormat: DateFormatDetection
   errors: ParseError[]
 }
 
@@ -45,6 +57,9 @@ export interface ImportPreview {
   orphanCount: number     // stories whose Parent names no feature in the file or the project
   hasStateColumn: boolean
   stateValues: string[]   // distinct States found, first-seen spelling, in discovery order
+  hasCompletionColumns: boolean
+  dateFormat: DateFormatDetection
+  completionCount: number // imported rows carrying a completion date
   errors: ParseError[]
   hasErrors: boolean
 }
@@ -58,6 +73,12 @@ const COL_TITLE1 = 'Title 1'
 const COL_TITLE2 = 'Title 2'
 const COL_EFFORT = 'Effort'
 const COL_PARENT = 'Parent'
+const COL_CLOSED_DATE = 'Closed Date'
+const COL_RESOLVED_DATE = 'Resolved Date'
+
+/** Any column whose header ends in "Date" is a date column, and evidence for the
+ *  file's format even when it is never imported (`Changed Date`, `Created Date`…). */
+const DATE_COLUMN = /date$/i
 
 const ITEM_TYPE_MAP: Record<string, ItemType> = {
   'Feature': 'feature',
@@ -167,6 +188,43 @@ function parseParentId(
   return n
 }
 
+/**
+ * The completion date as written in the file: `Closed Date`, falling back to
+ * `Resolved Date` when that is blank. `Changed Date` is never used — it records the
+ * last edit, not the finish (spec §4.3).
+ */
+function resolveCompletion(raw: Record<string, string>): string {
+  const closed = (raw[COL_CLOSED_DATE] ?? '').trim()
+  return closed === '' ? (raw[COL_RESOLVED_DATE] ?? '').trim() : closed
+}
+
+/** Every non-empty cell of every date column, in file order — Removed rows included,
+ *  since they come from the same export. */
+function collectDateCells(
+  dataRows: readonly Record<string, string>[],
+  fields: readonly string[],
+): DateCell[] {
+  const dateColumns = fields.filter((f) => DATE_COLUMN.test(f.trim()))
+  const cells: DateCell[] = []
+  dataRows.forEach((raw, index) => {
+    for (const column of dateColumns) {
+      const value = (raw[column] ?? '').trim()
+      if (value !== '') cells.push({ row: index + 2, column, value })
+    }
+  })
+  return cells
+}
+
+/**
+ * A row's completion date as `YYYY-MM-DD`, read under the file's format. Null when
+ * the row has no completion cell, no format has been settled, or the cell cannot be
+ * read under that format.
+ */
+export function completedOnFor(row: ParsedRow, format: DateFormat | null): string | null {
+  if (row.completion === '' || format === null) return null
+  return toIsoDate(row.completion, format)
+}
+
 /** Parse an ID without surfacing errors — used for Removed rows, which aren't imported. */
 function parseUserIdLenient(raw: string): number | null {
   const s = raw.trim()
@@ -195,7 +253,23 @@ export function parseImportCSV(text: string): ParseResult {
 
   // A file with no State column says nothing about State, so the import must leave it
   // alone rather than read every row as blank and clear the whole project.
-  const hasStateColumn = (parsed.meta.fields ?? []).includes(COL_STATE)
+  const fields = parsed.meta.fields ?? []
+  const hasStateColumn = fields.includes(COL_STATE)
+
+  // Same three-way rule as State, over the two completion columns taken together.
+  const hasCompletionColumns =
+    fields.includes(COL_CLOSED_DATE) || fields.includes(COL_RESOLVED_DATE)
+
+  // One file, one format: judged from the whole file before any row is read.
+  const dateFormat = detectDateFormat(collectDateCells(allDataRows, fields))
+  if (dateFormat.kind === 'none') {
+    for (const cell of dateFormat.offending) {
+      errors.push({
+        row: cell.row,
+        message: `${cell.column} "${cell.value}": no single date format reads every date in this file`,
+      })
+    }
+  }
 
   const rows: ParsedRow[] = []
   const removedItems: ParsedRow[] = []
@@ -219,6 +293,7 @@ export function parseImportCSV(text: string): ParseResult {
           effort: null,
           parentId: parseParentIdLenient(raw[COL_PARENT] ?? ''),
           state: '',
+          completion: '',
         })
       }
       return
@@ -249,6 +324,7 @@ export function parseImportCSV(text: string): ParseResult {
       effort,
       parentId,
       state: (raw[COL_STATE] ?? '').trim(),
+      completion: resolveCompletion(raw),
     })
   })
 
@@ -279,7 +355,7 @@ export function parseImportCSV(text: string): ParseResult {
 
   return {
     rows, totalRows, removedCount, removedItems, removedFeatureIds,
-    childrenOfRemovedCount, hasStateColumn, errors,
+    childrenOfRemovedCount, hasStateColumn, hasCompletionColumns, dateFormat, errors,
   }
 }
 
@@ -363,6 +439,9 @@ export function buildPreview(
     orphanCount,
     hasStateColumn: result.hasStateColumn,
     stateValues: [...seenStates.values()],
+    hasCompletionColumns: result.hasCompletionColumns,
+    dateFormat: result.dateFormat,
+    completionCount: rows.filter((r) => r.completion !== '').length,
     errors: result.errors,
     hasErrors: result.errors.length > 0,
   }
