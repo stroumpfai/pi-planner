@@ -37,6 +37,8 @@ export type TeamAchievement = components['schemas']['TeamAchievementResponse']
 export type ProjectAchievementRow = components['schemas']['ProjectAchievementRow']
 /** A story or bug behind an Achieved cell. */
 export type AchievedItem = components['schemas']['AchievedItem']
+/** A project's measured pts/PD over its last closed sprints — a suggestion for the assignment editor (§6.3). */
+export type ProjectVelocity = components['schemas']['ProjectVelocityResponse']
 
 /** What a push into one project would write, per sprint (§6.7). */
 export type PushPreview = components['schemas']['PushPreview']

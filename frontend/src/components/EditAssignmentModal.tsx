@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { useUpdateAssignment } from '@/hooks/useTeamProjects'
+import { useProjectVelocity } from '@/hooks/useTeamAchievement'
 import { assignmentErrorCode } from '@/services/teamProjects'
 import type { TeamAssignment } from '@/types'
 
@@ -10,6 +11,13 @@ interface Props {
   readonly assignment: TeamAssignment
   readonly onClose: () => void
 }
+
+/** How many closed sprints the suggestion measures, and the range it may be set to (§6.3). */
+const DEFAULT_SPRINTS = 3
+const SPRINT_CHOICES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const
+
+/** Two decimals, without trailing noise: 1.4166… → "1.42", 2 → "2". */
+const roundFactor = (value: number) => String(Math.round(value * 100) / 100)
 
 const CHANGED_MESSAGE =
   'This assignment changed while you had it open — the list has been refreshed. Check the current values and try again.'
@@ -24,6 +32,17 @@ export function EditAssignmentModal({ open, teamId, assignment, onClose }: Props
   )
   const [unitsPerPd, setUnitsPerPd] = useState(String(assignment.units_per_pd))
   const [error, setError] = useState<string | null>(null)
+  const [sprintCount, setSprintCount] = useState(DEFAULT_SPRINTS)
+
+  // Fetched only while the factor input it belongs to is on screen.
+  const velocity = useProjectVelocity(
+    teamId,
+    assignment.project_id,
+    sprintCount,
+    open && source === 'factor',
+  )
+  const measured = velocity.data
+  const usedSprints = measured?.sprints.length ?? 0
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -118,6 +137,47 @@ export function EditAssignmentModal({ open, teamId, assignment, onClose }: Props
                   onChange={(e) => setUnitsPerPd(e.target.value)}
                   className="mt-1 block w-32 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
                 />
+
+                {/* A suggestion only (§6.3, §7): it fills the input, never saves or pushes.
+                    With nothing measured there is nothing to suggest, so nothing shows. */}
+                {measured != null && measured.velocity != null && (
+                  <div
+                    role="group"
+                    aria-label="Measured velocity"
+                    className="mt-3 rounded-xl bg-canvas shadow-soft-inset px-3 py-2"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="text-xs text-gray-600 dark:text-gray-300">
+                        Last {usedSprints} closed sprint{usedSprints === 1 ? '' : 's'}
+                        {usedSprints < measured.sprints_requested && ` (of ${measured.sprints_requested} asked)`}
+                        {': '}
+                        <span className="font-semibold tabular-nums text-gray-900 dark:text-gray-100">
+                          {measured.velocity.toFixed(2)} {measured.effort_unit}/PD
+                        </span>
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setUnitsPerPd(roundFactor(measured.velocity ?? 0))}
+                        className="shrink-0 px-2.5 py-1 text-xs font-medium text-gray-700 dark:text-gray-200 bg-canvas shadow-soft-sm hover:shadow-soft-hover rounded-md"
+                      >
+                        Use this value
+                      </button>
+                    </div>
+                    <div className="mt-1.5 flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                      <label htmlFor="edit-velocity-sprints">Closed sprints to measure</label>
+                      <select
+                        id="edit-velocity-sprints"
+                        value={sprintCount}
+                        onChange={(e) => setSprintCount(Number(e.target.value))}
+                        className="rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 py-0 pl-2 pr-7 text-xs"
+                      >
+                        {SPRINT_CHOICES.map((n) => (
+                          <option key={n} value={n}>{n}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

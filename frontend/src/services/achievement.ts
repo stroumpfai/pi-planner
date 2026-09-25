@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { TeamAchievement } from '@/types'
+import type { ProjectVelocity, TeamAchievement } from '@/types'
 
 /**
  * What a team achieved, per sprint (spec/team-achievement.md §5).
@@ -13,6 +13,17 @@ export const achievementApi = {
     api
       .get<TeamAchievement>(`/teams/${teamId}/achievement`, {
         params: { ...(from ? { from } : {}), ...(to ? { to } : {}) },
+      })
+      .then((r) => r.data),
+
+  /**
+   * One served project's measured units per person-day over its last `sprints`
+   * closed sprints (§6.3). A suggestion only — it never changes the assignment.
+   */
+  velocity: (teamId: string, projectId: string, sprints: number) =>
+    api
+      .get<ProjectVelocity>(`/teams/${teamId}/projects/${projectId}/velocity`, {
+        params: { sprints },
       })
       .then((r) => r.data),
 }
