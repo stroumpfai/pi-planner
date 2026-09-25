@@ -36,7 +36,7 @@ contract. It has been done, and it did change step 2 (see Step 0).
 | # | Step | Ships |
 |---|------|-------|
 | 0 | Date-format spike ✅ | nothing — an answer that shapes step 2 |
-| 1 | Done-ness and completion dates | States carry a category; items carry a completion date |
+| 1 | Done-ness and completion dates ✅ | States carry a category; items carry a completion date |
 | 2 | Backfill — CSV completion dates | real history, imported, in any exporter's format |
 | 3 | The Achievement view | **the first real number** |
 | 4 | The velocity suggestion | the measured factor, beside the typed one |
@@ -99,7 +99,14 @@ Sample committed as `docs/csv-samples/10-closed-dates.csv` (anonymised, real dat
 
 ---
 
-## Step 1 — Done-ness and completion dates
+## Step 1 — Done-ness and completion dates ✅ done (2026-09-25)
+
+Landed on `feat/team-achievement` with `scripts/check.sh --with-e2e` clean. Beyond the packages
+below, one gap turned up outside every package's files and was fixed: project **import**
+(`routes/projects.py`) dropped `completed_on`, so an imported copy lost its history. MCP reports a
+date on an item that isn't done as the module's usual `VALIDATION_ERROR` (with `NOT_COMPLETED` in the
+message), not `CONFLICT`; spec §8.3 now says so.
+
 
 **Ships:** States carry a category; stories and bugs carry a completion date that maintains itself.
 Nothing aggregates yet.
