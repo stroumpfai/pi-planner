@@ -128,15 +128,12 @@ async def rename_project_state(
     db: Annotated[AsyncSession, Depends(get_session)],
     _: Annotated[User, Depends(require_edit_lock)],
 ) -> ProjectStateResponse:
-    """Rename a State. Items reference it by id, so every one of them follows.
-    \f
-    Also (re)categorises it: rename, recategorise, or both in one call. A rename
-    leaves the category alone. ``category`` is changed only when the key is present
-    in the body — an explicit null clears it, an absent key keeps it. It is never
-    inferred from the value's wording (docs/adr/0006).
+    """Rename a State, set its category, or both.
 
-    (Text after the form feed is kept out of the OpenAPI description, which is part of
-    the checked-in contract.)
+    Items reference a State by id, so a rename carries every one of them with it. A
+    rename leaves the category alone. ``category`` changes only when the key is in the
+    body: an explicit null clears it, an absent key keeps it. It is never inferred from
+    the State's wording (docs/adr/0006).
     """
     await _require_project(db, project_id)
     state = await _require_state(db, project_id, state_id)

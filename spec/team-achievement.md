@@ -474,7 +474,7 @@ alternative — subscribing the view to every assigned project's channel — wou
 | `set_state_category` | `states.py` | **New.** Sets or clears a category by State name, the same name-resolution as `rename_state`. Separate from `rename_state` so an agent fixing a typo cannot recategorise by accident. |
 | `list_states` | `read.py` | Already returns `category`; the description must say what it means. |
 | `get_team_achievement` | `read.py` | **New.** The §5.3 grid. |
-| `update_pbi` | `features.py` | Accepts `completed_on`; rejects it on a non-done item with the same 422, surfaced as `CONFLICT`. |
+| `update_pbi` | `features.py` | Accepts `completed_on`; rejects it on a non-done item with the same 422, surfaced as the module's usual `VALIDATION_ERROR` with `NOT_COMPLETED` in the message. |
 
 `set_state_category` takes a State **name**, not an id, following `resolve_state_id` and
 ADR 0003's precedent — and an unknown name is rejected with the list of valid ones rather than

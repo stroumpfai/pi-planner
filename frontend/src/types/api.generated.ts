@@ -257,7 +257,12 @@ export interface paths {
     delete: operations["delete_project_state_api_v1_projects__project_id__states__state_id__delete"];
     /**
      * Rename Project State
-     * @description Rename a State. Items reference it by id, so every one of them follows.
+     * @description Rename a State, set its category, or both.
+     *
+     * Items reference a State by id, so a rename carries every one of them with it. A
+     * rename leaves the category alone. ``category`` changes only when the key is in the
+     * body: an explicit null clears it, an absent key keeps it. It is never inferred from
+     * the State's wording (docs/adr/0006).
      */
     patch: operations["rename_project_state_api_v1_projects__project_id__states__state_id__patch"];
   };
@@ -4792,7 +4797,12 @@ export interface operations {
   };
   /**
    * Rename Project State
-   * @description Rename a State. Items reference it by id, so every one of them follows.
+   * @description Rename a State, set its category, or both.
+   *
+   * Items reference a State by id, so a rename carries every one of them with it. A
+   * rename leaves the category alone. ``category`` changes only when the key is in the
+   * body: an explicit null clears it, an absent key keeps it. It is never inferred from
+   * the State's wording (docs/adr/0006).
    */
   rename_project_state_api_v1_projects__project_id__states__state_id__patch: {
     parameters: {
