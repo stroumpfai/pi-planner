@@ -29,4 +29,5 @@ async def import_csv(
         db, project_id, body.rows, body.removals, body.has_state_column,
         body.apply_reparenting, body.apply_type_changes,
         current_user.username, dry_run,
+        has_completion_columns=body.has_completion_columns,
     )
