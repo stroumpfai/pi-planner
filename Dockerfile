@@ -19,7 +19,7 @@ WORKDIR /app
 RUN pip install --no-cache-dir \
     "fastapi>=0.138.1" \
     "uvicorn[standard]>=0.49.0" \
-    "sqlalchemy>=2.0.51" \
+    "sqlalchemy[asyncio]>=2.0.51" \
     "alembic>=1.18.5" \
     "aiosqlite>=0.22.1" \
     "pydantic>=2.13.4" \

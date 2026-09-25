@@ -299,10 +299,14 @@ async def _user_id_issues(db: AsyncSession, project_id: str) -> list[str]:
         .where(PBI.project_id == project_id, PBI.user_id.is_not(None))
     )
     owners: dict[int, list[str]] = {}
+    # The queries already exclude NULL; the checks are for the type checker,
+    # which since SQLAlchemy 2.1 sees these columns as `int | None`.
     for uid, title in feat_rows.all():
-        owners.setdefault(uid, []).append(f"Feature “{title}”")
+        if uid is not None:
+            owners.setdefault(uid, []).append(f"Feature “{title}”")
     for uid, title in pbi_rows.all():
-        owners.setdefault(uid, []).append(f"PBI “{title}”")
+        if uid is not None:
+            owners.setdefault(uid, []).append(f"PBI “{title}”")
 
     lines: list[str] = []
     for uid in sorted(owners):
