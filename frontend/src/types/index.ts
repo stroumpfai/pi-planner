@@ -31,6 +31,13 @@ export type CapacityBreakdown = components['schemas']['CapacityBreakdown']
 export type MemberCapacityRow = components['schemas']['MemberCapacityRow']
 export type ProjectCapacityRow = components['schemas']['ProjectCapacityRow']
 
+/** What the Achievement view reads: the Capacity view's columns, the other half of the question. */
+export type TeamAchievement = components['schemas']['TeamAchievementResponse']
+/** One served project's Committed / Achieved / PD given / Velocity, in its own unit. */
+export type ProjectAchievementRow = components['schemas']['ProjectAchievementRow']
+/** A story or bug behind an Achieved cell. */
+export type AchievedItem = components['schemas']['AchievedItem']
+
 /** What a push into one project would write, per sprint (§6.7). */
 export type PushPreview = components['schemas']['PushPreview']
 /** One line of the review table: current · proposed · Δ · the PD behind it. */
