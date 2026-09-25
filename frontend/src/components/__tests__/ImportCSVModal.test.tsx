@@ -1,11 +1,12 @@
 import { vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ImportCSVModal } from '../ImportCSVModal'
 import { useCsvImport, useCsvDryRun } from '@/hooks/useCsvImport'
 import * as csvParser from '@/utils/csvParser'
 import type { Feature, PBI, PI } from '@/types'
+import type { DateFormat } from '@/utils/dateFormat'
 
 vi.mock('@/hooks/useCsvImport')
 // Only the file-reading entry points are faked; selectImportRows stays real so the
@@ -14,6 +15,7 @@ vi.mock('@/utils/csvParser', async (importOriginal) => ({
   ...(await importOriginal<typeof csvParser>()),
   parseImportCSV: vi.fn(),
   buildPreview: vi.fn(),
+  completedOnFor: vi.fn(),
 }))
 
 const makeWrapper = () => {
@@ -27,13 +29,15 @@ const mutateAsync = vi.fn()
 const dryRun = vi.fn()
 
 const fakeParseResult: csvParser.ParseResult = {
-  rows: [{ rowNumber: 2, itemType: 'story', userId: null, title: 'Auth', effort: null, parentId: null, state: 'New' }],
+  rows: [{ rowNumber: 2, itemType: 'story', userId: null, title: 'Auth', effort: null, parentId: null, state: 'New', completion: '' }],
   totalRows: 1,
   removedCount: 0,
   removedItems: [],
   removedFeatureIds: [],
   childrenOfRemovedCount: 0,
   hasStateColumn: true,
+  hasCompletionColumns: false,
+  dateFormat: { kind: 'no_dates' },
   errors: [],
 }
 
@@ -46,8 +50,22 @@ const fakePreview: csvParser.ImportPreview = {
   orphanCount: 0,
   hasStateColumn: true,
   stateValues: ['New'],
+  hasCompletionColumns: false,
+  dateFormat: { kind: 'no_dates' },
+  completionCount: 0,
   hasErrors: false,
   errors: [],
+}
+
+/**
+ * Stands in for csvParser's reader: `M/D/YYYY` or `D/M/YYYY` to ISO, blank to
+ * null. Enough to tell a month-first reading from a day-first one.
+ */
+function fakeCompletedOnFor(row: csvParser.ParsedRow, format: DateFormat | null): string | null {
+  if (row.completion === '' || format === null) return null
+  const [a, b, y] = row.completion.split(/[/. ]/)
+  const [m, d] = format === 'mdy_slash' ? [a, b] : [b, a]
+  return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`
 }
 
 const okResult = {
@@ -79,6 +97,7 @@ beforeEach(() => {
   )
   vi.mocked(csvParser.parseImportCSV).mockReturnValue(fakeParseResult)
   vi.mocked(csvParser.buildPreview).mockReturnValue(fakePreview)
+  vi.mocked(csvParser.completedOnFor).mockImplementation(fakeCompletedOnFor)
 })
 
 // jsdom does not implement File.text() — create a minimal mock that does
@@ -150,7 +169,7 @@ describe('ImportCSVModal', () => {
     render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
     await waitFor(() => screen.getByRole('button', { name: /review changes/i }))
     await reviewAndConfirm()
-    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: [], has_state_column: true, apply_reparenting: false, apply_type_changes: false })
+    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: [], has_state_column: true, has_completion_columns: false, apply_reparenting: false, apply_type_changes: false })
   })
 
   it('shows "Import complete" after successful import', async () => {
@@ -229,7 +248,7 @@ describe('ImportCSVModal', () => {
   it('shows the reconcile step when a Removed item matches an existing item', async () => {
     vi.mocked(csvParser.parseImportCSV).mockReturnValue({
       ...fakeParseResult,
-      removedItems: [{ rowNumber: 2, itemType: 'feature', userId: 101, title: 'Gone', effort: null, parentId: null, state: '' }],
+      removedItems: [{ rowNumber: 2, itemType: 'feature', userId: 101, title: 'Gone', effort: null, parentId: null, state: '', completion: '' }],
     })
     render(
       <ImportCSVModal {...defaultProps} open file={makeFile()} features={[makeFeature(101, 'feat-1', 'Existing')]} />,
@@ -244,7 +263,7 @@ describe('ImportCSVModal', () => {
     mutateAsync.mockResolvedValue(okResult)
     vi.mocked(csvParser.parseImportCSV).mockReturnValue({
       ...fakeParseResult,
-      removedItems: [{ rowNumber: 2, itemType: 'feature', userId: 101, title: 'Gone', effort: null, parentId: null, state: '' }],
+      removedItems: [{ rowNumber: 2, itemType: 'feature', userId: 101, title: 'Gone', effort: null, parentId: null, state: '', completion: '' }],
     })
     render(
       <ImportCSVModal {...defaultProps} open file={makeFile()} features={[makeFeature(101, 'feat-1', 'Existing')]} />,
@@ -253,14 +272,14 @@ describe('ImportCSVModal', () => {
     await waitFor(() => screen.getByRole('button', { name: /next/i }))
     await userEvent.click(screen.getByRole('button', { name: /next/i }))
     await reviewAndConfirm()
-    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: [], has_state_column: true, apply_reparenting: false, apply_type_changes: false })
+    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: [], has_state_column: true, has_completion_columns: false, apply_reparenting: false, apply_type_changes: false })
   })
 
   it('includes the system_id in removals when an item is toggled to Remove', async () => {
     mutateAsync.mockResolvedValue(okResult)
     vi.mocked(csvParser.parseImportCSV).mockReturnValue({
       ...fakeParseResult,
-      removedItems: [{ rowNumber: 2, itemType: 'feature', userId: 101, title: 'Gone', effort: null, parentId: null, state: '' }],
+      removedItems: [{ rowNumber: 2, itemType: 'feature', userId: 101, title: 'Gone', effort: null, parentId: null, state: '', completion: '' }],
     })
     render(
       <ImportCSVModal {...defaultProps} open file={makeFile()} features={[makeFeature(101, 'feat-1', 'Existing')]} />,
@@ -270,7 +289,7 @@ describe('ImportCSVModal', () => {
     await userEvent.click(screen.getByRole('button', { name: /next/i }))
     await userEvent.click(screen.getByRole('checkbox'))
     await reviewAndConfirm()
-    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: ['feat-1'], has_state_column: true, apply_reparenting: false, apply_type_changes: false })
+    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: ['feat-1'], has_state_column: true, has_completion_columns: false, apply_reparenting: false, apply_type_changes: false })
   })
 
   it('holds the plan on screen while the import runs', async () => {
@@ -366,9 +385,9 @@ describe('ImportCSVModal', () => {
   const removedFeatureWithChild = {
     ...fakeParseResult,
     rows: [
-      { rowNumber: 3, itemType: 'story' as const, userId: 201, title: 'Child', effort: 3, parentId: 101, state: 'New' },
+      { rowNumber: 3, itemType: 'story' as const, userId: 201, title: 'Child', effort: 3, parentId: 101, state: 'New', completion: '' },
     ],
-    removedItems: [{ rowNumber: 2, itemType: 'feature' as const, userId: 101, title: 'Gone', effort: null, parentId: null, state: '' }],
+    removedItems: [{ rowNumber: 2, itemType: 'feature' as const, userId: 101, title: 'Gone', effort: null, parentId: null, state: '', completion: '' }],
     removedFeatureIds: [101],
     childrenOfRemovedCount: 1,
   }
@@ -413,7 +432,7 @@ describe('ImportCSVModal', () => {
     mutateAsync.mockResolvedValue({ ...okResult, removed_features: 1, removed_stories: 2 })
     vi.mocked(csvParser.parseImportCSV).mockReturnValue({
       ...fakeParseResult,
-      removedItems: [{ rowNumber: 2, itemType: 'feature', userId: 101, title: 'Gone', effort: null, parentId: null, state: '' }],
+      removedItems: [{ rowNumber: 2, itemType: 'feature', userId: 101, title: 'Gone', effort: null, parentId: null, state: '', completion: '' }],
     })
     render(
       <ImportCSVModal {...defaultProps} open file={makeFile()} features={[makeFeature(101, 'feat-1', 'Existing')]} pbis={[makePBI(201, 'pbi-1', 'S', 'feat-9')]} />,
@@ -442,7 +461,7 @@ describe('ImportCSVModal', () => {
 
   const removedFeature101 = {
     ...fakeParseResult,
-    removedItems: [{ rowNumber: 2, itemType: 'feature' as const, userId: 101, title: 'Gone', effort: null, parentId: null, state: '' }],
+    removedItems: [{ rowNumber: 2, itemType: 'feature' as const, userId: 101, title: 'Gone', effort: null, parentId: null, state: '', completion: '' }],
     removedFeatureIds: [101],
   }
 
@@ -511,8 +530,8 @@ describe('ImportCSVModal', () => {
   const movedStory = {
     ...fakeParseResult,
     rows: [
-      { rowNumber: 2, itemType: 'feature' as const, userId: 102, title: 'Payments', effort: null, parentId: null, state: '' },
-      { rowNumber: 3, itemType: 'story' as const, userId: 201, title: 'Login form', effort: 3, parentId: 102, state: 'New' },
+      { rowNumber: 2, itemType: 'feature' as const, userId: 102, title: 'Payments', effort: null, parentId: null, state: '', completion: '' },
+      { rowNumber: 3, itemType: 'story' as const, userId: 201, title: 'Login form', effort: 3, parentId: 102, state: 'New', completion: '' },
     ],
   }
 
@@ -574,7 +593,7 @@ describe('ImportCSVModal', () => {
   it('offers nothing when the story is already under the named feature', async () => {
     vi.mocked(csvParser.parseImportCSV).mockReturnValue({
       ...movedStory,
-      rows: [{ rowNumber: 3, itemType: 'story' as const, userId: 201, title: 'Login form', effort: 3, parentId: 101, state: 'New' }],
+      rows: [{ rowNumber: 3, itemType: 'story' as const, userId: 201, title: 'Login form', effort: 3, parentId: 101, state: 'New', completion: '' }],
     })
     render(
       <ImportCSVModal {...defaultProps} {...movedStoryProject()} open file={makeFile()} />,
@@ -587,7 +606,7 @@ describe('ImportCSVModal', () => {
   it('treats a continuation of the named feature as no move at all', async () => {
     vi.mocked(csvParser.parseImportCSV).mockReturnValue({
       ...movedStory,
-      rows: [{ rowNumber: 3, itemType: 'story' as const, userId: 201, title: 'Carried', effort: 3, parentId: 101, state: 'New' }],
+      rows: [{ rowNumber: 3, itemType: 'story' as const, userId: 201, title: 'Carried', effort: 3, parentId: 101, state: 'New', completion: '' }],
     })
     render(
       <ImportCSVModal
@@ -610,11 +629,11 @@ describe('ImportCSVModal', () => {
 
   const asFeatureRow = {
     ...fakeParseResult,
-    rows: [{ rowNumber: 2, itemType: 'feature' as const, userId: 201, title: 'Login form', effort: null, parentId: null, state: '' }],
+    rows: [{ rowNumber: 2, itemType: 'feature' as const, userId: 201, title: 'Login form', effort: null, parentId: null, state: '', completion: '' }],
   }
   const asStoryRow = {
     ...fakeParseResult,
-    rows: [{ rowNumber: 2, itemType: 'story' as const, userId: 101, title: 'Auth', effort: 3, parentId: null, state: '' }],
+    rows: [{ rowNumber: 2, itemType: 'story' as const, userId: 101, title: 'Auth', effort: 3, parentId: null, state: '', completion: '' }],
   }
 
   function typedProject(opts: { placed?: boolean } = {}) {
@@ -679,7 +698,7 @@ describe('ImportCSVModal', () => {
   it('offers nothing when the type is unchanged', async () => {
     vi.mocked(csvParser.parseImportCSV).mockReturnValue({
       ...fakeParseResult,
-      rows: [{ rowNumber: 2, itemType: 'story' as const, userId: 201, title: 'Login form', effort: 3, parentId: null, state: '' }],
+      rows: [{ rowNumber: 2, itemType: 'story' as const, userId: 201, title: 'Login form', effort: 3, parentId: null, state: '', completion: '' }],
     })
     render(
       <ImportCSVModal {...defaultProps} {...typedProject()} open file={makeFile()} />,
@@ -687,5 +706,181 @@ describe('ImportCSVModal', () => {
     )
     await waitFor(() => screen.getByRole('button', { name: /review changes/i }))
     expect(screen.queryByText(/in this file/i)).not.toBeInTheDocument()
+  })
+
+  // ── Completion dates: the file's date format ───────────────────────────────
+
+  const datedRows = [
+    { rowNumber: 2, itemType: 'story' as const, userId: 201, title: 'Login', effort: 3, parentId: null, state: 'Done', completion: '3/9/2026 3:06:02 PM' },
+    { rowNumber: 3, itemType: 'story' as const, userId: 202, title: 'Logout', effort: 2, parentId: null, state: 'Done', completion: '4/10/2026' },
+    { rowNumber: 4, itemType: 'story' as const, userId: 203, title: 'Reset', effort: 1, parentId: null, state: 'New', completion: '' },
+  ]
+  const datedFile = { ...fakeParseResult, rows: datedRows, totalRows: 3, hasCompletionColumns: true }
+  const ambiguous = {
+    ...fakePreview,
+    totalRows: 3,
+    storyCount: 3,
+    hasCompletionColumns: true,
+    dateFormat: { kind: 'ambiguous' as const, candidates: ['mdy_slash', 'dmy_slash'] as DateFormat[] },
+    completionCount: 2,
+  }
+  const STORAGE_KEY = 'pi-planner:date-format:p-1'
+
+  function renderDated(preview: csvParser.ImportPreview) {
+    vi.mocked(csvParser.parseImportCSV).mockReturnValue({ ...datedFile, dateFormat: preview.dateFormat })
+    vi.mocked(csvParser.buildPreview).mockReturnValue(preview)
+    render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
+  }
+
+  describe('completion dates', () => {
+    beforeEach(() => localStorage.clear())
+
+    it('names the one format that fits, the cell that settled it, and the count', async () => {
+      renderDated({
+        ...ambiguous,
+        dateFormat: { kind: 'one', format: 'mdy_slash', decidedBy: '9/22/2026' },
+      })
+      expect(await screen.findByText('Dates read as month/day/year (9/22/2026 settles it)')).toBeInTheDocument()
+      expect(screen.getByText('Completion dates in the file').nextSibling).toHaveTextContent('2')
+      expect(screen.queryByRole('radiogroup')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: /review changes/i })).toBeEnabled()
+    })
+
+    it('leaves out the settling cell when only one format could ever match', async () => {
+      renderDated({ ...ambiguous, dateFormat: { kind: 'one', format: 'iso', decidedBy: null } })
+      expect(await screen.findByText('Dates read as year-month-day')).toBeInTheDocument()
+    })
+
+    it('says so in one line when the file has no completion column', async () => {
+      render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
+      expect(
+        await screen.findByText('No Closed Date column — completion dates are left as they are.'),
+      ).toBeInTheDocument()
+    })
+
+    it('says so when the completion columns are there but empty', async () => {
+      renderDated({ ...ambiguous, dateFormat: { kind: 'no_dates' }, completionCount: 0 })
+      expect(await screen.findByText('No completion dates in this file')).toBeInTheDocument()
+    })
+
+    it('requires a format when several fit, and offers no default', async () => {
+      renderDated(ambiguous)
+      const group = await screen.findByRole('radiogroup', { name: 'Date format' })
+      expect(within(group).getByRole('radio', { name: 'month/day/year' })).not.toBeChecked()
+      expect(within(group).getByRole('radio', { name: 'day/month/year' })).not.toBeChecked()
+
+      const next = screen.getByRole('button', { name: /review changes/i })
+      expect(next).toBeDisabled()
+      expect(next).toHaveAccessibleDescription('Choose the date format to continue.')
+
+      await userEvent.click(screen.getByRole('radio', { name: 'day/month/year' }))
+      expect(next).toBeEnabled()
+      expect(screen.queryByText('Choose the date format to continue.')).not.toBeInTheDocument()
+    })
+
+    it('re-reads the sample dates under the chosen format', async () => {
+      renderDated(ambiguous)
+      const samples = await screen.findByRole('list', { name: 'Dates as read' })
+      // Unchosen: the raw cells, not yet read as anything.
+      expect(within(samples).getAllByText('?')).toHaveLength(2)
+
+      await userEvent.click(screen.getByRole('radio', { name: 'month/day/year' }))
+      expect(within(samples).getByText('3/9/2026 3:06:02 PM')).toBeInTheDocument()
+      expect(within(samples).getByText('9 Mar 2026')).toBeInTheDocument()
+      expect(within(samples).getByText('10 Apr 2026')).toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('radio', { name: 'day/month/year' }))
+      expect(within(samples).getByText('3 Sep 2026')).toBeInTheDocument()
+      expect(within(samples).getByText('4 Oct 2026')).toBeInTheDocument()
+    })
+
+    it('remembers the answer for this project and pre-selects it next time', async () => {
+      renderDated(ambiguous)
+      await userEvent.click(await screen.findByRole('radio', { name: 'day/month/year' }))
+      expect(localStorage.getItem(STORAGE_KEY)).toBe('dmy_slash')
+    })
+
+    it('pre-selects the last answer given for this project', async () => {
+      localStorage.setItem(STORAGE_KEY, 'mdy_slash')
+      renderDated(ambiguous)
+      expect(await screen.findByRole('radio', { name: 'month/day/year' })).toBeChecked()
+      expect(screen.getByRole('button', { name: /review changes/i })).toBeEnabled()
+    })
+
+    it('ignores a remembered answer this file rules out', async () => {
+      localStorage.setItem(STORAGE_KEY, 'dmy_dot')
+      renderDated(ambiguous)
+      await screen.findByRole('radiogroup', { name: 'Date format' })
+      expect(screen.getByRole('button', { name: /review changes/i })).toBeDisabled()
+    })
+
+    it('still works when localStorage throws', async () => {
+      const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => { throw new Error('denied') })
+      const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => { throw new Error('denied') })
+      try {
+        renderDated(ambiguous)
+        await userEvent.click(await screen.findByRole('radio', { name: 'month/day/year' }))
+        expect(screen.getByRole('radio', { name: 'month/day/year' })).toBeChecked()
+        expect(screen.getByRole('button', { name: /review changes/i })).toBeEnabled()
+        expect(setItem).toHaveBeenCalled()
+      } finally {
+        getItem.mockRestore()
+        setItem.mockRestore()
+      }
+    })
+
+    it('sends has_completion_columns and an ISO completed_on per row, read as chosen', async () => {
+      mutateAsync.mockResolvedValue(okResult)
+      renderDated(ambiguous)
+      await userEvent.click(await screen.findByRole('radio', { name: 'day/month/year' }))
+      await reviewAndConfirm()
+
+      const body = mutateAsync.mock.calls[0][0]
+      expect(body.has_completion_columns).toBe(true)
+      expect(body.rows.map((r: { completed_on?: string | null }) => r.completed_on))
+        .toEqual(['2026-09-03', '2026-10-04', null])
+    })
+
+    it('sends no completed_on at all when the file has no completion column', async () => {
+      mutateAsync.mockResolvedValue(okResult)
+      render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
+      await screen.findByRole('button', { name: /review changes/i })
+      await reviewAndConfirm()
+
+      const body = mutateAsync.mock.calls[0][0]
+      expect(body.has_completion_columns).toBe(false)
+      expect(body.rows[0]).not.toHaveProperty('completed_on')
+    })
+
+    it('shows the dates set and cleared, and the rows whose date was ignored', async () => {
+      const counts = {
+        completion_dates_set: 2,
+        completion_dates_cleared: 1,
+        completion_date_contradiction_rows: [4, 7],
+      }
+      dryRun.mockResolvedValue({ ...okResult, ...counts, plan: [], plan_truncated: false })
+      mutateAsync.mockResolvedValue({ ...okResult, ...counts })
+      renderDated({ ...ambiguous, dateFormat: { kind: 'one', format: 'mdy_slash', decidedBy: null } })
+
+      await userEvent.click(await screen.findByRole('button', { name: /review changes/i }))
+      // In the dry-run review, before anything is written…
+      expect(await screen.findByText('2 completion dates set · 1 cleared')).toBeInTheDocument()
+      expect(screen.getByText(/Completion date ignored — State isn't done \(rows 4, 7\)/)).toBeInTheDocument()
+
+      // …and again once it has been.
+      await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+      await screen.findByText(/import complete/i)
+      expect(screen.getByText('2 completion dates set · 1 cleared')).toBeInTheDocument()
+      expect(screen.getByText(/rows 4, 7/)).toBeInTheDocument()
+    })
+
+    it('shows no completion line after an import that touched no dates', async () => {
+      mutateAsync.mockResolvedValue(okResult)
+      render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
+      await screen.findByRole('button', { name: /review changes/i })
+      await reviewAndConfirm()
+      await screen.findByText(/import complete/i)
+      expect(screen.queryByText(/completion dates? set/)).not.toBeInTheDocument()
+    })
   })
 })
