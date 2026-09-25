@@ -591,6 +591,16 @@ export interface paths {
      */
     get: operations["get_team_achievement_api_v1_teams__team_id__achievement_get"];
   };
+  "/api/v1/teams/{team_id}/projects/{project_id}/velocity": {
+    /**
+     * Get Project Velocity
+     * @description The measured points per person-day for one served project, over closed sprints.
+     *
+     * A suggestion for the assignment editor, never applied by itself: the typed
+     * units_per_pd stays the user's (spec/team-achievement.md §6.3).
+     */
+    get: operations["get_project_velocity_api_v1_teams__team_id__projects__project_id__velocity_get"];
+  };
   "/api/v1/team-capacity/status": {
     /**
      * Team Capacity Status
@@ -2534,6 +2544,28 @@ export interface components {
       effort_unit?: string | null;
     };
     /**
+     * ProjectVelocityResponse
+     * @description The measured units_per_pd, offered beside the typed one (spec §6.3).
+     *
+     * A suggestion only: nothing here writes the assignment or pushes a sprint. Only
+     * sprints whose PI is ``closed`` count, since an open sprint's Achieved figure is
+     * still growing and would drag the average down every time anyone looked.
+     */
+    ProjectVelocityResponse: {
+      /** Project Id */
+      project_id: string;
+      /** Effort Unit */
+      effort_unit: string;
+      /** Units Per Pd */
+      units_per_pd: number;
+      /** Sprints Requested */
+      sprints_requested: number;
+      /** Sprints */
+      sprints: components["schemas"]["VelocitySprint"][];
+      /** Velocity */
+      velocity: number | null;
+    };
+    /**
      * PushPreview
      * @description Everything a push into one project would do. Writes nothing.
      */
@@ -2989,6 +3021,28 @@ export interface components {
       input?: unknown;
       /** Context */
       ctx?: Record<string, never>;
+    };
+    /**
+     * VelocitySprint
+     * @description One closed sprint the suggestion is measured over.
+     */
+    VelocitySprint: {
+      /** Label */
+      label: string;
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /**
+       * End Date
+       * Format: date
+       */
+      end_date: string;
+      /** Achieved */
+      achieved: number;
+      /** Pd Given */
+      pd_given: number;
     };
   };
   responses: never;
@@ -6368,6 +6422,42 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["TeamAchievementResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Project Velocity
+   * @description The measured points per person-day for one served project, over closed sprints.
+   *
+   * A suggestion for the assignment editor, never applied by itself: the typed
+   * units_per_pd stays the user's (spec/team-achievement.md §6.3).
+   */
+  get_project_velocity_api_v1_teams__team_id__projects__project_id__velocity_get: {
+    parameters: {
+      query?: {
+        /** @description How many of the latest closed sprints to measure over */
+        sprints?: number;
+      };
+      path: {
+        team_id: string;
+        project_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProjectVelocityResponse"];
         };
       };
       /** @description Validation Error */

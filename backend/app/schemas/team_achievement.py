@@ -75,3 +75,34 @@ class TeamAchievementResponse(BaseModel):
     sprints: list[CapacitySprint]
     projects: list[ProjectAchievementRow]
     team: TeamAchievementTotals
+
+
+class VelocitySprint(BaseModel):
+    """One closed sprint the suggestion is measured over."""
+
+    label: str
+    start_date: date
+    end_date: date
+    achieved: float
+    pd_given: float
+
+
+class ProjectVelocityResponse(BaseModel):
+    """The measured units_per_pd, offered beside the typed one (spec §6.3).
+
+    A suggestion only: nothing here writes the assignment or pushes a sprint. Only
+    sprints whose PI is ``closed`` count, since an open sprint's Achieved figure is
+    still growing and would drag the average down every time anyone looked.
+    """
+
+    project_id: str
+    effort_unit: str
+    # What the assignment holds today, so the editor can show the two side by side.
+    units_per_pd: float
+    sprints_requested: int
+    # The closed sprints actually used, oldest first. Fewer than requested when fewer
+    # exist; empty when none do.
+    sprints: list[VelocitySprint]
+    # Σ achieved ÷ Σ pd_given over ``sprints``. Null when there is nothing to measure:
+    # a factor from no closed sprint is worse than no factor.
+    velocity: float | None

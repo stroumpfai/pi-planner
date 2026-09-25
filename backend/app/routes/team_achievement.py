@@ -32,6 +32,7 @@ from app.schemas.pbi import PBIItemType
 from app.schemas.team_achievement import (
     AchievedItem,
     ProjectAchievementRow,
+    ProjectVelocityResponse,
     TeamAchievementResponse,
     TeamAchievementTotals,
 )
@@ -283,3 +284,22 @@ async def get_team_achievement(
             realised=totals.realised,
         ),
     )
+
+
+@router.get("/projects/{project_id}/velocity")
+async def get_project_velocity(
+    team_id: str,
+    project_id: str,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(get_current_user)],
+    sprints: Annotated[
+        int, Query(ge=1, le=10, description="How many of the latest closed sprints to measure over")
+    ] = 3,
+) -> ProjectVelocityResponse:
+    """The measured points per person-day for one served project, over closed sprints.
+
+    A suggestion for the assignment editor, never applied by itself: the typed
+    units_per_pd stays the user's (spec/team-achievement.md §6.3).
+    """
+    # Contract stub; WP-4A implements it.
+    raise HTTPException(status_code=status.HTTP_501_NOT_IMPLEMENTED)

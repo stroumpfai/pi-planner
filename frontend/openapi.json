@@ -7897,6 +7897,88 @@
         }
       }
     },
+    "/api/v1/teams/{team_id}/projects/{project_id}/velocity": {
+      "get": {
+        "tags": [
+          "team-achievement"
+        ],
+        "summary": "Get Project Velocity",
+        "description": "The measured points per person-day for one served project, over closed sprints.\n\nA suggestion for the assignment editor, never applied by itself: the typed\nunits_per_pd stays the user's (spec/team-achievement.md \u00a76.3).",
+        "operationId": "get_project_velocity_api_v1_teams__team_id__projects__project_id__velocity_get",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "project_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Project Id"
+            }
+          },
+          {
+            "name": "sprints",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10,
+              "minimum": 1,
+              "description": "How many of the latest closed sprints to measure over",
+              "default": 3,
+              "title": "Sprints"
+            },
+            "description": "How many of the latest closed sprints to measure over"
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectVelocityResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/team-capacity/status": {
       "get": {
         "tags": [
@@ -13289,6 +13371,55 @@
         "type": "object",
         "title": "ProjectUpdate"
       },
+      "ProjectVelocityResponse": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "effort_unit": {
+            "type": "string",
+            "title": "Effort Unit"
+          },
+          "units_per_pd": {
+            "type": "number",
+            "title": "Units Per Pd"
+          },
+          "sprints_requested": {
+            "type": "integer",
+            "title": "Sprints Requested"
+          },
+          "sprints": {
+            "items": {
+              "$ref": "#/components/schemas/VelocitySprint"
+            },
+            "type": "array",
+            "title": "Sprints"
+          },
+          "velocity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Velocity"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "effort_unit",
+          "units_per_pd",
+          "sprints_requested",
+          "sprints",
+          "velocity"
+        ],
+        "title": "ProjectVelocityResponse",
+        "description": "The measured units_per_pd, offered beside the typed one (spec \u00a76.3).\n\nA suggestion only: nothing here writes the assignment or pushes a sprint. Only\nsprints whose PI is ``closed`` count, since an open sprint's Achieved figure is\nstill growing and would drag the average down every time anyone looked."
+      },
       "PushPreview": {
         "properties": {
           "project_id": {
@@ -14539,6 +14670,42 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VelocitySprint": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "achieved": {
+            "type": "number",
+            "title": "Achieved"
+          },
+          "pd_given": {
+            "type": "number",
+            "title": "Pd Given"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "start_date",
+          "end_date",
+          "achieved",
+          "pd_given"
+        ],
+        "title": "VelocitySprint",
+        "description": "One closed sprint the suggestion is measured over."
       }
     }
   }
