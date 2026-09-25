@@ -16,6 +16,7 @@ from app.schemas.csv_import import (
     OrphanLocation,
     PlannedChange,
 )
+from app.services.completion import apply_completion, load_state
 from app.services.continuation import descendant_ids, lineage_members, newest_leaf
 from app.services.events import broadcaster
 from app.services.feature_delete import delete_features
@@ -462,6 +463,7 @@ async def _upsert_one_story(
         if state_changed and pbi.state_id != state_id:
             changed.append("state")
 
+        old_state = await load_state(db, pbi.state_id)
         pbi.title = row.title
         pbi.effort = row.effort
         pbi.item_type = row.item_type
@@ -472,6 +474,9 @@ async def _upsert_one_story(
             # Story to a Bug still strands the old State in the other list — clear it,
             # exactly as PATCH /pbis/{id} does.
             pbi.state_id = None
+        # Imports are the main way items become done: stamp and clear here exactly as
+        # the REST routes do.
+        apply_completion(pbi, old_state, await load_state(db, pbi.state_id))
 
         # The file names a different feature than the one holding this story. A
         # member of the same lineage does not count: that is a split someone made
@@ -517,7 +522,7 @@ async def _upsert_one_story(
         return _StoryOutcome(updated=1, reparented=1, freed_group_id=freed)
 
     parent_sysid = target.leaf if target is not None else unassigned_sysid
-    db.add(PBI(
+    new_pbi = PBI(
         project_id=project_id,
         parent_feature_system_id=parent_sysid,
         user_id=row.user_id,
@@ -526,7 +531,9 @@ async def _upsert_one_story(
         item_type=row.item_type,
         location="backlog",
         state_id=state_id if state_changed else None,
-    ))
+    )
+    apply_completion(new_pbi, None, await load_state(db, new_pbi.state_id))
+    db.add(new_pbi)
     plan.add(
         "created" if target is not None else "orphaned",
         row.item_type, row.title, user_id=row.user_id, row=row.row_number,

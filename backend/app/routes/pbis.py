@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -11,9 +11,11 @@ from app.models.feature import Feature
 from app.models.group import Group
 from app.models.pbi import PBI
 from app.models.project import Project
+from app.models.project_state import ProjectState
 from app.models.user import User
 from app.schemas import PBICreate, PBIResponse, PBIUpdate, PlaceStoryRequest, PlaceStoryResponse
 from app.schemas.group import GroupResponse
+from app.services.completion import apply_completion, is_done, load_state
 from app.services.events import broadcaster
 from app.services.pbi_delete import delete_pbi_and_empty_group
 from app.services.project_state import (
@@ -94,6 +96,7 @@ async def create_pbi(
         item_type=body.item_type,
         state_id=state_id,
     )
+    apply_completion(pbi, None, await load_state(db, state_id))
     db.add(pbi)
     await db.commit()
     await db.refresh(pbi)
@@ -161,6 +164,31 @@ async def _apply_state_change(
         pbi.state_id = None
 
 
+def _explicit_completion_date(
+    body: PBIUpdate, fields: set[str], new_state: ProjectState | None
+) -> date | None:
+    """The hand-corrected ``completed_on`` this request carries, if it may have one.
+
+    Only an item holding a done-category State *after* this request's State change has a
+    completion date to correct. Explicit null is refused too: leaving the done State is
+    what clears the date, so a null here would be a second, contradictory way to do it.
+    """
+    if "completed_on" not in fields:
+        return None
+    if body.completed_on is None:
+        raise _not_completed("completed_on cannot be cleared directly; move the item out of its done State")
+    if not is_done(new_state):
+        raise _not_completed("completed_on can only be set while the item holds a done State")
+    return body.completed_on
+
+
+def _not_completed(message: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail={"error": "NOT_COMPLETED", "message": message},
+    )
+
+
 async def _apply_group_change(db: AsyncSession, pbi: PBI, new_group_id: str | None) -> None:
     old_group_id = pbi.group_id
     pbi.group_id = new_group_id
@@ -187,8 +215,15 @@ async def update_pbi(
     fields = body.model_fields_set
     await _apply_pbi_id(db, pbi, body, fields)
     previous_item_type = pbi.item_type
+    # Captured before the write: completion is about the edge, not where the item lands.
+    old_state = await load_state(db, pbi.state_id)
     _apply_scalar_fields(pbi, body, fields)
     await _apply_state_change(db, pbi, body, fields, previous_item_type)
+    new_state = await load_state(db, pbi.state_id)
+    apply_completion(
+        pbi, old_state, new_state,
+        explicit_date=_explicit_completion_date(body, fields, new_state),
+    )
     if "group_id" in fields:
         await _apply_group_change(db, pbi, body.group_id)
     pbi.modified_at = datetime.now(timezone.utc)

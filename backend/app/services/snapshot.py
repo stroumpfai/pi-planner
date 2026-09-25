@@ -133,6 +133,9 @@ def restore_pbis(db: AsyncSession, proj_data: dict[str, Any], project_id: str) -
             swimlane_id=p.get("swimlane_id"),
             group_id=p.get("group_id"),
             state_id=p.get("state_id"),
+            # Permanent fallback: every snapshot taken before completion dates existed
+            # lacks the key and restores as NULL ("done but undated"), never as today.
+            completed_on=_opt_date(p.get("completed_on")),
         ))
 
 
@@ -319,6 +322,7 @@ async def serialize_project(db: AsyncSession, project: Project) -> dict[str, Any
                     "group_id": p.group_id,
                     "state_id": p.state_id,
                     "state": p.state.value if p.state else None,
+                    "completed_on": p.completed_on.isoformat() if p.completed_on else None,
                     "created_at": p.created_at.isoformat(),
                     "modified_at": p.modified_at.isoformat(),
                 }

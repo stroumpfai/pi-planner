@@ -1,5 +1,9 @@
 """Integration tests for CSV import service (Phase 2.1)."""
+from datetime import datetime, timezone
+
 import pytest
+
+from app.models.project_state import ProjectState
 
 
 @pytest.fixture
@@ -662,6 +666,114 @@ async def test_re_importing_the_same_type_keeps_the_state(client, project):
     )
     assert after["title"] == "Login v2"
     assert after["state"] == "In Progress"
+
+
+# ── Completion dates follow the State (team-achievement.md §4.1–§4.2) ─────────
+
+async def _done_story_state(db, pid: str, value: str = "Done") -> None:
+    """A story State the user has marked done. Imports only ever discover uncategorised ones."""
+    db.add(ProjectState(project_id=pid, item_type="story", value=value, category="done"))
+    await db.commit()
+
+
+async def _story(client, pid: str, user_id: int) -> dict:
+    pbis = (await client.get(f"/api/v1/projects/{pid}/pbis")).json()
+    return next(p for p in pbis if p["id"] == user_id)
+
+
+def _today() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
+
+
+@pytest.mark.asyncio
+async def test_import_moving_a_story_into_a_done_state_stamps_it(client, db, project):
+    pid = project["system_id"]
+    await _done_story_state(db, pid)
+    await client.post(_url(pid), json={
+        "rows": [_row(1, "story", "Login", user_id=201, state="Active")],
+        "has_state_column": True,
+    })
+    assert (await _story(client, pid, 201))["completed_on"] is None
+
+    resp = await client.post(_url(pid), json={
+        "rows": [_row(1, "story", "Login", user_id=201, state="done")],
+        "has_state_column": True,
+    })
+    assert resp.status_code == 200
+    assert (await _story(client, pid, 201))["completed_on"] == _today()
+
+
+@pytest.mark.asyncio
+async def test_import_creating_a_story_in_a_done_state_stamps_it(client, db, project):
+    pid = project["system_id"]
+    await _done_story_state(db, pid)
+    await client.post(_url(pid), json={
+        "rows": [_row(1, "story", "Login", user_id=201, state="Done")],
+        "has_state_column": True,
+    })
+    assert (await _story(client, pid, 201))["completed_on"] == _today()
+
+
+@pytest.mark.asyncio
+async def test_import_moving_a_story_out_of_done_clears_it(client, db, project):
+    pid = project["system_id"]
+    await _done_story_state(db, pid)
+    await client.post(_url(pid), json={
+        "rows": [_row(1, "story", "Login", user_id=201, state="Done")],
+        "has_state_column": True,
+    })
+    await client.post(_url(pid), json={
+        "rows": [_row(1, "story", "Login", user_id=201, state="Active")],
+        "has_state_column": True,
+    })
+    assert (await _story(client, pid, 201))["completed_on"] is None
+
+
+@pytest.mark.asyncio
+async def test_import_clearing_the_state_clears_the_date(client, db, project):
+    pid = project["system_id"]
+    await _done_story_state(db, pid)
+    await client.post(_url(pid), json={
+        "rows": [_row(1, "story", "Login", user_id=201, state="Done")],
+        "has_state_column": True,
+    })
+    await client.post(_url(pid), json={
+        "rows": [_row(1, "story", "Login", user_id=201, state="")],
+        "has_state_column": True,
+    })
+    assert (await _story(client, pid, 201))["completed_on"] is None
+
+
+@pytest.mark.asyncio
+async def test_re_importing_an_unchanged_file_keeps_the_date(client, db, project):
+    pid = project["system_id"]
+    await _done_story_state(db, pid)
+    rows = {"rows": [_row(1, "story", "Login", user_id=201, state="Done")], "has_state_column": True}
+    await client.post(_url(pid), json=rows)
+    story = await _story(client, pid, 201)
+    await client.patch(f"/api/v1/pbis/{story['system_id']}", json={"completed_on": "2026-01-15"})
+
+    await client.post(_url(pid), json=rows)
+    assert (await _story(client, pid, 201))["completed_on"] == "2026-01-15"
+
+    # A file with no State column says nothing about State, so nothing about completion.
+    await client.post(_url(pid), json={"rows": [_row(1, "story", "Login v2", user_id=201)]})
+    assert (await _story(client, pid, 201))["completed_on"] == "2026-01-15"
+
+
+@pytest.mark.asyncio
+async def test_import_retyping_a_done_story_clears_the_date(client, db, project):
+    """The type-change clear strands the State, and the date goes with it."""
+    pid = project["system_id"]
+    await _done_story_state(db, pid)
+    await client.post(_url(pid), json={
+        "rows": [_row(1, "story", "Login", user_id=201, state="Done")],
+        "has_state_column": True,
+    })
+    await client.post(_url(pid), json={"rows": [_row(1, "bug", "Login", user_id=201)]})
+    after = await _story(client, pid, 201)
+    assert after["state_id"] is None
+    assert after["completed_on"] is None
 
 
 # ── Split features (work carried across several PIs) ──────────────────────────
