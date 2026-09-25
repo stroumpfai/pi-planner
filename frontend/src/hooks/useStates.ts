@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { statesApi } from '@/services/states'
+import { statesApi, type StateCategory } from '@/services/states'
 import type { ProjectState, StateItemType } from '@/types'
 
 const key = (projectId: string) => ['states', projectId] as const
@@ -37,6 +37,23 @@ export const useRenameState = (projectId: string) => {
       qc.invalidateQueries({ queryKey: key(projectId) })
       // Items carry the State's value for display, so a rename changes what they show.
       qc.invalidateQueries({ queryKey: ['features', projectId] })
+      qc.invalidateQueries({ queryKey: ['pbis', projectId] })
+    },
+  })
+}
+
+/**
+ * Declares a State's category. Sends `category` alone, so a rename in flight is never
+ * overwritten; `null` clears it. Nothing here derives a category from the State's wording.
+ */
+export const useSetStateCategory = (projectId: string) => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ stateId, category }: { stateId: string; category: StateCategory }) =>
+      statesApi.update(projectId, stateId, { category }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: key(projectId) })
+      // Completion is read through the category, so items may now show differently.
       qc.invalidateQueries({ queryKey: ['pbis', projectId] })
     },
   })
