@@ -1,4 +1,5 @@
 import warnings
+from datetime import date
 from typing import Annotated, Any, Literal
 
 from fastmcp import FastMCP, Context
@@ -333,12 +334,23 @@ async def update_pbi(
                           "Unknown names are rejected. Pass null to clear. Note: changing item_type "
                           "without also passing a state clears the State, since the lists differ."),
     ] = _UNSET,
+    completed_on: Annotated[
+        date | None,
+        Field(default=None,
+              description="Correct the completion date (ISO YYYY-MM-DD). Accepted only while "
+                          "the PBI is in a 'done'-category State after this update; otherwise "
+                          "the call fails with a validation error (NOT_COMPLETED). Cannot be "
+                          "cleared directly — moving the PBI out of 'done' clears it."),
+    ] = None,
 ) -> dict:
     """
-    Update a PBI's metadata: title, description, effort, business ID, or type.
+    Update a PBI's metadata: title, description, effort, business ID, type, State or
+    completion date.
 
     Supply only the fields you want to change — unset fields are left as-is.
     Pass null explicitly for description, effort, or user_id to clear those fields.
+    Moving the PBI into a 'done'-category State stamps today as its completion date;
+    leaving 'done' clears it. Use completed_on only to correct that date.
     To move a PBI to a sprint use place_pbi_in_sprint instead.
     Acquires the edit lock for the duration of the update.
     Returns the updated PBIResponse.
@@ -363,6 +375,8 @@ async def update_pbi(
         body["state_id"] = await resolve_state_id(
             project_id, state_item_type_for_pbi(effective_type), state or ""
         )
+    if completed_on is not None:
+        body["completed_on"] = completed_on.isoformat()
 
     async with edit_lock(project_id):
         return await call_backend("PATCH", f"/api/v1/pbis/{pbi_id}", json=body)

@@ -91,6 +91,7 @@ EXPECTED_GROUPS_TOOLS = {
 EXPECTED_STATES_TOOLS = {
     "create_state",
     "rename_state",
+    "set_state_category",
     "reorder_states",
     "delete_state",
 }

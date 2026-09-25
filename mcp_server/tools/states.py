@@ -53,6 +53,13 @@ states_mcp = FastMCP("states")
 
 _UUID_RE = r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
 
+StateCategory = Literal["not_started", "in_progress", "done"]
+
+_CATEGORY_MEANING = (
+    "'done' is what makes an item count as completed for velocity. The category is "
+    "declared by the user — never infer it from the State's wording."
+)
+
 
 @states_mcp.tool()
 async def create_state(
@@ -63,6 +70,12 @@ async def create_state(
     ],
     value: Annotated[str, Field(max_length=100, description="The State name (max 100 chars)")],
     ctx: Context,
+    category: Annotated[
+        StateCategory | None,
+        Field(default=None,
+              description="Optional: 'not_started', 'in_progress' or 'done'. Omit (or null) "
+                          "to leave the State uncategorised. " + _CATEGORY_MEANING),
+    ] = None,
 ) -> dict:
     """
     Add a State to one of the project's three State Lists.
@@ -73,14 +86,62 @@ async def create_state(
     Values are compared case-insensitively after trimming; a duplicate is refused
     with STATE_VALUE_TAKEN rather than silently returning the existing entry.
     Use list_states first to see what the list already holds.
+    Pass `category` only when the user has said what the State means; change it
+    later with set_state_category.
     Acquires the edit lock for the duration of the operation.
     Returns the new ProjectStateResponse including system_id.
     """
+    body: dict = {"item_type": item_type, "value": value}
+    if category is not None:
+        body["category"] = category
     async with edit_lock(project_id):
         return await call_backend(
-            "POST",
-            f"/api/v1/projects/{project_id}/states/",
-            json={"item_type": item_type, "value": value},
+            "POST", f"/api/v1/projects/{project_id}/states/", json=body
+        )
+
+
+@states_mcp.tool()
+async def set_state_category(
+    project_id: Annotated[str, Field(pattern=_UUID_RE, description="Project system_id (UUID)")],
+    item_type: Annotated[
+        Literal["feature", "story", "bug"],
+        Field(description="Which of the project's three State Lists holds the State"),
+    ],
+    state: Annotated[
+        str,
+        Field(min_length=1, max_length=100,
+              description="The State's name as list_states shows it (case-insensitive). "
+                          "Unknown names are rejected; no entry is ever created."),
+    ],
+    category: Annotated[
+        StateCategory | None,
+        Field(description="'not_started', 'in_progress', 'done', or null to clear the "
+                          "category (uncategorised). " + _CATEGORY_MEANING),
+    ],
+    ctx: Context,
+) -> dict:
+    """
+    Set or clear the category of one existing State, found by name.
+
+    Only the category changes; the name and position are untouched. Deliberately
+    separate from rename_state, so fixing a typo in a name can never recategorise a
+    State by accident.
+    Categories are per list — a story's 'Done' and a bug's 'Done' are set separately —
+    and a list may hold several 'done' States.
+    Completion dates are stamped or cleared only when an item moves into or out of a
+    'done' State, not by this call.
+    An unknown name is rejected with the list's valid names.
+    Acquires the edit lock for the duration of the operation.
+    Returns the updated ProjectStateResponse.
+    """
+    state_id = await resolve_state_id(project_id, item_type, state)
+    if state_id is None:
+        raise ValueError("A State name is required.")
+    async with edit_lock(project_id):
+        return await call_backend(
+            "PATCH",
+            f"/api/v1/projects/{project_id}/states/{state_id}",
+            json={"category": category},
         )
 
 
