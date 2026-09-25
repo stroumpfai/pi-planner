@@ -456,10 +456,15 @@ Achievement is team-level data computed from **project** writes, and teams.md §
 channels apart: team writes broadcast on the team channel, project writes on the project channel.
 An open Achievement view would therefore never hear that someone just completed a story.
 
-**A project write that changes an achievement input broadcasts `team:achievement:changed` on the
-owning team's channel** — that is, when `completed_on` or a completed item's `effort` changes, or
-when a State's category changes, and the project has a `TeamProject` assignment. The payload is
-`{"project_id": ...}`; the view refetches.
+**A project write that can move an Achievement figure broadcasts
+`team:achievement:changed` on the serving team's channel**, with payload `{"project_id": ...}`,
+and the view refetches. "Can move a figure" is wider than completion alone, because the view's
+Committed row depends on placement: story create, update, delete, place and unplace; group
+create, update and delete; a feature moved, split, un-split or deleted and the bulk clears; a
+State's category change (a rename alone is not forwarded); a CSV import; a snapshot restore. One
+helper, `services/team_events.notify_team_achievement`, called once per request after the commit.
+Sprint date edits are not forwarded: they move the columns themselves, and the Capacity view,
+which has the same dependency, does not forward them either.
 
 This crosses an aggregate boundary on purpose and cheaply: it is a broadcast, not a write. No
 project row is touched, no lock is involved, and a team with no open viewer pays nothing. The

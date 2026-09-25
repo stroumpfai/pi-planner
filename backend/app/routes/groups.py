@@ -15,6 +15,7 @@ from app.models.swimline import Swimline
 from app.models.user import User
 from app.schemas import GroupCreate, GroupResponse, GroupUpdate
 from app.services.events import broadcaster
+from app.services.team_events import notify_team_achievement
 
 router = APIRouter(tags=["groups"])
 
@@ -114,6 +115,7 @@ async def create_group(
     pi = await db.get(PI, swimline.pi_id)
     project_id = pi.project_id if pi else ""
     await broadcaster.broadcast(project_id, "group:created", {"system_id": group.system_id})
+    await notify_team_achievement(db, project_id)
     return GroupResponse.model_validate(group)
 
 
@@ -161,6 +163,7 @@ async def update_group(
     pi = await db.get(PI, swimline.pi_id) if swimline else None
     project_id = pi.project_id if pi else ""
     await broadcaster.broadcast(project_id, "group:updated", {"system_id": group_id})
+    await notify_team_achievement(db, project_id)
     return GroupResponse.model_validate(group)
 
 
@@ -186,3 +189,4 @@ async def delete_group(
     await db.delete(group)
     await db.commit()
     await broadcaster.broadcast(project_id, "group:deleted", {"system_id": group_id})
+    await notify_team_achievement(db, project_id)

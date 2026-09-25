@@ -22,6 +22,7 @@ from app.services.events import broadcaster
 from app.services.feature_delete import delete_features
 from app.services.pbi_delete import delete_pbi_and_empty_group, detach_pbi_from_group
 from app.services.project_state import get_or_create_state, state_item_type_for_pbi
+from app.services.team_events import notify_team_achievement
 
 _VALID_ITEM_TYPES = {"feature", "story", "bug"}
 _PLAN_CAP = 500
@@ -962,5 +963,6 @@ async def execute_import(
         "updated": updated_features + stories.updated,
         "removed": len(deleted_feature_ids) + len(deleted_pbis),
     })
+    await notify_team_achievement(db, project_id)
 
     return result

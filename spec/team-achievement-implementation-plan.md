@@ -37,8 +37,8 @@ contract. It has been done, and it did change step 2 (see Step 0).
 |---|------|-------|
 | 0 | Date-format spike ✅ | nothing — an answer that shapes step 2 |
 | 1 | Done-ness and completion dates ✅ | States carry a category; items carry a completion date |
-| 2 | Backfill — CSV completion dates | real history, imported, in any exporter's format |
-| 3 | The Achievement view | **the first real number** |
+| 2 | Backfill — CSV completion dates ✅ | real history, imported, in any exporter's format |
+| 3 | The Achievement view ✅ | **the first real number** |
 | 4 | The velocity suggestion | the measured factor, beside the typed one |
 
 ---
@@ -196,7 +196,16 @@ import** all leave the same `completed_on`, and moving it back clears it.
 
 ---
 
-## Step 2 — Backfill: completion dates from the CSV
+## Step 2 — Backfill: completion dates from the CSV ✅ done (2026-09-25)
+
+Landed with `scripts/check.sh --with-e2e` clean. The detection lives in its own module,
+`frontend/src/utils/dateFormat.ts`, rather than inside `csvParser.ts`, so the detector and the
+parser could be built at once with no shared file. The parser gathers the cells; the detector only
+decides. One consequence of §4.3's three-way rule deserves a reader's attention: blank completion
+cells clear a date **even on a row entering a done State**, because the file wins in both
+directions. A State the project marks *done* but Azure DevOps doesn't treat as completed would
+therefore lose its dates on every import.
+
 
 **Ships:** real completion history, imported.
 **Depends on:** step 1 (the column and the helper). Step 0 is done.
@@ -269,7 +278,14 @@ and a file without the columns leaves every existing date untouched.
 
 ---
 
-## Step 3 — The Achievement view
+## Step 3 — The Achievement view ✅ done (2026-09-25)
+
+Landed with `scripts/check.sh --with-e2e` clean. WP-3A and WP-3B went to one agent, and WP-3C and
+WP-3D to another: an engine and the endpoint that calls it, or a view and the rail entry that
+mounts it, are one interface, and splitting them would have meant guessing it twice. The SSE
+forwarding (WP-3E) was done after the merges, since it touches `csv_import.py`, which step 2 was
+editing at the same time. It forwards more than the spec first said; §8.2 now lists every trigger.
+
 
 **Ships:** the first real number.
 **Depends on:** step 1 only.

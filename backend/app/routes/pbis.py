@@ -23,6 +23,7 @@ from app.services.project_state import (
     state_item_type_for_pbi,
     validate_state_id,
 )
+from app.services.team_events import notify_team_achievement
 from app.services.validation import is_user_id_available
 
 router = APIRouter(tags=["pbis"])
@@ -104,6 +105,7 @@ async def create_pbi(
         project_id, _EVT_PBI_CREATED,
         {"system_id": pbi.system_id, "feature_id": body.parent_feature_system_id},
     )
+    await notify_team_achievement(db, project_id)
     return PBIResponse.model_validate(pbi)
 
 
@@ -230,6 +232,7 @@ async def update_pbi(
     await db.commit()
     await db.refresh(pbi)
     await broadcaster.broadcast(pbi.project_id, _EVT_PBI_UPDATED, {"system_id": pbi_id})
+    await notify_team_achievement(db, pbi.project_id)
     return PBIResponse.model_validate(pbi)
 
 
@@ -283,6 +286,7 @@ async def place_story_in_sprint(
         pbi.project_id, _EVT_GROUP_CREATED, {"system_id": group.system_id, "swimlane_id": group.swimline_id}
     )
     await broadcaster.broadcast(pbi.project_id, _EVT_PBI_UPDATED, {"system_id": pbi_id})
+    await notify_team_achievement(db, pbi.project_id)
 
     return PlaceStoryResponse(
         story=PBIResponse.model_validate(pbi),
@@ -314,6 +318,7 @@ async def unplace_story(
     await broadcaster.broadcast(pbi.project_id, _EVT_PBI_UPDATED, {"system_id": pbi_id})
     if deleted_group_id:
         await broadcaster.broadcast(pbi.project_id, _EVT_GROUP_DELETED, {"system_id": deleted_group_id})
+    await notify_team_achievement(db, pbi.project_id)
 
 
 @router.delete("/api/v1/pbis/{pbi_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -337,3 +342,4 @@ async def delete_pbi(
         await broadcaster.broadcast(
             project_id, _EVT_GROUP_DELETED, {"system_id": deleted_group_id}
         )
+    await notify_team_achievement(db, project_id)

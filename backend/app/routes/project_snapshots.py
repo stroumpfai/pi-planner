@@ -36,6 +36,7 @@ from app.services.snapshot import (
 )
 from app.services.snapshot_diff import diff_project_states
 from app.services.snapshot_diff_html import render_diff_html
+from app.services.team_events import notify_team_achievement
 
 router = APIRouter(prefix="/api/v1/projects/{project_id}/snapshots", tags=["project-snapshots"])
 
@@ -304,6 +305,7 @@ async def restore_snapshot(
         "snapshot_name": snapshot.name,
         "safety_snapshot_id": safety_snapshot.system_id,
     })
+    await notify_team_achievement(db, project_id)
 
     await db.refresh(project)
     return ProjectResponse.model_validate(project)

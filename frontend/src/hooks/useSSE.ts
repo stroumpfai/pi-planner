@@ -84,6 +84,9 @@ function handleTeamSSEEvent(
   // Capacity is computed on read from all of the above, so every team event
   // moves it — including one that changed no member at all, like a share.
   qc.invalidateQueries({ queryKey: ['teamCapacity', teamId] })
+  // Achievement is computed from project items; the backend forwards project
+  // writes that move it as team:achievement:changed (team-achievement.md §8.2).
+  qc.invalidateQueries({ queryKey: ['team-achievement', teamId] })
 }
 
 function handleSSEEvent(

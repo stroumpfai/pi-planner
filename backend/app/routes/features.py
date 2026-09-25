@@ -27,6 +27,7 @@ from app.services.events import broadcaster
 from app.services.feature_delete import delete_features
 from app.services.pbi_delete import detach_pbi_from_group
 from app.services.project_state import resolve_state_assignment, validate_state_id
+from app.services.team_events import notify_team_achievement
 from app.services.validation import is_user_id_available
 
 router = APIRouter(tags=["features"])
@@ -202,6 +203,8 @@ async def update_feature(
     await db.refresh(feature)
     event = "feature:moved" if (moving_to_swimlane or moving_to_backlog) else "feature:updated"
     await broadcaster.broadcast(feature.project_id, event, {"system_id": feature_id})
+    if moving_to_swimlane or moving_to_backlog:
+        await notify_team_achievement(db, feature.project_id)
     return await _enrich(db, feature)
 
 
@@ -283,6 +286,7 @@ async def split_feature(
         await broadcaster.broadcast(feature.project_id, "pbi:updated", {"system_id": pbi_id})
     for group_id in freed_group_ids:
         await broadcaster.broadcast(feature.project_id, "group:deleted", {"system_id": group_id})
+    await notify_team_achievement(db, feature.project_id)
 
     return await _enrich(db, new_feature)
 
@@ -342,6 +346,7 @@ async def cancel_continuation(
         await broadcaster.broadcast(origin.project_id, "pbi:updated", {"system_id": pbi_id})
     for group_id in freed_group_ids:
         await broadcaster.broadcast(origin.project_id, "group:deleted", {"system_id": group_id})
+    await notify_team_achievement(db, origin.project_id)
 
     return await _enrich(db, origin)
 
@@ -366,6 +371,7 @@ async def clear_backlog(
     await db.execute(sql_delete(Feature).where(Feature.project_id == project_id, Feature.location == "backlog"))
     await db.commit()
     await broadcaster.broadcast(project_id, "backlog:cleared", {"project_id": project_id})
+    await notify_team_achievement(db, project_id)
     return BulkDeleteResponse(deleted_features=count)
 
 
@@ -390,6 +396,7 @@ async def clear_all_features(
     await db.execute(sql_delete(Feature).where(Feature.project_id == project_id))
     await db.commit()
     await broadcaster.broadcast(project_id, "features:cleared", {"project_id": project_id})
+    await notify_team_achievement(db, project_id)
     return BulkDeleteResponse(deleted_features=count)
 
 
@@ -409,3 +416,4 @@ async def delete_feature(
         await broadcaster.broadcast(project_id, "feature:deleted", {"system_id": deleted_id})
     for group_id in deletion.group_ids:
         await broadcaster.broadcast(project_id, "group:deleted", {"system_id": group_id})
+    await notify_team_achievement(db, project_id)

@@ -16,6 +16,7 @@ from app.schemas.project_state import (
 )
 from app.services.events import broadcaster
 from app.services.project_state import find_state, get_or_create_state, list_states, state_usage
+from app.services.team_events import notify_team_achievement
 
 router = APIRouter(prefix="/api/v1/projects/{project_id}/states", tags=["states"])
 
@@ -148,6 +149,8 @@ async def rename_project_state(
     await db.commit()
     await db.refresh(state)
     await broadcaster.broadcast(project_id, "state:updated", {"system_id": state.system_id})
+    if "category" in body.model_fields_set:
+        await notify_team_achievement(db, project_id)
     return ProjectStateResponse.model_validate(state)
 
 
