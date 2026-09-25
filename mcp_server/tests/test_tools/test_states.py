@@ -4,12 +4,21 @@ Agents pass a State by name on item writes; unknown names are rejected there rat
 than creating vocabulary. Extending a list is a deliberate act with its own tool.
 """
 import json
+from datetime import date
+
 import httpx
 import pytest
 
+from mcp_server.backend import MCPBackendError
 from mcp_server.tools.features import create_feature, create_pbi, update_feature, update_pbi
 from mcp_server.tools.read import list_states
-from mcp_server.tools.states import create_state, delete_state, rename_state, reorder_states
+from mcp_server.tools.states import (
+    create_state,
+    delete_state,
+    rename_state,
+    reorder_states,
+    set_state_category,
+)
 
 PROJECT_ID = "proj-uuid-1"
 FEATURE_ID = "feat-uuid-1"
@@ -283,3 +292,136 @@ async def test_state_writes_take_the_edit_lock(mock_backend, mock_ctx, patch_get
     paths = [str(c.request.url) for c in mock_backend.calls]
     assert any("edit-lock/acquire" in p for p in paths)
     assert any("edit-lock/release" in p for p in paths)
+
+
+# ── Categories and completion dates ──────────────────────────────────────────
+
+
+async def test_create_state_passes_category(mock_backend, mock_ctx, patch_get_http_request):
+    _lock_mocks(mock_backend)
+    mock_backend.post(STATES_PATH).mock(
+        return_value=httpx.Response(201, json={**FEATURE_STATES[1], "category": "done"})
+    )
+    await create_state(
+        project_id=PROJECT_ID, item_type="story", value="Closed", category="done", ctx=mock_ctx
+    )
+    assert _last_call_body(mock_backend, "/states/") == {
+        "item_type": "story",
+        "value": "Closed",
+        "category": "done",
+    }
+
+
+async def test_set_state_category_resolves_by_name_and_sends_only_category(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    _lock_mocks(mock_backend)
+    _states_mock(mock_backend)
+    route = mock_backend.patch(f"{STATES_PATH}st-2").mock(
+        return_value=httpx.Response(200, json={**FEATURE_STATES[1], "category": "done"})
+    )
+    result = await set_state_category(
+        project_id=PROJECT_ID, item_type="story", state="committed", category="done",
+        ctx=mock_ctx,
+    )
+    assert route.called
+    assert result["category"] == "done"
+    assert _last_call_body(mock_backend, "/states/st-2") == {"category": "done"}
+
+
+async def test_set_state_category_clears_with_none(mock_backend, mock_ctx, patch_get_http_request):
+    _lock_mocks(mock_backend)
+    _states_mock(mock_backend)
+    mock_backend.patch(f"{STATES_PATH}st-3").mock(
+        return_value=httpx.Response(200, json=FEATURE_STATES[2])
+    )
+    await set_state_category(
+        project_id=PROJECT_ID, item_type="bug", state="Active", category=None, ctx=mock_ctx,
+    )
+    assert _last_call_body(mock_backend, "/states/st-3") == {"category": None}
+
+
+async def test_set_state_category_rejects_unknown_names_without_patching(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    """'Committed' exists, but in the story list — the bug list does not have it.
+
+    Resolution fails before the edit lock is taken, so nothing but the list read happens.
+    """
+    _states_mock(mock_backend)
+    with pytest.raises(ValueError, match="No State named 'Committed'.*'Active'"):
+        await set_state_category(
+            project_id=PROJECT_ID, item_type="bug", state="Committed", category="done",
+            ctx=mock_ctx,
+        )
+    assert [c.request.method for c in mock_backend.calls] == ["GET"]
+
+
+async def test_set_state_category_rejects_a_blank_name(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    """On item writes a blank name means "no State"; here there is nothing to categorise."""
+    with pytest.raises(ValueError, match="State name is required"):
+        await set_state_category(
+            project_id=PROJECT_ID, item_type="story", state="  ", category="done", ctx=mock_ctx,
+        )
+    assert not mock_backend.calls
+
+
+async def test_set_state_category_takes_the_edit_lock(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    _lock_mocks(mock_backend)
+    _states_mock(mock_backend)
+    mock_backend.patch(f"{STATES_PATH}st-1").mock(
+        return_value=httpx.Response(200, json=FEATURE_STATES[0])
+    )
+    await set_state_category(
+        project_id=PROJECT_ID, item_type="feature", state="In Progress",
+        category="in_progress", ctx=mock_ctx,
+    )
+    paths = [str(c.request.url) for c in mock_backend.calls]
+    assert any("edit-lock/acquire" in p for p in paths)
+    assert any("edit-lock/release" in p for p in paths)
+
+
+async def test_update_pbi_passes_completed_on(mock_backend, mock_ctx, patch_get_http_request):
+    _lock_mocks(mock_backend)
+    mock_backend.patch(f"/api/v1/pbis/{PBI_ID}").mock(
+        return_value=httpx.Response(200, json={**PBI_RESP, "completed_on": "2026-09-01"})
+    )
+    await update_pbi(
+        pbi_id=PBI_ID, project_id=PROJECT_ID, completed_on=date(2026, 9, 1), ctx=mock_ctx,
+    )
+    assert _last_call_body(mock_backend, f"/pbis/{PBI_ID}") == {"completed_on": "2026-09-01"}
+
+
+async def test_update_pbi_omits_completed_on_when_not_given(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    _lock_mocks(mock_backend)
+    mock_backend.patch(f"/api/v1/pbis/{PBI_ID}").mock(
+        return_value=httpx.Response(200, json=PBI_RESP)
+    )
+    await update_pbi(pbi_id=PBI_ID, project_id=PROJECT_ID, title="New", ctx=mock_ctx)
+    assert "completed_on" not in _last_call_body(mock_backend, f"/pbis/{PBI_ID}")
+
+
+async def test_update_pbi_completed_on_on_a_non_done_item_is_a_typed_error(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    _lock_mocks(mock_backend)
+    mock_backend.patch(f"/api/v1/pbis/{PBI_ID}").mock(
+        return_value=httpx.Response(422, json={"detail": {
+            "error": "NOT_COMPLETED",
+            "message": "completed_on is only accepted while the item is in a done State.",
+        }})
+    )
+    completed_on = date(2026, 9, 1)
+    with pytest.raises(MCPBackendError) as exc:
+        await update_pbi(
+            pbi_id=PBI_ID, project_id=PROJECT_ID, completed_on=completed_on, ctx=mock_ctx,
+        )
+    assert exc.value.status == 422
+    assert exc.value.code == "VALIDATION_ERROR"
+    assert "NOT_COMPLETED" in exc.value.message

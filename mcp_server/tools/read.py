@@ -106,8 +106,12 @@ async def list_states(
     Each project has three independent lists keyed by item_type: 'feature', 'story',
     and 'bug'. They start empty and are populated by CSV import (from the file's State
     column), from the States editor in the web UI, or with create_state. Returns
-    system_id, item_type, value, and position for every entry, ordered by item type
-    then position.
+    system_id, item_type, value, position and category for every entry, ordered by
+    item type then position.
+    `category` is 'not_started', 'in_progress', 'done' or null (uncategorised). 'done'
+    is what makes a story or bug count as completed for velocity; the others are
+    informational. It is declared by the user, never inferred from the State's wording
+    — a State named 'Done' may well be null. Change it with set_state_category.
     Call this before setting `state` on create_feature, update_feature, create_pbi, or
     update_pbi — those tools reject names that are not already in the matching list —
     and before rename_state, reorder_states or delete_state, which take system_ids.
