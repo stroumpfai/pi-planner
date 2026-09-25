@@ -7,6 +7,7 @@ import {
   useDeleteState,
   useRenameState,
   useReorderStates,
+  useSetStateCategory,
   useStates,
   useStatesForType,
 } from '../useStates'
@@ -145,6 +146,35 @@ describe('useRenameState', () => {
     })
 
     expect(invalidateSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('useSetStateCategory', () => {
+  it('sends the category alone and refreshes the lists and PBIs', async () => {
+    mockStates.update = vi.fn().mockResolvedValue(makeState('story', 'Done'))
+    const { qc, wrapper } = makeWrapper()
+    const invalidateSpy = vi.spyOn(qc, 'invalidateQueries')
+    const { result } = renderHook(() => useSetStateCategory('p-1'), { wrapper })
+
+    await act(async () => {
+      await result.current.mutateAsync({ stateId: 's-9', category: 'done' })
+    })
+
+    expect(mockStates.update).toHaveBeenCalledWith('p-1', 's-9', { category: 'done' })
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['states', 'p-1'] })
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['pbis', 'p-1'] })
+  })
+
+  it('sends an explicit null to clear the category', async () => {
+    mockStates.update = vi.fn().mockResolvedValue(makeState('story', 'Done'))
+    const { wrapper } = makeWrapper()
+    const { result } = renderHook(() => useSetStateCategory('p-1'), { wrapper })
+
+    await act(async () => {
+      await result.current.mutateAsync({ stateId: 's-9', category: null })
+    })
+
+    expect(mockStates.update).toHaveBeenCalledWith('p-1', 's-9', { category: null })
   })
 })
 

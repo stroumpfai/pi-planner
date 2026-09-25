@@ -6,8 +6,10 @@ import {
   useDeleteState,
   useRenameState,
   useReorderStates,
+  useSetStateCategory,
   useStates,
 } from '@/hooks/useStates'
+import type { StateCategory } from '@/services/states'
 import type { ProjectState, StateItemType } from '@/types'
 
 const LISTS: Array<{ itemType: StateItemType; label: string }> = [
@@ -15,6 +17,22 @@ const LISTS: Array<{ itemType: StateItemType; label: string }> = [
   { itemType: 'story', label: 'PBIs' },
   { itemType: 'bug', label: 'Bugs' },
 ]
+
+/**
+ * The category choices, in workflow order. `''` stands for `null` because a <select>
+ * value is always a string. There is deliberately no default and no suggestion: a State
+ * called "Done" is uncategorised until someone says otherwise (spec §3.1).
+ */
+const CATEGORY_OPTIONS: Array<{ value: '' | Exclude<StateCategory, null>; label: string }> = [
+  { value: '', label: '(none)' },
+  { value: 'not_started', label: 'not started' },
+  { value: 'in_progress', label: 'in progress' },
+  { value: 'done', label: 'done' },
+]
+
+function toCategory(value: string): StateCategory {
+  return value === 'not_started' || value === 'in_progress' || value === 'done' ? value : null
+}
 
 function errorMessage(err: unknown, fallback: string): string {
   const detail = (err as AxiosError<{ detail?: { message?: string } }>)?.response?.data?.detail
@@ -28,7 +46,7 @@ interface Props {
 }
 
 /**
- * The editor for a project's three State Lists: add, rename, reorder and delete.
+ * The editor for a project's three State Lists: add, rename, categorise, reorder and delete.
  *
  * Every action is its own mutation applying immediately — which is why this is a
  * separate modal rather than a section of the project form, whose fields only apply
@@ -53,7 +71,8 @@ export function ProjectStatesModal({ open, projectId, onClose }: Props) {
           </Dialog.Title>
           <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
             Each item type has its own list. Renaming a State updates every item that
-            carries it; a State still in use cannot be removed.
+            carries it; a State still in use cannot be removed. The category says which
+            States count as done.
           </p>
 
           {error && (
@@ -102,6 +121,7 @@ function StateListEditor({ projectId, itemType, label, states, onError }: ListPr
   const createState = useCreateState(projectId)
   const renameState = useRenameState(projectId)
   const reorderStates = useReorderStates(projectId)
+  const setCategory = useSetStateCategory(projectId)
   const deleteState = useDeleteState(projectId)
 
   const [newValue, setNewValue] = useState('')
@@ -138,6 +158,17 @@ function StateListEditor({ projectId, itemType, label, states, onError }: ListPr
       setEditingId(null)
     } catch (err) {
       onError(errorMessage(err, `Could not rename '${state.value}'`))
+    }
+  }
+
+  const handleCategory = async (state: ProjectState, raw: string) => {
+    const category = toCategory(raw)
+    if (category === state.category) return
+    onError(null)
+    try {
+      await setCategory.mutateAsync({ stateId: state.system_id, category })
+    } catch (err) {
+      onError(errorMessage(err, `Could not change the category of '${state.value}'`))
     }
   }
 
@@ -193,6 +224,22 @@ function StateListEditor({ projectId, itemType, label, states, onError }: ListPr
                   {state.value}
                 </span>
               )}
+
+              <select
+                aria-label={`Category of ${state.value}`}
+                value={state.category ?? ''}
+                disabled={setCategory.isPending}
+                onChange={(e) => handleCategory(state, e.target.value)}
+                className={`shrink-0 rounded border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-xs py-0.5 pl-1.5 pr-6 disabled:opacity-50 ${
+                  state.category
+                    ? 'text-gray-800 dark:text-gray-200'
+                    : 'text-gray-400 dark:text-gray-500'
+                }`}
+              >
+                {CATEGORY_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
 
               <button
                 type="button"
