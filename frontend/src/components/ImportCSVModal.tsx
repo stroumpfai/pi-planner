@@ -1,8 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import type { AxiosError } from 'axios'
-import { parseImportCSV, buildPreview, selectImportRows } from '@/utils/csvParser'
+import { parseImportCSV, buildPreview, selectImportRows, completedOnFor } from '@/utils/csvParser'
 import type { ImportPreview, ParsedRow, ParseResult } from '@/utils/csvParser'
+import { DATE_FORMAT_LABELS } from '@/utils/dateFormat'
+import type { DateFormat, DateFormatDetection } from '@/utils/dateFormat'
+import { DateFormatChoice } from './DateFormatChoice'
+import type { DateSample } from './DateFormatChoice'
 import { useCsvImport, useCsvDryRun } from '@/hooks/useCsvImport'
 import type { CsvImportResult, CsvImportRequest, Feature, PBI, PI, PlannedChange } from '@/types'
 
@@ -154,8 +158,13 @@ function computeTypeChanges(
   return changes
 }
 
-function parsedRowToCsvRow(r: ParsedRow) {
-  return {
+/**
+ * One row of the request. `completed_on` is sent only when the file has a
+ * completion column (`completionFormat` not undefined): leaving it out is what
+ * tells the backend to keep every existing date, whereas a null clears one.
+ */
+function parsedRowToCsvRow(r: ParsedRow, completionFormat: DateFormat | null | undefined) {
+  const row = {
     row_number: r.rowNumber,
     item_type: r.itemType,
     user_id: r.userId,
@@ -164,6 +173,51 @@ function parsedRowToCsvRow(r: ParsedRow) {
     parent_id: r.parentId,
     state: r.state,
   }
+  return completionFormat === undefined
+    ? row
+    : { ...row, completed_on: completedOnFor(r, completionFormat) }
+}
+
+// ── Date format: remembered per project, per viewer ──────────────────────────
+
+const dateFormatKey = (projectId: string) => `pi-planner:date-format:${projectId}`
+
+/** The last answer given for this project, if it is one of this file's candidates. */
+function loadDateFormat(projectId: string, candidates: readonly DateFormat[]): DateFormat | null {
+  try {
+    const stored = localStorage.getItem(dateFormatKey(projectId))
+    return candidates.find((c) => c === stored) ?? null
+  } catch {
+    return null  // storage unavailable — the user simply chooses again
+  }
+}
+
+function saveDateFormat(projectId: string, format: DateFormat): void {
+  try {
+    localStorage.setItem(dateFormatKey(projectId), format)
+  } catch {
+    // a convenience only; the choice still applies to this import
+  }
+}
+
+/** The format the rows are read with: the detected one, or the user's answer. */
+function effectiveFormat(detection: DateFormatDetection, chosen: DateFormat | null): DateFormat | null {
+  if (detection.kind === 'one') return detection.format
+  if (detection.kind === 'ambiguous') return chosen
+  return null
+}
+
+/** Up to three distinct completion cells, to show how the chosen format reads them. */
+function sampleDates(rows: readonly ParsedRow[], format: DateFormat | null): DateSample[] {
+  const samples: DateSample[] = []
+  const seen = new Set<string>()
+  for (const row of rows) {
+    if (row.completion === '' || seen.has(row.completion)) continue
+    seen.add(row.completion)
+    samples.push({ raw: row.completion, iso: format === null ? null : completedOnFor(row, format) })
+    if (samples.length === 3) break
+  }
+  return samples
 }
 
 function featureCandidate(
@@ -303,8 +357,81 @@ function PreviewTable({ preview }: { readonly preview: ImportPreview }) {
             </td>
           </tr>
         )}
+        <CompletionPreviewRows preview={preview} />
       </tbody>
     </table>
+  )
+}
+
+/**
+ * What the file says about completion dates. Every case gets a line, so a file
+ * that dates nothing never reads as an import that failed to.
+ */
+function CompletionPreviewRows({ preview }: { readonly preview: ImportPreview }) {
+  if (!preview.hasCompletionColumns) {
+    return (
+      <tr>
+        <td className="py-1.5 text-gray-400 dark:text-gray-500 text-xs" colSpan={2}>
+          No Closed Date column — completion dates are left as they are.
+        </td>
+      </tr>
+    )
+  }
+  const detection = preview.dateFormat
+  if (detection.kind === 'no_dates' || preview.completionCount === 0) {
+    return (
+      <tr>
+        <td className="py-1.5 text-gray-500 dark:text-gray-400 text-xs" colSpan={2}>
+          No completion dates in this file
+        </td>
+      </tr>
+    )
+  }
+  return (
+    <>
+      <tr>
+        <td className="py-1.5 text-gray-500 dark:text-gray-400">Completion dates in the file</td>
+        <td className="py-1.5 text-right font-medium text-gray-800 dark:text-gray-100">
+          {preview.completionCount}
+        </td>
+      </tr>
+      {detection.kind === 'one' && (
+        <tr>
+          <td className="py-1.5 text-gray-500 dark:text-gray-400 text-xs" colSpan={2}>
+            Dates read as {DATE_FORMAT_LABELS[detection.format]}
+            {detection.decidedBy !== null && ` (${detection.decidedBy} settles it)`}
+          </td>
+        </tr>
+      )}
+    </>
+  )
+}
+
+/**
+ * Completion-date counts from the dry run or the import. A date on a row whose
+ * State is not done is ignored by the backend; naming those rows is what explains
+ * the gap between "dates in the file" and "dates set".
+ */
+function CompletionOutcome({ result }: { readonly result: CsvImportResult }) {
+  const set = result.completion_dates_set ?? 0
+  const cleared = result.completion_dates_cleared ?? 0
+  const contradictions = result.completion_date_contradiction_rows ?? []
+  if (set === 0 && cleared === 0 && contradictions.length === 0) return null
+
+  return (
+    <div className="mt-3 space-y-1">
+      {(set > 0 || cleared > 0) && (
+        <p className="text-xs text-gray-600 dark:text-gray-300">
+          {set} completion {set === 1 ? 'date' : 'dates'} set · {cleared} cleared
+        </p>
+      )}
+      {contradictions.length > 0 && (
+        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 dark:text-amber-300 dark:bg-amber-900/30 dark:border-amber-800 rounded px-2 py-1">
+          Completion date ignored — State isn&apos;t done ({contradictions.length === 1 ? 'row' : 'rows'}{' '}
+          {contradictions.join(', ')})
+        </p>
+      )}
+    </div>
   )
 }
 
@@ -663,6 +790,8 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
   const [serverErrors, setServerErrors] = useState<ServerError[]>([])
 
   const [plan, setPlan] = useState<CsvImportResult | null>(null)
+  /** The user's answer when several date formats fit the file. */
+  const [chosenFormat, setChosenFormat] = useState<DateFormat | null>(null)
 
   const importMutation = useCsvImport(projectId)
   const dryRunMutation = useCsvDryRun(projectId)
@@ -675,6 +804,8 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
   projectItems.current = { features, pbis }
   const projectPIs = useRef(pis)
   projectPIs.current = pis
+  const projectIdRef = useRef(projectId)
+  projectIdRef.current = projectId
 
   // Parse the file whenever a new one is selected and the modal opens
   useEffect(() => {
@@ -691,6 +822,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
     setPlan(null)
     setResult(null)
     setServerErrors([])
+    setChosenFormat(null)
 
     file.text().then((text) => {
       const parseResult: ParseResult = parseImportCSV(text)
@@ -698,10 +830,16 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
       const { features: f, pbis: p } = projectItems.current
       // A Parent resolves against the project as well as the file, so the preview
       // has to know what the project holds or it over-reports orphans.
-      setPreview(buildPreview(
+      const nextPreview = buildPreview(
         parseResult,
         new Set(f.map((feat) => feat.id).filter((id): id is number => id != null)),
-      ))
+      )
+      setPreview(nextPreview)
+      // No default format — but the last answer for this project is a fair guess
+      // at the next export from the same machine.
+      if (nextPreview.hasCompletionColumns && nextPreview.dateFormat.kind === 'ambiguous') {
+        setChosenFormat(loadDateFormat(projectIdRef.current, nextPreview.dateFormat.candidates))
+      }
       setCandidates(computeCandidates(parseResult.removedItems, f, p, projectPIs.current))
       setReparents(computeReparents(selectImportRows(parseResult), f, p))
       setTypeChanges(computeTypeChanges(selectImportRows(parseResult), f, p))
@@ -756,15 +894,34 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
     setRemoveSelection(new Set(candidates.map((c) => c.systemId)))
   }
 
+  const hasCompletionColumns = preview?.hasCompletionColumns ?? false
+  const readFormat = preview === null ? null : effectiveFormat(preview.dateFormat, chosenFormat)
+  // Several formats fit and none is chosen: the file cannot be read yet.
+  const needsFormat =
+    hasCompletionColumns && preview?.dateFormat.kind === 'ambiguous' && chosenFormat === null
+
+  const dateSamples = useMemo(
+    () => (parsed === null ? [] : sampleDates(parsed.rows, readFormat)),
+    [parsed, readFormat],
+  )
+
+  function chooseFormat(format: DateFormat) {
+    setChosenFormat(format)
+    saveDateFormat(projectId, format)
+  }
+
   /** The exact body both the dry run and the import are given, so what was
    *  reviewed is what runs. */
   function buildRequest(): CsvImportRequest {
     return {
-      rows: rowsToImport.map(parsedRowToCsvRow),
+      rows: rowsToImport.map((r) =>
+        parsedRowToCsvRow(r, hasCompletionColumns ? readFormat : undefined)),
       // Forced children are handled by cascade, but including them is harmless and explicit.
       removals: Array.from(new Set([...removeSelection, ...forced])),
       // A file with no State column must leave every State untouched.
       has_state_column: preview?.hasStateColumn ?? false,
+      // Likewise a file with neither Closed Date nor Resolved Date leaves every date.
+      has_completion_columns: hasCompletionColumns,
       apply_reparenting: applyReparenting,
       apply_type_changes: applyTypeChanges,
     }
@@ -819,6 +976,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
     setPlan(null)
     setResult(null)
     setServerErrors([])
+    setChosenFormat(null)
     onClose()
   }
 
@@ -857,6 +1015,15 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
                 <>
                   <PreviewTable preview={preview} />
 
+                  {hasCompletionColumns && preview.dateFormat.kind === 'ambiguous' && (
+                    <DateFormatChoice
+                      candidates={preview.dateFormat.candidates}
+                      value={chosenFormat}
+                      onChange={chooseFormat}
+                      samples={dateSamples}
+                    />
+                  )}
+
                   {typeChanges.length > 0 && !preview.hasErrors && (
                     <TypeChangePanel
                       changes={typeChanges}
@@ -890,6 +1057,12 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
                 </>
               )}
 
+              {needsFormat && !(preview?.hasErrors ?? false) && (
+                <p id="date-format-required" className="mt-4 text-xs text-gray-500 dark:text-gray-400 text-right">
+                  Choose the date format to continue.
+                </p>
+              )}
+
               <div className="flex justify-end gap-3 mt-6">
                 <button
                   type="button"
@@ -902,7 +1075,8 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
                 <button
                   type="button"
                   onClick={handleConfirm}
-                  disabled={preview === null || preview.hasErrors}
+                  disabled={preview === null || preview.hasErrors || needsFormat}
+                  aria-describedby={needsFormat ? 'date-format-required' : undefined}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   {candidates.length > 0 ? 'Next' : 'Review changes'}
@@ -988,7 +1162,10 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
               {plan === null ? (
                 <p className="text-sm text-gray-400">Working it out…</p>
               ) : (
-                <ReviewList plan={plan.plan ?? []} truncated={plan.plan_truncated ?? false} />
+                <>
+                  <ReviewList plan={plan.plan ?? []} truncated={plan.plan_truncated ?? false} />
+                  <CompletionOutcome result={plan} />
+                </>
               )}
 
               <div className="flex justify-end gap-3 mt-6">
@@ -1037,6 +1214,8 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
                   )}
                 </tbody>
               </table>
+
+              <CompletionOutcome result={result} />
 
               {(result.items_retyped ?? 0) > 0 && (
                 <p className="text-xs text-gray-500 mt-2">
