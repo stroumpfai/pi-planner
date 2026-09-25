@@ -53,9 +53,16 @@ async def _team(client, name: str = "Platform", members: int = 1) -> dict:
 
 
 async def _project(client, team_id: str, name: str, effort_unit: str = "pts", **fields) -> dict:
-    resp = await client.post("/api/v1/projects/", json={"name": name, "effort_unit": effort_unit})
+    resp = await client.post("/api/v1/projects/", json={"name": name})
     assert resp.status_code == 201, resp.text
     project = resp.json()
+    if effort_unit != "pts":
+        # Create takes no unit; it is set by editing the project, as the app does.
+        resp = await client.patch(
+            f"/api/v1/projects/{project['system_id']}", json={"effort_unit": effort_unit}
+        )
+        assert resp.status_code == 200, resp.text
+        project = resp.json()
     resp = await client.post(
         f"{_TEAMS}/{team_id}/projects", json={"project_id": project["system_id"], **fields}
     )
@@ -257,6 +264,8 @@ async def test_achieved_items_are_listed_behind_each_cell(client, grid):
 async def test_outside_the_calendar_and_done_but_undated(client, grid):
     body = await _achievement(client, grid["team"]["system_id"])
     alpha, beta = _row(body, "Alpha"), _row(body, "Beta")
+    # Each row reads in its own project's unit.
+    assert (alpha["effort_unit"], beta["effort_unit"]) == ("pts", "sp")
     assert alpha["outside_calendar_points"] == 4.0
     assert alpha["done_undated_count"] == 1
     assert beta["outside_calendar_points"] == 0.0

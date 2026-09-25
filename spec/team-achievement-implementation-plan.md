@@ -39,7 +39,7 @@ contract. It has been done, and it did change step 2 (see Step 0).
 | 1 | Done-ness and completion dates ✅ | States carry a category; items carry a completion date |
 | 2 | Backfill — CSV completion dates ✅ | real history, imported, in any exporter's format |
 | 3 | The Achievement view ✅ | **the first real number** |
-| 4 | The velocity suggestion | the measured factor, beside the typed one |
+| 4 | The velocity suggestion ✅ (WP-4C open) | the measured factor, beside the typed one |
 
 ---
 
@@ -365,7 +365,15 @@ completed in another browser tab.
 
 ---
 
-## Step 4 — The velocity suggestion
+## Step 4 — The velocity suggestion ✅ done (2026-09-25), except WP-4C
+
+Landed with `scripts/check.sh --with-e2e` clean. WP-4A first moved the Achievement grid's assembly
+out of its route into `services/achievement_report.py`, so the suggestion reads the grid's own
+figures instead of computing them a second way. The velocity is a ratio of sums over the chosen
+sprints, not a mean of per-sprint ratios, so a short sprint weighs less than a long one.
+**WP-4C is open and needs real data:** read the suggestion against a real quarter and record it
+beside the typed factor in spec §7.
+
 
 **Ships:** the measured factor, beside the typed one. This is the answer to "compute the velocity of
 the team".

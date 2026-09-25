@@ -19,6 +19,7 @@ function seedAchievement() {
       const pid = projectRes.body.system_id
       cy.request('POST', `/api/v1/projects/${pid}/pis`, { name: 'Q2-2026', start_date: '2026-04-06' })
         .then((piRes) => {
+          cy.wrap(piRes.body.system_id).as('piId')
           cy.request('GET', `/api/v1/pis/${piRes.body.system_id}/sprints`).then((sprintRes) => {
             const first = sprintRes.body.find((s: { sprint_index: number }) => s.sprint_index === 0)
             cy.request('PATCH', `/api/v1/sprints/${first.system_id}`, {
@@ -75,3 +76,42 @@ describe('Team achievement', () => {
     cy.get('button[aria-label^="ISK Portal achieved, Q2-2026.1: 8"]').should('not.exist')
   })
 })
+
+describe('Measured velocity', () => {
+  beforeEach(() => {
+    cy.resetDb()
+    cy.login()
+    seedAchievement()
+    // Only closed sprints are measured: an open one is still accumulating.
+    cy.get<string>('@piId').then((piId) => {
+      cy.request('GET', '/api/v1/projects/').then((res) => {
+        const pid = res.body.find((p: { name: string }) => p.name === 'ISK Portal').system_id
+        cy.request('POST', `/api/v1/projects/${pid}/edit-lock/acquire`)
+        cy.request('PATCH', `/api/v1/pis/${piId}`, { state: 'closed' })
+        cy.request('POST', `/api/v1/projects/${pid}/edit-lock/release`)
+      })
+    })
+    cy.openTeam('Platform')
+    achievementTab('Projects').click()
+  })
+
+  it('suggests the measured factor, and fills it without saving', () => {
+    cy.contains('li', 'ISK Portal').contains('button', /^Edit$/).click()
+    cy.get('[role="dialog"]').within(() => {
+      // 5 pts in the one closed, dated sprint, over 10 PD: ten 8 h days at focus 1.
+      cy.get('[role="group"][aria-label="Measured velocity"]')
+        .should('contain', '0.50 pts/PD')
+        .and('contain', '(of 3 asked)')
+      cy.contains('button', 'Use this value').click()
+      cy.get('input[name="units_per_pd"]').should('have.value', '0.5')
+    })
+
+    // Filled, not saved: the assignment still holds the typed 1.5.
+    cy.request('GET', '/api/v1/teams').then((teams) => {
+      cy.request(`/api/v1/teams/${teams.body[0].system_id}/projects`).then((res) => {
+        expect(res.body[0].units_per_pd).to.eq(1.5)
+      })
+    })
+  })
+})
+

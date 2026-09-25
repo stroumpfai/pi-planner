@@ -414,7 +414,10 @@ drag the average down every time anyone looked. "Closed" means the sprint's PI i
 `closed`. The count is adjustable 1–10, defaults to 3, and with **no** closed sprints the block
 shows nothing rather than a number computed from one partial sprint.
 
-`[Use this value]` fills the input; it does not save, and it does not push. A human still types
+`[Use this value]` fills the input; it does not save, and it does not push. The block sits
+with the input it fills, so it appears only while *Derived from the team* is selected: a `manual`
+assignment has no factor field to fill. With no closed sprint to measure, the block is absent
+altogether rather than showing an empty or zero figure. A human still types
 (or accepts) the factor, and the existing review-then-apply push (teams.md §6.7) is unchanged.
 
 ---
