@@ -98,7 +98,13 @@ takes those dates instead of stamping today.
 | Neither `Closed Date` nor `Resolved Date` | Completion dates are left exactly as they are. |
 | A date in `Closed Date` (else `Resolved Date`) | Becomes the item's completion date, if its State is marked *done*. |
 | A date on an item whose State is **not** *done* | Ignored, and the row is listed in the review as a warning. |
-| Both cells blank | Clears the item's completion date. |
+| Both cells blank | Nothing changes. An item moving into a *done* State gets today's date, as it would without the column. |
+
+A blank cell never clears a date. If your project marks a State as *done* that
+Azure DevOps doesn't treat as completed (`Ready for Release`, say), ADO leaves
+`Closed Date` blank for those items, and the date the planner recorded when they
+entered that State is kept. A date is cleared only when the item moves out of a
+*done* State.
 
 `Resolved Date` is there for bugs. If your project counts a bug's `Resolved` State
 as *done*, Azure DevOps leaves `Closed Date` blank until the bug is closed, and the

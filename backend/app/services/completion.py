@@ -67,18 +67,6 @@ def apply_completion(
         pbi.completed_on = today if today is not None else utc_today()
 
 
-def clear_completion(pbi: PBI) -> bool:
-    """Remove ``pbi.completed_on`` whatever its State. Returns whether a date was removed.
-
-    For a source that says the item has no completion date — a CSV row whose date
-    columns are present but blank (§4.3) — rather than for a State change.
-    """
-    if pbi.completed_on is None:
-        return False
-    pbi.completed_on = None
-    return True
-
-
 async def load_state(db: AsyncSession, state_id: str | None) -> ProjectState | None:
     """Fetch a State by id, bypassing ``PBI.state``, which is stale once ``state_id`` moves."""
     if state_id is None:

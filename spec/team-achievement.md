@@ -147,14 +147,20 @@ not the finish.
 (§3.1), and ADO leaves `Closed Date` blank until the bug is actually closed. Where both are filled,
 `Closed Date` wins.
 
-The two completion columns follow the `State` column's three-way rule
-(`docs/csv-import-logic.md`), taken together:
+The two completion columns, taken together:
 
 | In the file | Effect |
 |---|---|
 | Neither `Closed Date` nor `Resolved Date` present | `completed_on` is left exactly as it is, for every row. |
 | A date in `Closed Date`, else in `Resolved Date` | Written to `completed_on`, provided the row's State is `done`-category (§4.1). |
-| Column(s) present, both cells blank | Clears `completed_on`. |
+| Column(s) present, both cells blank | Nothing changes. The item keeps its date, or gets today's stamp if this row moves it into done (§4.1). |
+
+**Blank cells never clear a date**, unlike a blank `State` cell. A project may declare a State
+*done* that Azure DevOps doesn't treat as completed, such as `Ready for Release`. ADO then leaves
+`Closed Date` blank for those items, and if blank cells cleared dates, every import would wipe the
+date the planner stamped when the item entered that State. A blank cell is therefore no evidence
+that an item is unfinished. A date goes only when the item leaves done (§4.2), which is also when
+ADO clears its own `Closed Date`.
 
 #### The date format belongs to the exporting machine
 
@@ -543,7 +549,7 @@ Steps 1–3 are independently useful and independently testable; steps 4–6 are
 | Item re-completed after being reopened | Fresh date, the day it finished the second time (§4.2) |
 | CSV `Closed Date` on a row whose State is not `done` | Date ignored, row reported as a warning in the preview (§4.1) |
 | CSV with no `Closed Date` column | No `completed_on` changes at all, for any row (§4.3) |
-| CSV with a blank `Closed Date` cell | Clears that item's `completed_on` (§4.3) |
+| CSV with blank completion cells on a done row | Date kept; a row entering done keeps today's stamp (§4.3) |
 | CSV dates where one format fits every cell | That format is used; the preview names it and the cell that decided it (§4.3) |
 | CSV dates where several formats fit (every day ≤ 12) | The dialog asks which format; no default; preview shows the dates as read (§4.3) |
 | CSV dates no single format fits | File refused, listing the offending cells (§4.3) |
@@ -625,7 +631,7 @@ The attribution and arithmetic, with no database where possible:
   stamps afresh; an already-done item is not re-stamped on an unrelated save; `completed_on`
   on a non-done item is `422 NOT_COMPLETED`; `PBIResponse` carries the field.
 - `test_csv_import.py` — `completed_on` written from an ISO date; `Resolved Date` used only when
-  `Closed Date` is blank; blank cells clear; both columns absent changes nothing (mirroring the
+  `Closed Date` is blank; blank cells keep the date, and keep the stamp on a row entering done; both columns absent changes nothing (mirroring the
   existing `State`-column test); date on a non-`done` row is ignored and counted.
 - `csvParser.test.ts` (frontend, where detection lives) — the step-0 sample reads as month/day/
   year from `Changed Date` evidence alone; `03.09.2026 15:06` reads as day.month; ISO with a

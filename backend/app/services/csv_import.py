@@ -16,7 +16,7 @@ from app.schemas.csv_import import (
     OrphanLocation,
     PlannedChange,
 )
-from app.services.completion import apply_completion, clear_completion, is_done, load_state
+from app.services.completion import apply_completion, is_done, load_state
 from app.services.continuation import descendant_ids, lineage_members, newest_leaf
 from app.services.events import broadcaster
 from app.services.feature_delete import delete_features
@@ -212,14 +212,13 @@ class CompletionTally:
 
     Threaded through the story upsert like ``ImportPlan``, so the dry run's counts are
     the counts of the import that actually ran. Disabled when the file had neither date
-    column: then ``apply`` is exactly the State rule, and no date is written, cleared or
-    reported because of the file.
+    column: then ``apply`` is exactly the State rule, and no date is written or reported
+    because of the file.
     """
 
     def __init__(self, enabled: bool) -> None:
         self.enabled = enabled
         self.dates_set = 0
-        self.dates_cleared = 0
         self.contradiction_rows: list[int] = []
 
     def apply(
@@ -232,24 +231,24 @@ class CompletionTally:
         """Settle ``pbi.completed_on`` for this row. Returns whether the stored date changed.
 
         The State rule runs first, with the file's date as the explicit one, so the file
-        wins over a stamp (§4.1). Then the file's own three-way rule:
+        wins over a stamp (§4.1). Then:
 
         - a date on a done-category row is written;
         - a date on any other row contradicts the source — ignored and reported, and it
           clears nothing the State rule did not already clear;
-        - blank cells clear the date. Counted only when a date held before this row goes:
-          a stamp this very row made and took back again removed nothing.
+        - blank cells change nothing. The item keeps the date it has, or the one the State
+          rule just stamped: Azure DevOps leaves Closed Date blank for a State it doesn't
+          treat as completed, even one this project has declared done, and wiping those
+          dates on every import would leave such items permanently undated. A date goes
+          only when the item leaves done, which is also when ADO clears its own.
         """
         before = pbi.completed_on
         file_date = row.completed_on if self.enabled else None
         explicit = file_date if is_done(new_state) else None
         apply_completion(pbi, old_state, new_state, explicit_date=explicit)
 
-        if self.enabled:
-            if file_date is None:
-                if clear_completion(pbi) and before is not None:
-                    self.dates_cleared += 1
-            elif explicit is None:
+        if self.enabled and file_date is not None:
+            if explicit is None:
                 self.contradiction_rows.append(row.row_number)
             elif pbi.completed_on != before:
                 self.dates_set += 1
@@ -932,7 +931,6 @@ async def execute_import(
         items_retype_blocked=retype_blocked,
         created_states=created_states,
         completion_dates_set=completion.dates_set,
-        completion_dates_cleared=completion.dates_cleared,
         completion_date_contradiction_rows=completion.contradiction_rows,
     )
 

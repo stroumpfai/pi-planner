@@ -414,15 +414,14 @@ function CompletionPreviewRows({ preview }: { readonly preview: ImportPreview })
  */
 function CompletionOutcome({ result }: { readonly result: CsvImportResult }) {
   const set = result.completion_dates_set ?? 0
-  const cleared = result.completion_dates_cleared ?? 0
   const contradictions = result.completion_date_contradiction_rows ?? []
-  if (set === 0 && cleared === 0 && contradictions.length === 0) return null
+  if (set === 0 && contradictions.length === 0) return null
 
   return (
     <div className="mt-3 space-y-1">
-      {(set > 0 || cleared > 0) && (
+      {set > 0 && (
         <p className="text-xs text-gray-600 dark:text-gray-300">
-          {set} completion {set === 1 ? 'date' : 'dates'} set · {cleared} cleared
+          {set} completion {set === 1 ? 'date' : 'dates'} set
         </p>
       )}
       {contradictions.length > 0 && (

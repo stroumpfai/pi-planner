@@ -1297,11 +1297,6 @@ export interface components {
        */
       completion_dates_set?: number;
       /**
-       * Completion Dates Cleared
-       * @default 0
-       */
-      completion_dates_cleared?: number;
-      /**
        * Completion Date Contradiction Rows
        * @default []
        */

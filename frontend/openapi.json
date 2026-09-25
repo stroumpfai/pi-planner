@@ -9780,11 +9780,6 @@
             "title": "Completion Dates Set",
             "default": 0
           },
-          "completion_dates_cleared": {
-            "type": "integer",
-            "title": "Completion Dates Cleared",
-            "default": 0
-          },
           "completion_date_contradiction_rows": {
             "items": {
               "type": "integer"

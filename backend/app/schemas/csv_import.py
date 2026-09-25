@@ -15,7 +15,8 @@ class CsvRow(BaseModel):
     state: str | None = None      # raw State cell; "" clears the item's State, None means absent
     # Closed Date, else Resolved Date, already converted to ISO by the client, which
     # owns format detection (team-achievement.md §4.3). Only read when the request's
-    # has_completion_columns is true; then None means both cells were blank → clear.
+    # has_completion_columns is true. None means both cells were blank, which changes
+    # nothing: the item keeps its date, or the stamp its State change earns.
     completed_on: date | None = None
 
     @field_validator('effort', mode='before')
@@ -126,9 +127,8 @@ class CsvImportResult(BaseModel):
     """True when the plan was capped — the counts above still cover everything."""
     created_states: int = 0  # State List entries discovered by this import
     # Completion dates (team-achievement.md §4.3). "Set" counts rows whose date was
-    # written from the file; "cleared" rows whose blank cells removed a date. A date
-    # on a row whose State is not done-category is a contradiction in the source:
-    # ignored, and its CSV row number listed rather than silently reconciled.
+    # written from the file. A date on a row whose State is not done-category is a
+    # contradiction in the source: ignored, and its CSV row number listed rather than
+    # silently reconciled. Blank cells change nothing, so there is nothing to count.
     completion_dates_set: int = 0
-    completion_dates_cleared: int = 0
     completion_date_contradiction_rows: list[int] = []

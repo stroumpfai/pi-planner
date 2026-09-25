@@ -807,7 +807,6 @@ async def test_a_done_row_takes_the_files_date(client, db, project):
     assert resp.status_code == 200
     data = resp.json()
     assert data["completion_dates_set"] == 1
-    assert data["completion_dates_cleared"] == 0
     assert data["completion_date_contradiction_rows"] == []
     assert (await _story(client, pid, 201))["completed_on"] == "2026-03-02"
 
@@ -875,7 +874,9 @@ async def test_a_contradiction_does_not_clear_a_date_the_state_keeps(client, db,
 
 
 @pytest.mark.asyncio
-async def test_blank_date_cells_clear_an_existing_date(client, db, project):
+async def test_blank_date_cells_keep_an_existing_date(client, db, project):
+    """ADO leaves Closed Date blank for a State it doesn't treat as completed, so a
+    blank cell is no evidence the item is undone. Only leaving done clears a date."""
     pid = project["system_id"]
     await _done_story_state(db, pid)
     await client.post(_url(pid), json=_dated([
@@ -884,22 +885,20 @@ async def test_blank_date_cells_clear_an_existing_date(client, db, project):
     ]))
 
     resp = await client.post(_url(pid), json=_dated([
-        # Stays done, cells blank: the file says undated.
+        # Stays done, cells blank: the date stays.
         _row(1, "story", "Login", user_id=201, state="Done"),
-        # Leaves done: the State rule clears it, not the blank cells.
+        # Leaves done: the State rule clears it.
         _row(2, "story", "Logout", user_id=202, state="Active"),
     ]))
     data = resp.json()
-    assert data["completion_dates_cleared"] == 1
     assert data["completion_dates_set"] == 0
-    assert (await _story(client, pid, 201))["completed_on"] is None
+    assert (await _story(client, pid, 201))["completed_on"] == "2026-03-02"
     assert (await _story(client, pid, 202))["completed_on"] is None
 
 
 @pytest.mark.asyncio
-async def test_blank_cells_on_a_row_entering_done_leave_it_undated(client, db, project):
-    """The file wins over the stamp in both directions, and taking back a stamp this row
-    made is not a clear of anything the project held."""
+async def test_blank_cells_on_a_row_entering_done_keep_the_stamp(client, db, project):
+    """With nothing in the file to say when, the day the planner saw it finish stands."""
     pid = project["system_id"]
     await _done_story_state(db, pid)
     await client.post(_url(pid), json={
@@ -910,8 +909,8 @@ async def test_blank_cells_on_a_row_entering_done_leave_it_undated(client, db, p
     resp = await client.post(_url(pid), json=_dated(
         [_row(1, "story", "Login", user_id=201, state="Done")]
     ))
-    assert resp.json()["completion_dates_cleared"] == 0
-    assert (await _story(client, pid, 201))["completed_on"] is None
+    assert resp.json()["completion_dates_set"] == 0
+    assert (await _story(client, pid, 201))["completed_on"] == datetime.now(timezone.utc).date().isoformat()
 
 
 @pytest.mark.asyncio
@@ -933,7 +932,7 @@ async def test_a_file_without_date_columns_leaves_every_date_alone(client, db, p
         "has_state_column": True,
     })
     data = resp.json()
-    assert (data["completion_dates_set"], data["completion_dates_cleared"]) == (0, 0)
+    assert data["completion_dates_set"] == 0
     assert data["completion_date_contradiction_rows"] == []
     assert (await _story(client, pid, 201))["completed_on"] == "2026-03-02"
     assert (await _story(client, pid, 202))["completed_on"] == "2026-03-03"
@@ -951,14 +950,17 @@ async def test_re_importing_an_unchanged_dated_file_writes_nothing(client, db, p
     ])
     first = (await client.post(_url(pid), json=request)).json()
     assert first["completion_dates_set"] == 1
+    first_stamp = (await _story(client, pid, 202))["completed_on"]
+    assert first_stamp is not None
 
     again = (await client.post(_url(pid), json=request)).json()
-    assert (again["completion_dates_set"], again["completion_dates_cleared"]) == (0, 0)
+    assert again["completion_dates_set"] == 0
     assert again["completion_date_contradiction_rows"] == []
     plan = (await client.post(_dry(pid), json=request)).json()["plan"]
     assert all(c["changes"] == [] for c in plan)
     assert (await _story(client, pid, 201))["completed_on"] == "2026-03-02"
-    assert (await _story(client, pid, 202))["completed_on"] is None
+    # Created done with blank cells: stamped, and kept on the re-import.
+    assert (await _story(client, pid, 202))["completed_on"] == first_stamp
 
 
 @pytest.mark.asyncio
@@ -980,14 +982,15 @@ async def test_a_dry_run_reports_the_same_completion_counts(client, db, project)
     assert (await _story(client, pid, 201))["completed_on"] == "2026-03-02"
     by_title = {c["title"]: c for c in dry["plan"]}
     assert by_title["Login"]["changes"] == ["completed_on"]
-    assert by_title["Logout"]["changes"] == ["completed_on"]
+    assert by_title["Logout"]["changes"] == []  # blank cells, still done: date kept
 
     real = (await client.post(_url(pid), json=request)).json()
     for key in (
-        "completion_dates_set", "completion_dates_cleared", "completion_date_contradiction_rows",
+        "completion_dates_set", "completion_date_contradiction_rows",
     ):
         assert dry[key] == real[key]
-    assert (real["completion_dates_set"], real["completion_dates_cleared"]) == (1, 1)
+    assert real["completion_dates_set"] == 1
+    assert (await _story(client, pid, 202))["completed_on"] == "2026-03-03"
     assert real["completion_date_contradiction_rows"] == [3]
 
 

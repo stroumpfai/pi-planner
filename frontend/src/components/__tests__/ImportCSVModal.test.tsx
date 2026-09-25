@@ -852,10 +852,9 @@ describe('ImportCSVModal', () => {
       expect(body.rows[0]).not.toHaveProperty('completed_on')
     })
 
-    it('shows the dates set and cleared, and the rows whose date was ignored', async () => {
+    it('shows the dates set, and the rows whose date was ignored', async () => {
       const counts = {
         completion_dates_set: 2,
-        completion_dates_cleared: 1,
         completion_date_contradiction_rows: [4, 7],
       }
       dryRun.mockResolvedValue({ ...okResult, ...counts, plan: [], plan_truncated: false })
@@ -864,13 +863,13 @@ describe('ImportCSVModal', () => {
 
       await userEvent.click(await screen.findByRole('button', { name: /review changes/i }))
       // In the dry-run review, before anything is written…
-      expect(await screen.findByText('2 completion dates set · 1 cleared')).toBeInTheDocument()
+      expect(await screen.findByText('2 completion dates set')).toBeInTheDocument()
       expect(screen.getByText(/Completion date ignored — State isn't done \(rows 4, 7\)/)).toBeInTheDocument()
 
       // …and again once it has been.
       await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
       await screen.findByText(/import complete/i)
-      expect(screen.getByText('2 completion dates set · 1 cleared')).toBeInTheDocument()
+      expect(screen.getByText('2 completion dates set')).toBeInTheDocument()
       expect(screen.getByText(/rows 4, 7/)).toBeInTheDocument()
     })
 

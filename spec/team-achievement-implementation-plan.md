@@ -201,10 +201,10 @@ import** all leave the same `completed_on`, and moving it back clears it.
 Landed with `scripts/check.sh --with-e2e` clean. The detection lives in its own module,
 `frontend/src/utils/dateFormat.ts`, rather than inside `csvParser.ts`, so the detector and the
 parser could be built at once with no shared file. The parser gathers the cells; the detector only
-decides. One consequence of §4.3's three-way rule deserves a reader's attention: blank completion
-cells clear a date **even on a row entering a done State**, because the file wins in both
-directions. A State the project marks *done* but Azure DevOps doesn't treat as completed would
-therefore lose its dates on every import.
+decides. As first built, blank completion cells cleared a date, even on a row entering a done
+State. That would have wiped every import's dates for a State the project marks *done* but Azure
+DevOps doesn't treat as completed. It was changed on review: **blank cells never clear a date**
+(spec §4.3), and the result's `completion_dates_cleared` counter went with it.
 
 
 **Ships:** real completion history, imported.
