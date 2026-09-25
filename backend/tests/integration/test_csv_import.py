@@ -776,6 +776,259 @@ async def test_import_retyping_a_done_story_clears_the_date(client, db, project)
     assert after["completed_on"] is None
 
 
+# ── Completion dates from the file (team-achievement.md §4.1, §4.3) ──────────
+
+def _dated(rows: list[dict], **kwargs) -> dict:
+    """A request from a file carrying Closed Date / Resolved Date, and a State column."""
+    return {"rows": rows, "has_state_column": True, "has_completion_columns": True, **kwargs}
+
+
+async def _done_bug_state(db, pid: str, value: str = "Resolved") -> None:
+    db.add(ProjectState(project_id=pid, item_type="bug", value=value, category="done"))
+    await db.commit()
+
+
+@pytest.mark.asyncio
+async def test_a_done_row_takes_the_files_date(client, db, project):
+    pid = project["system_id"]
+    await _done_story_state(db, pid)
+    await client.post(_url(pid), json={
+        "rows": [_row(1, "story", "Login", user_id=201, state="Done")],
+        "has_state_column": True,
+    })
+    await client.patch(
+        f"/api/v1/pbis/{(await _story(client, pid, 201))['system_id']}",
+        json={"completed_on": "2026-01-15"},
+    )
+
+    resp = await client.post(_url(pid), json=_dated(
+        [_row(2, "story", "Login", user_id=201, state="Done", completed_on="2026-03-02")]
+    ))
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["completion_dates_set"] == 1
+    assert data["completion_dates_cleared"] == 0
+    assert data["completion_date_contradiction_rows"] == []
+    assert (await _story(client, pid, 201))["completed_on"] == "2026-03-02"
+
+
+@pytest.mark.asyncio
+async def test_the_files_date_beats_the_stamp_on_a_row_moving_into_done(client, db, project):
+    pid = project["system_id"]
+    await _done_story_state(db, pid)
+    await client.post(_url(pid), json={
+        "rows": [_row(1, "story", "Login", user_id=201, state="Active")],
+        "has_state_column": True,
+    })
+
+    resp = await client.post(_url(pid), json=_dated(
+        [_row(1, "story", "Login", user_id=201, state="Done", completed_on="2025-11-20")]
+    ))
+    assert resp.json()["completion_dates_set"] == 1
+    assert (await _story(client, pid, 201))["completed_on"] == "2025-11-20"
+
+
+@pytest.mark.asyncio
+async def test_a_date_on_a_row_that_is_not_done_is_ignored_and_reported(client, db, project):
+    pid = project["system_id"]
+    await _done_story_state(db, pid)
+
+    resp = await client.post(_url(pid), json=_dated([
+        _row(2, "story", "Login", user_id=201, state="Active", completed_on="2026-03-02"),
+        _row(3, "story", "Logout", user_id=202, state="Done", completed_on="2026-03-04"),
+        _row(4, "story", "Signup", user_id=203, state="", completed_on="2026-03-05"),
+    ]))
+    data = resp.json()
+    assert data["completion_date_contradiction_rows"] == [2, 4]
+    assert data["completion_dates_set"] == 1
+    assert (await _story(client, pid, 201))["completed_on"] is None
+    assert (await _story(client, pid, 202))["completed_on"] == "2026-03-04"
+    assert (await _story(client, pid, 203))["completed_on"] is None
+
+
+@pytest.mark.asyncio
+async def test_a_contradiction_does_not_clear_a_date_the_state_keeps(client, db, project):
+    """Without a State column the item's own State decides; a date on a row whose item
+    is not done is reported, and a done item keeps what it had when its row is dated."""
+    pid = project["system_id"]
+    await _done_story_state(db, pid)
+    await client.post(_url(pid), json={
+        "rows": [
+            _row(1, "story", "Login", user_id=201, state="Active"),
+            _row(2, "story", "Logout", user_id=202, state="Done"),
+        ],
+        "has_state_column": True,
+    })
+
+    resp = await client.post(_url(pid), json={
+        "rows": [
+            _row(1, "story", "Login", user_id=201, completed_on="2026-02-01"),
+            _row(2, "story", "Logout", user_id=202, completed_on="2026-02-02"),
+        ],
+        "has_completion_columns": True,
+    })
+    data = resp.json()
+    assert data["completion_date_contradiction_rows"] == [1]
+    assert data["completion_dates_set"] == 1
+    assert (await _story(client, pid, 201))["completed_on"] is None
+    assert (await _story(client, pid, 202))["completed_on"] == "2026-02-02"
+
+
+@pytest.mark.asyncio
+async def test_blank_date_cells_clear_an_existing_date(client, db, project):
+    pid = project["system_id"]
+    await _done_story_state(db, pid)
+    await client.post(_url(pid), json=_dated([
+        _row(1, "story", "Login", user_id=201, state="Done", completed_on="2026-03-02"),
+        _row(2, "story", "Logout", user_id=202, state="Done", completed_on="2026-03-03"),
+    ]))
+
+    resp = await client.post(_url(pid), json=_dated([
+        # Stays done, cells blank: the file says undated.
+        _row(1, "story", "Login", user_id=201, state="Done"),
+        # Leaves done: the State rule clears it, not the blank cells.
+        _row(2, "story", "Logout", user_id=202, state="Active"),
+    ]))
+    data = resp.json()
+    assert data["completion_dates_cleared"] == 1
+    assert data["completion_dates_set"] == 0
+    assert (await _story(client, pid, 201))["completed_on"] is None
+    assert (await _story(client, pid, 202))["completed_on"] is None
+
+
+@pytest.mark.asyncio
+async def test_blank_cells_on_a_row_entering_done_leave_it_undated(client, db, project):
+    """The file wins over the stamp in both directions, and taking back a stamp this row
+    made is not a clear of anything the project held."""
+    pid = project["system_id"]
+    await _done_story_state(db, pid)
+    await client.post(_url(pid), json={
+        "rows": [_row(1, "story", "Login", user_id=201, state="Active")],
+        "has_state_column": True,
+    })
+
+    resp = await client.post(_url(pid), json=_dated(
+        [_row(1, "story", "Login", user_id=201, state="Done")]
+    ))
+    assert resp.json()["completion_dates_cleared"] == 0
+    assert (await _story(client, pid, 201))["completed_on"] is None
+
+
+@pytest.mark.asyncio
+async def test_a_file_without_date_columns_leaves_every_date_alone(client, db, project):
+    pid = project["system_id"]
+    await _done_story_state(db, pid)
+    await client.post(_url(pid), json=_dated([
+        _row(1, "story", "Login", user_id=201, state="Done", completed_on="2026-03-02"),
+        _row(2, "story", "Logout", user_id=202, state="Done", completed_on="2026-03-03"),
+    ]))
+
+    # Dates in the rows, but the request says the file had no date column.
+    resp = await client.post(_url(pid), json={
+        "rows": [
+            _row(1, "story", "Login", user_id=201, state="Done", completed_on="2020-01-01"),
+            _row(2, "story", "Logout", user_id=202, state="Done"),
+            _row(3, "story", "Signup", user_id=203, state="Active", completed_on="2020-01-01"),
+        ],
+        "has_state_column": True,
+    })
+    data = resp.json()
+    assert (data["completion_dates_set"], data["completion_dates_cleared"]) == (0, 0)
+    assert data["completion_date_contradiction_rows"] == []
+    assert (await _story(client, pid, 201))["completed_on"] == "2026-03-02"
+    assert (await _story(client, pid, 202))["completed_on"] == "2026-03-03"
+    assert (await _story(client, pid, 203))["completed_on"] is None
+
+
+@pytest.mark.asyncio
+async def test_re_importing_an_unchanged_dated_file_writes_nothing(client, db, project):
+    pid = project["system_id"]
+    await _done_story_state(db, pid)
+    request = _dated([
+        _row(1, "story", "Login", user_id=201, state="Done", completed_on="2026-03-02"),
+        _row(2, "story", "Logout", user_id=202, state="Done"),
+        _row(3, "story", "Signup", user_id=203, state="Active"),
+    ])
+    first = (await client.post(_url(pid), json=request)).json()
+    assert first["completion_dates_set"] == 1
+
+    again = (await client.post(_url(pid), json=request)).json()
+    assert (again["completion_dates_set"], again["completion_dates_cleared"]) == (0, 0)
+    assert again["completion_date_contradiction_rows"] == []
+    plan = (await client.post(_dry(pid), json=request)).json()["plan"]
+    assert all(c["changes"] == [] for c in plan)
+    assert (await _story(client, pid, 201))["completed_on"] == "2026-03-02"
+    assert (await _story(client, pid, 202))["completed_on"] is None
+
+
+@pytest.mark.asyncio
+async def test_a_dry_run_reports_the_same_completion_counts(client, db, project):
+    pid = project["system_id"]
+    await _done_story_state(db, pid)
+    await client.post(_url(pid), json=_dated([
+        _row(1, "story", "Login", user_id=201, state="Done", completed_on="2026-03-02"),
+        _row(2, "story", "Logout", user_id=202, state="Done", completed_on="2026-03-03"),
+    ]))
+    request = _dated([
+        _row(1, "story", "Login", user_id=201, state="Done", completed_on="2026-03-09"),
+        _row(2, "story", "Logout", user_id=202, state="Done"),
+        _row(3, "story", "Signup", user_id=203, state="Active", completed_on="2026-03-10"),
+    ])
+
+    dry = (await client.post(_dry(pid), json=request)).json()
+    # Nothing survived the preview.
+    assert (await _story(client, pid, 201))["completed_on"] == "2026-03-02"
+    by_title = {c["title"]: c for c in dry["plan"]}
+    assert by_title["Login"]["changes"] == ["completed_on"]
+    assert by_title["Logout"]["changes"] == ["completed_on"]
+
+    real = (await client.post(_url(pid), json=request)).json()
+    for key in (
+        "completion_dates_set", "completion_dates_cleared", "completion_date_contradiction_rows",
+    ):
+        assert dry[key] == real[key]
+    assert (real["completion_dates_set"], real["completion_dates_cleared"]) == (1, 1)
+    assert real["completion_date_contradiction_rows"] == [3]
+
+
+@pytest.mark.asyncio
+async def test_a_new_item_created_done_takes_the_files_date(client, db, project):
+    pid = project["system_id"]
+    await _done_story_state(db, pid)
+    resp = await client.post(_url(pid), json=_dated(
+        [_row(1, "story", "Login", user_id=201, state="Done", completed_on="2025-12-24")]
+    ))
+    assert resp.json()["completion_dates_set"] == 1
+    assert (await _story(client, pid, 201))["completed_on"] == "2025-12-24"
+
+
+@pytest.mark.asyncio
+async def test_bug_rows_take_dates_by_their_own_state_list(client, db, project):
+    """A bug's "Resolved" can be done while a story's same-named State is not."""
+    pid = project["system_id"]
+    await _done_bug_state(db, pid)
+    resp = await client.post(_url(pid), json=_dated([
+        _row(1, "bug", "Crash", user_id=301, state="Resolved", completed_on="2026-04-01"),
+        _row(2, "story", "Login", user_id=201, state="Resolved", completed_on="2026-04-02"),
+    ]))
+    data = resp.json()
+    assert data["completion_dates_set"] == 1
+    assert data["completion_date_contradiction_rows"] == [2]
+    assert (await _story(client, pid, 301))["completed_on"] == "2026-04-01"
+    assert (await _story(client, pid, 201))["completed_on"] is None
+
+
+@pytest.mark.asyncio
+async def test_feature_rows_never_carry_a_completion_date(client, project):
+    pid = project["system_id"]
+    resp = await client.post(_url(pid), json=_dated(
+        [_row(1, "feature", "Auth", user_id=101, state="Done", completed_on="2026-04-01")]
+    ))
+    data = resp.json()
+    assert data["completion_dates_set"] == 0
+    assert data["completion_date_contradiction_rows"] == []
+
+
 # ── Split features (work carried across several PIs) ──────────────────────────
 
 @pytest.fixture

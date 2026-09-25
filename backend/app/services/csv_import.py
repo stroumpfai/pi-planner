@@ -16,7 +16,7 @@ from app.schemas.csv_import import (
     OrphanLocation,
     PlannedChange,
 )
-from app.services.completion import apply_completion, load_state
+from app.services.completion import apply_completion, clear_completion, is_done, load_state
 from app.services.continuation import descendant_ids, lineage_members, newest_leaf
 from app.services.events import broadcaster
 from app.services.feature_delete import delete_features
@@ -204,6 +204,56 @@ class ImportPlan:
     @property
     def truncated(self) -> bool:
         return self.total > len(self.changes)
+
+
+class CompletionTally:
+    """Completion dates the file writes, and what it reports about them (team-achievement.md §4.3).
+
+    Threaded through the story upsert like ``ImportPlan``, so the dry run's counts are
+    the counts of the import that actually ran. Disabled when the file had neither date
+    column: then ``apply`` is exactly the State rule, and no date is written, cleared or
+    reported because of the file.
+    """
+
+    def __init__(self, enabled: bool) -> None:
+        self.enabled = enabled
+        self.dates_set = 0
+        self.dates_cleared = 0
+        self.contradiction_rows: list[int] = []
+
+    def apply(
+        self,
+        pbi: PBI,
+        old_state: ProjectState | None,
+        new_state: ProjectState | None,
+        row: CsvRow,
+    ) -> bool:
+        """Settle ``pbi.completed_on`` for this row. Returns whether the stored date changed.
+
+        The State rule runs first, with the file's date as the explicit one, so the file
+        wins over a stamp (§4.1). Then the file's own three-way rule:
+
+        - a date on a done-category row is written;
+        - a date on any other row contradicts the source — ignored and reported, and it
+          clears nothing the State rule did not already clear;
+        - blank cells clear the date. Counted only when a date held before this row goes:
+          a stamp this very row made and took back again removed nothing.
+        """
+        before = pbi.completed_on
+        file_date = row.completed_on if self.enabled else None
+        explicit = file_date if is_done(new_state) else None
+        apply_completion(pbi, old_state, new_state, explicit_date=explicit)
+
+        if self.enabled:
+            if file_date is None:
+                if clear_completion(pbi) and before is not None:
+                    self.dates_cleared += 1
+            elif explicit is None:
+                self.contradiction_rows.append(row.row_number)
+            elif pbi.completed_on != before:
+                self.dates_set += 1
+
+        return pbi.completed_on != before
 
 
 async def _resolve_row_state(
@@ -440,6 +490,7 @@ async def _upsert_one_story(
     apply_reparenting: bool,
     plan: ImportPlan,
     parent_titles: dict[str, str],
+    completion: CompletionTally,
 ) -> _StoryOutcome:
     """Create or update a single Story/Bug."""
     # Stories and Bugs draw from separate State Lists.
@@ -475,8 +526,9 @@ async def _upsert_one_story(
             # exactly as PATCH /pbis/{id} does.
             pbi.state_id = None
         # Imports are the main way items become done: stamp and clear here exactly as
-        # the REST routes do.
-        apply_completion(pbi, old_state, await load_state(db, pbi.state_id))
+        # the REST routes do, and take the file's own date when it carries one.
+        if completion.apply(pbi, old_state, await load_state(db, pbi.state_id), row):
+            changed.append("completed_on")
 
         # The file names a different feature than the one holding this story. A
         # member of the same lineage does not count: that is a split someone made
@@ -532,7 +584,7 @@ async def _upsert_one_story(
         location="backlog",
         state_id=state_id if state_changed else None,
     )
-    apply_completion(new_pbi, None, await load_state(db, new_pbi.state_id))
+    completion.apply(new_pbi, None, await load_state(db, new_pbi.state_id), row)
     db.add(new_pbi)
     plan.add(
         "created" if target is not None else "orphaned",
@@ -557,6 +609,7 @@ async def _upsert_stories(
     apply_reparenting: bool,
     plan: ImportPlan,
     parent_titles: dict[str, str],
+    completion: CompletionTally,
 ) -> tuple[_StoryOutcome, list[str]]:
     """Create or update every story row. Returns the totals and any freed groups."""
     # A story new to a split feature belongs where the work has got to, not where
@@ -584,7 +637,7 @@ async def _upsert_stories(
             db, project_id, row,
             targets.get(matched_sysid) if matched_sysid is not None else None,
             unassigned_sysid, pbi_map, has_state_column, apply_reparenting,
-            plan, parent_titles,
+            plan, parent_titles, completion,
         )
         totals = _StoryOutcome(
             created=totals.created + outcome.created,
@@ -743,6 +796,7 @@ async def execute_import(
     apply_type_changes: bool = False,
     actor: str = "",
     dry_run: bool = False,
+    has_completion_columns: bool = False,
 ) -> CsvImportResult:
     errors = _validate_rows(rows)
     if errors:
@@ -851,9 +905,10 @@ async def execute_import(
         )).all()
     }
 
+    completion = CompletionTally(has_completion_columns)
     stories, freed_group_ids = await _upsert_stories(
         db, project_id, story_rows, parent_lookup, pbi_map, unassigned_sysid,
-        has_state_column, apply_reparenting, plan, parent_titles,
+        has_state_column, apply_reparenting, plan, parent_titles, completion,
     )
     deleted_group_ids += freed_group_ids
     created_states = await _count_states(db, project_id) - states_before
@@ -875,6 +930,9 @@ async def execute_import(
         items_retype_skipped=retype_skipped,
         items_retype_blocked=retype_blocked,
         created_states=created_states,
+        completion_dates_set=completion.dates_set,
+        completion_dates_cleared=completion.dates_cleared,
+        completion_date_contradiction_rows=completion.contradiction_rows,
     )
 
     if dry_run:
