@@ -1,0 +1,8 @@
+﻿State,ID,Work Item Type,Title 1,Title 2,Effort,Parent,Iteration Path,Resolved Date,Changed Date,Closed Date,Activity
+"In Progress","101","Feature","Authentication",,,,"Planner\PI 08",,"9/14/2026 8:12:40 AM",,
+"Done","201","Product Backlog Item",,"Login form","3","101","Planner\PI 08\Sprint 08.1",,"9/22/2026 5:09:11 PM","9/3/2026 3:06:02 PM","Development"
+"Done","202","Product Backlog Item",,"Password reset","5","101","Planner\PI 08\Sprint 08.2",,"9/16/2026 11:42:10 AM","9/16/2026 11:42:10 AM","Development"
+"Resolved","301","Bug",,"Session expires too early","0.5","101","Planner\PI 08\Sprint 08.2","9/18/2026 2:15:00 PM","9/18/2026 2:15:00 PM",,
+"New","102","Feature","Reporting",,,,"Planner",,"4/10/2026 4:06:38 PM",,
+"In Progress","203","Product Backlog Item",,"CSV export of a PI","8","102","Planner\PI 08\Sprint 08.3",,"9/23/2026 10:03:28 AM",,
+"Done","204","Product Backlog Item",,"Dashboard tiles","0","102","Planner\PI 08\Sprint 08.1",,"9/1/2026 1:20:05 PM","8/28/2026 9:30:45 AM",
