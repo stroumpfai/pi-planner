@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -43,6 +44,10 @@ class PBIUpdate(BaseModel):
     group_id: str | None = None
     # An entry in the State List matching the PBI's type. Explicit null clears it.
     state_id: str | None = None
+    # Correct the completion date by hand. Only accepted while the item holds a
+    # done-category State (422 NOT_COMPLETED otherwise); explicit null is refused
+    # the same way, since leaving the done State is what clears it.
+    completed_on: date | None = None
 
 
 class PBIResponse(BaseModel):
@@ -59,6 +64,7 @@ class PBIResponse(BaseModel):
     group_id: str | None
     state_id: str | None = None
     state: str | None = None  # the State's value, resolved for display
+    completed_on: date | None = None
     project_id: str
     created_at: UtcDatetime
     modified_at: UtcDatetime

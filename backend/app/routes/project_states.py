@@ -122,11 +122,11 @@ async def rename_project_state(
     await _require_project(db, project_id)
     state = await _require_state(db, project_id, state_id)
 
-    clash = await find_state(db, project_id, state.item_type, body.value)
-    if clash is not None and clash.system_id != state_id:
-        raise _value_taken(clash.value)
-
-    state.value = body.value.strip()
+    if body.value is not None:
+        clash = await find_state(db, project_id, state.item_type, body.value)
+        if clash is not None and clash.system_id != state_id:
+            raise _value_taken(clash.value)
+        state.value = body.value.strip()
     await db.commit()
     await db.refresh(state)
     await broadcaster.broadcast(project_id, "state:updated", {"system_id": state.system_id})

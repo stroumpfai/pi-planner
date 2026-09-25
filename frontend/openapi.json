@@ -11301,6 +11301,18 @@
             ],
             "title": "State"
           },
+          "completed_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed On"
+          },
           "project_id": {
             "type": "string",
             "title": "Project Id"
@@ -11457,6 +11469,18 @@
               }
             ],
             "title": "State Id"
+          },
+          "completed_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed On"
           }
         },
         "type": "object",
@@ -12728,6 +12752,22 @@
             "maxLength": 100,
             "minLength": 1,
             "title": "Value"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "not_started",
+                  "in_progress",
+                  "done"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
           }
         },
         "type": "object",
@@ -12828,18 +12868,38 @@
       "ProjectStateUpdate": {
         "properties": {
           "value": {
-            "type": "string",
-            "maxLength": 100,
-            "minLength": 1,
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Value"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "not_started",
+                  "in_progress",
+                  "done"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
           }
         },
         "type": "object",
-        "required": [
-          "value"
-        ],
         "title": "ProjectStateUpdate",
-        "description": "Rename one entry. Every item holding it follows, since items reference by id."
+        "description": "Rename an entry, (re)categorise it, or both.\n\nItems reference States by id, so a rename carries every item with it. For\n``category`` an explicit null clears it and an absent key leaves it alone \u2014 the\nroute reads ``model_fields_set`` to tell the two apart."
       },
       "ProjectUpdate": {
         "properties": {

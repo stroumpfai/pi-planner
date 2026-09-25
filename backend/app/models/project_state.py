@@ -35,8 +35,9 @@ class ProjectState(Base):
     item_type: Mapped[str] = mapped_column(Text, nullable=False)
     value: Mapped[str] = mapped_column(Text, nullable=False)
     position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
-    # Reserved for the future progress/filtering feature: "not_started" | "in_progress" | "done".
-    # Nothing writes this yet.
+    # "not_started" | "in_progress" | "done", or null for uncategorised. Declared by
+    # the user, never inferred from ``value`` (team-achievement.md §3.1); "done" is
+    # what makes an item count as completed.
     category: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(default=func.now())
 

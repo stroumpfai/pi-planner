@@ -160,3 +160,23 @@ def test_existing_members_still_count_towards_capacity_after_upgrade(tmp_path):
         # Adding the column must not have dropped the case-insensitive name index.
         with pytest.raises(sqlite3.IntegrityError):
             conn.execute(_insert_member("m2", "t1", "alice", 1))
+
+
+def test_existing_items_get_no_completion_date_on_upgrade(tmp_path):
+    """completed_on arrives null and indexed; nothing is backfilled (team-achievement.md §9.2)."""
+    db_path = tmp_path / "completed.sqlite"
+    _alembic("head", db_path)
+
+    columns = _columns(db_path, "pbis")
+    assert "completed_on" in columns
+    with sqlite3.connect(db_path) as conn:
+        indexes = {row[1] for row in conn.execute("PRAGMA index_list('pbis')")}
+    assert "idx_pbis_completed_on" in indexes
+
+    env = {**os.environ, "DATABASE_URL": f"sqlite+aiosqlite:///{db_path}"}
+    result = subprocess.run(
+        [sys.executable, "-m", "alembic", "downgrade", "b9c0d1e2f3a4"],
+        cwd=BACKEND_DIR, env=env, capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    assert "completed_on" not in _columns(db_path, "pbis")

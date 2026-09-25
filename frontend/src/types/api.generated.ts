@@ -1844,6 +1844,8 @@ export interface components {
       state_id?: string | null;
       /** State */
       state?: string | null;
+      /** Completed On */
+      completed_on?: string | null;
       /** Project Id */
       project_id: string;
       /**
@@ -1879,6 +1881,8 @@ export interface components {
       group_id?: string | null;
       /** State Id */
       state_id?: string | null;
+      /** Completed On */
+      completed_on?: string | null;
     };
     /** PICreate */
     PICreate: {
@@ -2368,6 +2372,8 @@ export interface components {
       item_type: "feature" | "story" | "bug";
       /** Value */
       value: string;
+      /** Category */
+      category?: ("not_started" | "in_progress" | "done") | null;
     };
     /**
      * ProjectStateReorder
@@ -2410,11 +2416,17 @@ export interface components {
     };
     /**
      * ProjectStateUpdate
-     * @description Rename one entry. Every item holding it follows, since items reference by id.
+     * @description Rename an entry, (re)categorise it, or both.
+     *
+     * Items reference States by id, so a rename carries every item with it. For
+     * ``category`` an explicit null clears it and an absent key leaves it alone — the
+     * route reads ``model_fields_set`` to tell the two apart.
      */
     ProjectStateUpdate: {
       /** Value */
-      value: string;
+      value?: string | null;
+      /** Category */
+      category?: ("not_started" | "in_progress" | "done") | null;
     };
     /** ProjectUpdate */
     ProjectUpdate: {

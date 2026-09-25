@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import Float, ForeignKey, Index, Integer, Text, UniqueConstraint, func
+from sqlalchemy import Date, Float, ForeignKey, Index, Integer, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -45,6 +45,9 @@ class PBI(Base):
     state_id: Mapped[str | None] = mapped_column(
         Text, ForeignKey("project_states.system_id", ondelete="RESTRICT")
     )
+    # When the item entered a done-category State; null while it is not done.
+    # Maintained only by services/completion.py (team-achievement.md §4).
+    completed_on: Mapped[date | None] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(default=func.now())
     modified_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
 
@@ -67,5 +70,6 @@ class PBI(Base):
         Index("idx_pbis_pi", "pi_id"),
         Index("idx_pbis_group", "group_id"),
         Index("idx_pbis_state", "state_id"),
+        Index("idx_pbis_completed_on", "project_id", "completed_on"),
         UniqueConstraint("project_id", "user_id"),
     )
