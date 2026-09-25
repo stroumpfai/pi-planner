@@ -1,3 +1,5 @@
+from datetime import date
+
 from pydantic import BaseModel, field_validator
 
 from app.schemas.pbi import ValidEffort
@@ -11,6 +13,10 @@ class CsvRow(BaseModel):
     effort: ValidEffort = None
     parent_id: int | None = None  # CSV user_id of the parent Feature row
     state: str | None = None      # raw State cell; "" clears the item's State, None means absent
+    # Closed Date, else Resolved Date, already converted to ISO by the client, which
+    # owns format detection (team-achievement.md §4.3). Only read when the request's
+    # has_completion_columns is true; then None means both cells were blank → clear.
+    completed_on: date | None = None
 
     @field_validator('effort', mode='before')
     @classmethod
@@ -37,6 +43,9 @@ class CsvImportRequest(BaseModel):
     # False when the file had no State column at all, in which case State is left
     # untouched on every row rather than cleared.
     has_state_column: bool = False
+    # False when the file had neither a Closed Date nor a Resolved Date column, in
+    # which case no item's completed_on is touched (§4.3) — the State column's rule.
+    has_completion_columns: bool = False
     # Off by default: a story whose Parent has changed in the source is left where
     # planning put it unless the user opts in, because moving it can pull it off a
     # board and out of its sprint.
@@ -116,3 +125,10 @@ class CsvImportResult(BaseModel):
     plan_truncated: bool = False
     """True when the plan was capped — the counts above still cover everything."""
     created_states: int = 0  # State List entries discovered by this import
+    # Completion dates (team-achievement.md §4.3). "Set" counts rows whose date was
+    # written from the file; "cleared" rows whose blank cells removed a date. A date
+    # on a row whose State is not done-category is a contradiction in the source:
+    # ignored, and its CSV row number listed rather than silently reconciled.
+    completion_dates_set: int = 0
+    completion_dates_cleared: int = 0
+    completion_date_contradiction_rows: list[int] = []

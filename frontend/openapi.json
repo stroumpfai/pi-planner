@@ -7800,6 +7800,103 @@
         }
       }
     },
+    "/api/v1/teams/{team_id}/achievement": {
+      "get": {
+        "tags": [
+          "team-achievement"
+        ],
+        "summary": "Get Team Achievement",
+        "description": "Points achieved per sprint, per served project, and the team's PD total.\n\nA read, and only a read: every figure is computed from item data on request,\nnothing is stored or frozen (\u00a75.6).",
+        "operationId": "get_team_achievement_api_v1_teams__team_id__achievement_get",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only sprints ending on or after this date",
+              "title": "From"
+            },
+            "description": "Only sprints ending on or after this date"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only sprints starting on or before this date",
+              "title": "To"
+            },
+            "description": "Only sprints starting on or before this date"
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamAchievementResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/team-capacity/status": {
       "get": {
         "tags": [
@@ -8810,6 +8907,64 @@
         "title": "AbsenceUpdate",
         "description": "A patch. Every field optional; the merged result is validated as a whole.\n\n``member_id`` is deliberately absent \u2014 moving an absence to another person is\na delete and a create, and letting it slide across in a patch would make the\n412 banner's \"yours / theirs\" compare two different people's rows."
       },
+      "AchievedItem": {
+        "properties": {
+          "system_id": {
+            "type": "string",
+            "title": "System Id"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "item_type": {
+            "type": "string",
+            "enum": [
+              "story",
+              "bug"
+            ],
+            "title": "Item Type"
+          },
+          "effort": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Effort"
+          },
+          "completed_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Completed On"
+          }
+        },
+        "type": "object",
+        "required": [
+          "system_id",
+          "id",
+          "title",
+          "item_type",
+          "effort",
+          "completed_on"
+        ],
+        "title": "AchievedItem",
+        "description": "A story or bug behind an Achieved cell, for the expanded view (\u00a75.4)."
+      },
       "ActivityLogResponse": {
         "properties": {
           "id": {
@@ -9507,6 +9662,11 @@
             "title": "Has State Column",
             "default": false
           },
+          "has_completion_columns": {
+            "type": "boolean",
+            "title": "Has Completion Columns",
+            "default": false
+          },
           "apply_reparenting": {
             "type": "boolean",
             "title": "Apply Reparenting",
@@ -9614,6 +9774,24 @@
             "type": "integer",
             "title": "Created States",
             "default": 0
+          },
+          "completion_dates_set": {
+            "type": "integer",
+            "title": "Completion Dates Set",
+            "default": 0
+          },
+          "completion_dates_cleared": {
+            "type": "integer",
+            "title": "Completion Dates Cleared",
+            "default": 0
+          },
+          "completion_date_contradiction_rows": {
+            "items": {
+              "type": "integer"
+            },
+            "type": "array",
+            "title": "Completion Date Contradiction Rows",
+            "default": []
           }
         },
         "type": "object",
@@ -9685,6 +9863,18 @@
               }
             ],
             "title": "State"
+          },
+          "completed_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Completed On"
           }
         },
         "type": "object",
@@ -12406,6 +12596,143 @@
         "title": "PlannedChange",
         "description": "One thing an import would do, as worked out by actually doing it.\n\nProduced by the same code path that performs the import, run inside a\ntransaction that is then rolled back \u2014 so this is what will happen, not a\nsecond implementation's opinion of what should."
       },
+      "ProjectAchievementRow": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "effort_unit": {
+            "type": "string",
+            "title": "Effort Unit"
+          },
+          "share_pct": {
+            "type": "integer",
+            "title": "Share Pct"
+          },
+          "available_source": {
+            "type": "string",
+            "title": "Available Source"
+          },
+          "units_per_pd": {
+            "type": "number",
+            "title": "Units Per Pd"
+          },
+          "in_pd_total": {
+            "type": "boolean",
+            "title": "In Pd Total"
+          },
+          "committed": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Committed"
+          },
+          "achieved": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Achieved"
+          },
+          "pd_given": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Pd Given"
+          },
+          "velocity": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Velocity"
+          },
+          "achieved_items": {
+            "items": {
+              "items": {
+                "$ref": "#/components/schemas/AchievedItem"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Achieved Items"
+          },
+          "outside_calendar_points": {
+            "type": "number",
+            "title": "Outside Calendar Points"
+          },
+          "done_undated_count": {
+            "type": "integer",
+            "title": "Done Undated Count"
+          },
+          "item_types_without_done_state": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "story",
+                "bug"
+              ]
+            },
+            "type": "array",
+            "title": "Item Types Without Done State"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "name",
+          "effort_unit",
+          "share_pct",
+          "available_source",
+          "units_per_pd",
+          "in_pd_total",
+          "committed",
+          "achieved",
+          "pd_given",
+          "velocity",
+          "achieved_items",
+          "outside_calendar_points",
+          "done_undated_count",
+          "item_types_without_done_state"
+        ],
+        "title": "ProjectAchievementRow",
+        "description": "One served project, in its own unit (\u00a75.3)."
+      },
       "ProjectCapacityRow": {
         "properties": {
           "project_id": {
@@ -13545,6 +13872,105 @@
         },
         "type": "object",
         "title": "SwimlineUpdate"
+      },
+      "TeamAchievementResponse": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "anchor_project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Anchor Project Id"
+          },
+          "sprints": {
+            "items": {
+              "$ref": "#/components/schemas/CapacitySprint"
+            },
+            "type": "array",
+            "title": "Sprints"
+          },
+          "projects": {
+            "items": {
+              "$ref": "#/components/schemas/ProjectAchievementRow"
+            },
+            "type": "array",
+            "title": "Projects"
+          },
+          "team": {
+            "$ref": "#/components/schemas/TeamAchievementTotals"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "anchor_project_id",
+          "sprints",
+          "projects",
+          "team"
+        ],
+        "title": "TeamAchievementResponse"
+      },
+      "TeamAchievementTotals": {
+        "properties": {
+          "achieved_pd": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Achieved Pd"
+          },
+          "available_pd": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Available Pd"
+          },
+          "realised": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Realised"
+          }
+        },
+        "type": "object",
+        "required": [
+          "achieved_pd",
+          "available_pd",
+          "realised"
+        ],
+        "title": "TeamAchievementTotals",
+        "description": "The team row, over projects with in_pd_total only (\u00a75.3)."
       },
       "TeamCapacityResponse": {
         "properties": {

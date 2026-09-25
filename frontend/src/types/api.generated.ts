@@ -581,6 +581,16 @@ export interface paths {
      */
     get: operations["get_team_capacity_api_v1_teams__team_id__capacity_get"];
   };
+  "/api/v1/teams/{team_id}/achievement": {
+    /**
+     * Get Team Achievement
+     * @description Points achieved per sprint, per served project, and the team's PD total.
+     *
+     * A read, and only a read: every figure is computed from item data on request,
+     * nothing is stored or frozen (§5.6).
+     */
+    get: operations["get_team_achievement_api_v1_teams__team_id__achievement_get"];
+  };
   "/api/v1/team-capacity/status": {
     /**
      * Team Capacity Status
@@ -834,6 +844,30 @@ export interface components {
       halves?: (("am" | "pm")[]) | null;
       /** Interval Weeks */
       interval_weeks?: number | null;
+    };
+    /**
+     * AchievedItem
+     * @description A story or bug behind an Achieved cell, for the expanded view (§5.4).
+     */
+    AchievedItem: {
+      /** System Id */
+      system_id: string;
+      /** Id */
+      id: number | null;
+      /** Title */
+      title: string;
+      /**
+       * Item Type
+       * @enum {string}
+       */
+      item_type: "story" | "bug";
+      /** Effort */
+      effort: number | null;
+      /**
+       * Completed On
+       * Format: date
+       */
+      completed_on: string;
     };
     /** ActivityLogResponse */
     ActivityLogResponse: {
@@ -1171,6 +1205,11 @@ export interface components {
        */
       has_state_column?: boolean;
       /**
+       * Has Completion Columns
+       * @default false
+       */
+      has_completion_columns?: boolean;
+      /**
        * Apply Reparenting
        * @default false
        */
@@ -1252,6 +1291,21 @@ export interface components {
        * @default 0
        */
       created_states?: number;
+      /**
+       * Completion Dates Set
+       * @default 0
+       */
+      completion_dates_set?: number;
+      /**
+       * Completion Dates Cleared
+       * @default 0
+       */
+      completion_dates_cleared?: number;
+      /**
+       * Completion Date Contradiction Rows
+       * @default []
+       */
+      completion_date_contradiction_rows?: number[];
     };
     /** CsvRow */
     CsvRow: {
@@ -1269,6 +1323,8 @@ export interface components {
       parent_id?: number | null;
       /** State */
       state?: string | null;
+      /** Completed On */
+      completed_on?: string | null;
     };
     /** EditLockResponse */
     EditLockResponse: {
@@ -2258,6 +2314,42 @@ export interface components {
       detail?: string | null;
     };
     /**
+     * ProjectAchievementRow
+     * @description One served project, in its own unit (§5.3).
+     */
+    ProjectAchievementRow: {
+      /** Project Id */
+      project_id: string;
+      /** Name */
+      name: string;
+      /** Effort Unit */
+      effort_unit: string;
+      /** Share Pct */
+      share_pct: number;
+      /** Available Source */
+      available_source: string;
+      /** Units Per Pd */
+      units_per_pd: number;
+      /** In Pd Total */
+      in_pd_total: boolean;
+      /** Committed */
+      committed: (number | null)[];
+      /** Achieved */
+      achieved: (number | null)[];
+      /** Pd Given */
+      pd_given: (number | null)[];
+      /** Velocity */
+      velocity: (number | null)[];
+      /** Achieved Items */
+      achieved_items: components["schemas"]["AchievedItem"][][];
+      /** Outside Calendar Points */
+      outside_calendar_points: number;
+      /** Done Undated Count */
+      done_undated_count: number;
+      /** Item Types Without Done State */
+      item_types_without_done_state: ("story" | "bug")[];
+    };
+    /**
      * ProjectCapacityRow
      * @description A served project: the team's PD after its share, in the project's own unit.
      */
@@ -2663,6 +2755,30 @@ export interface components {
       name?: string | null;
       /** Order Index */
       order_index?: number | null;
+    };
+    /** TeamAchievementResponse */
+    TeamAchievementResponse: {
+      /** Team Id */
+      team_id: string;
+      /** Anchor Project Id */
+      anchor_project_id: string | null;
+      /** Sprints */
+      sprints: components["schemas"]["CapacitySprint"][];
+      /** Projects */
+      projects: components["schemas"]["ProjectAchievementRow"][];
+      team: components["schemas"]["TeamAchievementTotals"];
+    };
+    /**
+     * TeamAchievementTotals
+     * @description The team row, over projects with in_pd_total only (§5.3).
+     */
+    TeamAchievementTotals: {
+      /** Achieved Pd */
+      achieved_pd: (number | null)[];
+      /** Available Pd */
+      available_pd: (number | null)[];
+      /** Realised */
+      realised: (number | null)[];
     };
     /** TeamCapacityResponse */
     TeamCapacityResponse: {
@@ -6220,6 +6336,43 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["TeamCapacityResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Team Achievement
+   * @description Points achieved per sprint, per served project, and the team's PD total.
+   *
+   * A read, and only a read: every figure is computed from item data on request,
+   * nothing is stored or frozen (§5.6).
+   */
+  get_team_achievement_api_v1_teams__team_id__achievement_get: {
+    parameters: {
+      query?: {
+        /** @description Only sprints ending on or after this date */
+        from?: string | null;
+        /** @description Only sprints starting on or before this date */
+        to?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TeamAchievementResponse"];
         };
       };
       /** @description Validation Error */
