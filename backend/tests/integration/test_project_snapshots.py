@@ -7,6 +7,7 @@ from sqlalchemy import select
 from app.models.activity_log import ActivityLog
 from app.models.edit_lock import EditLock
 from app.models.project_snapshot import ProjectSnapshot
+from app.models.project_state import ProjectState
 
 
 @pytest.fixture
@@ -465,3 +466,62 @@ async def test_restore_reads_legacy_capacity_key(client, project, db):
 
     restored = (await client.get(f"/api/v1/pis/{pi_id}/sprints")).json()
     assert next(s for s in restored if s["sprint_index"] == 0)["available"] == 17
+
+
+# ── Completion dates and State categories (team-achievement.md §9.1) ──────────
+
+async def _seed_completed_story(client, db, pid: str) -> dict:
+    """A story dated 2026-01-15 in a done State, and an in-progress State to move it to."""
+    done = ProjectState(project_id=pid, item_type="story", value="Done", category="done")
+    active = ProjectState(project_id=pid, item_type="story", value="Active", category="in_progress")
+    db.add_all([done, active])
+    await db.commit()
+    fid = (await client.post(
+        f"/api/v1/projects/{pid}/features", json={"title": "Auth"}
+    )).json()["system_id"]
+    pbi_id = (await client.post(f"/api/v1/projects/{pid}/pbis", json={
+        "title": "Login", "parent_feature_system_id": fid, "state_id": done.system_id,
+    })).json()["system_id"]
+    resp = await client.patch(f"/api/v1/pbis/{pbi_id}", json={"completed_on": "2026-01-15"})
+    assert resp.json()["completed_on"] == "2026-01-15"
+    return {"pbi_id": pbi_id, "done": done.system_id, "active": active.system_id}
+
+
+async def test_restore_round_trips_completed_on_and_state_category(client, project, db):
+    pid = project["system_id"]
+    ids = await _seed_completed_story(client, db, pid)
+    snap = (await client.post(_snapshots_url(pid), json={"name": "Baseline"})).json()
+
+    # Reopening clears the date, so the restore has to put it back.
+    await client.patch(f"/api/v1/pbis/{ids['pbi_id']}", json={"state_id": ids["active"]})
+    assert (await client.get(f"/api/v1/pbis/{ids['pbi_id']}")).json()["completed_on"] is None
+
+    resp = await client.post(f"{_snapshots_url(pid)}{snap['system_id']}/restore")
+    assert resp.status_code == 200
+
+    restored = (await client.get(f"/api/v1/pbis/{ids['pbi_id']}")).json()
+    assert restored["state_id"] == ids["done"]
+    assert restored["completed_on"] == "2026-01-15"
+    states = (await client.get(f"/api/v1/projects/{pid}/states/")).json()
+    assert {s["value"]: s["category"] for s in states} == {"Done": "done", "Active": "in_progress"}
+
+
+async def test_restore_of_a_pre_feature_snapshot_leaves_completed_on_null(client, project, db):
+    """Snapshots taken before completion dates lack the key; they restore undated, forever."""
+    pid = project["system_id"]
+    ids = await _seed_completed_story(client, db, pid)
+    snap = (await client.post(_snapshots_url(pid), json={"name": "Legacy"})).json()
+
+    row = await db.get(ProjectSnapshot, snap["system_id"])
+    data = copy.deepcopy(row.snapshot_data)
+    for p in data["project"]["pbis"]:
+        del p["completed_on"]
+    row.snapshot_data = data
+    await db.commit()
+
+    resp = await client.post(f"{_snapshots_url(pid)}{snap['system_id']}/restore")
+    assert resp.status_code == 200
+
+    restored = (await client.get(f"/api/v1/pbis/{ids['pbi_id']}")).json()
+    assert restored["state_id"] == ids["done"]
+    assert restored["completed_on"] is None

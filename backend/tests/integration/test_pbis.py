@@ -1,6 +1,10 @@
+from datetime import datetime, timezone
+
 import pytest
 from sqlalchemy import select
 from app.models.group import Group
+from app.models.pbi import PBI
+from app.models.project_state import ProjectState
 
 
 @pytest.fixture
@@ -476,3 +480,167 @@ async def test_update_pbi_effort_to_zero(client, project, feature):
     resp = await client.patch(f"/api/v1/pbis/{p['system_id']}", json={"effort": 0})
     assert resp.status_code == 200
     assert resp.json()["effort"] == 0
+
+
+# ── Completion date (team-achievement.md §4) ─────────────────────────────────
+
+async def _state(db, pid: str, value: str, category: str | None, item_type: str = "story") -> str:
+    """Categories are set on the row directly; writing them over the States API is WP-1A."""
+    state = ProjectState(project_id=pid, item_type=item_type, value=value, category=category)
+    db.add(state)
+    await db.commit()
+    return state.system_id
+
+
+@pytest.fixture
+async def states(db, project):
+    pid = project["system_id"]
+    return {
+        "active": await _state(db, pid, "Active", "in_progress"),
+        "triage": await _state(db, pid, "Triage", None),
+        "done": await _state(db, pid, "Done", "done"),
+        "closed": await _state(db, pid, "Closed", "done"),
+    }
+
+
+def _today() -> str:
+    return datetime.now(timezone.utc).date().isoformat()
+
+
+async def _patch(client, pbi_id: str, **body):
+    return await client.patch(f"/api/v1/pbis/{pbi_id}", json=body)
+
+
+@pytest.mark.asyncio
+async def test_new_pbi_has_no_completion_date(client, pbi):
+    assert pbi["completed_on"] is None
+    assert (await client.get(f"/api/v1/pbis/{pbi['system_id']}")).json()["completed_on"] is None
+
+
+@pytest.mark.asyncio
+async def test_transition_into_done_stamps_today(client, pbi, states):
+    await _patch(client, pbi["system_id"], state_id=states["active"])
+    resp = await _patch(client, pbi["system_id"], state_id=states["done"])
+    assert resp.status_code == 200
+    assert resp.json()["completed_on"] == _today()
+    assert (await client.get(f"/api/v1/pbis/{pbi['system_id']}")).json()["completed_on"] == _today()
+
+
+@pytest.mark.asyncio
+async def test_create_in_a_done_state_stamps_today(client, project, feature, states):
+    resp = await client.post(f"/api/v1/projects/{project['system_id']}/pbis", json={
+        "title": "Already finished",
+        "parent_feature_system_id": feature["system_id"],
+        "state_id": states["done"],
+    })
+    assert resp.status_code == 201
+    assert resp.json()["completed_on"] == _today()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("target", ["active", "triage", None])
+async def test_transition_out_of_done_clears(client, pbi, states, target):
+    await _patch(client, pbi["system_id"], state_id=states["done"])
+    resp = await _patch(client, pbi["system_id"], state_id=states[target] if target else None)
+    assert resp.status_code == 200
+    assert resp.json()["completed_on"] is None
+
+
+@pytest.mark.asyncio
+async def test_switching_type_clears_the_state_and_the_date(client, pbi, states):
+    await _patch(client, pbi["system_id"], state_id=states["done"])
+    resp = await _patch(client, pbi["system_id"], item_type="bug")
+    assert resp.json()["state_id"] is None
+    assert resp.json()["completed_on"] is None
+
+
+@pytest.mark.asyncio
+async def test_re_entering_done_stamps_afresh(client, pbi, states):
+    await _patch(client, pbi["system_id"], state_id=states["done"], completed_on="2026-01-15")
+    await _patch(client, pbi["system_id"], state_id=states["active"])
+    resp = await _patch(client, pbi["system_id"], state_id=states["done"])
+    assert resp.json()["completed_on"] == _today()
+
+
+@pytest.mark.asyncio
+async def test_unrelated_edit_on_a_done_item_keeps_its_date(client, pbi, states):
+    await _patch(client, pbi["system_id"], state_id=states["done"], completed_on="2026-01-15")
+    resp = await _patch(client, pbi["system_id"], title="Renamed", effort=5)
+    assert resp.json()["completed_on"] == "2026-01-15"
+    # Re-saving the same State, or moving to another done State, is not an edge either.
+    resp = await _patch(client, pbi["system_id"], state_id=states["done"])
+    assert resp.json()["completed_on"] == "2026-01-15"
+    resp = await _patch(client, pbi["system_id"], state_id=states["closed"])
+    assert resp.json()["completed_on"] == "2026-01-15"
+
+
+@pytest.mark.asyncio
+async def test_done_but_undated_item_is_not_back_stamped(client, db, pbi, states):
+    """§9.2: items already done when the feature shipped carry no date and gain none."""
+    await _patch(client, pbi["system_id"], state_id=states["done"])
+    row = await db.get(PBI, pbi["system_id"])
+    row.completed_on = None
+    await db.commit()
+    resp = await _patch(client, pbi["system_id"], title="Touched", state_id=states["done"])
+    assert resp.json()["completed_on"] is None
+
+
+@pytest.mark.asyncio
+async def test_completed_on_on_a_non_done_item_is_refused(client, pbi, states):
+    await _patch(client, pbi["system_id"], state_id=states["active"])
+    resp = await _patch(client, pbi["system_id"], completed_on="2026-01-15")
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"] == "NOT_COMPLETED"
+
+
+@pytest.mark.asyncio
+async def test_completed_on_on_a_stateless_item_is_refused(client, pbi):
+    resp = await _patch(client, pbi["system_id"], completed_on="2026-01-15")
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"] == "NOT_COMPLETED"
+
+
+@pytest.mark.asyncio
+async def test_completed_on_with_a_move_out_of_done_is_refused(client, pbi, states):
+    """The check is against the State *after* this request's change."""
+    await _patch(client, pbi["system_id"], state_id=states["done"])
+    resp = await _patch(
+        client, pbi["system_id"], state_id=states["active"], completed_on="2026-01-15"
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"] == "NOT_COMPLETED"
+
+
+@pytest.mark.asyncio
+async def test_explicit_null_completed_on_is_refused(client, pbi, states):
+    await _patch(client, pbi["system_id"], state_id=states["done"])
+    resp = await _patch(client, pbi["system_id"], completed_on=None)
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"] == "NOT_COMPLETED"
+
+
+@pytest.mark.asyncio
+async def test_manual_correction_on_a_done_item_is_stored(client, pbi, states):
+    await _patch(client, pbi["system_id"], state_id=states["done"])
+    resp = await _patch(client, pbi["system_id"], completed_on="2026-01-15")
+    assert resp.status_code == 200
+    assert resp.json()["completed_on"] == "2026-01-15"
+    got = (await client.get(f"/api/v1/pbis/{pbi['system_id']}")).json()
+    assert got["completed_on"] == "2026-01-15"
+
+
+@pytest.mark.asyncio
+async def test_moving_into_done_with_a_date_uses_that_date(client, pbi, states):
+    await _patch(client, pbi["system_id"], state_id=states["active"])
+    resp = await _patch(
+        client, pbi["system_id"], state_id=states["done"], completed_on="2026-01-15"
+    )
+    assert resp.status_code == 200
+    assert resp.json()["completed_on"] == "2026-01-15"
+
+
+@pytest.mark.asyncio
+async def test_list_pbis_carries_the_completion_date(client, project, pbi, states):
+    await _patch(client, pbi["system_id"], state_id=states["done"], completed_on="2026-01-15")
+    listed = (await client.get(f"/api/v1/projects/{project['system_id']}/pbis")).json()
+    assert listed[0]["completed_on"] == "2026-01-15"
