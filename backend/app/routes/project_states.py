@@ -62,13 +62,23 @@ async def create_project_state(
     db: Annotated[AsyncSession, Depends(get_session)],
     _: Annotated[User, Depends(require_edit_lock)],
 ) -> ProjectStateResponse:
-    """Add a State to a list. Refused when the list already holds this value."""
+    """Add a State to a list. Refused when the list already holds this value.
+    \f
+    The State takes the category the caller declares, or none. The category is never
+    inferred from the value's wording (docs/adr/0006): a State called "Done" with no
+    category stays uncategorised until someone says otherwise.
+
+    (Text after the form feed is kept out of the OpenAPI description, which is part of
+    the checked-in contract.)
+    """
     await _require_project(db, project_id)
     clash = await find_state(db, project_id, body.item_type, body.value)
     if clash is not None:
         raise _value_taken(clash.value)
 
-    state = await get_or_create_state(db, project_id, body.item_type, body.value)
+    state = await get_or_create_state(
+        db, project_id, body.item_type, body.value, category=body.category
+    )
     if state is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -118,7 +128,16 @@ async def rename_project_state(
     db: Annotated[AsyncSession, Depends(get_session)],
     _: Annotated[User, Depends(require_edit_lock)],
 ) -> ProjectStateResponse:
-    """Rename a State. Items reference it by id, so every one of them follows."""
+    """Rename a State. Items reference it by id, so every one of them follows.
+    \f
+    Also (re)categorises it: rename, recategorise, or both in one call. A rename
+    leaves the category alone. ``category`` is changed only when the key is present
+    in the body — an explicit null clears it, an absent key keeps it. It is never
+    inferred from the value's wording (docs/adr/0006).
+
+    (Text after the form feed is kept out of the OpenAPI description, which is part of
+    the checked-in contract.)
+    """
     await _require_project(db, project_id)
     state = await _require_state(db, project_id, state_id)
 
@@ -127,6 +146,8 @@ async def rename_project_state(
         if clash is not None and clash.system_id != state_id:
             raise _value_taken(clash.value)
         state.value = body.value.strip()
+    if "category" in body.model_fields_set:
+        state.category = body.category
     await db.commit()
     await db.refresh(state)
     await broadcaster.broadcast(project_id, "state:updated", {"system_id": state.system_id})

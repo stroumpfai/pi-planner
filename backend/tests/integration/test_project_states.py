@@ -1,7 +1,8 @@
 """Integration tests for project State Lists.
 
 Covers the three independent lists (feature/story/bug), how CSV import discovers
-entries, the dedupe rule, the editor (add/rename/reorder) and the guarded delete.
+entries, the dedupe rule, the editor (add/rename/reorder), declared categories and the
+guarded delete.
 """
 import json
 
@@ -557,6 +558,201 @@ async def test_reorder_rejects_a_repeated_id(client, project):
     assert [s["value"] for s in await _states(client, pid, "feature")] == ["New", "Done"]
 
 
+# ── Categories ────────────────────────────────────────────────────────────────
+# Which States count as done is declared by a person, never inferred from wording
+# (team-achievement.md §3.1, docs/adr/0006).
+
+def _state_url(pid: str, state_id: str) -> str:
+    return f"{_states_url(pid)}{state_id}"
+
+
+@pytest.mark.asyncio
+async def test_a_state_can_be_created_with_a_category(client, project):
+    pid = project["system_id"]
+    resp = await client.post(
+        _states_url(pid), json={"item_type": "story", "value": "Shipped", "category": "done"}
+    )
+    assert resp.status_code == 201
+    assert resp.json()["category"] == "done"
+    assert [s["category"] for s in await _states(client, pid, "story")] == ["done"]
+
+
+@pytest.mark.asyncio
+async def test_a_state_created_without_a_category_is_uncategorised(client, project):
+    state = await _make_state(client, project["system_id"], "story", "Committed")
+    assert state["category"] is None
+
+
+@pytest.mark.asyncio
+async def test_a_state_worded_done_is_not_inferred_to_be_done(client, project):
+    """The anti-inference rule: the value's wording never sets a category."""
+    pid = project["system_id"]
+    for value in ("Done", "Closed", "In Progress", "New"):
+        state = await _make_state(client, pid, "story", value)
+        assert state["category"] is None, value
+    assert {s["category"] for s in await _states(client, pid)} == {None}
+
+
+@pytest.mark.asyncio
+async def test_import_creates_uncategorised_states_whatever_their_wording(client, project):
+    pid = project["system_id"]
+    rows = [
+        _row(1, "feature", "Auth", user_id=101, state="Done"),
+        _row(2, "story", "Login", user_id=201, parent_id=101, state="Done"),
+        _row(3, "bug", "Crash", user_id=202, parent_id=101, state="Closed"),
+    ]
+    resp = await client.post(_import_url(pid), json={"rows": rows, "has_state_column": True})
+    assert resp.status_code == 200
+    assert {s["category"] for s in await _states(client, pid)} == {None}
+
+
+@pytest.mark.asyncio
+async def test_import_leaves_an_existing_category_alone(client, project):
+    pid = project["system_id"]
+    resp = await client.post(
+        _states_url(pid), json={"item_type": "story", "value": "Shipped", "category": "done"}
+    )
+    assert resp.status_code == 201
+    rows = [
+        _row(1, "feature", "Auth", user_id=101),
+        _row(2, "story", "Login", user_id=201, parent_id=101, state="shipped"),
+    ]
+    resp = await client.post(_import_url(pid), json={"rows": rows, "has_state_column": True})
+    assert resp.status_code == 200
+    assert [(s["value"], s["category"]) for s in await _states(client, pid, "story")] == [
+        ("Shipped", "done")
+    ]
+
+
+@pytest.mark.asyncio
+async def test_patch_category_only_keeps_the_value(client, project):
+    pid = project["system_id"]
+    state = await _make_state(client, pid, "story", "Accepted")
+
+    resp = await client.patch(_state_url(pid, state["system_id"]), json={"category": "done"})
+    assert resp.status_code == 200
+    assert resp.json()["value"] == "Accepted"
+    assert resp.json()["category"] == "done"
+
+
+@pytest.mark.asyncio
+async def test_rename_keeps_the_category(client, project):
+    pid = project["system_id"]
+    state = await _make_state(client, pid, "story", "Accepted")
+    await client.patch(_state_url(pid, state["system_id"]), json={"category": "done"})
+
+    resp = await client.patch(_state_url(pid, state["system_id"]), json={"value": "Released"})
+    assert resp.status_code == 200
+    assert resp.json()["value"] == "Released"
+    assert resp.json()["category"] == "done"
+
+
+@pytest.mark.asyncio
+async def test_patch_can_rename_and_recategorise_at_once(client, project):
+    pid = project["system_id"]
+    state = await _make_state(client, pid, "story", "Doing")
+
+    resp = await client.patch(
+        _state_url(pid, state["system_id"]),
+        json={"value": "In Review", "category": "in_progress"},
+    )
+    assert resp.status_code == 200
+    assert (resp.json()["value"], resp.json()["category"]) == ("In Review", "in_progress")
+    assert [(s["value"], s["category"]) for s in await _states(client, pid, "story")] == [
+        ("In Review", "in_progress")
+    ]
+
+
+@pytest.mark.asyncio
+async def test_explicit_null_clears_the_category(client, project):
+    pid = project["system_id"]
+    state = await _make_state(client, pid, "story", "Accepted")
+    await client.patch(_state_url(pid, state["system_id"]), json={"category": "done"})
+
+    resp = await client.patch(_state_url(pid, state["system_id"]), json={"category": None})
+    assert resp.status_code == 200
+    assert resp.json()["category"] is None
+    assert resp.json()["value"] == "Accepted"
+
+
+@pytest.mark.asyncio
+async def test_an_unknown_category_is_rejected(client, project):
+    pid = project["system_id"]
+    state = await _make_state(client, pid, "story", "Accepted")
+
+    resp = await client.patch(_state_url(pid, state["system_id"]), json={"category": "finished"})
+    assert resp.status_code == 422
+    resp = await client.post(
+        _states_url(pid), json={"item_type": "story", "value": "Other", "category": "finished"}
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_an_empty_patch_is_rejected(client, project):
+    pid = project["system_id"]
+    state = await _make_state(client, pid, "story", "Accepted")
+
+    resp = await client.patch(_state_url(pid, state["system_id"]), json={})
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_several_states_in_one_list_may_be_done(client, project):
+    pid = project["system_id"]
+    for value in ("Done", "Released", "Won't Fix"):
+        resp = await client.post(
+            _states_url(pid), json={"item_type": "story", "value": value, "category": "done"}
+        )
+        assert resp.status_code == 201
+    assert [s["category"] for s in await _states(client, pid, "story")] == ["done"] * 3
+
+
+@pytest.mark.asyncio
+async def test_categories_are_per_item_type(client, project):
+    """A story-list "Done" and a bug-list "Done" are separate entries."""
+    pid = project["system_id"]
+    story_done = await _make_state(client, pid, "story", "Done")
+    bug_done = await _make_state(client, pid, "bug", "Done")
+
+    resp = await client.patch(_state_url(pid, story_done["system_id"]), json={"category": "done"})
+    assert resp.status_code == 200
+    assert [s["category"] for s in await _states(client, pid, "bug")] == [None]
+
+    await client.patch(_state_url(pid, bug_done["system_id"]), json={"category": "in_progress"})
+    assert [s["category"] for s in await _states(client, pid, "story")] == ["done"]
+    assert [s["category"] for s in await _states(client, pid, "bug")] == ["in_progress"]
+
+
+@pytest.mark.asyncio
+async def test_reader_cannot_categorise_a_state(client, reader_client, project):
+    pid = project["system_id"]
+    state = await _make_state(client, pid, "story", "Accepted")
+
+    resp = await reader_client.patch(_state_url(pid, state["system_id"]), json={"category": "done"})
+    assert resp.status_code == 403
+    resp = await reader_client.post(
+        _states_url(pid), json={"item_type": "story", "value": "Shipped", "category": "done"}
+    )
+    assert resp.status_code == 403
+    assert [s["category"] for s in await _states(client, pid, "story")] == [None]
+
+
+@pytest.mark.asyncio
+async def test_categorising_is_refused_while_someone_else_holds_the_edit_lock(
+    client, editor_client, project
+):
+    pid = project["system_id"]
+    state = await _make_state(client, pid, "story", "Accepted")
+    resp = await editor_client.post(f"/api/v1/projects/{pid}/edit-lock/acquire")
+    assert resp.status_code == 200
+
+    resp = await client.patch(_state_url(pid, state["system_id"]), json={"category": "done"})
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["locked_by"] == "editor_user"
+    assert [s["category"] for s in await _states(client, pid, "story")] == [None]
+
+
 # ── SSE ───────────────────────────────────────────────────────────────────────
 
 @pytest.fixture
@@ -590,6 +786,18 @@ async def test_rename_broadcasts_state_updated(client, project, captured_events)
     captured_events.clear()
 
     await client.patch(f"{_states_url(pid)}{state['system_id']}", json={"value": "In Progress"})
+
+    matching = [e for e in captured_events if e[1] == "state:updated"]
+    assert matching == [(pid, "state:updated", {"system_id": state["system_id"]})]
+
+
+@pytest.mark.asyncio
+async def test_recategorising_broadcasts_state_updated(client, project, captured_events):
+    pid = project["system_id"]
+    state = await _make_state(client, pid, "story", "Accepted")
+    captured_events.clear()
+
+    await client.patch(f"{_states_url(pid)}{state['system_id']}", json={"category": "done"})
 
     matching = [e for e in captured_events if e[1] == "state:updated"]
     assert matching == [(pid, "state:updated", {"system_id": state["system_id"]})]
