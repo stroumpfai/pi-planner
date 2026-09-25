@@ -60,12 +60,22 @@ async def _next_position(db: AsyncSession, project_id: str, item_type: str) -> i
 
 
 async def get_or_create_state(
-    db: AsyncSession, project_id: str, item_type: str, value: str
+    db: AsyncSession,
+    project_id: str,
+    item_type: str,
+    value: str,
+    *,
+    category: str | None = None,
 ) -> ProjectState | None:
     """Return the State for this value, adding it to the list if new.
 
     The state is None for a blank value — blank is the absence of a State, never an
     entry.
+
+    ``category`` is applied only to a newly created entry, and only when the caller
+    declares one: it is never inferred from the value's wording (docs/adr/0006), so
+    CSV import, which passes none, always creates uncategorised States. An existing
+    entry is returned untouched.
 
     Does not commit; the caller owns the transaction so that a failed import registers
     no vocabulary.
@@ -82,6 +92,7 @@ async def get_or_create_state(
         item_type=item_type,
         value=value.strip(),  # first spelling seen wins
         position=await _next_position(db, project_id, item_type),
+        category=category,
     )
     db.add(state)
     await db.flush()
