@@ -7,11 +7,6 @@ from dataclasses import dataclass
 from datetime import date
 from typing import TypedDict
 
-from matplotlib.axes import Axes
-from matplotlib.backends.backend_agg import FigureCanvasAgg
-from matplotlib.figure import Figure
-from matplotlib.gridspec import GridSpec
-from matplotlib.patches import Rectangle
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased
@@ -33,6 +28,7 @@ from app.services.effort import (
     sprint_utilization,
     swimline_efforts,
 )
+from app.services.rendering import Canvas, DataAxes, HAlign, text_width_in
 from app.services.work_item_url import build_work_item_url
 
 
@@ -182,7 +178,7 @@ def _capacity_bar_color(used: float, available: int) -> str:
 
 
 def _draw_sprint_header(
-    ax: Axes,
+    ax: DataAxes,
     sprints: Sequence[Sprint],
     sprint_efforts: dict[int, float],
     effort_unit: str,
@@ -191,7 +187,7 @@ def _draw_sprint_header(
 ) -> None:
     ax.set_xlim(0.0, float(num_sprints))
     ax.set_ylim(0.0, 1.0)
-    ax.axis("off")
+    ax.axis_off()
 
     for i in range(num_sprints):
         matching = [s for s in sprints if s.sprint_index == i]
@@ -200,14 +196,11 @@ def _draw_sprint_header(
         used = sprint_efforts.get(i, 0.0)
         pct = used / cap if cap > 0 else 0.0
 
-        ax.add_patch(Rectangle(
-            (i + 0.02, 0.02), 0.96, 0.96,
-            facecolor="#f8fafc", edgecolor="#e2e8f0", linewidth=0.5,
-        ))
+        ax.rect(i + 0.02, 0.02, 0.96, 0.96, facecolor="#f8fafc", edgecolor="#e2e8f0", linewidth=0.5)
 
         name_y = 0.88 if show_effort else 0.78
         ax.text(i + 0.5, name_y, f"Sprint {i + 1}",
-                ha="center", va="top", fontsize=8, fontweight="bold", color="#374151")
+                ha="center", va="top", fontsize=8, bold=True, color="#374151")
 
         if sprint and (sprint.start_date or sprint.end_date):
             date_y = 0.67 if show_effort else 0.52
@@ -221,17 +214,14 @@ def _draw_sprint_header(
                     ha="center", va="top", fontsize=7, color="#6b7280")
 
             bx, by, bw, bh = i + 0.08, 0.14, 0.84, 0.13
-            ax.add_patch(Rectangle((bx, by), bw, bh, facecolor="#e2e8f0", edgecolor="none"))
+            ax.rect(bx, by, bw, bh, facecolor="#e2e8f0")
             fill_w = min(pct, 1.0) * bw
             if fill_w > 0:
-                ax.add_patch(Rectangle(
-                    (bx, by), fill_w, bh,
-                    facecolor=_capacity_bar_color(used, cap), edgecolor="none",
-                ))
+                ax.rect(bx, by, fill_w, bh, facecolor=_capacity_bar_color(used, cap))
 
 
 def _draw_events(
-    ax: Axes,
+    ax: DataAxes,
     events: Sequence[PIEvent],
     dated_sprints: list[tuple[int, date, date]],
     num_sprints: int,
@@ -242,62 +232,54 @@ def _draw_events(
         if x is None:
             continue
         color = EVENT_COLORS.get(event.event_type, "#6b7280")
-        ax.axvline(x=x, color=color, linestyle="--", linewidth=0.8, zorder=3, alpha=0.8)
+        ax.vline(x, color=color, linestyle="--", linewidth=0.8, zorder=3, alpha=0.8)
         ax.text(
             x, bottom_y, event.name,
-            rotation=-45, va="top", ha="left", fontsize=7, color=color,
-            rotation_mode="anchor", clip_on=False,
+            rotation=-45, va="top", ha="left", fontsize=7, color=color, clip_on=False,
         )
 
 
-def _apply_title(fig: Figure, pi: PI, opts: PNGExportOptions,
+def _apply_title(canvas: Canvas, pi: PI, opts: PNGExportOptions,
                  effort: float, available: int, effort_unit: str) -> None:
     if opts.show_pi_effort:
         pct = round(effort / available * 100) if available > 0 else 0
         title = f"{pi.name}  ·  Total: {effort:g} / {available} {effort_unit}  ({pct}%)"
     else:
         title = pi.name
-    fig.suptitle(title, fontsize=10, fontweight="bold")
+    canvas.title(title, fontsize=10, bold=True)
 
 
-def _apply_footer(ax_footer: Axes) -> None:
+def _apply_footer(ax_footer: DataAxes) -> None:
     date_str = date.today().strftime("%Y-%m-%d")
     ax_footer.text(
-        1.0, 0.5, f"Exported {date_str}", transform=ax_footer.transAxes,
+        1.0, 0.5, f"Exported {date_str}",
         ha="right", va="center", fontsize=7, color="#9ca3af",
     )
 
 
-def _make_figure(fig_width: float, header_h: float, main_h: float,
-                 show_export_date: bool) -> tuple[Figure, Axes, Axes, Axes | None]:
-    """Build the standard header / main (/ optional footer) figure scaffold."""
+def _make_canvas(fig_width: float, header_h: float, main_h: float,
+                 show_export_date: bool) -> tuple[Canvas, DataAxes, DataAxes, DataAxes | None]:
+    """Build the standard header / main (/ optional footer) canvas scaffold."""
     footer_h = 0.25 if show_export_date else 0.0
-    fig = Figure(figsize=(fig_width, header_h + main_h + footer_h), dpi=150, layout="constrained")
-    FigureCanvasAgg(fig)
+    canvas = Canvas(fig_width, header_h + main_h + footer_h, dpi=150)
     if show_export_date:
-        gs = GridSpec(3, 1, figure=fig, height_ratios=[header_h, main_h, footer_h], hspace=0.05)
-        ax_header = fig.add_subplot(gs[0])
-        ax = fig.add_subplot(gs[1])
-        ax_footer = fig.add_subplot(gs[2])
-        ax_footer.axis("off")
-        return fig, ax_header, ax, ax_footer
-    gs = GridSpec(2, 1, figure=fig, height_ratios=[header_h, main_h], hspace=0.05)
-    ax_header = fig.add_subplot(gs[0])
-    ax = fig.add_subplot(gs[1])
-    return fig, ax_header, ax, None
+        ax_header, ax, ax_footer = canvas.rows([header_h, main_h, footer_h])
+        ax_footer.set_xlim(0.0, 1.0)
+        ax_footer.set_ylim(0.0, 1.0)
+        return canvas, ax_header, ax, ax_footer
+    ax_header, ax = canvas.rows([header_h, main_h])
+    return canvas, ax_header, ax, None
 
 
-def _fig_to_png(fig: Figure) -> bytes:
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight")
-    buf.seek(0)
-    return buf.read()
-
-
-def _truncate(text: str, max_chars: int) -> str:
-    if max_chars <= 1 or len(text) <= max_chars:
+def _truncate_to_width(text: str, max_width_in: float, fontsize: float, bold: bool = False) -> str:
+    """Truncate `text`, appending "…", until it fits `max_width_in` at `fontsize`
+    — measured against the actual rendered glyph widths rather than an
+    approximate chars-per-inch heuristic."""
+    if max_width_in <= 0 or text_width_in(text, fontsize, bold=bold) <= max_width_in:
         return text
-    return text[: max_chars - 1].rstrip() + "…"
+    while text and text_width_in(text + "…", fontsize, bold=bold) > max_width_in:
+        text = text[:-1]
+    return (text.rstrip() + "…") if text else "…"
 
 
 async def _placed_pbis_for_pi(
@@ -433,7 +415,7 @@ async def _build_roadmap_figure(
     main_h = max(1.5, n * 0.35 + 1.0)
     fig_width = max(10.0, num_sprints * 2.2)
 
-    fig, ax_header, ax, ax_footer = _make_figure(fig_width, HEADER_H, main_h, opts.show_export_date)
+    canvas, ax_header, ax, ax_footer = _make_canvas(fig_width, HEADER_H, main_h, opts.show_export_date)
 
     _draw_sprint_header(ax_header, ctx.sprints, ctx.sprint_efforts, effort_unit, num_sprints,
                         show_effort=opts.show_sprint_effort)
@@ -443,6 +425,8 @@ async def _build_roadmap_figure(
 
     # y = 0 is bottom; place first swimline at top
     y_positions = [i * ROW_SPACING for i in range(n - 1, -1, -1)]
+
+    ax.set_xlim(0.0, float(num_sprints))
 
     for i, swimline in enumerate(swimlines):
         y = y_positions[i]
@@ -461,6 +445,7 @@ async def _build_roadmap_figure(
         else:
             label = swimline.name
 
+        ha: HAlign
         if opts.swimlane_text_center:
             text_x = left + width / 2.0
             ha = "center"
@@ -469,32 +454,25 @@ async def _build_roadmap_figure(
             ha = "left"
 
         ax.text(text_x, y, label,
-                va="center", ha=ha, fontsize=8, color=text_color, fontweight="bold")
+                va="center", ha=ha, fontsize=8, color=text_color, bold=True)
 
     bottom_y = -BAR_HEIGHT / 2 - 0.1
 
     if opts.show_events:
         _draw_events(ax, ctx.events, ctx.dated_sprints, num_sprints, bottom_y)
 
-    ax.set_yticks([])
-    ax.set_xlim(0.0, float(num_sprints))
-    ax.set_xticks([])  # sprint info is in the header row above
-
     for i in range(1, num_sprints):
-        ax.axvline(x=float(i), color="#e2e8f0", linewidth=0.8, zorder=0)
+        ax.vline(float(i), color="#e2e8f0", linewidth=0.8, zorder=0)
 
-    _apply_title(fig, ctx.pi, opts, ctx.effort, available, effort_unit)
+    _apply_title(canvas, ctx.pi, opts, ctx.effort, available, effort_unit)
 
     if ax_footer is not None:
         _apply_footer(ax_footer)
 
     top_y = (n - 1) * ROW_SPACING + BAR_HEIGHT / 2 + 0.05
     ax.set_ylim(bottom_y, top_y)
-    for spine in ("top", "right", "left", "bottom"):
-        ax.spines[spine].set_visible(False)
-    ax.tick_params(left=False)
 
-    return _fig_to_png(fig)
+    return canvas.to_png()
 
 
 def _build_list_figure(
@@ -508,31 +486,27 @@ def _build_list_figure(
     opts, num_sprints = ctx.opts, ctx.num_sprints
     fig_width = max(10.0, num_sprints * 2.2)
     col_width_in = fig_width / num_sprints
-    # approx chars that fit a column at fontsize 7.5 (~0.06in/char incl. padding)
-    max_chars = max(12, int(col_width_in * 14))
+    # available width for a PBI label within a column, after left/right padding
+    max_width_in = max(0.5, col_width_in - 0.16)
 
     LINE_H = 0.22  # inches per PBI text line
     HEADER_H = 1.0
 
     if opts.split_by_swimline:
-        bands = _list_bands_by_swimline(ctx, placed, max_chars)
+        bands = _list_bands_by_swimline(ctx, placed, max_width_in)
         main_h = max(1.5, HEADER_H + sum(b["height"] for b in bands) * LINE_H)
     else:
-        columns = _list_flat_columns(ctx, placed, max_chars)
+        columns = _list_flat_columns(ctx, placed, max_width_in)
         max_lines = max((len(c) for c in columns), default=0)
         main_h = max(1.5, (max_lines + 1) * LINE_H + 0.5)
 
-    fig, ax_header, ax, ax_footer = _make_figure(fig_width, HEADER_H, main_h, opts.show_export_date)
+    canvas, ax_header, ax, ax_footer = _make_canvas(fig_width, HEADER_H, main_h, opts.show_export_date)
 
     _draw_sprint_header(ax_header, ctx.sprints, ctx.sprint_efforts, ctx.effort_unit, num_sprints,
                         show_effort=opts.show_sprint_effort)
 
     ax.set_xlim(0.0, float(num_sprints))
     ax.set_ylim(0.0, 1.0)
-    ax.set_xticks([])
-    ax.set_yticks([])
-    for spine in ("top", "right", "left", "bottom"):
-        ax.spines[spine].set_visible(False)
 
     if opts.split_by_swimline:
         _draw_list_bands(ax, bands)
@@ -541,21 +515,21 @@ def _build_list_figure(
 
     # vertical sprint separators (drawn on top of the body, matching the roadmap look)
     for i in range(1, num_sprints):
-        ax.axvline(x=float(i), color="#e2e8f0", linewidth=0.8, zorder=1)
+        ax.vline(float(i), color="#e2e8f0", linewidth=0.8, zorder=1)
 
     if opts.show_events:
         _draw_events(ax, ctx.events, ctx.dated_sprints, num_sprints, 0.0)
 
-    _apply_title(fig, ctx.pi, opts, ctx.effort, ctx.available, ctx.effort_unit)
+    _apply_title(canvas, ctx.pi, opts, ctx.effort, ctx.available, ctx.effort_unit)
 
     if ax_footer is not None:
         _apply_footer(ax_footer)
 
-    return _fig_to_png(fig)
+    return canvas.to_png()
 
 
 def _list_flat_columns(
-    ctx: _RenderContext, placed: list[tuple[int | None, str, int, str]], max_chars: int
+    ctx: _RenderContext, placed: list[tuple[int | None, str, int, str]], max_width_in: float
 ) -> list[list[str]]:
     """Return, per sprint index, the ordered list of PBI labels (flat, no swimline split)."""
     order = {s.system_id: (s.order_index if s.order_index is not None else 1_000_000)
@@ -563,13 +537,15 @@ def _list_flat_columns(
     columns: list[list[tuple[int, str]]] = [[] for _ in range(ctx.num_sprints)]
     for user_id, title, sprint_index, swimline_id in placed:
         if 0 <= sprint_index < ctx.num_sprints:
-            label = _truncate(_pbi_label(user_id, title, ctx.opts.show_id), max_chars)
+            label = _truncate_to_width(
+                _pbi_label(user_id, title, ctx.opts.show_id), max_width_in, fontsize=7.5
+            )
             columns[sprint_index].append((order.get(swimline_id, 1_000_000), label))
     return [[label for _, label in sorted(col, key=lambda t: t[0])] for col in columns]
 
 
 def _list_bands_by_swimline(
-    ctx: _RenderContext, placed: list[tuple[int | None, str, int, str]], max_chars: int
+    ctx: _RenderContext, placed: list[tuple[int | None, str, int, str]], max_width_in: float
 ) -> list[_ListBand]:
     """Return one band per swimline that has placed PBIs, each with per-sprint label lists."""
     by_swimline: dict[str, list[list[str]]] = {}
@@ -578,7 +554,7 @@ def _list_bands_by_swimline(
             continue
         cols = by_swimline.setdefault(swimline_id, [[] for _ in range(ctx.num_sprints)])
         cols[sprint_index].append(
-            _truncate(_pbi_label(user_id, title, ctx.opts.show_id), max_chars)
+            _truncate_to_width(_pbi_label(user_id, title, ctx.opts.show_id), max_width_in, fontsize=7.5)
         )
 
     bands: list[_ListBand] = []
@@ -595,7 +571,7 @@ def _list_bands_by_swimline(
     return bands
 
 
-def _draw_list_flat(ax: Axes, columns: list[list[str]]) -> None:
+def _draw_list_flat(ax: DataAxes, columns: list[list[str]]) -> None:
     max_lines = max((len(c) for c in columns), default=1)
     step = 0.9 / max(1, max_lines)
     for i, col in enumerate(columns):
@@ -608,7 +584,7 @@ def _draw_list_flat(ax: Axes, columns: list[list[str]]) -> None:
             y -= step
 
 
-def _draw_list_bands(ax: Axes, bands: list[_ListBand]) -> None:
+def _draw_list_bands(ax: DataAxes, bands: list[_ListBand]) -> None:
     total_lines = sum(b["height"] for b in bands) or 1
     step = 1.0 / total_lines
     y = 1.0
@@ -616,7 +592,7 @@ def _draw_list_bands(ax: Axes, bands: list[_ListBand]) -> None:
         # swimline band header spanning the full width
         ax.text(
             0.06, y - step * 0.5, b["name"], va="center", ha="left",
-            fontsize=8, fontweight="bold", color="#1f2937", clip_on=True,
+            fontsize=8, bold=True, color="#1f2937", clip_on=True,
         )
         first_line_y = y - step  # first PBI line, below the header
         for sprint_index, col in enumerate(b["columns"]):
@@ -630,7 +606,7 @@ def _draw_list_bands(ax: Axes, bands: list[_ListBand]) -> None:
         y -= step * b["height"]
         # horizontal separator between bands
         if b is not bands[-1]:
-            ax.axhline(y=y, color="#e2e8f0", linewidth=0.8, zorder=0)
+            ax.hline(y, color="#e2e8f0", linewidth=0.8, zorder=0)
 
 
 # Text colour per utilization status, chosen for contrast against the _UTIL_COLORS fill.
@@ -643,22 +619,22 @@ _HEATMAP_TEXT_COLORS: dict[str, str] = {
 
 
 def _draw_grid_header(
-    ax_header: Axes, sprints: Sequence[Sprint], num_sprints: int, x_lo: float, x_hi: float
+    ax_header: DataAxes, sprints: Sequence[Sprint], num_sprints: int, x_lo: float, x_hi: float
 ) -> None:
     """Sprint-name column headers (+ dates) and the right "Total" header for a grid layout."""
     ax_header.set_xlim(x_lo, x_hi)
     ax_header.set_ylim(0.0, 1.0)
-    ax_header.axis("off")
+    ax_header.axis_off()
     for j in range(num_sprints):
         ax_header.text(j + 0.5, 0.62, f"Sprint {j + 1}", ha="center", va="center",
-                       fontsize=8, fontweight="bold", color="#374151")
+                       fontsize=8, bold=True, color="#374151")
         sprint = next((s for s in sprints if s.sprint_index == j), None)
         if sprint and (sprint.start_date or sprint.end_date):
             ax_header.text(j + 0.5, 0.26,
                            f"{_fmt_date(sprint.start_date)} – {_fmt_date(sprint.end_date)}",
                            ha="center", va="center", fontsize=6.5, color="#6b7280")
     ax_header.text(num_sprints + 0.5, 0.62, "Total", ha="center", va="center",
-                   fontsize=8, fontweight="bold", color="#374151")
+                   fontsize=8, bold=True, color="#374151")
 
 
 def _build_heatmap_figure(
@@ -689,7 +665,7 @@ def _build_heatmap_figure(
     fig_width = max(10.0, (LABEL_W + n_cols_total) * COL_W_IN)
     main_h = max(1.5, n_rows * ROW_H_IN + 0.4)
 
-    fig, ax_header, ax, ax_footer = _make_figure(fig_width, HEADER_H, main_h, opts.show_export_date)
+    canvas, ax_header, ax, ax_footer = _make_canvas(fig_width, HEADER_H, main_h, opts.show_export_date)
 
     x_lo = -LABEL_W
     x_hi = float(num_sprints + 1)
@@ -700,23 +676,21 @@ def _build_heatmap_figure(
     # main grid
     ax.set_xlim(x_lo, x_hi)
     ax.set_ylim(0.0, float(n_rows))
-    ax.axis("off")
+    ax.axis_off()
 
     def draw_cell(col: int, row_top: int, facecolor: str, text: str, text_color: str,
                   bold: bool = False, edgecolor: str = "white") -> None:
         # row_top counts from the top (0 = first lane); each row band spans one unit
         y0 = n_rows - 1 - row_top
-        ax.add_patch(Rectangle(
-            (col + 0.03, y0 + 0.06), 0.94, 0.88,
-            facecolor=facecolor, edgecolor=edgecolor, linewidth=1.0,
-        ))
+        ax.rect(col + 0.03, y0 + 0.06, 0.94, 0.88, facecolor=facecolor, edgecolor=edgecolor, linewidth=1.0)
         if text:
             ax.text(col + 0.5, y0 + 0.5, text, ha="center", va="center",
-                    fontsize=7.5, color=text_color, fontweight="bold" if bold else "normal")
+                    fontsize=7.5, color=text_color, bold=bold)
 
     for row, swimline in enumerate(swimlines):
-        ax.text(-0.12, n_rows - 1 - row + 0.5, _truncate(swimline.name, 22),
-                ha="right", va="center", fontsize=8, fontweight="bold",
+        name = _truncate_to_width(swimline.name, LABEL_W - 0.3, fontsize=8, bold=True)
+        ax.text(-0.12, n_rows - 1 - row + 0.5, name,
+                ha="right", va="center", fontsize=8, bold=True,
                 color="#1f2937", clip_on=False)
         team_total = 0.0
         for j in range(num_sprints):
@@ -736,7 +710,7 @@ def _build_heatmap_figure(
 
     # bottom totals row: per-sprint load vs Available (the real over-commit check)
     ax.text(-0.12, 0.5, "Total", ha="right", va="center", fontsize=8,
-            fontweight="bold", color="#1f2937", clip_on=False)
+            bold=True, color="#1f2937", clip_on=False)
     for j in range(num_sprints):
         sprint_total = sum(cell_efforts.get((j, s.system_id), 0.0) for s in swimlines)
         cap = cap_by_index.get(j, 0)
@@ -748,12 +722,12 @@ def _build_heatmap_figure(
     draw_cell(num_sprints, n_lanes, _UTIL_COLORS[gstatus],
               f"{ctx.effort:g}/{ctx.available}", _HEATMAP_TEXT_COLORS[gstatus], bold=True)
 
-    _apply_title(fig, ctx.pi, opts, ctx.effort, ctx.available, ctx.effort_unit)
+    _apply_title(canvas, ctx.pi, opts, ctx.effort, ctx.available, ctx.effort_unit)
 
     if ax_footer is not None:
         _apply_footer(ax_footer)
 
-    return _fig_to_png(fig)
+    return canvas.to_png()
 
 
 # Backlog-composition palette: story-type items ("PBI") vs bug-type items.
@@ -761,15 +735,14 @@ _COMPOSITION_PBI_COLOR = "#1f2937"  # slate-800
 _COMPOSITION_BUG_COLOR = "#ef4444"  # red-500 — matches the app's bug accent
 
 
-def _draw_count_pair(ax: Axes, cx: float, cy: float, pbi: int, bug: int,
+def _draw_count_pair(ax: DataAxes, cx: float, cy: float, pbi: int, bug: int,
                      bold: bool = False) -> None:
     """Draw ``pbi · bug`` centred at (cx, cy): PBI count dark, Bug count red."""
-    weight = "bold" if bold else "normal"
     ax.text(cx - 0.11, cy, f"{pbi}", ha="right", va="center", fontsize=7.5,
-            color=_COMPOSITION_PBI_COLOR, fontweight=weight)
+            color=_COMPOSITION_PBI_COLOR, bold=bold)
     ax.text(cx, cy, "·", ha="center", va="center", fontsize=7.5, color="#9ca3af")
     ax.text(cx + 0.11, cy, f"{bug}", ha="left", va="center", fontsize=7.5,
-            color=_COMPOSITION_BUG_COLOR, fontweight=weight)
+            color=_COMPOSITION_BUG_COLOR, bold=bold)
 
 
 def _build_composition_figure(
@@ -797,7 +770,7 @@ def _build_composition_figure(
     fig_width = max(10.0, (LABEL_W + n_cols_total) * COL_W_IN)
     main_h = max(1.5, n_rows * ROW_H_IN + 0.4)
 
-    fig, ax_header, ax, ax_footer = _make_figure(fig_width, HEADER_H, main_h, opts.show_export_date)
+    canvas, ax_header, ax, ax_footer = _make_canvas(fig_width, HEADER_H, main_h, opts.show_export_date)
 
     x_lo = -LABEL_W
     x_hi = float(num_sprints + 1)
@@ -805,21 +778,18 @@ def _build_composition_figure(
     _draw_grid_header(ax_header, ctx.sprints, num_sprints, x_lo, x_hi)
     # colour legend in the top-left gutter
     ax_header.text(x_lo + 0.05, 0.62, "PBIs", ha="left", va="center", fontsize=7,
-                   fontweight="bold", color=_COMPOSITION_PBI_COLOR)
+                   bold=True, color=_COMPOSITION_PBI_COLOR)
     ax_header.text(x_lo + 0.05, 0.26, "Bugs", ha="left", va="center", fontsize=7,
-                   fontweight="bold", color=_COMPOSITION_BUG_COLOR)
+                   bold=True, color=_COMPOSITION_BUG_COLOR)
 
     ax.set_xlim(x_lo, x_hi)
     ax.set_ylim(0.0, float(n_rows))
-    ax.axis("off")
+    ax.axis_off()
 
     def draw_box(col: int, row_top: int, facecolor: str, edgecolor: str) -> float:
         """Draw a cell rectangle; return its centre y."""
         y0 = n_rows - 1 - row_top
-        ax.add_patch(Rectangle(
-            (col + 0.03, y0 + 0.06), 0.94, 0.88,
-            facecolor=facecolor, edgecolor=edgecolor, linewidth=1.0,
-        ))
+        ax.rect(col + 0.03, y0 + 0.06, 0.94, 0.88, facecolor=facecolor, edgecolor=edgecolor, linewidth=1.0)
         return y0 + 0.5
 
     def draw_count_cell(col: int, row_top: int, pbi: int, bug: int,
@@ -833,8 +803,9 @@ def _build_composition_figure(
 
     grand_pbi = grand_bug = 0
     for row, swimline in enumerate(swimlines):
-        ax.text(-0.12, n_rows - 1 - row + 0.5, _truncate(swimline.name, 22),
-                ha="right", va="center", fontsize=8, fontweight="bold",
+        name = _truncate_to_width(swimline.name, LABEL_W - 0.3, fontsize=8, bold=True)
+        ax.text(-0.12, n_rows - 1 - row + 0.5, name,
+                ha="right", va="center", fontsize=8, bold=True,
                 color="#1f2937", clip_on=False)
         team_pbi = team_bug = 0
         for j in range(num_sprints):
@@ -848,16 +819,16 @@ def _build_composition_figure(
 
     # bottom totals row: per-sprint PBI/Bug counts
     ax.text(-0.12, 0.5, "Total", ha="right", va="center", fontsize=8,
-            fontweight="bold", color="#1f2937", clip_on=False)
+            bold=True, color="#1f2937", clip_on=False)
     for j in range(num_sprints):
         col_pbi = sum(cell_counts.get((j, s.system_id), (0, 0))[0] for s in swimlines)
         col_bug = sum(cell_counts.get((j, s.system_id), (0, 0))[1] for s in swimlines)
         draw_count_cell(j, n_lanes, col_pbi, col_bug, total=True)
     draw_count_cell(num_sprints, n_lanes, grand_pbi, grand_bug, total=True)
 
-    _apply_title(fig, ctx.pi, opts, ctx.effort, ctx.available, ctx.effort_unit)
+    _apply_title(canvas, ctx.pi, opts, ctx.effort, ctx.available, ctx.effort_unit)
 
     if ax_footer is not None:
         _apply_footer(ax_footer)
 
-    return _fig_to_png(fig)
+    return canvas.to_png()

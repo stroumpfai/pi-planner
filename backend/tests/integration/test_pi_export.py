@@ -5,9 +5,22 @@ import io
 
 import pytest
 from httpx import AsyncClient
+from PIL import Image
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.effort import sprint_swimline_efforts, sprint_swimline_item_counts
+
+
+def _assert_decodable_png(content: bytes, *, min_width: int = 200, min_height: int = 100) -> None:
+    """Decode the PNG and sanity-check it's a real, non-blank rendered image —
+    a step beyond the magic-byte/size checks the rest of this file uses, since
+    the renderer (Pillow, see app/services/rendering.py) is otherwise never
+    exercised for actual pixel content in this suite."""
+    image = Image.open(io.BytesIO(content))
+    image.load()
+    assert image.width >= min_width
+    assert image.height >= min_height
+    assert image.getcolors(maxcolors=2) is None  # more than a couple of flat colors
 
 
 # ---------------------------------------------------------------------------
@@ -268,6 +281,7 @@ async def test_png_export_returns_image(client: AsyncClient, planned_pi: dict) -
     # PNG signature: first 8 bytes are \x89PNG\r\n\x1a\n
     assert resp.content[:8] == b"\x89PNG\r\n\x1a\n"
     assert len(resp.content) > 1000  # non-trivial PNG
+    _assert_decodable_png(resp.content)
 
 
 @pytest.mark.asyncio
@@ -399,6 +413,8 @@ async def test_png_export_list_layout(
     assert resp.headers["content-type"] == "image/png"
     assert resp.content[:8] == PNG_SIGNATURE
     assert len(resp.content) > 1000
+    if not param:
+        _assert_decodable_png(resp.content)
 
 
 @pytest.mark.asyncio
@@ -537,6 +553,8 @@ async def test_png_export_heatmap_layout(
     assert resp.headers["content-type"] == "image/png"
     assert resp.content[:8] == PNG_SIGNATURE
     assert len(resp.content) > 1000
+    if not param:
+        _assert_decodable_png(resp.content)
 
 
 @pytest.mark.asyncio
@@ -650,6 +668,8 @@ async def test_png_export_composition_layout(
     assert resp.headers["content-type"] == "image/png"
     assert resp.content[:8] == PNG_SIGNATURE
     assert len(resp.content) > 1000
+    if not param:
+        _assert_decodable_png(resp.content)
 
 
 @pytest.mark.asyncio

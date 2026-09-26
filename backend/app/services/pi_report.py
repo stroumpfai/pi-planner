@@ -11,6 +11,7 @@ renderers consume, so the two output formats never drift.
 from __future__ import annotations
 
 import io
+import math
 from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 
@@ -646,33 +647,78 @@ def render_breakdown_markdown(model: BreakdownModel, show_ids: bool, show_states
 
 # ── PDF renderers (ReportLab) ────────────────────────────────────────────────
 
+def _nice_tick_step(rough_step: float) -> float:
+    """Round `rough_step` up to a "nice" 1/2/5 × power-of-ten step."""
+    magnitude: float = 10 ** math.floor(math.log10(rough_step))
+    for m in (1, 2, 5, 10):
+        step = m * magnitude
+        if step >= rough_step:
+            return step
+    return 10 * magnitude  # pragma: no cover - unreachable, satisfies mypy
+
+
+def _nice_ticks(max_value: float, target_count: int = 5) -> list[float]:
+    if max_value <= 0:
+        return [0.0]
+    step = _nice_tick_step(max_value / target_count)
+    ticks = [0.0]
+    while ticks[-1] < max_value - step * 0.001:
+        ticks.append(ticks[-1] + step)
+    return ticks
+
+
 def _sprint_chart_png(model: ReadoutModel) -> bytes | None:
     """A small horizontal load-vs-Available bar chart for the readout PDF."""
     if not model.sprints:
         return None
-    from matplotlib.backends.backend_agg import FigureCanvasAgg
-    from matplotlib.figure import Figure
+    from app.services.rendering import Canvas
 
-    fig = Figure(figsize=(6.0, 0.4 * len(model.sprints) + 0.6), dpi=150, layout="constrained")
-    FigureCanvasAgg(fig)
-    ax = fig.add_subplot(111)
-    labels = [f"Sprint {s.number}" for s in model.sprints]
-    y = range(len(model.sprints))
-    ax.barh(list(y), [s.available for s in model.sprints], color="#e5e7eb", label="Available")
-    ax.barh(list(y), [s.effort for s in model.sprints],
-            color=[_STATUS_COLOR[s.status] for s in model.sprints], height=0.5, label="Load")
-    ax.set_yticks(list(y))
-    ax.set_yticklabels(labels, fontsize=8)
-    ax.invert_yaxis()
-    ax.tick_params(axis="x", labelsize=8)
-    for spine in ("top", "right"):
-        ax.spines[spine].set_visible(False)
-    ax.legend(fontsize=7, loc="lower right")
+    n = len(model.sprints)
+    fig_w, fig_h = 6.0, 0.4 * n + 0.6
+    raw_max = max(
+        max((s.available for s in model.sprints), default=0.0),
+        max((s.effort for s in model.sprints), default=0.0),
+    )
+    ticks = _nice_ticks(raw_max)
+    x_max = max(ticks[-1], raw_max * 1.05, 1.0)
 
-    buf = io.BytesIO()
-    fig.savefig(buf, format="png", bbox_inches="tight")
-    buf.seek(0)
-    return buf.read()
+    LEFT_IN = 0.9
+    BOTTOM_IN = 0.3
+    plot_w = fig_w - LEFT_IN
+    plot_h = fig_h - BOTTOM_IN
+
+    canvas = Canvas(fig_w, fig_h, dpi=150)
+    ax = canvas.sub(LEFT_IN, 0.0, plot_w, plot_h)
+    ax.set_xlim(0.0, x_max)
+    ax.set_ylim(0.0, float(n))
+
+    BAR_H = 0.8
+    LOAD_H = 0.5
+    for i, s in enumerate(model.sprints):
+        y_center = n - 0.5 - i
+        ax.barh(y_center, s.available, color="#e5e7eb", height=BAR_H)
+        ax.barh(y_center, s.effort, color=_STATUS_COLOR[s.status], height=LOAD_H)
+        ax.text(-0.06, y_center, f"Sprint {s.number}", ha="right", va="center",
+                fontsize=8, color="#374151")
+    ax.hline(0.0, color="#374151", linewidth=0.8)
+    ax.vline(0.0, color="#374151", linewidth=0.8)
+
+    axis_ax = canvas.sub(LEFT_IN, plot_h, plot_w, BOTTOM_IN)
+    axis_ax.set_xlim(0.0, x_max)
+    axis_ax.set_ylim(0.0, 1.0)
+    for tick in ticks:
+        axis_ax.text(tick, 1.0, f"{tick:g}", ha="center", va="top", fontsize=8, color="#374151")
+
+    # legend, bottom-right of the plot area (matches the original's loc="lower right")
+    for i, (name, color) in enumerate([("Load", _STATUS_COLOR["ok"]), ("Available", "#e5e7eb")]):
+        ly = 0.35 + i * 0.3
+        swatch_w = 0.05 * x_max
+        lx = x_max - 0.02 * x_max
+        ax.rect(lx - swatch_w, ly - 0.08, swatch_w, 0.16, facecolor=color)
+        ax.text(lx - swatch_w - 0.02 * x_max, ly, name, ha="right", va="center",
+                fontsize=7, color="#374151")
+
+    return canvas.to_png()
 
 
 def render_readiness_pdf(model: ReadinessModel) -> bytes:
