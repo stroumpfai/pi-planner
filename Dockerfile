@@ -18,7 +18,7 @@ WORKDIR /app
 # Install Python dependencies (separate layer for cache efficiency)
 RUN pip install --no-cache-dir \
     "fastapi>=0.138.1" \
-    "uvicorn[standard]>=0.49.0" \
+    "uvicorn>=0.49.0" \
     "sqlalchemy[asyncio]>=2.0.51" \
     "alembic>=1.18.5" \
     "aiosqlite>=0.22.1" \
