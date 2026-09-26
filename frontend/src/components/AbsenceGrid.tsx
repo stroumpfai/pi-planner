@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { NOT_COUNTED_RULE, NotCountedChip } from '@/components/NotCountedChip'
 import type { Absence, TeamMember } from '@/types'
 import {
   MIN_DAY_WIDTH,
@@ -245,6 +246,10 @@ export function AbsenceGrid({
   }
 
   const counted = range ? countHalfDaysIn(range, members, days) : 0
+  // The caller lists members who count first; the rule goes above the first who
+  // does not. Keyboard moves and drag ranges run straight across it — an absence
+  // is as real for someone below the rule as above it.
+  const firstNotCounted = members.findIndex((m) => m.counts_towards_capacity === false)
 
   return (
     <div className="relative min-w-max">
@@ -260,12 +265,21 @@ export function AbsenceGrid({
         className="touch-none select-none outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded-lg"
       >
         {members.map((member, memberIndex) => (
-          <div key={member.system_id} role="row" className="flex items-center h-12 min-w-0">
+          <div
+            key={member.system_id}
+            role="row"
+            className={`flex items-center h-12 min-w-0 ${
+              memberIndex === firstNotCounted && memberIndex > 0 ? NOT_COUNTED_RULE : ''
+            }`}
+          >
+            {/* The chip goes under the name, not beside it: the column is too
+                narrow to hold both without cutting most names short. */}
             <div
               role="rowheader"
-              className="w-[140px] shrink-0 pr-2 text-sm text-gray-700 dark:text-gray-200 truncate"
+              className="w-[140px] shrink-0 pr-2 text-sm text-gray-700 dark:text-gray-200"
             >
-              {member.name}
+              <span className="block truncate">{member.name}</span>
+              {member.counts_towards_capacity === false && <NotCountedChip />}
             </div>
             {/* The days divide whatever width is left over, down to a floor.
                 No measurement: flex fills a wide screen and stops shrinking at

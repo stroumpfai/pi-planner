@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { CapacityCell } from '@/components/CapacityCell'
+import { CapacityMembersSummary } from '@/components/CapacityMembersSummary'
 import { TimelineMinimap } from '@/components/TimelineMinimap'
 import { useTeamCapacity } from '@/hooks/useTeamProjects'
 import type { CapacitySprint, MemberCapacityRow, ProjectCapacityRow } from '@/types'
@@ -10,6 +11,7 @@ import {
   sprintOffsetFor,
   windowHoldsMonth,
 } from '@/utils/capacityMinimap'
+import { splitByCapacity } from '@/utils/capacityMembers'
 import { COMPACT_SELECT } from '@/utils/compactSelect'
 import { fmt1, sprintDateRange, sprintLabel } from '@/utils/sprintLabels'
 import {
@@ -82,8 +84,7 @@ export function TeamCapacityView({ teamId, onOpenProjects }: Props) {
   const sprints = useMemo(() => data?.sprints ?? [], [data])
   // Above the rule: the people the Team total is the sum of. Below it: people
   // tracked for their absences only — shown, never totalled (§3.2, §7.6).
-  const counted = useMemo(() => data?.members.filter((m) => m.counts_towards_capacity) ?? [], [data])
-  const notCounted = useMemo(() => data?.members.filter((m) => !m.counts_towards_capacity) ?? [], [data])
+  const { counted, notCounted } = useMemo(() => splitByCapacity(data?.members ?? []), [data])
   const months = useMemo(() => monthsFrom(minimapStart, stripMonths), [minimapStart, stripMonths])
 
   // The bars: person-days absences and meetings took out of each month (§7.6).
@@ -192,6 +193,8 @@ export function TeamCapacityView({ teamId, onOpenProjects }: Props) {
           day. Click a figure to see how it was reached.
         </p>
       </div>
+
+      <CapacityMembersSummary members={data.members} />
 
       {/* The same strip the absences view carries, over the same months and with
           the same three ways to move — what differs is what a bar counts and

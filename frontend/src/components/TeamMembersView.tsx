@@ -14,6 +14,7 @@ import {
   verticalListSortingStrategy,
 } from '@dnd-kit/sortable'
 import { AddMemberModal } from '@/components/AddMemberModal'
+import { CapacityMembersSummary } from '@/components/CapacityMembersSummary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EditMemberModal } from '@/components/EditMemberModal'
 import { MEMBER_COLUMNS, MEMBER_COLUMNS_READER, TeamMemberRow } from '@/components/TeamMemberRow'
@@ -21,6 +22,7 @@ import { useDeleteMember, useReorderMembers, useTeamMembers } from '@/hooks/useT
 import { MEMBER_CHANGED_MESSAGE, memberErrorCode } from '@/services/teamMembers'
 import { useAuthStore } from '@/stores/authStore'
 import type { TeamMember } from '@/types'
+import { splitByCapacity } from '@/utils/capacityMembers'
 
 interface Props {
   readonly teamId: string
@@ -35,6 +37,11 @@ interface Props {
  * duplication is deliberate: order is a preference people set rarely and often
  * from a keyboard, and a pointer-only gesture would leave it unreachable for some
  * of them.
+ *
+ * Members who count come first and those who do not follow a dashed rule, as in
+ * every team view. Order is kept within each group, and a move never crosses the
+ * rule: which side someone is on is the `counts_towards_capacity` flag, and a drag
+ * must not flip a flag that restates every sprint (ADR 0005).
  */
 export function TeamMembersView({ teamId, onOpenWorkingDays }: Props) {
   const { data: members, isLoading } = useTeamMembers(teamId)
@@ -52,10 +59,13 @@ export function TeamMembersView({ teamId, onOpenWorkingDays }: Props) {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
-  const rows = members ?? []
+  const { counted, notCounted } = splitByCapacity(members ?? [])
+  const rows = [...counted, ...notCounted]
+  /** Whether a row sits above the rule — the group a move has to stay inside. */
+  const countsAt = (index: number) => index < counted.length
 
   const move = (from: number, to: number) => {
-    if (to < 0 || to >= rows.length || from === to) return
+    if (to < 0 || to >= rows.length || from === to || countsAt(from) !== countsAt(to)) return
     const order = rows.map((m) => m.system_id)
     const [moved] = order.splice(from, 1)
     order.splice(to, 0, moved)
@@ -87,12 +97,11 @@ export function TeamMembersView({ teamId, onOpenWorkingDays }: Props) {
 
   return (
     <div className="p-6 space-y-4">
-      {/* The Meetings header, exactly: what the view is, the one thing you can
-          add to it, and then the caption pushed to the far side. The add button
-          belongs next to the title rather than across the page from it — it acts
-          on this view, and at the right edge it read as a page-level action. The
-          count moves into the caption slot, which is where a fact about the list
-          rather than a control belongs. */}
+      {/* The Meetings header: what the view is and the one thing you can add to
+          it. The add button belongs next to the title rather than across the page
+          from it — it acts on this view, and at the right edge it read as a
+          page-level action. The count is in the summary line beneath, which
+          every team view shares. */}
       <div className="flex flex-wrap items-center gap-3">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Members</h2>
         {canEdit && (
@@ -104,10 +113,9 @@ export function TeamMembersView({ teamId, onOpenWorkingDays }: Props) {
             + Add member
           </button>
         )}
-        <p className="ml-auto text-xs text-gray-400 dark:text-gray-500">
-          {rows.length === 1 ? '1 member' : `${rows.length} members`}
-        </p>
       </div>
+
+      <CapacityMembersSummary members={rows} />
 
       {isLoading ? (
         <p className="text-sm text-gray-400 dark:text-gray-500">Loading members…</p>
@@ -150,8 +158,9 @@ export function TeamMembersView({ teamId, onOpenWorkingDays }: Props) {
                   key={member.system_id}
                   member={member}
                   canEdit={canEdit}
-                  isFirst={index === 0}
-                  isLast={index === rows.length - 1}
+                  isFirst={index === 0 || index === counted.length}
+                  isLast={index === rows.length - 1 || index === counted.length - 1}
+                  startsNotCounted={index === counted.length && index > 0}
                   onEdit={() => setEditing(member)}
                   onDelete={() => { setDeleteError(null); setDeleting(member) }}
                   onMoveUp={() => move(index, index - 1)}

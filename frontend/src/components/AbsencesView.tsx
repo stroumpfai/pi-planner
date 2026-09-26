@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AbsenceDialog, type AbsenceDraft } from '@/components/AbsenceDialog'
 import { AbsenceGrid, AbsenceLegend } from '@/components/AbsenceGrid'
 import { AbsenceMinimap } from '@/components/AbsenceMinimap'
+import { CapacityMembersSummary } from '@/components/CapacityMembersSummary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { useAbsences, useDeleteAbsence } from '@/hooks/useAbsences'
 import { useTeamMembers } from '@/hooks/useTeamMembers'
@@ -9,6 +10,7 @@ import { absenceErrorCode, staleAbsence } from '@/services/absences'
 import { useAuthStore } from '@/stores/authStore'
 import { COMPACT_SELECT } from '@/utils/compactSelect'
 import type { Absence } from '@/types'
+import { splitByCapacity } from '@/utils/capacityMembers'
 import {
   DEFAULT_STRIP_MONTHS,
   GRID_MONTHS,
@@ -99,7 +101,12 @@ export function AbsencesView({ teamId }: Props) {
   const [conflict, setConflict] = useState<{ mine: Absence; theirs: Absence } | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const rows = useMemo(() => members ?? [], [members])
+  // Members who count, then those who do not, as in every team view. The grid
+  // and the drag-to-create range both index into this one order.
+  const rows = useMemo(() => {
+    const { counted, notCounted } = splitByCapacity(members ?? [])
+    return [...counted, ...notCounted]
+  }, [members])
   const entries = useMemo(() => absences ?? [], [absences])
 
   // The grid draws only its own four months; the minimap keeps the whole year.
@@ -184,6 +191,8 @@ export function AbsencesView({ teamId }: Props) {
           {canEdit ? 'Drag across cells to create · click an entry to edit' : 'Read-only'}
         </p>
       </div>
+
+      <CapacityMembersSummary members={rows} />
 
       <div className="bg-canvas shadow-soft rounded-xl p-4 space-y-4">
         <AbsenceMinimap
