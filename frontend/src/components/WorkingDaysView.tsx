@@ -1,11 +1,14 @@
 import { useState } from 'react'
+import { CapacityMembersSummary } from '@/components/CapacityMembersSummary'
 import { ChangePatternModal } from '@/components/ChangePatternModal'
 import { DateInput } from '@/components/DateInput'
 import { HalfDayToggles } from '@/components/HalfDayToggles'
+import { NOT_COUNTED_RULE, NotCountedChip } from '@/components/NotCountedChip'
 import { useTeamMembers, useUpdatePatternVersion } from '@/hooks/useTeamMembers'
 import { MEMBER_CHANGED_MESSAGE, memberErrorCode } from '@/services/teamMembers'
 import { useAuthStore } from '@/stores/authStore'
 import type { TeamMember } from '@/types'
+import { splitByCapacity } from '@/utils/capacityMembers'
 import { fmtDate } from '@/utils/dates'
 import {
   FOCUS_STEPS,
@@ -48,7 +51,13 @@ export function WorkingDaysView({ teamId, focusMemberId = null }: Props) {
   const [changing, setChanging] = useState<TeamMember | null>(null)
   const [error, setError] = useState<string | null>(null)
 
-  const rows = order(members ?? [], focusMemberId)
+  // Members who count, then those who do not, as in every team view. A focused
+  // member leads their own group rather than jumping the rule.
+  const { counted, notCounted } = splitByCapacity(members ?? [])
+  const rows = [...order(counted, focusMemberId), ...order(notCounted, focusMemberId)]
+  // The weekday heads write to every row, below the rule too: a non-counted
+  // member's pattern still decides which of their days an absence falls on.
+  const everyone = notCounted.length > 0 ? 'everyone, including members not counted' : 'everyone'
   const today = todayIso()
 
   const write = async (member: TeamMember, body: Record<string, unknown>) => {
@@ -124,6 +133,8 @@ export function WorkingDaysView({ teamId, focusMemberId = null }: Props) {
         </p>
       </div>
 
+      <CapacityMembersSummary members={rows} />
+
       {error && <p role="alert" className="text-xs text-red-600">{error}</p>}
 
       {isLoading ? (
@@ -153,7 +164,7 @@ export function WorkingDaysView({ teamId, focusMemberId = null }: Props) {
                   disabled={!canEdit}
                   onClick={() => toggleWeekday(day)}
                   aria-label={`Toggle ${WEEKDAY_LABELS[day]} for everyone`}
-                  title={`Toggle ${WEEKDAY_LABELS[day]} for everyone`}
+                  title={`Toggle ${WEEKDAY_LABELS[day]} for ${everyone}`}
                   className={`w-[42px] text-[10px] uppercase tracking-wide rounded-md py-0.5 disabled:cursor-not-allowed ${
                     isWeekend(day)
                       ? 'text-gray-300 dark:text-gray-600'
@@ -165,26 +176,30 @@ export function WorkingDaysView({ teamId, focusMemberId = null }: Props) {
               ))}
             </div>
           </li>
-          {rows.map((member) => {
+          {rows.map((member, index) => {
             const version = member.effective_version
             const backdated = version !== null && version !== undefined && version.effective_from < today
+            const startsNotCounted = index === counted.length && index > 0
             return (
-              <li key={member.system_id} className="px-4 py-3">
+              <li key={member.system_id} className={`px-4 py-3 ${startsNotCounted ? NOT_COUNTED_RULE : ''}`}>
                 <div className="flex flex-wrap items-center gap-4">
                   <div className="w-44 shrink-0">
-                    {canEdit && version ? (
-                      <button
-                        type="button"
-                        onClick={() => toggleMember(member)}
-                        aria-label={`Toggle every half-day for ${member.name}`}
-                        title="Toggle the whole week"
-                        className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate hover:text-blue-600 text-left"
-                      >
-                        {member.name}
-                      </button>
-                    ) : (
-                      <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{member.name}</p>
-                    )}
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {canEdit && version ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleMember(member)}
+                          aria-label={`Toggle every half-day for ${member.name}`}
+                          title="Toggle the whole week"
+                          className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate hover:text-blue-600 text-left"
+                        >
+                          {member.name}
+                        </button>
+                      ) : (
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{member.name}</p>
+                      )}
+                      {member.counts_towards_capacity === false && <NotCountedChip />}
+                    </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                       {version ? `version from ${fmtDate(version.effective_from)}` : 'no version'}
                     </p>

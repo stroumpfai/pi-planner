@@ -225,6 +225,34 @@ describe('MeetingsView', () => {
     expect(screen.getByText('0.0 h')).toBeInTheDocument()
   })
 
+  it('keeps a member who does not count out of the total, under a heading of their own', async () => {
+    respondWith({
+      members: [
+        { ...member('m-1', 'Marta Lindqvist'), counts_towards_capacity: false },
+        member('m-2', 'Rui Domingues'),
+      ],
+      meetings: [meeting({ member_ids: ['m-1', 'm-2'] })],
+      capacity: capacity({
+        members: [
+          { member_id: 'm-1', name: 'Marta Lindqvist', counts_towards_capacity: false, cells: [breakdown(2), null] },
+          { member_id: 'm-2', name: 'Rui Domingues', counts_towards_capacity: true, cells: [breakdown(3), null] },
+        ],
+      }),
+    })
+    render(<MeetingsView teamId="t-1" />, { wrapper: wrapper() })
+
+    // Rui's 3.0 h twice — his row and the total — and Marta's 2.0 h beside it.
+    await waitFor(() => expect(screen.getAllByText('3.0 h')).toHaveLength(2))
+    expect(screen.getByText('+2.0 h not counted')).toBeInTheDocument()
+
+    const rows = screen.getAllByRole('row').map((row) => row.textContent ?? '')
+    const rui = rows.findIndex((text) => text.startsWith('Rui Domingues'))
+    const heading = rows.findIndex((text) => text === 'Not counted towards capacity')
+    const marta = rows.findIndex((text) => text.startsWith('Marta Lindqvist'))
+    expect(rui).toBeLessThan(heading)
+    expect(heading).toBeLessThan(marta)
+  })
+
   it('expands occurrences over the selected sprint, which is what the totals count', async () => {
     render(<MeetingsView teamId="t-1" />, { wrapper: wrapper() })
     await screen.findByRole('columnheader', { name: /Sprint planning/ })

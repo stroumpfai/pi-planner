@@ -1,6 +1,7 @@
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu'
 import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
+import { NOT_COUNTED_RULE, NotCountedChip } from '@/components/NotCountedChip'
 import type { TeamMember } from '@/types'
 import { fmtDate } from '@/utils/dates'
 
@@ -26,6 +27,8 @@ interface Props {
   readonly onOpenWorkingDays: () => void
   readonly isFirst: boolean
   readonly isLast: boolean
+  /** The first member who does not count: the dashed rule goes above this row. */
+  readonly startsNotCounted?: boolean
 }
 
 /**
@@ -51,6 +54,7 @@ export function TeamMemberRow({
   onOpenWorkingDays,
   isFirst,
   isLast,
+  startsNotCounted = false,
 }: Props) {
   const { setNodeRef, setActivatorNodeRef, attributes, listeners, transform, transition, isDragging } =
     useSortable({ id: member.system_id, disabled: !canEdit })
@@ -63,7 +67,7 @@ export function TeamMemberRow({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={`grid ${canEdit ? MEMBER_COLUMNS : MEMBER_COLUMNS_READER} gap-3 items-center px-4 py-2.5 hover:bg-band/40 ${
         isDragging ? 'opacity-50 shadow-soft z-10' : ''
-      }`}
+      } ${startsNotCounted ? NOT_COUNTED_RULE : ''}`}
     >
       {canEdit && (
         <button
@@ -83,14 +87,7 @@ export function TeamMemberRow({
         <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">{member.name}</p>
         {/* In the name cell rather than a column of its own: nearly every row
             counts, and a column of "yes" would say nothing (§3.2). */}
-        {!member.counts_towards_capacity && (
-          <span
-            title="Absences are tracked, but this member's capacity is not in the team total"
-            className="flex-shrink-0 px-1.5 py-0.5 rounded bg-band text-[10px] text-gray-500 dark:text-gray-400 whitespace-nowrap"
-          >
-            not counted
-          </span>
-        )}
+        {member.counts_towards_capacity === false && <NotCountedChip />}
       </div>
       <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{member.role ?? '—'}</p>
       <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{member.organisation ?? '—'}</p>

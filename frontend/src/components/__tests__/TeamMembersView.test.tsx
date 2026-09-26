@@ -144,6 +144,35 @@ describe('TeamMembersView', () => {
     })
   })
 
+  it('lists members who do not count after those who do, whatever the saved order', async () => {
+    mockApi.get.mockResolvedValue({
+      data: [
+        member({ system_id: 'm-2', name: 'Pia Moser', counts_towards_capacity: false }),
+        member(),
+      ],
+      headers: {},
+    })
+    render(<TeamMembersView teamId="t-1" onOpenWorkingDays={onOpenWorkingDays} />, { wrapper: wrapper() })
+
+    await screen.findByText('Pia Moser')
+    const names = screen.getAllByRole('listitem').map((li) => li.textContent ?? '')
+    expect(names[0]).toContain('Aïcha Ben Salah')
+    expect(names[1]).toContain('Pia Moser')
+    expect(screen.getByText(/tracked for absences only: Pia Moser \(SW-Arch\)/)).toBeInTheDocument()
+  })
+
+  it('never moves a member across the rule, since that would flip their flag', async () => {
+    mockApi.get.mockResolvedValue({
+      data: [member(), member({ system_id: 'm-2', name: 'Pia Moser', counts_towards_capacity: false })],
+      headers: {},
+    })
+    render(<TeamMembersView teamId="t-1" onOpenWorkingDays={onOpenWorkingDays} />, { wrapper: wrapper() })
+
+    // Pia is first below the rule, so there is nothing above her to move past.
+    await userEvent.click(await screen.findByRole('button', { name: 'Actions for Pia Moser' }))
+    expect(screen.getByRole('menuitem', { name: 'Move up' })).toHaveAttribute('aria-disabled', 'true')
+  })
+
   it('marks a member who does not count towards capacity, and only them', async () => {
     mockApi.get.mockResolvedValue({
       data: [member(), member({ system_id: 'm-2', name: 'Pia Moser', counts_towards_capacity: false })],

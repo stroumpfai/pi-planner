@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import {
   DndContext,
   KeyboardSensor,
@@ -13,6 +13,7 @@ import {
   horizontalListSortingStrategy,
   sortableKeyboardCoordinates,
 } from '@dnd-kit/sortable'
+import { CapacityMembersSummary } from '@/components/CapacityMembersSummary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { MeetingColumnHead } from '@/components/MeetingColumnHead'
 import { MeetingDialog, formatDuration } from '@/components/MeetingDialog'
@@ -23,6 +24,7 @@ import { attendeesOf, meetingErrorCode, occurrencesOf, staleMeeting } from '@/se
 import { useAuthStore } from '@/stores/authStore'
 import type { CapacitySprint, Meeting, TeamMember } from '@/types'
 import { monthOf, windowOf } from '@/utils/absenceGrid'
+import { splitByCapacity } from '@/utils/capacityMembers'
 import { COMPACT_SELECT } from '@/utils/compactSelect'
 import { fmt1, sprintDateRange, sprintLabel } from '@/utils/sprintLabels'
 import { todayIso } from '@/utils/workingDays'
@@ -111,7 +113,10 @@ export function MeetingsView({ teamId }: Props) {
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
   )
 
-  const rows: readonly TeamMember[] = members ?? []
+  // Members who count, then those who do not, as in every team view — here under
+  // a heading of their own, because this table has a total to keep them out of.
+  const { counted, notCounted } = splitByCapacity(members ?? [])
+  const rows: readonly TeamMember[] = [...counted, ...notCounted]
   const columns: readonly Meeting[] = meetings ?? []
 
   /** Meeting hours per member for the selected sprint — what reaches capacity. */
@@ -218,7 +223,12 @@ export function MeetingsView({ teamId }: Props) {
     setDialogOpen(true)
   }
 
-  const totalLoad = rows.reduce((sum, member) => sum + (load.get(member.system_id) ?? 0), 0)
+  // The total is what meetings take off the *team's* capacity, so it sums the
+  // same people the Capacity view's Team row does; the rest is shown beside it.
+  const sumLoad = (people: readonly TeamMember[]) =>
+    people.reduce((sum, member) => sum + (load.get(member.system_id) ?? 0), 0)
+  const totalLoad = sumLoad(counted)
+  const notCountedLoad = sumLoad(notCounted)
 
   return (
     <div className="p-6 space-y-4">
@@ -237,6 +247,8 @@ export function MeetingsView({ teamId }: Props) {
           One column per meeting · cells are attendance
         </p>
       </div>
+
+      <CapacityMembersSummary members={rows} />
 
       {isLoading ? (
         <p className="text-sm text-gray-400 dark:text-gray-500">Loading meetings…</p>
@@ -320,43 +332,56 @@ export function MeetingsView({ teamId }: Props) {
               </thead>
 
               <tbody className="divide-y divide-white/60">
-                {rows.map((member) => (
-                  <tr key={member.system_id} className="hover:bg-band/20">
-                    <th scope="row" className="px-4 py-2 text-left">
-                      {/* The row header selects the whole member — "Marta is in
-                          everything" — mirroring the column head's own toggle. */}
-                      <button
-                        type="button"
-                        disabled={!canEdit}
-                        onClick={() => void toggleMemberRow(member.system_id)}
-                        title={canEdit ? 'Attends every meeting / none' : undefined}
-                        // A ceiling on the one column that is sized by its
-                        // content: without it a single pasted 200-character name
-                        // would set the width of the whole table.
-                        className="block truncate max-w-[16rem] text-sm font-medium text-gray-900 dark:text-gray-100 disabled:cursor-default hover:enabled:text-blue-600"
+                {rows.map((member, index) => (
+                  <Fragment key={member.system_id}>
+                  {index === counted.length && (
+                    <tr>
+                      <th
+                        scope="rowgroup"
+                        colSpan={columns.length + 2}
+                        className="px-4 pt-5 pb-1 text-left text-xs font-medium text-gray-500 dark:text-gray-400"
                       >
-                        {member.name}
-                      </button>
-                    </th>
-                    {columns.map((meeting) => (
-                      <td
-                        key={meeting.system_id}
-                        className="px-3 py-2 text-center border-l border-white/60 dark:border-white/10"
-                      >
-                        <input
-                          type="checkbox"
+                        Not counted towards capacity
+                      </th>
+                    </tr>
+                  )}
+                    <tr className="hover:bg-band/20">
+                      <th scope="row" className="px-4 py-2 text-left">
+                        {/* The row header selects the whole member — "Marta is in
+                            everything" — mirroring the column head's own toggle. */}
+                        <button
+                          type="button"
                           disabled={!canEdit}
-                          checked={attendance(meeting, member.system_id)}
-                          onChange={() => void toggleCell(meeting, member.system_id)}
-                          aria-label={`${member.name} attends ${meeting.title}`}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-60"
-                        />
+                          onClick={() => void toggleMemberRow(member.system_id)}
+                          title={canEdit ? 'Attends every meeting / none' : undefined}
+                          // A ceiling on the one column that is sized by its
+                          // content: without it a single pasted 200-character name
+                          // would set the width of the whole table.
+                          className="block truncate max-w-[16rem] text-sm font-medium text-gray-900 dark:text-gray-100 disabled:cursor-default hover:enabled:text-blue-600"
+                        >
+                          {member.name}
+                        </button>
+                      </th>
+                      {columns.map((meeting) => (
+                        <td
+                          key={meeting.system_id}
+                          className="px-3 py-2 text-center border-l border-white/60 dark:border-white/10"
+                        >
+                          <input
+                            type="checkbox"
+                            disabled={!canEdit}
+                            checked={attendance(meeting, member.system_id)}
+                            onChange={() => void toggleCell(meeting, member.system_id)}
+                            aria-label={`${member.name} attends ${meeting.title}`}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-60"
+                          />
+                        </td>
+                      ))}
+                      <td className="px-3 py-2 text-right text-sm font-semibold text-gray-800 dark:text-gray-100 border-l-2 border-gray-700 dark:border-gray-300 tabular-nums">
+                        {computable ? `${fmt1(load.get(member.system_id) ?? 0)} h` : '—'}
                       </td>
-                    ))}
-                    <td className="px-3 py-2 text-right text-sm font-semibold text-gray-800 dark:text-gray-100 border-l-2 border-gray-700 dark:border-gray-300 tabular-nums">
-                      {computable ? `${fmt1(load.get(member.system_id) ?? 0)} h` : '—'}
-                    </td>
-                  </tr>
+                    </tr>
+                  </Fragment>
                 ))}
 
                 {rows.length === 0 && (
@@ -391,6 +416,11 @@ export function MeetingsView({ teamId }: Props) {
                   ))}
                   <td className="px-3 py-2 text-right text-sm font-semibold text-gray-800 dark:text-gray-100 border-l-2 border-gray-700 dark:border-gray-300 tabular-nums">
                     {computable ? `${fmt1(totalLoad)} h` : '—'}
+                    {computable && notCountedLoad > 0 && (
+                      <span className="block text-[11px] font-normal text-gray-400 dark:text-gray-500">
+                        +{fmt1(notCountedLoad)} h not counted
+                      </span>
+                    )}
                   </td>
                 </tr>
               </tfoot>

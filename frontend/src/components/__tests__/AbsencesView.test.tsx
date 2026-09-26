@@ -350,7 +350,7 @@ describe('AbsencesView', () => {
     render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })
     const grid = await screen.findByRole('grid', { name: /absences by member/i })
 
-    const row = within(grid).getByText('Marta Lindqvist').parentElement as HTMLElement
+    const row = within(grid).getByText('Marta Lindqvist').closest('[role="row"]') as HTMLElement
     const daysPerMonth = new Map<string, number>()
     for (const day of row.querySelectorAll<HTMLElement>('[data-day]')) {
       const month = (day.dataset.day as string).slice(0, 7)
