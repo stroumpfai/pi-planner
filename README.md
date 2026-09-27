@@ -100,10 +100,27 @@ Valid roles: `admin`, `editor`, `reader`. Once the database has been seeded you 
 
 **Step 2 — Set secrets and start**
 
-```bash
-export SECRET_KEY="$(python -c 'import secrets; print(secrets.token_hex(32))')"
-export MCP_SIGNING_SECRET="$(python -c 'import secrets; print(secrets.token_hex(32))')"
+Both services load their environment from a `.env` file (`env_file:` in
+`docker-compose.yml`), so those files must exist before `docker compose up` will
+even start:
 
+```bash
+cp .env.example .env
+cp mcp_server/.env.example mcp_server/.env
+```
+
+Edit `.env` and set `SECRET_KEY` to a fresh random value, and set
+`MCP_SIGNING_SECRET` to another — the **same** value must then be set in
+`mcp_server/.env` too, since it's the shared secret the two services use to trust
+each other:
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"   # run once per secret
+```
+
+Then:
+
+```bash
 docker compose up -d
 
 # App   → http://localhost:8000
@@ -171,20 +188,3 @@ npm run test:watch        # watch mode
 npm run cypress:open      # interactive E2E
 npm run cypress:run       # headless E2E (CI)
 ```
-
----
-
-## Roadmap
-
-MCP server integration is live. Below are planned improvements:
-
-- [x] MCP server - Part I
-- [x] MCP server - Part II
-- [ ] New front-end
-- [ ] Major upgrades of frontend libraries
-- [ ] Encrypt the SQLite database
-- [ ] User activity log (human and Claude)
-- [ ] Project / DB snapshots
-- [ ] Optimise password help (conflict blacklist and strength scoring)
-- [ ] Make sprint columns resizable
-- [ ] Make feature / swimlane column resizable
