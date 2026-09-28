@@ -188,6 +188,26 @@ async def update_team(
         return await attempt()
 
 
+@teams_mcp.tool()
+async def export_team(
+    team_id: Annotated[str, Field(pattern=_UUID_RE, description="Team system_id (UUID) — from list_teams")],
+    ctx: Context,
+) -> dict:
+    """
+    Export a team as a JSON snapshot.
+
+    Returns a complete export payload (version, exported_at, team with all
+    members, pattern versions, absences, and meetings). Deliberately excludes
+    which projects the team serves — that assignment references project ids
+    that may not exist wherever this file is later imported, and is
+    re-established separately with assign_project.
+    This is a read-only operation — no lock is acquired.
+    The export format can be re-imported via the backend's import endpoint
+    (POST /api/v1/teams/import), which always creates a new team.
+    """
+    return await call_backend("GET", f"/api/v1/teams/{team_id}/export")
+
+
 # ── Members ───────────────────────────────────────────────────────────────────
 #
 # Members are addressed **by name**, unlike the team itself: an agent knows a

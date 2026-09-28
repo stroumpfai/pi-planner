@@ -15,17 +15,24 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { SnapshotsModal } from '@/components/SnapshotsModal'
 import type { Project, Team } from '@/types'
 
-function ExportButton({ project }: { readonly project: Project }) {
+interface ExportButtonProps {
+  /** e.g. `/api/v1/projects/{id}/export` or `/api/v1/teams/{id}/export`. */
+  readonly exportUrl: string
+  /** Used only if the server response carries no Content-Disposition filename. */
+  readonly filenameFallback: string
+}
+
+function ExportButton({ exportUrl, filenameFallback }: ExportButtonProps) {
   const [loading, setLoading] = useState(false)
 
   const handleExport = async () => {
     setLoading(true)
     try {
-      const resp = await fetch(`/api/v1/projects/${project.system_id}/export`, { credentials: 'include' })
+      const resp = await fetch(exportUrl, { credentials: 'include' })
       const blob = await resp.blob()
       const disposition = resp.headers.get('Content-Disposition') ?? ''
       const match = /filename="?([^"]+)"?/.exec(disposition)
-      const filename = match?.[1] ?? `${project.name}.json`
+      const filename = match?.[1] ?? filenameFallback
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
@@ -94,7 +101,16 @@ function IconButton({ label, onClick, disabled = false, destructive = false, chi
   )
 }
 
-function ImportButton() {
+interface ImportButtonProps {
+  /** e.g. `/api/v1/projects/import` or `/api/v1/teams/import`. */
+  readonly importUrl: string
+  /** The file input's accessible name — also what E2E/unit tests select by. */
+  readonly accessibleLabel: string
+  /** Invalidated on success so the list picks up the newly imported row. */
+  readonly queryKey: readonly string[]
+}
+
+function ImportButton({ importUrl, accessibleLabel, queryKey }: ImportButtonProps) {
   const fileRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -108,7 +124,7 @@ function ImportButton() {
     try {
       const form = new FormData()
       form.append('file', file)
-      const resp = await fetch('/api/v1/projects/import', {
+      const resp = await fetch(importUrl, {
         method: 'POST',
         body: form,
         credentials: 'include',
@@ -118,7 +134,7 @@ function ImportButton() {
         setError(body?.detail?.message ?? 'Import failed')
         return
       }
-      await qc.invalidateQueries({ queryKey: ['projects'] })
+      await qc.invalidateQueries({ queryKey })
     } catch {
       setError('Import failed')
     } finally {
@@ -135,7 +151,7 @@ function ImportButton() {
         accept=".json"
         className="hidden"
         onChange={handleFileChange}
-        aria-label="Import project file"
+        aria-label={accessibleLabel}
       />
       <button
         onClick={() => fileRef.current?.click()}
@@ -158,7 +174,7 @@ function ImportButton() {
 // rather than an action (design §1).
 const PROJECT_COLUMNS = 'grid-cols-[1.5fr_110px_150px_92px]'
 const PROJECT_COLUMNS_READER = 'grid-cols-[1.5fr_110px_150px]'
-const TEAM_COLUMNS = 'grid-cols-[1.1fr_74px_1.3fr_64px]'
+const TEAM_COLUMNS = 'grid-cols-[1.1fr_74px_1.3fr_92px]'
 const TEAM_COLUMNS_READER = 'grid-cols-[1.1fr_74px_1.3fr]'
 
 interface ColumnHeadersProps {
@@ -290,7 +306,11 @@ export function ProjectListPage() {
             </div>
             {canEdit && (
               <div className="flex items-center gap-2">
-                <ImportButton />
+                <ImportButton
+                  importUrl="/api/v1/projects/import"
+                  accessibleLabel="Import project file"
+                  queryKey={['projects']}
+                />
                 <button
                   onClick={() => setShowCreate(true)}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
@@ -380,7 +400,10 @@ export function ProjectListPage() {
                             <path d="M12 20h9" />
                             <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
                           </IconButton>
-                          <ExportButton project={project} />
+                          <ExportButton
+                            exportUrl={`/api/v1/projects/${project.system_id}/export`}
+                            filenameFallback={`${project.name}.json`}
+                          />
                           <IconButton label="Snapshots" onClick={() => setSnapshotsTarget(project)}>
                             <rect x="3" y="3" width="13" height="13" rx="2" />
                             <path d="M8 21h11a2 2 0 0 0 2-2V8" />
@@ -412,12 +435,19 @@ export function ProjectListPage() {
               <span className="text-sm text-gray-400 dark:text-gray-500">{teams?.length ?? 0}</span>
             </div>
             {canEdit && (
-              <button
-                onClick={() => setShowCreateTeam(true)}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
-              >
-                + New Team
-              </button>
+              <div className="flex items-center gap-2">
+                <ImportButton
+                  importUrl="/api/v1/teams/import"
+                  accessibleLabel="Import team file"
+                  queryKey={['teams']}
+                />
+                <button
+                  onClick={() => setShowCreateTeam(true)}
+                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md"
+                >
+                  + New Team
+                </button>
+              </div>
             )}
           </div>
 
@@ -467,6 +497,10 @@ export function ProjectListPage() {
                           <path d="M12 20h9" />
                           <path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z" />
                         </IconButton>
+                        <ExportButton
+                          exportUrl={`/api/v1/teams/${team.system_id}/export`}
+                          filenameFallback={`${team.name}.json`}
+                        />
                         <IconButton label="Delete" destructive onClick={() => setDeleteTeamTarget(team)}>
                           <path d="M4 7h16" />
                           <path d="M10 11v6M14 11v6" />

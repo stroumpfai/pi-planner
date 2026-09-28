@@ -172,7 +172,8 @@ describe('ProjectListPage', () => {
   it('shows Import button in page header', async () => {
     mockApi.list = vi.fn().mockResolvedValue([])
     render(<ProjectListPage />, { wrapper: makeWrapper() })
-    await waitFor(() => expect(screen.getByRole('button', { name: /^import$/i })).toBeInTheDocument())
+    const projectsSection = await screen.findByRole('region', { name: 'Projects' })
+    expect(within(projectsSection).getByRole('button', { name: /^import$/i })).toBeInTheDocument()
   })
 
   it('Import shows loading state while fetching', async () => {
@@ -183,7 +184,8 @@ describe('ProjectListPage', () => {
     vi.stubGlobal('fetch', vi.fn().mockReturnValue(fetchPromise))
 
     render(<ProjectListPage />, { wrapper: makeWrapper() })
-    await waitFor(() => screen.getByRole('button', { name: /^import$/i }))
+    const projectsSection = await screen.findByRole('region', { name: 'Projects' })
+    await waitFor(() => within(projectsSection).getByRole('button', { name: /^import$/i }))
 
     const file = new File(['{}'], 'backup.json', { type: 'application/json' })
     await userEvent.upload(screen.getByLabelText('Import project file'), file)
@@ -191,7 +193,7 @@ describe('ProjectListPage', () => {
     expect(screen.getByText('Importing…')).toBeInTheDocument()
 
     resolveFetch(new Response(JSON.stringify({ system_id: 'new-1', name: 'Imported' }), { status: 201 }))
-    await waitFor(() => expect(screen.getByRole('button', { name: /^import$/i })).toBeInTheDocument())
+    await waitFor(() => expect(within(projectsSection).getByRole('button', { name: /^import$/i })).toBeInTheDocument())
   })
 
   it('Import invalidates projects query on success', async () => {
@@ -206,7 +208,8 @@ describe('ProjectListPage', () => {
     ))
 
     render(<ProjectListPage />, { wrapper: makeWrapper() })
-    await waitFor(() => screen.getByRole('button', { name: /^import$/i }))
+    const projectsSection = await screen.findByRole('region', { name: 'Projects' })
+    await waitFor(() => within(projectsSection).getByRole('button', { name: /^import$/i }))
     const callsBefore = listCallCount
 
     const file = new File(['{}'], 'backup.json', { type: 'application/json' })
@@ -223,7 +226,8 @@ describe('ProjectListPage', () => {
     ))
 
     render(<ProjectListPage />, { wrapper: makeWrapper() })
-    await waitFor(() => screen.getByRole('button', { name: /^import$/i }))
+    const projectsSection = await screen.findByRole('region', { name: 'Projects' })
+    await waitFor(() => within(projectsSection).getByRole('button', { name: /^import$/i }))
 
     const file = new File(['bad'], 'bad.json', { type: 'application/json' })
     await userEvent.upload(screen.getByLabelText('Import project file'), file)
@@ -250,7 +254,8 @@ describe('ProjectListPage', () => {
     mockApi.list = vi.fn().mockResolvedValue([fakeProject])
     render(<ProjectListPage />, { wrapper: makeWrapper() })
     await waitFor(() => expect(screen.getByRole('button', { name: /new project/i })).toBeInTheDocument())
-    expect(screen.getByRole('button', { name: /^import$/i })).toBeInTheDocument()
+    const projectsSection = screen.getByRole('region', { name: 'Projects' })
+    expect(within(projectsSection).getByRole('button', { name: /^import$/i })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Export' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Snapshots' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Delete' })).toBeInTheDocument()
@@ -444,5 +449,61 @@ describe('ProjectListPage — Teams section', () => {
     await userEvent.click(within(dialog).getByRole('button', { name: /^delete$/i }))
 
     await waitFor(() => expect(mockTeams.delete).toHaveBeenCalledWith('t-1', '"tag-9"'))
+  })
+
+  it('shows an Export button per team, separate from the Projects one', async () => {
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    const teams = await teamsSection()
+    expect(within(teams).getByRole('button', { name: 'Export' })).toBeInTheDocument()
+    expect(await screen.findAllByRole('button', { name: 'Export' })).toHaveLength(2)
+  })
+
+  it('Export button on a team row fetches the team export endpoint', async () => {
+    vi.stubGlobal('URL', { createObjectURL: vi.fn().mockReturnValue('blob:fake'), revokeObjectURL: vi.fn() })
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(new Blob(['{}'], { type: 'application/json' }), {
+        headers: { 'Content-Disposition': 'attachment; filename="Platform.json"' },
+      }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    const teams = await teamsSection()
+    await userEvent.click(within(teams).getByRole('button', { name: 'Export' }))
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/teams/t-1/export', { credentials: 'include' })
+  })
+
+  it('shows an Import button in the Teams header, separate from the Projects one', async () => {
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    const teams = await teamsSection()
+    expect(within(teams).getByRole('button', { name: /^import$/i })).toBeInTheDocument()
+    expect(await screen.findAllByRole('button', { name: /^import$/i })).toHaveLength(2)
+  })
+
+  it('Import in the Teams header posts to the team import endpoint and refreshes the list', async () => {
+    let listCallCount = 0
+    mockTeams.list = vi.fn().mockImplementation(() => {
+      listCallCount++
+      return Promise.resolve([team()])
+    })
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ system_id: 't-2', name: 'Imported Team' }), { status: 201 }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    await teamsSection()
+    const callsBefore = listCallCount
+
+    const file = new File(['{}'], 'team-backup.json', { type: 'application/json' })
+    await userEvent.upload(screen.getByLabelText('Import team file'), file)
+
+    await waitFor(() => expect(listCallCount).toBeGreaterThan(callsBefore))
+    expect(fetchMock).toHaveBeenCalledWith(
+      '/api/v1/teams/import',
+      expect.objectContaining({ method: 'POST' }),
+    )
   })
 })

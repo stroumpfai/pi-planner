@@ -103,6 +103,7 @@ EXPECTED_STATES_TOOLS = {
 EXPECTED_TEAMS_TOOLS = {
     "create_team",
     "update_team",
+    "export_team",
     "create_member",
     "update_member",
     "add_pattern_version",

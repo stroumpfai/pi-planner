@@ -343,6 +343,14 @@ export interface paths {
     /** Update Team */
     patch: operations["update_team_api_v1_teams__team_id__patch"];
   };
+  "/api/v1/teams/import": {
+    /** Import Team */
+    post: operations["import_team_api_v1_teams_import_post"];
+  };
+  "/api/v1/teams/{team_id}/export": {
+    /** Export Team */
+    get: operations["export_team_api_v1_teams__team_id__export_get"];
+  };
   "/api/v1/teams/{team_id}/members": {
     /** List Members */
     get: operations["list_members_api_v1_teams__team_id__members_get"];
@@ -915,6 +923,11 @@ export interface components {
     ActorType: "human" | "mcp_bot";
     /** Body_import_project_api_v1_projects_import_post */
     Body_import_project_api_v1_projects_import_post: {
+      /** File */
+      file: string;
+    };
+    /** Body_import_team_api_v1_teams_import_post */
+    Body_import_team_api_v1_teams_import_post: {
       /** File */
       file: string;
     };
@@ -5441,6 +5454,56 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["TeamResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Import Team */
+  import_team_api_v1_teams_import_post: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "multipart/form-data": components["schemas"]["Body_import_team_api_v1_teams_import_post"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["TeamResponse"];
+        };
+      };
+      /** @description Invalid or malformed import payload */
+      422: {
+        content: never;
+      };
+    };
+  };
+  /** Export Team */
+  export_team_api_v1_teams__team_id__export_get: {
+    parameters: {
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
         };
       };
       /** @description Validation Error */

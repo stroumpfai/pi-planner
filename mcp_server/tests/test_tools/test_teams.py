@@ -23,6 +23,7 @@ from mcp_server.tools.teams import (
     assign_project,
     create_member,
     create_team,
+    export_team,
     push_team_capacity,
     teams_mcp,
     update_assignment,
@@ -296,6 +297,24 @@ async def test_update_team_surfaces_a_taken_name(mock_backend, mock_ctx, patch_g
     with pytest.raises(MCPBackendError) as exc:
         await update_team(team_id=TEAM_ID, name="Ops", ctx=mock_ctx)
     assert exc.value.code == "CONFLICT"
+
+
+# --- export_team -------------------------------------------------------------
+
+
+async def test_export_team(mock_backend, mock_ctx, patch_get_http_request):
+    export_resp = {
+        "version": "1.0",
+        "exported_at": "2026-08-30T09:15:00.123456+00:00",
+        "team": {"system_id": TEAM_ID, "name": "Platform", "members": [], "absences": [], "meetings": []},
+    }
+    mock_backend.get(f"/api/v1/teams/{TEAM_ID}/export").mock(
+        return_value=httpx.Response(200, json=export_resp)
+    )
+    result = await export_team(team_id=TEAM_ID, ctx=mock_ctx)
+    assert result["version"] == "1.0"
+    assert result["team"]["system_id"] == TEAM_ID
+    assert "projects" not in result["team"]
 
 
 # --- what the module deliberately does not expose --------------------------
