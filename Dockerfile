@@ -37,6 +37,9 @@ COPY backend/app/ ./app/
 COPY backend/migrations/ ./migrations/
 COPY backend/alembic.ini ./
 
+# Release notes shown in the app, read at runtime — see RELEASE_NOTES_FILE below
+COPY docs/RELEASE-NOTES.md ./docs/RELEASE-NOTES.md
+
 # Copy built frontend into the location expected by main.py
 COPY --from=frontend /build/dist/ ./static/
 
@@ -48,6 +51,7 @@ VOLUME /data
 ENV DATABASE_URL=sqlite+aiosqlite:////data/db.sqlite \
     ALLOWED_ORIGINS=http://localhost:8000 \
     USERS_FILE=/config/users.json \
+    RELEASE_NOTES_FILE=/app/docs/RELEASE-NOTES.md \
     PYTHONUNBUFFERED=1
 
 EXPOSE 8000

@@ -402,6 +402,15 @@ Full picture — layers, how to run each, and the current gaps — in
 commit in [`docs/TEST-REPORT.md`](docs/TEST-REPORT.md), rewritten by
 `scripts/test-report.sh` (run it before cutting a release).
 
+Cutting a release also means updating [`docs/RELEASE-NOTES.md`](docs/RELEASE-NOTES.md),
+shown in the app's Release Notes modal. Run `scripts/release-notes.sh` — it appends
+the raw commit subjects since the last run straight into the `## Unreleased` section
+(and advances the file's marker), then edit that section in place: condense related
+commits into one bullet, drop internal-only ones, reword into short user-facing
+sentences. When bumping the `APP_VERSION` ARG in `Dockerfile` and
+`mcp_server/Dockerfile`, also rename that `## Unreleased` heading to
+`## X.Y.Z — <date>` by hand and commit both together.
+
 **Before you call a change done, run `scripts/check.sh`** (~95s). It is the single
 definition of "clean" — ruff, mypy `--strict`, the OpenAPI contract check, ESLint,
 `tsc` over `src` and every spec, then all three test suites. Add `--with-e2e` for
@@ -552,6 +561,7 @@ your environment; `scripts/e2e.sh` already unsets it.
 | `DATABASE_URL` | `sqlite+aiosqlite:////data/db.sqlite` | SQLite path |
 | `ALLOWED_ORIGINS` | `http://localhost:5173` | CORS origins (comma-separated) |
 | `USERS_FILE` | `/config/users.json` | One-time user seed file (read only when DB is empty) |
+| `RELEASE_NOTES_FILE` | `../docs/RELEASE-NOTES.md` (`/app/docs/RELEASE-NOTES.md` in the container) | Release Notes modal content — served empty if missing |
 | `MCP_SIGNING_SECRET` | `""` | Shared HS256 secret between app and MCP server |
 | `ALLOW_TEST_RESET` | `false` | Mounts `/test/reset` endpoint — **never true in prod** |
 | `DEBUG` | `false` | FastAPI debug mode |

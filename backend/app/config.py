@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     # Accepts comma-separated ("http://a,https://b") or JSON array ('["http://a"]')
     allowed_origins: str = "http://localhost:5173"
     users_file: str = "/config/users.json"
+    # Relative to the backend process's cwd — "backend/" in local dev (docs/ is its
+    # sibling), overridden to an absolute container path in Dockerfile/docker-compose.
+    release_notes_file: str = "../docs/RELEASE-NOTES.md"
     allow_test_reset: bool = False
     mcp_signing_secret: str = ""
 

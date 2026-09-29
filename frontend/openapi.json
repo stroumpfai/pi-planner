@@ -8450,6 +8450,56 @@
         }
       }
     },
+    "/api/v1/release-notes": {
+      "get": {
+        "tags": [
+          "release-notes"
+        ],
+        "summary": "Get Release Notes",
+        "description": "docs/RELEASE-NOTES.md, parsed into sections. Empty when the file is missing.",
+        "operationId": "get_release_notes_api_v1_release_notes_get",
+        "parameters": [
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReleaseNotesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health": {
       "get": {
         "summary": "Health",
@@ -13751,6 +13801,56 @@
         ],
         "title": "PushSprintRow",
         "description": "One sprint's line in the review table: current \u00b7 proposed \u00b7 \u0394 \u00b7 behind it."
+      },
+      "ReleaseNoteEntry": {
+        "properties": {
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "date": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Date"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "date",
+          "notes"
+        ],
+        "title": "ReleaseNoteEntry",
+        "description": "One '## ' section of docs/RELEASE-NOTES.md: a version or 'Unreleased'."
+      },
+      "ReleaseNotesResponse": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/ReleaseNoteEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entries"
+        ],
+        "title": "ReleaseNotesResponse"
       },
       "Role": {
         "type": "string",

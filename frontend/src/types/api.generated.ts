@@ -646,6 +646,13 @@ export interface paths {
      */
     post: operations["push_team_api_v1_teams__team_id__push_post"];
   };
+  "/api/v1/release-notes": {
+    /**
+     * Get Release Notes
+     * @description docs/RELEASE-NOTES.md, parsed into sections. Empty when the file is missing.
+     */
+    get: operations["get_release_notes_api_v1_release_notes_get"];
+  };
   "/health": {
     /** Health */
     get: operations["health_health_get"];
@@ -2641,6 +2648,23 @@ export interface components {
       in_project_units: number | null;
       /** Available Pushed At */
       available_pushed_at: string | null;
+    };
+    /**
+     * ReleaseNoteEntry
+     * @description One '## ' section of docs/RELEASE-NOTES.md: a version or 'Unreleased'.
+     */
+    ReleaseNoteEntry: {
+      /** Version */
+      version: string;
+      /** Date */
+      date: string | null;
+      /** Notes */
+      notes: string[];
+    };
+    /** ReleaseNotesResponse */
+    ReleaseNotesResponse: {
+      /** Entries */
+      entries: components["schemas"]["ReleaseNoteEntry"][];
     };
     /**
      * Role
@@ -6661,6 +6685,31 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["TeamPushResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Release Notes
+   * @description docs/RELEASE-NOTES.md, parsed into sections. Empty when the file is missing.
+   */
+  get_release_notes_api_v1_release_notes_get: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ReleaseNotesResponse"];
         };
       };
       /** @description Validation Error */

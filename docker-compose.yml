@@ -11,6 +11,7 @@ services:
       DATABASE_URL: sqlite+aiosqlite:////data/db.sqlite
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:8000}
       USERS_FILE: /config/users.json
+      RELEASE_NOTES_FILE: /app/docs/RELEASE-NOTES.md
     restart: unless-stopped
 
   mcp-server:

@@ -38,6 +38,7 @@ from app.routes import (
     project_snapshots,
     project_states,
     projects,
+    release_notes,
     sprints,
     swimlines,
     team_achievement,
@@ -109,6 +110,7 @@ for _router in [
     team_projects.router,
     team_achievement.router,
     team_push.router,
+    release_notes.router,
 ]:
     app.include_router(_router)
 

@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { useSettingsStore } from '@/stores/settingsStore'
 import type { ColorScheme } from '@/stores/settingsStore'
 import { ChangePasswordModal } from '@/components/ChangePasswordModal'
+import { ReleaseNotesModal } from '@/components/ReleaseNotesModal'
 
 interface DisplayToggleProps {
   readonly label: string
@@ -73,6 +74,7 @@ interface Props {
 export function UserMenu({ displayName }: Props) {
   const [open, setOpen] = useState(false)
   const [changePwdOpen, setChangePwdOpen] = useState(false)
+  const [releaseNotesOpen, setReleaseNotesOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const showIds = useSettingsStore((s) => s.showIds)
   const setShowIds = useSettingsStore((s) => s.setShowIds)
@@ -118,11 +120,19 @@ export function UserMenu({ displayName }: Props) {
             >
               Change Password
             </button>
+            <button
+              type="button"
+              onClick={() => { setOpen(false); setReleaseNotesOpen(true) }}
+              className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+            >
+              Release Notes
+            </button>
           </div>
         )}
       </div>
 
       <ChangePasswordModal open={changePwdOpen} onClose={() => setChangePwdOpen(false)} />
+      <ReleaseNotesModal open={releaseNotesOpen} onClose={() => setReleaseNotesOpen(false)} />
     </>
   )
 }
