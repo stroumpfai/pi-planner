@@ -369,7 +369,7 @@ Sprint capacity: Set by clicking sprint header (integer, required, positive)
 
 ### 9.2 CSV Format
 
-Expected columns (any order): `State`, `ID`, `Work Item Type`, `Title 1`, `Title 2`, `Effort`, `Parent`
+Expected columns (any order): `State`, `ID`, `Work Item Type`, `Title 1`, `Title 2`, `Effort`, `Parent`, and optionally `Iteration Path`
 
 | CSV value | Application entity |
 |-----------|-------------------|
@@ -409,6 +409,16 @@ Expected columns (any order): `State`, `ID`, `Work Item Type`, `Title 1`, `Title
   express it. Applying a move takes the story out of its group and onto the new parent's PI
   and swimlane; declining leaves it where planning put it and reports the divergence
 
+- **Iteration placement** (opt-out, ticked by default): an `Iteration Path` matching the
+  iteration path set on a PI or sprint places the item there. Only an exact match (after
+  normalising case and separators) places anything; a blank or unmatched cell leaves existing
+  items where they are and new items in the backlog, and nothing is ever moved *to* the backlog.
+  Features are placed first; a feature new to a PI lands in its **Needs Swimlane** lane (created
+  on demand), and one moving between PIs keeps a same-named lane and loses its sprint groups.
+  A story stays in its feature's PI, and only directly placed stories change sprint — named
+  groups, split features and closed PIs are left alone. No PI is created. Full rules:
+  `docs/csv-import-logic.md`, `docs/adr/0007-csv-import-places-by-explicit-iteration-paths.md`
+
 ### 9.4 Validation (All-or-Nothing)
 
 Import is atomic: any validation error cancels the entire import. User sees all errors before confirming.
@@ -443,7 +453,7 @@ It is a type change, reported in the preview and decided there — see 9.3.
 ### 9.6 Limitations
 
 - Only `.csv` files accepted
-- All items land in backlog (no PI/sprint/group assignments)
+- No swimlane or named-group assignments; PI and sprint placement only through a matched `Iteration Path`
 - Imported items have no description (not in CSV format)
 
 ---

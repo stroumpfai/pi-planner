@@ -17,6 +17,7 @@ from app.models.user import User
 from app.schemas import PICreate, PIResponse, PIUpdate
 from app.services.effort import pi_effort_and_available
 from app.services.events import broadcaster
+from app.services.iteration_placement import iteration_path_taken
 from app.services.pi_dashboard import DashboardOptions, dashboard_filename, export_pi_dashboard
 from app.services.pi_export import PNGExportOptions, export_pi_csv, export_pi_png, safe_filename
 from app.services.pi_report import (
@@ -69,6 +70,16 @@ async def _check_no_active_pi(db: AsyncSession, project_id: str, exclude_pi_id: 
         )
 
 
+def _iteration_path_conflict(path: str) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "error": "ITERATION_PATH_TAKEN",
+            "message": f'Another PI or sprint in this project already has iteration path "{path}"',
+        },
+    )
+
+
 def _create_sprints(db: AsyncSession, pi_id: str) -> None:
     for i in range(SPRINT_COUNT):
         db.add(Sprint(pi_id=pi_id, sprint_index=i, available=0))
@@ -101,6 +112,8 @@ async def create_pi(
 
     if body.state == "in_progress":
         await _check_no_active_pi(db, project_id)
+    if body.iteration_path and await iteration_path_taken(db, project_id, body.iteration_path):
+        raise _iteration_path_conflict(body.iteration_path)
 
     pi = PI(
         project_id=project_id,
@@ -109,6 +122,7 @@ async def create_pi(
         state=body.state,
         start_date=body.start_date,
         end_date=body.end_date,
+        iteration_path=body.iteration_path,
     )
     db.add(pi)
     await db.flush()  # obtain pi.system_id before creating sprints
@@ -153,6 +167,12 @@ async def update_pi(
         pi.start_date = body.start_date
     if "end_date" in fields:
         pi.end_date = body.end_date
+    if "iteration_path" in fields:
+        if body.iteration_path and await iteration_path_taken(
+            db, pi.project_id, body.iteration_path, exclude_pi_id=pi.system_id
+        ):
+            raise _iteration_path_conflict(body.iteration_path)
+        pi.iteration_path = body.iteration_path
 
     pi.modified_at = datetime.now(timezone.utc)
     await db.commit()

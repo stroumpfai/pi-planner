@@ -196,4 +196,54 @@ describe('EditPIModal', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(/could not save every change/i)
     expect(onClose).not.toHaveBeenCalled()
   })
+
+  // ── Iteration paths (CSV import placement) ───────────────────────────────────
+
+  it('saves the PI and sprint iteration paths, and a blank as null', async () => {
+    updateMutateAsync.mockResolvedValue(fakePI)
+    render(<EditPIModal {...defaultProps} />, { wrapper: makeWrapper() })
+    await waitFor(() => screen.getByText('Sprint 1'))
+
+    await userEvent.type(screen.getByRole('textbox', { name: /^iteration path$/i }), 'Planner\\PI 08')
+    await userEvent.click(screen.getByRole('button', { name: /save/i }))
+
+    await waitFor(() =>
+      expect(updateMutateAsync).toHaveBeenCalledWith(expect.objectContaining({
+        body: expect.objectContaining({ iteration_path: 'Planner\\PI 08' }),
+      })),
+    )
+    expect(sprintsService.sprintsApi.update).toHaveBeenCalledWith(
+      's-1', expect.objectContaining({ iteration_path: null }),
+    )
+  })
+
+  it('pre-fills a sprint iteration path and sends it back', async () => {
+    updateMutateAsync.mockResolvedValue(fakePI)
+    vi.mocked(useSprints).mockReturnValue({
+      data: [{ ...fakeSprint, iteration_path: 'Planner\\PI 08\\Sprint 1' }],
+      isLoading: false,
+    } as ReturnType<typeof useSprints>)
+    render(<EditPIModal {...defaultProps} />, { wrapper: makeWrapper() })
+    const input = await screen.findByRole('textbox', { name: /sprint 1 iteration path/i })
+    expect(input).toHaveValue('Planner\\PI 08\\Sprint 1')
+
+    await userEvent.click(screen.getByRole('button', { name: /save/i }))
+    await waitFor(() =>
+      expect(sprintsService.sprintsApi.update).toHaveBeenCalledWith(
+        's-1', expect.objectContaining({ iteration_path: 'Planner\\PI 08\\Sprint 1' }),
+      ),
+    )
+  })
+
+  it('shows the server reason when an iteration path is already taken', async () => {
+    updateMutateAsync.mockRejectedValue({
+      response: { data: { detail: {
+        error: 'ITERATION_PATH_TAKEN',
+        message: 'Another PI or sprint in this project already has iteration path "Planner\\PI 08"',
+      } } },
+    })
+    render(<EditPIModal {...defaultProps} />, { wrapper: makeWrapper() })
+    await userEvent.click(screen.getByRole('button', { name: /save/i }))
+    expect(await screen.findByRole('alert')).toHaveTextContent(/already has iteration path/i)
+  })
 })

@@ -27,6 +27,7 @@ class Sprint(Base):
     available_pushed_at: Mapped[datetime | None] = mapped_column(DateTime)
     start_date: Mapped[date | None] = mapped_column(Date)
     end_date: Mapped[date | None] = mapped_column(Date)
+    iteration_path: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(default=func.now())
     modified_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
 

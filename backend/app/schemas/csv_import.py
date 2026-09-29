@@ -1,6 +1,6 @@
 from datetime import date
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, Field, field_validator
 
 from app.schemas.pbi import ValidEffort
 
@@ -18,6 +18,9 @@ class CsvRow(BaseModel):
     # has_completion_columns is true. None means both cells were blank, which changes
     # nothing: the item keeps its date, or the stamp its State change earns.
     completed_on: date | None = None
+    # Raw Iteration Path cell. Only read when the request's has_iteration_column and
+    # apply_iterations are both true.
+    iteration: str | None = Field(None, max_length=500)
 
     @field_validator('effort', mode='before')
     @classmethod
@@ -54,6 +57,10 @@ class CsvImportRequest(BaseModel):
     # Off by default: promoting a story to a Feature deletes the story, taking its
     # sprint placement with it.
     apply_type_changes: bool = False
+    # Place items on the PI board from their Iteration Path. Off unless asked for;
+    # the import dialog asks by default. A file without the column places nothing.
+    has_iteration_column: bool = False
+    apply_iterations: bool = False
 
 
 class PlannedChange(BaseModel):
@@ -65,7 +72,7 @@ class PlannedChange(BaseModel):
     """
 
     action: str
-    """created | updated | deleted | moved | retyped | skipped"""
+    """created | updated | deleted | moved | retyped | placed | skipped"""
     item_type: str          # feature | story | bug
     user_id: int | None
     title: str
@@ -90,6 +97,12 @@ class OrphanLocation(BaseModel):
     feature_title: str
     location: str       # "backlog" | "pi"
     count: int
+
+
+class UnmatchedIteration(BaseModel):
+    """An Iteration Path value that matched no PI or sprint, and how many rows had it."""
+    path: str
+    rows: int
 
 
 class CsvImportResult(BaseModel):
@@ -132,3 +145,9 @@ class CsvImportResult(BaseModel):
     # silently reconciled. Blank cells change nothing, so there is nothing to count.
     completion_dates_set: int = 0
     completion_date_contradiction_rows: list[int] = []
+    # Iteration placement (docs/csv-import-logic.md). Unmatched paths are listed once
+    # each rather than per row: a refresh often has dozens of rows under a PI that is
+    # simply not mapped yet, and the fix is the same for all of them.
+    items_placed: int = 0
+    placements_skipped: int = 0
+    unmatched_iterations: list[UnmatchedIteration] = []

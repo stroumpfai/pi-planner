@@ -283,6 +283,28 @@ async def test_update_pi_omits_none_fields(mock_backend, mock_ctx, patch_get_htt
     assert body == {}
 
 
+async def test_update_pi_sets_and_clears_iteration_path(mock_backend, mock_ctx, patch_get_http_request):
+    _lock_mocks(mock_backend)
+    route = mock_backend.patch(f"/api/v1/pis/{PI_ID}").mock(
+        return_value=httpx.Response(200, json={**PI_RESP, "iteration_path": "Planner\\PI 08"})
+    )
+    await update_pi(pi_id=PI_ID, project_id=PROJECT_ID, iteration_path="Planner\\PI 08", ctx=mock_ctx)
+    assert json.loads(route.calls[-1].request.content) == {"iteration_path": "Planner\\PI 08"}
+    # '' reaches the backend, which reads a blank as "clear".
+    await update_pi(pi_id=PI_ID, project_id=PROJECT_ID, iteration_path="", ctx=mock_ctx)
+    assert json.loads(route.calls[-1].request.content) == {"iteration_path": ""}
+
+
+async def test_create_pi_passes_iteration_path(mock_backend, mock_ctx, patch_get_http_request):
+    _lock_mocks(mock_backend)
+    mock_backend.post(f"/api/v1/projects/{PROJECT_ID}/pis").mock(
+        return_value=httpx.Response(201, json=PI_RESP)
+    )
+    await create_pi(project_id=PROJECT_ID, name="PI-1", iteration_path="Planner\\PI 08", ctx=mock_ctx)
+    body = _last_call_body(mock_backend, "/pis")
+    assert body["iteration_path"] == "Planner\\PI 08"
+
+
 # ---------------------------------------------------------------------------
 # update_sprint
 # ---------------------------------------------------------------------------
@@ -297,6 +319,19 @@ async def test_update_sprint_available(mock_backend, mock_ctx, patch_get_http_re
     assert result["available"] == 20
     body = _last_call_body(mock_backend, f"/sprints/{SPRINT_ID}")
     assert body == {"available": 20}
+
+
+async def test_update_sprint_iteration_path(mock_backend, mock_ctx, patch_get_http_request):
+    _lock_mocks(mock_backend)
+    mock_backend.patch(f"/api/v1/sprints/{SPRINT_ID}").mock(
+        return_value=httpx.Response(200, json=SPRINT_RESP)
+    )
+    await update_sprint(
+        sprint_id=SPRINT_ID, project_id=PROJECT_ID,
+        iteration_path="Planner\\PI 08\\Sprint 1", ctx=mock_ctx,
+    )
+    body = _last_call_body(mock_backend, f"/sprints/{SPRINT_ID}")
+    assert body == {"iteration_path": "Planner\\PI 08\\Sprint 1"}
 
 
 async def test_update_sprint_accepts_deprecated_capacity_alias(mock_backend, mock_ctx, patch_get_http_request):

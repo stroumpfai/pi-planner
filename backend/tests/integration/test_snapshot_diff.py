@@ -194,7 +194,26 @@ async def test_diff_reports_sprint_available_change(client, project):
     assert changed[0]["fields"]["available"]["to"] == 25
 
 
-# ── PI-scoped diffs (moves in / out) ────────────────────────────────────────
+@pytest.mark.asyncio
+async def test_diff_reports_iteration_path_changes(client, project):
+    pid = project["system_id"]
+    pi_id, _ = await _pi_with_swimline(client, pid)
+    sprint_id = (await client.get(f"/api/v1/pis/{pi_id}/sprints")).json()[0]["system_id"]
+    await _snapshot(client, pid)
+
+    await client.patch(f"/api/v1/pis/{pi_id}", json={"iteration_path": "Planner\\PI 08"})
+    await client.patch(
+        f"/api/v1/sprints/{sprint_id}", json={"iteration_path": "Planner\\PI 08\\Sprint 1"}
+    )
+
+    changes = (await client.get(_diff_url(pid))).json()["changes"]
+    assert changes["pis"]["changed"][0]["fields"]["iteration_path"]["to"] == "Planner\\PI 08"
+    assert changes["sprints"]["changed"][0]["fields"]["iteration_path"]["to"] == (
+        "Planner\\PI 08\\Sprint 1"
+    )
+
+
+# ── PI-scoped diffs (moves in / out)────────────────────────────────────────
 
 
 @pytest.mark.asyncio

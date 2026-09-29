@@ -28,6 +28,9 @@ class PI(Base):
     state: Mapped[str] = mapped_column(Text, nullable=False, default="draft")
     start_date: Mapped[date | None] = mapped_column(Date)
     end_date: Mapped[date | None] = mapped_column(Date)
+    # The Azure DevOps iteration this PI is, as typed. CSV import matches it after
+    # normalising (services/iteration_placement.py).
+    iteration_path: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(default=func.now())
     modified_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
 

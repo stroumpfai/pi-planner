@@ -159,12 +159,24 @@ async def create_pi(
         str | None,
         Field(default=None, description="End date in ISO 8601 format YYYY-MM-DD"),
     ] = None,
+    iteration_path: Annotated[
+        str | None,
+        Field(
+            default=None,
+            max_length=255,
+            description=(
+                "The Azure DevOps iteration this PI is, e.g. 'Project\\PI 08'. CSV import places "
+                "items whose Iteration Path matches it. Unique across the project's PIs and "
+                "sprints (409 ITERATION_PATH_TAKEN otherwise)."
+            ),
+        ),
+    ] = None,
 ) -> dict:
     """
     Create a new PI (Program Increment) within a project.
 
     Automatically creates 5 sprints (sprint_index 0–4) with zero Available.
-    Use update_sprint afterwards to set Available and dates on each sprint.
+    Use update_sprint afterwards to set Available, dates and iteration paths on each sprint.
     Only one PI can be in 'in_progress' state at a time — attempting to create
     a second active PI returns a 409 error.
     Acquires the edit lock for the duration of the operation.
@@ -177,6 +189,8 @@ async def create_pi(
         body["start_date"] = start_date
     if end_date is not None:
         body["end_date"] = end_date
+    if iteration_path is not None:
+        body["iteration_path"] = iteration_path
 
     async with edit_lock(project_id):
         return await call_backend(
@@ -212,6 +226,18 @@ async def update_pi(
         str | None,
         Field(default=None, description="End date in ISO 8601 format YYYY-MM-DD"),
     ] = None,
+    iteration_path: Annotated[
+        str | None,
+        Field(
+            default=None,
+            max_length=255,
+            description=(
+                "The Azure DevOps iteration this PI is, e.g. 'Project\\PI 08'. CSV import places "
+                "items whose Iteration Path matches it. Unique across the project's PIs and "
+                "sprints (409 ITERATION_PATH_TAKEN otherwise). Pass '' to clear."
+            ),
+        ),
+    ] = None,
 ) -> dict:
     """
     Update PI fields or transition its state.
@@ -234,6 +260,8 @@ async def update_pi(
         body["start_date"] = start_date
     if end_date is not None:
         body["end_date"] = end_date
+    if iteration_path is not None:
+        body["iteration_path"] = iteration_path
 
     async with edit_lock(project_id):
         return await call_backend("PATCH", f"/api/v1/pis/{pi_id}", json=body)
@@ -260,9 +288,22 @@ async def update_sprint(
         int | None,
         Field(default=None, ge=0, description="DEPRECATED alias of 'available'; use 'available'"),
     ] = None,
+    iteration_path: Annotated[
+        str | None,
+        Field(
+            default=None,
+            max_length=255,
+            description=(
+                "The Azure DevOps iteration this sprint is, e.g. 'Project\\PI 08\\Sprint 1'. CSV "
+                "import places stories whose Iteration Path matches it in this sprint. Unique "
+                "across the project's PIs and sprints (409 ITERATION_PATH_TAKEN otherwise). "
+                "Pass '' to clear."
+            ),
+        ),
+    ] = None,
 ) -> dict:
     """
-    Set the Available budget and/or dates on a sprint.
+    Set the Available budget, dates and/or iteration path on a sprint.
 
     Use list_sprints to find sprint system_ids within a PI.
     Available is a whole number of the project's effort unit and may be 0 —
@@ -290,6 +331,8 @@ async def update_sprint(
         body["start_date"] = start_date
     if end_date is not None:
         body["end_date"] = end_date
+    if iteration_path is not None:
+        body["iteration_path"] = iteration_path
 
     async with edit_lock(project_id):
         return await call_backend("PATCH", f"/api/v1/sprints/{sprint_id}", json=body)

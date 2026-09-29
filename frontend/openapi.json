@@ -9930,6 +9930,16 @@
             "type": "boolean",
             "title": "Apply Type Changes",
             "default": false
+          },
+          "has_iteration_column": {
+            "type": "boolean",
+            "title": "Has Iteration Column",
+            "default": false
+          },
+          "apply_iterations": {
+            "type": "boolean",
+            "title": "Apply Iterations",
+            "default": false
           }
         },
         "type": "object",
@@ -10041,6 +10051,24 @@
             "type": "array",
             "title": "Completion Date Contradiction Rows",
             "default": []
+          },
+          "items_placed": {
+            "type": "integer",
+            "title": "Items Placed",
+            "default": 0
+          },
+          "placements_skipped": {
+            "type": "integer",
+            "title": "Placements Skipped",
+            "default": 0
+          },
+          "unmatched_iterations": {
+            "items": {
+              "$ref": "#/components/schemas/UnmatchedIteration"
+            },
+            "type": "array",
+            "title": "Unmatched Iterations",
+            "default": []
           }
         },
         "type": "object",
@@ -10124,6 +10152,18 @@
               }
             ],
             "title": "Completed On"
+          },
+          "iteration": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iteration"
           }
         },
         "type": "object",
@@ -11977,6 +12017,18 @@
               }
             ],
             "title": "End Date"
+          },
+          "iteration_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iteration Path"
           }
         },
         "type": "object",
@@ -12174,6 +12226,17 @@
             ],
             "title": "End Date"
           },
+          "iteration_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iteration Path"
+          },
           "total_effort": {
             "type": "number",
             "title": "Total Effort",
@@ -12274,6 +12337,18 @@
               }
             ],
             "title": "End Date"
+          },
+          "iteration_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iteration Path"
           }
         },
         "type": "object",
@@ -14027,6 +14102,17 @@
             ],
             "title": "End Date"
           },
+          "iteration_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iteration Path"
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -14088,6 +14174,18 @@
               }
             ],
             "title": "End Date"
+          },
+          "iteration_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iteration Path"
           }
         },
         "type": "object",
@@ -14720,6 +14818,25 @@
           "user"
         ],
         "title": "TokenResponse"
+      },
+      "UnmatchedIteration": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "rows": {
+            "type": "integer",
+            "title": "Rows"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "rows"
+        ],
+        "title": "UnmatchedIteration",
+        "description": "An Iteration Path value that matched no PI or sprint, and how many rows had it."
       },
       "UserCreate": {
         "properties": {

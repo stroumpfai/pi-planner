@@ -39,9 +39,9 @@ TRACKED_FIELDS: dict[str, list[str]] = {
         "id", "parent_feature_system_id", "title", "description", "effort",
         "item_type", "location", "pi_id", "swimlane_id", "group_id", "state",
     ],
-    "pis": ["name", "description", "state", "start_date", "end_date"],
+    "pis": ["name", "description", "state", "start_date", "end_date", "iteration_path"],
     "swimlines": ["name", "order_index"],
-    "sprints": ["sprint_index", "available", "start_date", "end_date"],
+    "sprints": ["sprint_index", "available", "start_date", "end_date", "iteration_path"],
     "groups": [
         "name", "feature_system_id", "sprint_index", "order_index",
         "is_implicit", "story_system_id",

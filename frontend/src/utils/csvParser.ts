@@ -20,6 +20,8 @@ export interface ParsedRow {
   /** Raw, trimmed `Closed Date` cell, else `Resolved Date`, else ''. Never `Changed Date`.
    *  Still in the exporting machine's format — read it with `completedOnFor`. */
   completion: string
+  /** Raw, trimmed `Iteration Path` cell; '' when blank or when the column is absent. */
+  iteration: string
 }
 
 export interface ParseError {
@@ -43,6 +45,9 @@ export interface ParseResult {
   /** True when the header has `Closed Date` or `Resolved Date`: the import then owns
    *  every row's completion date (a blank pair clears it). False leaves them alone. */
   hasCompletionColumns: boolean
+  /** True when the header has `Iteration Path`: the import may then place items on the
+   *  PI board. False leaves every placement alone. */
+  hasIterationColumn: boolean
   /** The file's one date format, judged from every cell of every `*Date` column. */
   dateFormat: DateFormatDetection
   errors: ParseError[]
@@ -60,6 +65,8 @@ export interface ImportPreview {
   hasCompletionColumns: boolean
   dateFormat: DateFormatDetection
   completionCount: number // imported rows carrying a completion date
+  hasIterationColumn: boolean
+  iterationCount: number  // imported rows with a non-blank Iteration Path
   errors: ParseError[]
   hasErrors: boolean
 }
@@ -75,6 +82,7 @@ const COL_EFFORT = 'Effort'
 const COL_PARENT = 'Parent'
 const COL_CLOSED_DATE = 'Closed Date'
 const COL_RESOLVED_DATE = 'Resolved Date'
+const COL_ITERATION = 'Iteration Path'
 
 /** Any column whose header ends in "Date" is a date column, and evidence for the
  *  file's format even when it is never imported (`Changed Date`, `Created Date`…). */
@@ -260,6 +268,8 @@ export function parseImportCSV(text: string): ParseResult {
   const hasCompletionColumns =
     fields.includes(COL_CLOSED_DATE) || fields.includes(COL_RESOLVED_DATE)
 
+  const hasIterationColumn = fields.includes(COL_ITERATION)
+
   // One file, one format: judged from the whole file before any row is read.
   const dateFormat = detectDateFormat(collectDateCells(allDataRows, fields))
   if (dateFormat.kind === 'none') {
@@ -294,6 +304,7 @@ export function parseImportCSV(text: string): ParseResult {
           parentId: parseParentIdLenient(raw[COL_PARENT] ?? ''),
           state: '',
           completion: '',
+          iteration: '',
         })
       }
       return
@@ -325,6 +336,7 @@ export function parseImportCSV(text: string): ParseResult {
       parentId,
       state: (raw[COL_STATE] ?? '').trim(),
       completion: resolveCompletion(raw),
+      iteration: (raw[COL_ITERATION] ?? '').trim(),
     })
   })
 
@@ -355,7 +367,8 @@ export function parseImportCSV(text: string): ParseResult {
 
   return {
     rows, totalRows, removedCount, removedItems, removedFeatureIds,
-    childrenOfRemovedCount, hasStateColumn, hasCompletionColumns, dateFormat, errors,
+    childrenOfRemovedCount, hasStateColumn, hasCompletionColumns, hasIterationColumn,
+    dateFormat, errors,
   }
 }
 
@@ -442,6 +455,8 @@ export function buildPreview(
     hasCompletionColumns: result.hasCompletionColumns,
     dateFormat: result.dateFormat,
     completionCount: rows.filter((r) => r.completion !== '').length,
+    hasIterationColumn: result.hasIterationColumn,
+    iterationCount: rows.filter((r) => r.iteration !== '').length,
     errors: result.errors,
     hasErrors: result.errors.length > 0,
   }

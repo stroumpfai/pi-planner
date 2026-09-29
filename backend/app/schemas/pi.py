@@ -3,7 +3,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.schemas.common import UtcDatetime
+from app.schemas.common import IterationPath, UtcDatetime
 
 PIState = Literal["draft", "in_progress", "closed"]
 
@@ -14,6 +14,7 @@ class PICreate(BaseModel):
     state: PIState = "draft"
     start_date: date | None = None
     end_date: date | None = None
+    iteration_path: IterationPath = None
 
 
 class PIUpdate(BaseModel):
@@ -22,6 +23,7 @@ class PIUpdate(BaseModel):
     state: PIState | None = None
     start_date: date | None = None
     end_date: date | None = None
+    iteration_path: IterationPath = None
 
 
 class PIResponse(BaseModel):
@@ -32,6 +34,7 @@ class PIResponse(BaseModel):
     state: str
     start_date: date | None
     end_date: date | None
+    iteration_path: str | None = None
     total_effort: float = 0
     total_available: int = 0
     created_at: UtcDatetime

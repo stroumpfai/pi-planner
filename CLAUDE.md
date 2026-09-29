@@ -525,7 +525,7 @@ your environment; `scripts/e2e.sh` already unsets it.
 - Store plain-text passwords anywhere
 - Skip RBAC guards on new endpoints — every route must call `get_current_user`, `require_editor_or_above`, or `require_admin`
 - Duplicate server state in Zustand
-- Allow CSV import to assign PI/swimlane/sprint (all imports go to backlog only)
+- Let CSV import place anything on the board except through an `Iteration Path` that exactly matches a PI/sprint `iteration_path`, or move anything *to* the backlog, create a PI, or touch named groups, split features or closed PIs (see `docs/adr/0007-csv-import-places-by-explicit-iteration-paths.md`)
 - Let a CSV file with **no** `State` column clear anyone's States (blank cell clears; absent column changes nothing)
 - Let an *item* write create a State List entry — feature/PBI writes take `state_id` only, and MCP rejects unknown names there. Vocabulary is created deliberately: by CSV import, in the States editor, or via the MCP `create_state` tool (see `docs/adr/0003-states-are-managed-explicitly.md`)
 - Allow multiple PIs in `in_progress` state

@@ -30,4 +30,6 @@ async def import_csv(
         body.apply_reparenting, body.apply_type_changes,
         current_user.username, dry_run,
         has_completion_columns=body.has_completion_columns,
+        has_iteration_column=body.has_iteration_column,
+        apply_iterations=body.apply_iterations,
     )

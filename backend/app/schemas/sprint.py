@@ -2,7 +2,7 @@ from datetime import date
 
 from pydantic import BaseModel, Field
 
-from app.schemas.common import UtcDatetime
+from app.schemas.common import IterationPath, UtcDatetime
 
 
 class SprintCreate(BaseModel):
@@ -18,6 +18,7 @@ class SprintUpdate(BaseModel):
     available: int | None = Field(None, ge=0)
     start_date: date | None = None
     end_date: date | None = None
+    iteration_path: IterationPath = None
 
 
 class SprintResponse(BaseModel):
@@ -32,6 +33,7 @@ class SprintResponse(BaseModel):
     effort: float = 0
     start_date: date | None
     end_date: date | None
+    iteration_path: str | None = None
     created_at: UtcDatetime
     modified_at: UtcDatetime
 

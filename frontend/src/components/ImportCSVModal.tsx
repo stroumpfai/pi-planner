@@ -172,6 +172,7 @@ function parsedRowToCsvRow(r: ParsedRow, completionFormat: DateFormat | null | u
     effort: r.effort,
     parent_id: r.parentId,
     state: r.state,
+    iteration: r.iteration,
   }
   return completionFormat === undefined
     ? row
@@ -486,6 +487,89 @@ function ReparentPanel({
   )
 }
 
+/**
+ * Iteration placement opt-out. On by default: re-placing on the board what Azure
+ * DevOps already schedules is the reason to import the column at all.
+ */
+function IterationPanel({
+  rowCount, mappedPIs, apply, onToggle,
+}: {
+  readonly rowCount: number
+  readonly mappedPIs: number
+  readonly apply: boolean
+  readonly onToggle: (v: boolean) => void
+}) {
+  return (
+    <div className="mt-4 border border-gray-200 rounded-md p-3">
+      <label className="flex items-start gap-2 cursor-pointer">
+        <input
+          type="checkbox"
+          className="mt-0.5 accent-blue-600"
+          checked={apply}
+          onChange={(e) => onToggle(e.target.checked)}
+        />
+        <span className="text-xs text-gray-700">
+          <span className="font-medium">Place items on the PI board from Iteration Path</span>
+          <span className="block text-gray-500 mt-0.5">
+            {rowCount} {rowCount === 1 ? 'row has' : 'rows have'} an Iteration Path. A path matching
+            a PI or sprint (set in Edit PI) places the item there; anything else stays where it
+            is, and new items go to the backlog. Untick to leave every placement alone.
+          </span>
+        </span>
+      </label>
+      {apply && mappedPIs === 0 && (
+        <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1">
+          No PI in this project has an iteration path yet, so nothing can be placed. Set them in
+          Edit PI first.
+        </p>
+      )}
+    </div>
+  )
+}
+
+/** Where iteration placement landed, and the paths it could not match. */
+function IterationOutcome({ result }: { readonly result: CsvImportResult }) {
+  const placed = result.items_placed ?? 0
+  const skipped = result.placements_skipped ?? 0
+  const unmatched = result.unmatched_iterations ?? []
+  const unmatchedRows = unmatched.reduce((n, u) => n + u.rows, 0)
+  if (placed === 0 && skipped === 0 && unmatched.length === 0) return null
+
+  return (
+    <div className="mt-3 space-y-1">
+      {placed > 0 && (
+        <p className="text-xs text-gray-500">
+          {placed} {placed === 1 ? 'item' : 'items'} placed on the PI board from Iteration Path
+        </p>
+      )}
+      {skipped > 0 && (
+        <p className="text-xs text-amber-600">
+          {skipped} {skipped === 1 ? 'placement' : 'placements'} left alone — see the reasons
+          under &quot;Left alone&quot;
+        </p>
+      )}
+      {unmatched.length > 0 && (
+        <div className="text-xs text-gray-600 bg-gray-50 border border-gray-200 rounded px-2 py-1">
+          <p>
+            {unmatchedRows} {unmatchedRows === 1 ? 'row has an Iteration Path' : 'rows have Iteration Paths'}{' '}
+            matching no PI or sprint — not placed:
+          </p>
+          <ul className="mt-0.5 max-h-20 overflow-y-auto">
+            {unmatched.slice(0, 8).map((u) => (
+              <li key={u.path} className="font-mono text-gray-500">
+                {u.path} <span className="font-sans text-gray-400">({u.rows})</span>
+              </li>
+            ))}
+            {unmatched.length > 8 && (
+              <li className="text-gray-400">…and {unmatched.length - 8} more</li>
+            )}
+          </ul>
+        </div>
+      )}
+    </div>
+  )
+}
+
 /** Type-change opt-in. Promotions are applicable; demotions are only reported. */
 function TypeChangePanel({
   changes, apply, onToggle,
@@ -644,6 +728,7 @@ const ACTION_LABEL: Record<string, string> = {
   retyped: 'Converted',
   deleted: 'Deleted',
   orphaned: 'Unassigned',
+  placed: 'Placed',
   skipped: 'Left alone',
 }
 
@@ -654,10 +739,11 @@ const ACTION_TONE: Record<string, string> = {
   retyped: 'text-blue-700 bg-blue-50',
   deleted: 'text-red-700 bg-red-50',
   orphaned: 'text-amber-700 bg-amber-50',
+  placed: 'text-indigo-700 bg-indigo-50',
   skipped: 'text-gray-600 bg-gray-100',
 }
 
-const ACTION_ORDER = ['deleted', 'retyped', 'moved', 'created', 'orphaned', 'updated', 'skipped']
+const ACTION_ORDER = ['deleted', 'retyped', 'moved', 'created', 'orphaned', 'placed', 'updated', 'skipped']
 
 /**
  * What the import will do, from having done it and rolled back.
@@ -785,6 +871,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
   const [applyReparenting, setApplyReparenting] = useState(false)
   const [typeChanges, setTypeChanges] = useState<TypeChange[]>([])
   const [applyTypeChanges, setApplyTypeChanges] = useState(false)
+  const [applyIterations, setApplyIterations] = useState(true)
   const [result, setResult] = useState<CsvImportResult | null>(null)
   const [serverErrors, setServerErrors] = useState<ServerError[]>([])
 
@@ -818,6 +905,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
     setApplyReparenting(false)
     setTypeChanges([])
     setApplyTypeChanges(false)
+    setApplyIterations(true)
     setPlan(null)
     setResult(null)
     setServerErrors([])
@@ -923,6 +1011,9 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
       has_completion_columns: hasCompletionColumns,
       apply_reparenting: applyReparenting,
       apply_type_changes: applyTypeChanges,
+      // Likewise a file with no Iteration Path column leaves every placement.
+      has_iteration_column: preview?.hasIterationColumn ?? false,
+      apply_iterations: (preview?.hasIterationColumn ?? false) && applyIterations,
     }
   }
 
@@ -972,6 +1063,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
     setApplyReparenting(false)
     setTypeChanges([])
     setApplyTypeChanges(false)
+    setApplyIterations(true)
     setPlan(null)
     setResult(null)
     setServerErrors([])
@@ -1020,6 +1112,15 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
                       value={chosenFormat}
                       onChange={chooseFormat}
                       samples={dateSamples}
+                    />
+                  )}
+
+                  {preview.hasIterationColumn && preview.iterationCount > 0 && !preview.hasErrors && (
+                    <IterationPanel
+                      rowCount={preview.iterationCount}
+                      mappedPIs={pis.filter((p) => p.iteration_path).length}
+                      apply={applyIterations}
+                      onToggle={setApplyIterations}
                     />
                   )}
 
@@ -1164,6 +1265,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
                 <>
                   <ReviewList plan={plan.plan ?? []} truncated={plan.plan_truncated ?? false} />
                   <CompletionOutcome result={plan} />
+                  <IterationOutcome result={plan} />
                 </>
               )}
 
@@ -1215,6 +1317,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
               </table>
 
               <CompletionOutcome result={result} />
+              <IterationOutcome result={result} />
 
               {(result.items_retyped ?? 0) > 0 && (
                 <p className="text-xs text-gray-500 mt-2">

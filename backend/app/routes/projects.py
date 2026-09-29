@@ -222,6 +222,7 @@ def _add_pi_structures(
             state=pi.get("state", "draft"),
             start_date=_opt_date(pi.get("start_date")),
             end_date=_opt_date(pi.get("end_date")),
+            iteration_path=pi.get("iteration_path"),
         ))
         for sl in pi.get("swimlines", []):
             db.add(Swimline(
@@ -238,6 +239,7 @@ def _add_pi_structures(
                 available=sprint_available(s),
                 start_date=_opt_date(s.get("start_date")),
                 end_date=_opt_date(s.get("end_date")),
+                iteration_path=s.get("iteration_path"),
             ))
         for e in pi.get("events", []):
             db.add(PIEvent(

@@ -374,3 +374,29 @@ describe('State column', () => {
     expect(buildPreview(result).stateValues).toEqual(['New'])
   })
 })
+
+// ── Iteration Path ──────────────────────────────────────────────────────────────
+
+describe('the Iteration Path column', () => {
+  const withIteration = (...rows: string[]) =>
+    ['Work Item Type,Title 1,ID,Parent,Iteration Path', ...rows].join('\n')
+
+  it('reads the path, trimmed, and says the file has the column', () => {
+    const result = parseImportCSV(withIteration(
+      'Feature,Auth,101,," Planner\\PI 08 "',
+      'Product Backlog Item,Login,201,101,',
+    ))
+    expect(result.hasIterationColumn).toBe(true)
+    expect(result.rows.map((r) => r.iteration)).toEqual(['Planner\\PI 08', ''])
+    const preview = buildPreview(result)
+    expect(preview.hasIterationColumn).toBe(true)
+    expect(preview.iterationCount).toBe(1)
+  })
+
+  it('reports no column for a file without one', () => {
+    const result = parseImportCSV(csv('Feature,Auth,101,,,New'))
+    expect(result.hasIterationColumn).toBe(false)
+    expect(result.rows[0].iteration).toBe('')
+    expect(buildPreview(result).iterationCount).toBe(0)
+  })
+})

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { Controller, useForm } from 'react-hook-form'
 import { useQueryClient } from '@tanstack/react-query'
+import type { AxiosError } from 'axios'
 import { useUpdatePI } from '@/hooks/usePIs'
 import { useSprints } from '@/hooks/useSprints'
 import { useTeamCapacityStatus, statusFor } from '@/hooks/useTeamPush'
@@ -14,6 +15,7 @@ type PIFormValues = {
   description?: string
   start_date: string
   end_date: string
+  iteration_path: string
 }
 
 type SprintRow = {
@@ -22,6 +24,7 @@ type SprintRow = {
   available: string
   start_date: string
   end_date: string
+  iteration_path: string
 }
 
 interface Props {
@@ -38,7 +41,14 @@ function toSprintRow(s: Sprint): SprintRow {
     available: String(s.available ?? 0),
     start_date: s.start_date ?? '',
     end_date: s.end_date ?? '',
+    iteration_path: s.iteration_path ?? '',
   }
+}
+
+/** The server's reason when it gives one — a clashing iteration path names itself. */
+function saveError(err: unknown): string {
+  const detail = (err as AxiosError<{ detail?: { message?: string } }>)?.response?.data?.detail
+  return detail?.message ?? 'Could not save every change. Check the sprint dates and try again.'
 }
 
 export function EditPIModal({ open, pi, projectId, onClose }: Props) {
@@ -67,6 +77,7 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
         description: pi.description ?? '',
         start_date: pi.start_date ?? '',
         end_date: pi.end_date ?? '',
+        iteration_path: pi.iteration_path ?? '',
       },
     })
 
@@ -86,6 +97,7 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
           description: values.description || null,
           start_date: values.start_date || null,
           end_date: values.end_date || null,
+          iteration_path: values.iteration_path || null,
         },
       })
 
@@ -97,13 +109,14 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
               : { available: Number.parseInt(row.available, 10) || 0 }),
             start_date: row.start_date || null,
             end_date: row.end_date || null,
+            iteration_path: row.iteration_path || null,
           })
         )
       )
-    } catch {
+    } catch (err) {
       // The PI header may already have saved, so keep the dialog open on its
       // current values rather than closing over a half-applied edit.
-      setError('Could not save every change. Check the sprint dates and try again.')
+      setError(saveError(err))
       return
     } finally {
       qc.invalidateQueries({ queryKey: ['sprints', pi.system_id] })
@@ -122,7 +135,7 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
         <Dialog.Overlay className="fixed inset-0 bg-black/40 z-40" />
         <Dialog.Content
           aria-describedby={undefined}
-          className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+          className="fixed z-50 left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 bg-white dark:bg-gray-800 rounded-lg shadow-xl p-6 w-full max-w-3xl max-h-[90vh] overflow-y-auto"
         >
           <Dialog.Title className="text-base font-semibold text-gray-900 dark:text-gray-100">Edit PI</Dialog.Title>
 
@@ -151,6 +164,23 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
                 rows={2}
                 className={`mt-1 ${inputClass}`}
               />
+            </div>
+
+            <div>
+              <label htmlFor="pi-edit-iteration" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Iteration path
+              </label>
+              <input
+                id="pi-edit-iteration"
+                {...register('iteration_path')}
+                placeholder="e.g. Project\PI 08"
+                aria-describedby="pi-edit-iteration-hint"
+                className={`mt-1 font-mono ${inputClass}`}
+              />
+              <p id="pi-edit-iteration-hint" className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                The Azure DevOps iteration this PI is. CSV import places items whose Iteration Path
+                matches it, or a sprint&apos;s path below.
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -198,6 +228,7 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
                         <th className="px-3 py-2 text-left w-24">Available</th>
                         <th className="px-3 py-2 text-left">Start date</th>
                         <th className="px-3 py-2 text-left">End date</th>
+                        <th className="px-3 py-2 text-left">Iteration path</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
@@ -235,6 +266,14 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
                               value={row.end_date}
                               onChange={(v) => updateSprintRow(i, 'end_date', v)}
                               className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              aria-label={`Sprint ${row.sprint_index + 1} iteration path`}
+                              value={row.iteration_path}
+                              onChange={(e) => updateSprintRow(i, 'iteration_path', e.target.value)}
+                              className="w-full border border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 rounded px-2 py-1 text-sm font-mono focus:outline-none focus:ring-1 focus:ring-blue-500"
                             />
                           </td>
                         </tr>

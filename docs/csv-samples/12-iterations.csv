@@ -1,0 +1,7 @@
+State,ID,Work Item Type,Title 1,Title 2,Effort,Parent,Iteration Path
+"In Progress","101","Feature","Authentication",,,,"Planner\PI 08"
+"Active","201","Product Backlog Item",,"Login form","3","101","Planner\PI 08\Sprint 08.1"
+"New","202","Product Backlog Item",,"Password reset","5","101","Planner\PI 08\Sprint 08.2"
+"New","301","Bug",,"Session expires too early","1","101","Planner\PI 08\Sprint 08.2"
+"New","102","Feature","Reporting",,,,"Planner\PI 09"
+"New","203","Product Backlog Item",,"Export to PDF","8","102","Planner\PI 09\Sprint 09.1"

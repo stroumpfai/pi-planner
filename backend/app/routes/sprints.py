@@ -14,6 +14,7 @@ from app.schemas import SprintResponse, SprintUpdate
 from app.services import team_push
 from app.services.effort import sprint_efforts_for_pi
 from app.services.events import broadcaster
+from app.services.iteration_placement import iteration_path_taken
 from app.services.sprint_alignment import conflicts_for_project, sibling_project_ids
 
 router = APIRouter(tags=["sprints"])
@@ -127,6 +128,21 @@ async def update_sprint(
         sprint.start_date = body.start_date
     if "end_date" in fields:
         sprint.end_date = body.end_date
+    if "iteration_path" in fields:
+        if body.iteration_path and project_id and await iteration_path_taken(
+            db, project_id, body.iteration_path, exclude_sprint_id=sprint.system_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "error": "ITERATION_PATH_TAKEN",
+                    "message": (
+                        "Another PI or sprint in this project already has iteration path "
+                        f'"{body.iteration_path}"'
+                    ),
+                },
+            )
+        sprint.iteration_path = body.iteration_path
 
     sprint.modified_at = datetime.now(timezone.utc)
     if project_id and fields & {"start_date", "end_date"}:

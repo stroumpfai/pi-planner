@@ -14,9 +14,10 @@ the table at the end.
 
 ## The three rules everything follows
 
-1. **Imports land in the backlog.** A CSV can never set a PI, swimlane or sprint.
-   Items already on the PI board are still *updated* by an import, they just
-   don't move.
+1. **Placement comes only from a clear `Iteration Path`.** An item moves on the PI
+   board only when its path matches one you set on a PI or sprint — see
+   [Placing items on the PI board](#placing-items-on-the-pi-board). Everything else is updated where it sits, and
+   new items land in the backlog.
 2. **The `ID` column is the identity.** An ID the project already knows is
    updated; an unknown or blank ID creates a new item. Titles are never matched.
 3. **The file is not a mirror.** Items missing from the file are left alone.
@@ -43,9 +44,10 @@ columns are ignored.
 | `State` | The item's State, or the delete instruction | See *State* below. |
 | `Closed Date` | When a story or bug was completed | See *Completion dates* below. |
 | `Resolved Date` | Fallback for `Closed Date` | Used only where `Closed Date` is blank. |
+| `Iteration Path` | PI and sprint placement | See [Placing items on the PI board](#placing-items-on-the-pi-board). |
 
-Not imported: **descriptions**, comments, assignees, tags, area/iteration
-paths, and every other date (`Changed Date`, `Created Date`, …). Those other date
+Not imported: **descriptions**, comments, assignees, tags, area paths, and every
+other date (`Changed Date`, `Created Date`, …). Those other date
 columns are still worth exporting, because they help the import work out the
 file's date format (see below). An item's existing description in the planner is never overwritten by an
 import.
@@ -140,6 +142,11 @@ Accepted shapes: `2026-09-03`, `3.9.2026`, `9/3/2026` and `3/9/2026`, with or
 without leading zeros, and with or without a time (24-hour or AM/PM). The time is
 dropped.
 
+### Iteration Path
+
+Places features and stories on the PI board. It has a chapter of its own:
+[Placing items on the PI board](#placing-items-on-the-pi-board).
+
 ---
 
 ## What happens to each row
@@ -148,8 +155,8 @@ dropped.
 
 | Situation | Result |
 |---|---|
-| ID is new, or blank | Feature created in the backlog. |
-| ID already exists as a feature | Title (and State) updated, wherever it lives. |
+| ID is new, or blank | Feature created in the backlog — then placed on the board if its `Iteration Path` matches. |
+| ID already exists as a feature | Title (and State) updated, wherever it lives. Its placement changes only through `Iteration Path`. |
 | The feature was **split across PIs** | Title and State are applied to *every* part of it, so later PIs don't keep showing the old text. |
 | ID exists as a *story* | See *Type changes*. |
 
@@ -157,8 +164,8 @@ dropped.
 
 | Situation | Result |
 |---|---|
-| ID is new, or blank | Story created in the backlog under the feature its `Parent` names. |
-| ID already exists | Title, Effort, type (story ↔ bug) and State updated **in place** — it keeps its PI, sprint and group. |
+| ID is new, or blank | Story created under the feature its `Parent` names — then placed in a sprint if its `Iteration Path` matches. |
+| ID already exists | Title, Effort, type (story ↔ bug) and State updated **in place**. It keeps its sprint and group unless its `Iteration Path` says otherwise. |
 | `Parent` names a feature that was split across PIs | A *new* story joins the newest part — the PI the work has actually reached. |
 | `Parent` names a different feature than the one holding it | Not moved unless you ask. See *Re-parenting*. |
 | Story ↔ bug switched, file has no `State` column | The State is cleared, because the old value belongs to the other list. |
@@ -174,6 +181,125 @@ the file nor in the project.
 - **Existing** orphan stories are left exactly where they are — an import never
   detaches something you already parented by hand. The summary names the feature
   they were found under.
+
+---
+
+## Placing items on the PI board
+
+Azure DevOps already knows which PI, and often which sprint, each item is in. The
+import can use the `Iteration Path` column to put features and stories there, so a
+regular refresh doesn't mean redoing every placement by hand.
+
+It only acts when the path is **clear**. Anything unclear leaves existing items where
+planning put them, and new items go to the backlog as they always have.
+
+### 1. Tell the planner which iteration each PI and sprint is
+
+In Edit Mode, click **Edit** next to the PI in the PI list (closed PIs can't be edited):
+
+- **Iteration path** — the PI's ADO iteration, e.g. `Planner\PI 08`.
+- The sprint table's **Iteration path** column — each sprint's ADO iteration, e.g.
+  `Planner\PI 08\Sprint 08.1`.
+
+Copy them from Azure DevOps as they are; nothing is guessed from PI or sprint names.
+Matching ignores upper/lower case, `/` versus `\`, and stray spaces or trailing
+separators, so `planner / pi 08/` matches `Planner\PI 08`. One path can belong to only
+one PI or sprint per project — saving a duplicate is refused with the name of the path.
+
+Leave a sprint's path blank if ADO doesn't schedule to that sprint; items are then
+placed in the PI without a sprint.
+
+### 2. Keep it on, or switch it off
+
+When the file has an `Iteration Path` column, the import dialog shows **Place items on
+the PI board from Iteration Path**, **ticked by default**. Untick it and the import
+behaves as if the column weren't there. A file without the column never changes a
+placement.
+
+If no PI in the project has a path yet, the dialog warns you: nothing could match.
+
+### 3. How a cell is read
+
+| The cell | Means |
+|---|---|
+| Matches a sprint's path | That sprint, in that sprint's PI |
+| Matches a PI's path | That PI, no sprint |
+| Blank | Not clear — nothing moves |
+| Matches nothing (the ADO root `Planner`, a PI not mapped yet, a typo) | Not clear — nothing moves |
+
+For anything *not clear*, a **new** item stays in the backlog and an **existing** item
+stays exactly where it is. The import never moves an item back to the backlog because
+of a path. The review lists every unmatched path once, with how many rows carry it —
+usually that is a PI you haven't mapped yet.
+
+### 4. Features
+
+Features are placed before stories, so a feature and its stories that moved together
+in ADO land together in one import.
+
+| The feature is | The path names PI `P` → result |
+|---|---|
+| In the backlog | Placed in `P`, in the lane **Needs Swimlane** |
+| Already in `P` | Nothing changes — it keeps the lane you gave it |
+| In another PI | Moved to `P`: into the lane with the **same name** if `P` has one (teams usually recur PI after PI), else **Needs Swimlane**. Its stories leave their sprints, because *Sprint 2* of one PI is not *Sprint 2* of another; stories that are in the file are placed again by their own path |
+| Split across PIs | Nothing changes if one of its parts is already in `P`; otherwise left alone and reported. A split is a board decision the CSV can't express |
+
+A feature row whose path names a *sprint* is placed in that sprint's PI — features
+don't go into sprints.
+
+### 5. Stories and bugs
+
+A story always stays in its feature's PI. Its path decides the **sprint** within that
+PI, and never moves the feature.
+
+| Situation | Result |
+|---|---|
+| Its feature is in the backlog | Left alone — *"its feature is in the backlog"* |
+| Its feature is in a different PI than the path names | Left alone — *"its feature is in PI 07"* |
+| Path names a sprint; the story is in no sprint | Placed directly in that sprint |
+| Path names a sprint; the story is placed directly in another sprint | Moved to that sprint |
+| Path names the sprint it is already in | Nothing changes |
+| Path names the PI only; the story is placed directly in a sprint | Taken out of the sprint (ADO moved it back to the PI) |
+| The story is in a **named group** | Left alone, whatever the path says. A group is a planning decision; the review names the group and its sprint |
+
+"Placed directly" is a story dragged onto a sprint on its own, not as part of a group
+you named.
+
+### 6. What placement never does
+
+- create a PI — an ADO iteration the planner doesn't have is reported, not created;
+- move anything into or out of a **closed** PI — closed PIs stay read-only;
+- move an item to the backlog;
+- choose a real swimlane — ADO has nothing that maps to one;
+- change a named group, or a feature split across PIs.
+
+### 7. The Needs Swimlane lane
+
+Every feature that arrives in a PI without a lane to go to lands in **Needs Swimlane**
+— one per PI, created the first time it's needed, added at the bottom of the board.
+It is your triage queue: drag each feature into its real lane when you get to it.
+
+It is an ordinary lane in every other way. Rename it and it becomes a normal lane; the
+next import that needs one creates a fresh Needs Swimlane. Delete it and its features
+go back to the backlog, as with any lane.
+
+### 8. A typical refresh
+
+PI 08 has path `Planner\PI 08` and sprints `…\Sprint 08.1` to `…\Sprint 08.5`; PI 09
+isn't mapped yet.
+
+| Row | Iteration Path | Before | After |
+|---|---|---|---|
+| Feature 101 | `Planner\PI 08` | backlog | PI 08 · Needs Swimlane |
+| Story 201 (of 101) | `Planner\PI 08\Sprint 08.1` | backlog | PI 08 · Sprint 1 |
+| Story 202 (of 101) | `Planner\PI 08\Sprint 08.3` | PI 08 · Sprint 2, placed directly | Sprint 3 |
+| Story 203 (of 101) | `Planner\PI 08\Sprint 08.3` | PI 08 · group "Release 1", Sprint 2 | unchanged — named group |
+| Feature 102 | `Planner\PI 09` | backlog | unchanged — `Planner\PI 09` listed as unmatched |
+| Feature 103 | `Planner` | PI 08 · Team A | unchanged — the ADO root matches nothing |
+
+The review shows these as **Placed** (with `→ PI 08 · Needs Swimlane`,
+`→ Sprint 1`, `Sprint 2 → Sprint 3`) and **Left alone** (with the reason) before
+anything is written. Importing the same file again changes nothing.
 
 ---
 
@@ -237,6 +363,7 @@ is what will happen:
 | **Converted** | A story becoming a feature, and whether that costs a sprint placement |
 | **Deleted** | Including the continuations and stories a removal reaches, which no row in your file mentions |
 | **Unassigned** | An orphan going to the placeholder feature |
+| **Placed** | Placed or moved on the PI board from its Iteration Path, e.g. `→ PI 08 · Needs Swimlane`, `Sprint 1 → Sprint 3` |
 | **Left alone** | A change the import found and is not applying, with the reason |
 
 Rows that change nothing are folded away behind **N rows unchanged**, which
@@ -264,8 +391,10 @@ imported** until the file is fixed and re-selected:
 
 ## Not supported
 
-- **Assigning a PI, swimlane, sprint or group.** Board placement is done in the
-  app, never by a file.
+- **Assigning a swimlane or group.** Iteration Path places items in a PI and sprint
+  only; swimlanes and named groups are arranged in the app.
+- **Creating PIs.** An Iteration Path naming a PI the planner doesn't have is
+  reported, not created.
 - **Descriptions, assignees, tags, links** — not read, not written. Of the
   dates, only `Closed Date` and `Resolved Date` are imported.
 - **Effort on features** — always derived from the stories underneath.
@@ -297,3 +426,4 @@ several of them are built to be applied *after* `01-basic.csv`.
 | `09-errors.csv` | One of each validation error. Nothing is imported. |
 | `10-closed-dates.csv` | A real Azure DevOps export shape: completion dates, a month/day/year format settled by `Changed Date`. |
 | `11-dates-ambiguous.csv` | Every day is 12 or lower, so the import asks for the date format. |
+| `12-iterations.csv` | Iteration Path placement: a feature into PI 08, stories into its sprints, one unmapped PI reported. |

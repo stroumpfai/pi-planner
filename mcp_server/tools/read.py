@@ -47,7 +47,8 @@ async def list_pis(
     List all PIs (Program Increments) for a project.
 
     Returns each PI with total_effort and total_available summaries, state
-    (draft | in_progress | closed), and date ranges. Use get_pi for detailed
+    (draft | in_progress | closed), date ranges, and iteration_path — the Azure
+    DevOps iteration CSV import matches (null when not mapped). Use get_pi for detailed
     sprint-level breakdown of a single PI.
     """
     return await call_backend("GET", f"/api/v1/projects/{project_id}/pis")
@@ -61,8 +62,9 @@ async def get_pi(
     """
     Get a single PI with effort and Available summary.
 
-    Returns state, dates, total_effort (sum of all PBI efforts in this PI),
-    and total_available (sum of sprint Available budgets).
+    Returns state, dates, iteration_path (the Azure DevOps iteration CSV import
+    matches; null when not mapped), total_effort (sum of all PBI efforts in this
+    PI), and total_available (sum of sprint Available budgets).
     Use list_pis first to find the pi_id.
     """
     return await call_backend("GET", f"/api/v1/pis/{pi_id}")
@@ -77,7 +79,8 @@ async def list_sprints(
     List all sprints in a PI with their effort totals and Available budget.
 
     Returns 5 sprints (sprint_index 0–4) each with available, current effort,
-    and optional date range. Use this to understand utilisation before
+    optional date range, and iteration_path (the Azure DevOps iteration CSV
+    import matches; null when not mapped). Use this to understand utilisation before
     assigning PBIs to sprints.
     """
     return await call_backend("GET", f"/api/v1/pis/{pi_id}/sprints")

@@ -1,3 +1,4 @@
+from collections import Counter
 from datetime import datetime, timezone
 from typing import NamedTuple
 from uuid import uuid4
@@ -15,11 +16,18 @@ from app.schemas.csv_import import (
     CsvRow,
     OrphanLocation,
     PlannedChange,
+    UnmatchedIteration,
 )
 from app.services.completion import apply_completion, is_done, load_state
 from app.services.continuation import descendant_ids, lineage_members, newest_leaf
 from app.services.events import broadcaster
 from app.services.feature_delete import delete_features
+from app.services.iteration_placement import (
+    load_iteration_index,
+    normalise_iteration_path,
+    place_feature,
+    place_story,
+)
 from app.services.pbi_delete import delete_pbi_and_empty_group, detach_pbi_from_group
 from app.services.project_state import get_or_create_state, state_item_type_for_pbi
 from app.services.team_events import notify_team_achievement
@@ -393,8 +401,9 @@ async def _upsert_features(
     feature_map: dict[int, str],
     has_state_column: bool,
     plan: ImportPlan,
-) -> tuple[dict[int, str], int, int]:
+) -> tuple[dict[int, str], list[tuple[CsvRow, str]], int, int]:
     csv_feature_sysid: dict[int, str] = {}
+    row_sysids: list[tuple[CsvRow, str]] = []
     created = 0
     updated = 0
     for row in feature_rows:
@@ -403,9 +412,10 @@ async def _upsert_features(
         )
         created += was_created
         updated += was_updated
+        row_sysids.append((row, sysid))
         if row.user_id is not None:
             csv_feature_sysid[row.user_id] = sysid
-    return csv_feature_sysid, created, updated
+    return csv_feature_sysid, row_sysids, created, updated
 
 
 class _ParentTarget(NamedTuple):
@@ -462,6 +472,8 @@ class _StoryOutcome(NamedTuple):
     reparented: int = 0
     reparent_skipped: int = 0
     freed_group_id: str | None = None
+    system_id: str | None = None
+    """The story the row landed on, for iteration placement."""
 
 
 async def _reparent(db: AsyncSession, pbi: PBI, new_parent: Feature) -> str | None:
@@ -548,14 +560,14 @@ async def _upsert_one_story(
                 "updated", row.item_type, row.title,
                 user_id=row.user_id, row=row.row_number, changes=changed,
             )
-            return _StoryOutcome(updated=1)
+            return _StoryOutcome(updated=1, system_id=pbi.system_id)
         if not apply_reparenting:
             plan.add(
                 "skipped", row.item_type, row.title,
                 user_id=row.user_id, row=row.row_number,
                 detail=f"stays under {parent_titles.get(previous_parent, 'its feature')}",
             )
-            return _StoryOutcome(updated=1, reparent_skipped=1)
+            return _StoryOutcome(updated=1, reparent_skipped=1, system_id=pbi.system_id)
 
         new_parent = await db.get(Feature, target.leaf) if target else None
         if new_parent is None:
@@ -564,17 +576,20 @@ async def _upsert_one_story(
                 user_id=row.user_id, row=row.row_number,
                 detail="its new feature could not be resolved",
             )
-            return _StoryOutcome(updated=1, reparent_skipped=1)
+            return _StoryOutcome(updated=1, reparent_skipped=1, system_id=pbi.system_id)
         freed = await _reparent(db, pbi, new_parent)
         plan.add(
             "moved", row.item_type, row.title,
             user_id=row.user_id, row=row.row_number, changes=changed,
             detail=_from_to(new_parent.system_id),
         )
-        return _StoryOutcome(updated=1, reparented=1, freed_group_id=freed)
+        return _StoryOutcome(
+            updated=1, reparented=1, freed_group_id=freed, system_id=pbi.system_id,
+        )
 
     parent_sysid = target.leaf if target is not None else unassigned_sysid
     new_pbi = PBI(
+        system_id=str(uuid4()),
         project_id=project_id,
         parent_feature_system_id=parent_sysid,
         user_id=row.user_id,
@@ -595,7 +610,7 @@ async def _upsert_one_story(
             else 'under "Unassigned"'
         ),
     )
-    return _StoryOutcome(created=1)
+    return _StoryOutcome(created=1, system_id=new_pbi.system_id)
 
 
 async def _upsert_stories(
@@ -610,8 +625,11 @@ async def _upsert_stories(
     plan: ImportPlan,
     parent_titles: dict[str, str],
     completion: CompletionTally,
-) -> tuple[_StoryOutcome, list[str]]:
-    """Create or update every story row. Returns the totals and any freed groups."""
+) -> tuple[_StoryOutcome, list[str], list[tuple[CsvRow, str]]]:
+    """Create or update every story row.
+
+    Returns the totals, any freed groups, and the story each row landed on.
+    """
     # A story new to a split feature belongs where the work has got to, not where
     # it started: filing it against the root would put newly discovered work in
     # the PI the feature has already carried over out of.
@@ -627,6 +645,7 @@ async def _upsert_stories(
 
     totals = _StoryOutcome()
     freed_group_ids: list[str] = []
+    row_sysids: list[tuple[CsvRow, str]] = []
     for row in story_rows:
         matched_sysid = (
             parent_lookup[row.parent_id]
@@ -647,7 +666,9 @@ async def _upsert_stories(
         )
         if outcome.freed_group_id:
             freed_group_ids.append(outcome.freed_group_id)
-    return totals, freed_group_ids
+        if outcome.system_id is not None:
+            row_sysids.append((row, outcome.system_id))
+    return totals, freed_group_ids, row_sysids
 
 
 async def _apply_removals(
@@ -708,6 +729,73 @@ async def _apply_removals(
                 deleted_group_ids.append(group_id)
 
     return deletion.feature_ids, deleted_pbis, deleted_group_ids
+
+
+class IterationTally:
+    """What iteration placement did, threaded through both passes like ``ImportPlan``."""
+
+    def __init__(self) -> None:
+        self.placed = 0
+        self.skipped = 0
+        self.unmatched: Counter[str] = Counter()
+        self._spelling: dict[str, str] = {}
+
+    def unmatched_paths(self) -> list[UnmatchedIteration]:
+        return [
+            UnmatchedIteration(path=self._spelling[key], rows=count)
+            for key, count in self.unmatched.most_common()
+        ]
+
+    def note_unmatched(self, raw: str) -> None:
+        key = normalise_iteration_path(raw)
+        self._spelling.setdefault(key, raw.strip())
+        self.unmatched[key] += 1
+
+
+async def _place_from_iterations(
+    db: AsyncSession,
+    project_id: str,
+    row_sysids: list[tuple[CsvRow, str]],
+    plan: ImportPlan,
+    tally: IterationTally,
+) -> None:
+    """Place each row's item where its Iteration Path says, when that is clear.
+
+    A blank cell, or one matching no PI or sprint, places nothing: a new item stays
+    in the backlog it was created in, an existing one stays where planning put it.
+    Nothing is ever moved to the backlog on the strength of a path.
+    """
+    index = await load_iteration_index(db, project_id)
+    for row, sysid in row_sysids:
+        if not normalise_iteration_path(row.iteration):
+            continue
+        target = index.resolve(row.iteration)
+        if target is None:
+            tally.note_unmatched(row.iteration or "")
+            continue
+
+        if row.item_type == "feature":
+            feature = await db.get(Feature, sysid)
+            if feature is None:
+                continue
+            outcome = await place_feature(db, feature, target)
+        else:
+            pbi = await db.get(PBI, sysid)
+            if pbi is None:
+                continue
+            outcome = await place_story(db, pbi, target)
+
+        if outcome.action is None:
+            continue
+        if outcome.action == "placed":
+            tally.placed += 1
+        else:
+            tally.skipped += 1
+        plan.add(
+            outcome.action, row.item_type, row.title,
+            user_id=row.user_id, row=row.row_number, detail=outcome.detail,
+        )
+    await db.flush()
 
 
 _UNASSIGNED_TITLE = "Unassigned"
@@ -797,6 +885,8 @@ async def execute_import(
     actor: str = "",
     dry_run: bool = False,
     has_completion_columns: bool = False,
+    has_iteration_column: bool = False,
+    apply_iterations: bool = False,
 ) -> CsvImportResult:
     errors = _validate_rows(rows)
     if errors:
@@ -848,10 +938,17 @@ async def execute_import(
     # below runs in one transaction, and the 422 paths above return before it starts.
     states_before = await _count_states(db, project_id)
 
-    csv_feature_sysid, created_features, updated_features = await _upsert_features(
-        db, project_id, feature_rows, feature_map, has_state_column, plan
+    csv_feature_sysid, feature_row_sysids, created_features, updated_features = (
+        await _upsert_features(db, project_id, feature_rows, feature_map, has_state_column, plan)
     )
     await db.flush()
+
+    # Features first, so stories that moved in ADO together with their feature find
+    # it already in the PI they are being placed in.
+    placing = has_iteration_column and apply_iterations
+    iterations = IterationTally()
+    if placing:
+        await _place_from_iterations(db, project_id, feature_row_sysids, plan, iterations)
 
     for user_id, description in promoted.descriptions.items():
         sysid = csv_feature_sysid.get(user_id)
@@ -906,11 +1003,14 @@ async def execute_import(
     }
 
     completion = CompletionTally(has_completion_columns)
-    stories, freed_group_ids = await _upsert_stories(
+    stories, freed_group_ids, story_row_sysids = await _upsert_stories(
         db, project_id, story_rows, parent_lookup, pbi_map, unassigned_sysid,
         has_state_column, apply_reparenting, plan, parent_titles, completion,
     )
     deleted_group_ids += freed_group_ids
+    if placing:
+        await db.flush()
+        await _place_from_iterations(db, project_id, story_row_sysids, plan, iterations)
     created_states = await _count_states(db, project_id) - states_before
 
     result = CsvImportResult(
@@ -932,6 +1032,9 @@ async def execute_import(
         created_states=created_states,
         completion_dates_set=completion.dates_set,
         completion_date_contradiction_rows=completion.contradiction_rows,
+        items_placed=iterations.placed,
+        placements_skipped=iterations.skipped,
+        unmatched_iterations=iterations.unmatched_paths(),
     )
 
     if dry_run:

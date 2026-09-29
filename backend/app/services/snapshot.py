@@ -43,6 +43,7 @@ def restore_pi_structures(db: AsyncSession, proj_data: dict[str, Any], project_i
             state=pi.get("state", "draft"),
             start_date=_opt_date(pi.get("start_date")),
             end_date=_opt_date(pi.get("end_date")),
+            iteration_path=pi.get("iteration_path"),
         ))
         for sl in pi.get("swimlines", []):
             db.add(Swimline(
@@ -59,6 +60,7 @@ def restore_pi_structures(db: AsyncSession, proj_data: dict[str, Any], project_i
                 available=sprint_available(s),
                 start_date=_opt_date(s.get("start_date")),
                 end_date=_opt_date(s.get("end_date")),
+                iteration_path=s.get("iteration_path"),
             ))
         for e in pi.get("events", []):
             db.add(PIEvent(
@@ -243,6 +245,7 @@ async def serialize_project(db: AsyncSession, project: Project) -> dict[str, Any
             "state": pi.state,
             "start_date": pi.start_date.isoformat() if pi.start_date else None,
             "end_date": pi.end_date.isoformat() if pi.end_date else None,
+            "iteration_path": pi.iteration_path,
             "created_at": pi.created_at.isoformat(),
             "modified_at": pi.modified_at.isoformat(),
             "swimlines": swimline_data,
@@ -253,6 +256,7 @@ async def serialize_project(db: AsyncSession, project: Project) -> dict[str, Any
                     "available": s.available,
                     "start_date": s.start_date.isoformat() if s.start_date else None,
                     "end_date": s.end_date.isoformat() if s.end_date else None,
+                    "iteration_path": s.iteration_path,
                 }
                 for s in sprints
             ],

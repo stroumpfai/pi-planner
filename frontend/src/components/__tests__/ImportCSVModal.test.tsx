@@ -29,7 +29,7 @@ const mutateAsync = vi.fn()
 const dryRun = vi.fn()
 
 const fakeParseResult: csvParser.ParseResult = {
-  rows: [{ rowNumber: 2, itemType: 'story', userId: null, title: 'Auth', effort: null, parentId: null, state: 'New', completion: '' }],
+  rows: [{ rowNumber: 2, itemType: 'story', userId: null, title: 'Auth', effort: null, parentId: null, state: 'New', completion: '', iteration: '' }],
   totalRows: 1,
   removedCount: 0,
   removedItems: [],
@@ -37,6 +37,7 @@ const fakeParseResult: csvParser.ParseResult = {
   childrenOfRemovedCount: 0,
   hasStateColumn: true,
   hasCompletionColumns: false,
+  hasIterationColumn: false,
   dateFormat: { kind: 'no_dates' },
   errors: [],
 }
@@ -53,6 +54,8 @@ const fakePreview: csvParser.ImportPreview = {
   hasCompletionColumns: false,
   dateFormat: { kind: 'no_dates' },
   completionCount: 0,
+  hasIterationColumn: false,
+  iterationCount: 0,
   hasErrors: false,
   errors: [],
 }
@@ -169,7 +172,7 @@ describe('ImportCSVModal', () => {
     render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
     await waitFor(() => screen.getByRole('button', { name: /review changes/i }))
     await reviewAndConfirm()
-    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: [], has_state_column: true, has_completion_columns: false, apply_reparenting: false, apply_type_changes: false })
+    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: [], has_state_column: true, has_completion_columns: false, apply_reparenting: false, apply_type_changes: false, has_iteration_column: false, apply_iterations: false })
   })
 
   it('shows "Import complete" after successful import', async () => {
@@ -248,7 +251,7 @@ describe('ImportCSVModal', () => {
   it('shows the reconcile step when a Removed item matches an existing item', async () => {
     vi.mocked(csvParser.parseImportCSV).mockReturnValue({
       ...fakeParseResult,
-      removedItems: [{ rowNumber: 2, itemType: 'feature', userId: 101, title: 'Gone', effort: null, parentId: null, state: '', completion: '' }],
+      removedItems: [{ rowNumber: 2, itemType: 'feature', userId: 101, title: 'Gone', effort: null, parentId: null, state: '', completion: '', iteration: '' }],
     })
     render(
       <ImportCSVModal {...defaultProps} open file={makeFile()} features={[makeFeature(101, 'feat-1', 'Existing')]} />,
@@ -263,7 +266,7 @@ describe('ImportCSVModal', () => {
     mutateAsync.mockResolvedValue(okResult)
     vi.mocked(csvParser.parseImportCSV).mockReturnValue({
       ...fakeParseResult,
-      removedItems: [{ rowNumber: 2, itemType: 'feature', userId: 101, title: 'Gone', effort: null, parentId: null, state: '', completion: '' }],
+      removedItems: [{ rowNumber: 2, itemType: 'feature', userId: 101, title: 'Gone', effort: null, parentId: null, state: '', completion: '', iteration: '' }],
     })
     render(
       <ImportCSVModal {...defaultProps} open file={makeFile()} features={[makeFeature(101, 'feat-1', 'Existing')]} />,
@@ -272,14 +275,14 @@ describe('ImportCSVModal', () => {
     await waitFor(() => screen.getByRole('button', { name: /next/i }))
     await userEvent.click(screen.getByRole('button', { name: /next/i }))
     await reviewAndConfirm()
-    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: [], has_state_column: true, has_completion_columns: false, apply_reparenting: false, apply_type_changes: false })
+    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: [], has_state_column: true, has_completion_columns: false, apply_reparenting: false, apply_type_changes: false, has_iteration_column: false, apply_iterations: false })
   })
 
   it('includes the system_id in removals when an item is toggled to Remove', async () => {
     mutateAsync.mockResolvedValue(okResult)
     vi.mocked(csvParser.parseImportCSV).mockReturnValue({
       ...fakeParseResult,
-      removedItems: [{ rowNumber: 2, itemType: 'feature', userId: 101, title: 'Gone', effort: null, parentId: null, state: '', completion: '' }],
+      removedItems: [{ rowNumber: 2, itemType: 'feature', userId: 101, title: 'Gone', effort: null, parentId: null, state: '', completion: '', iteration: '' }],
     })
     render(
       <ImportCSVModal {...defaultProps} open file={makeFile()} features={[makeFeature(101, 'feat-1', 'Existing')]} />,
@@ -289,7 +292,7 @@ describe('ImportCSVModal', () => {
     await userEvent.click(screen.getByRole('button', { name: /next/i }))
     await userEvent.click(screen.getByRole('checkbox'))
     await reviewAndConfirm()
-    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: ['feat-1'], has_state_column: true, has_completion_columns: false, apply_reparenting: false, apply_type_changes: false })
+    expect(mutateAsync).toHaveBeenCalledWith({ rows: expect.any(Array), removals: ['feat-1'], has_state_column: true, has_completion_columns: false, apply_reparenting: false, apply_type_changes: false, has_iteration_column: false, apply_iterations: false })
   })
 
   it('holds the plan on screen while the import runs', async () => {
@@ -385,9 +388,9 @@ describe('ImportCSVModal', () => {
   const removedFeatureWithChild = {
     ...fakeParseResult,
     rows: [
-      { rowNumber: 3, itemType: 'story' as const, userId: 201, title: 'Child', effort: 3, parentId: 101, state: 'New', completion: '' },
+      { rowNumber: 3, itemType: 'story' as const, userId: 201, title: 'Child', effort: 3, parentId: 101, state: 'New', completion: '', iteration: '' },
     ],
-    removedItems: [{ rowNumber: 2, itemType: 'feature' as const, userId: 101, title: 'Gone', effort: null, parentId: null, state: '', completion: '' }],
+    removedItems: [{ rowNumber: 2, itemType: 'feature' as const, userId: 101, title: 'Gone', effort: null, parentId: null, state: '', completion: '', iteration: '' }],
     removedFeatureIds: [101],
     childrenOfRemovedCount: 1,
   }
@@ -432,7 +435,7 @@ describe('ImportCSVModal', () => {
     mutateAsync.mockResolvedValue({ ...okResult, removed_features: 1, removed_stories: 2 })
     vi.mocked(csvParser.parseImportCSV).mockReturnValue({
       ...fakeParseResult,
-      removedItems: [{ rowNumber: 2, itemType: 'feature', userId: 101, title: 'Gone', effort: null, parentId: null, state: '', completion: '' }],
+      removedItems: [{ rowNumber: 2, itemType: 'feature', userId: 101, title: 'Gone', effort: null, parentId: null, state: '', completion: '', iteration: '' }],
     })
     render(
       <ImportCSVModal {...defaultProps} open file={makeFile()} features={[makeFeature(101, 'feat-1', 'Existing')]} pbis={[makePBI(201, 'pbi-1', 'S', 'feat-9')]} />,
@@ -461,7 +464,7 @@ describe('ImportCSVModal', () => {
 
   const removedFeature101 = {
     ...fakeParseResult,
-    removedItems: [{ rowNumber: 2, itemType: 'feature' as const, userId: 101, title: 'Gone', effort: null, parentId: null, state: '', completion: '' }],
+    removedItems: [{ rowNumber: 2, itemType: 'feature' as const, userId: 101, title: 'Gone', effort: null, parentId: null, state: '', completion: '', iteration: '' }],
     removedFeatureIds: [101],
   }
 
@@ -530,8 +533,8 @@ describe('ImportCSVModal', () => {
   const movedStory = {
     ...fakeParseResult,
     rows: [
-      { rowNumber: 2, itemType: 'feature' as const, userId: 102, title: 'Payments', effort: null, parentId: null, state: '', completion: '' },
-      { rowNumber: 3, itemType: 'story' as const, userId: 201, title: 'Login form', effort: 3, parentId: 102, state: 'New', completion: '' },
+      { rowNumber: 2, itemType: 'feature' as const, userId: 102, title: 'Payments', effort: null, parentId: null, state: '', completion: '', iteration: '' },
+      { rowNumber: 3, itemType: 'story' as const, userId: 201, title: 'Login form', effort: 3, parentId: 102, state: 'New', completion: '', iteration: '' },
     ],
   }
 
@@ -593,7 +596,7 @@ describe('ImportCSVModal', () => {
   it('offers nothing when the story is already under the named feature', async () => {
     vi.mocked(csvParser.parseImportCSV).mockReturnValue({
       ...movedStory,
-      rows: [{ rowNumber: 3, itemType: 'story' as const, userId: 201, title: 'Login form', effort: 3, parentId: 101, state: 'New', completion: '' }],
+      rows: [{ rowNumber: 3, itemType: 'story' as const, userId: 201, title: 'Login form', effort: 3, parentId: 101, state: 'New', completion: '', iteration: '' }],
     })
     render(
       <ImportCSVModal {...defaultProps} {...movedStoryProject()} open file={makeFile()} />,
@@ -606,7 +609,7 @@ describe('ImportCSVModal', () => {
   it('treats a continuation of the named feature as no move at all', async () => {
     vi.mocked(csvParser.parseImportCSV).mockReturnValue({
       ...movedStory,
-      rows: [{ rowNumber: 3, itemType: 'story' as const, userId: 201, title: 'Carried', effort: 3, parentId: 101, state: 'New', completion: '' }],
+      rows: [{ rowNumber: 3, itemType: 'story' as const, userId: 201, title: 'Carried', effort: 3, parentId: 101, state: 'New', completion: '', iteration: '' }],
     })
     render(
       <ImportCSVModal
@@ -629,11 +632,11 @@ describe('ImportCSVModal', () => {
 
   const asFeatureRow = {
     ...fakeParseResult,
-    rows: [{ rowNumber: 2, itemType: 'feature' as const, userId: 201, title: 'Login form', effort: null, parentId: null, state: '', completion: '' }],
+    rows: [{ rowNumber: 2, itemType: 'feature' as const, userId: 201, title: 'Login form', effort: null, parentId: null, state: '', completion: '', iteration: '' }],
   }
   const asStoryRow = {
     ...fakeParseResult,
-    rows: [{ rowNumber: 2, itemType: 'story' as const, userId: 101, title: 'Auth', effort: 3, parentId: null, state: '', completion: '' }],
+    rows: [{ rowNumber: 2, itemType: 'story' as const, userId: 101, title: 'Auth', effort: 3, parentId: null, state: '', completion: '', iteration: '' }],
   }
 
   function typedProject(opts: { placed?: boolean } = {}) {
@@ -698,7 +701,7 @@ describe('ImportCSVModal', () => {
   it('offers nothing when the type is unchanged', async () => {
     vi.mocked(csvParser.parseImportCSV).mockReturnValue({
       ...fakeParseResult,
-      rows: [{ rowNumber: 2, itemType: 'story' as const, userId: 201, title: 'Login form', effort: 3, parentId: null, state: '', completion: '' }],
+      rows: [{ rowNumber: 2, itemType: 'story' as const, userId: 201, title: 'Login form', effort: 3, parentId: null, state: '', completion: '', iteration: '' }],
     })
     render(
       <ImportCSVModal {...defaultProps} {...typedProject()} open file={makeFile()} />,
@@ -711,9 +714,9 @@ describe('ImportCSVModal', () => {
   // ── Completion dates: the file's date format ───────────────────────────────
 
   const datedRows = [
-    { rowNumber: 2, itemType: 'story' as const, userId: 201, title: 'Login', effort: 3, parentId: null, state: 'Done', completion: '3/9/2026 3:06:02 PM' },
-    { rowNumber: 3, itemType: 'story' as const, userId: 202, title: 'Logout', effort: 2, parentId: null, state: 'Done', completion: '4/10/2026' },
-    { rowNumber: 4, itemType: 'story' as const, userId: 203, title: 'Reset', effort: 1, parentId: null, state: 'New', completion: '' },
+    { rowNumber: 2, itemType: 'story' as const, userId: 201, title: 'Login', effort: 3, parentId: null, state: 'Done', completion: '3/9/2026 3:06:02 PM', iteration: '' },
+    { rowNumber: 3, itemType: 'story' as const, userId: 202, title: 'Logout', effort: 2, parentId: null, state: 'Done', completion: '4/10/2026', iteration: '' },
+    { rowNumber: 4, itemType: 'story' as const, userId: 203, title: 'Reset', effort: 1, parentId: null, state: 'New', completion: '', iteration: '' },
   ]
   const datedFile = { ...fakeParseResult, rows: datedRows, totalRows: 3, hasCompletionColumns: true }
   const ambiguous = {
@@ -880,6 +883,83 @@ describe('ImportCSVModal', () => {
       await reviewAndConfirm()
       await screen.findByText(/import complete/i)
       expect(screen.queryByText(/completion dates? set/)).not.toBeInTheDocument()
+    })
+  })
+
+  // ── Iteration Path placement ───────────────────────────────────────────────
+
+  describe('Iteration Path', () => {
+    const iterationFile = {
+      ...fakeParseResult,
+      hasIterationColumn: true,
+      rows: [{ ...fakeParseResult.rows[0], iteration: 'Planner\\PI 08\\Sprint 1' }],
+    }
+    const iterationPreview = { ...fakePreview, hasIterationColumn: true, iterationCount: 1 }
+    const mappedPI = { system_id: 'pi-8', name: 'PI 08', iteration_path: 'Planner\\PI 08' } as unknown as PI
+
+    function renderIterations(pis: PI[] = [mappedPI]) {
+      vi.mocked(csvParser.parseImportCSV).mockReturnValue(iterationFile)
+      vi.mocked(csvParser.buildPreview).mockReturnValue(iterationPreview)
+      render(
+        <ImportCSVModal {...defaultProps} pis={pis} open file={makeFile()} />,
+        { wrapper: makeWrapper() },
+      )
+    }
+
+    it('places by default, and sends each row its path', async () => {
+      mutateAsync.mockResolvedValue(okResult)
+      renderIterations()
+      const box = await screen.findByRole('checkbox', { name: /place items on the pi board/i })
+      expect(box).toBeChecked()
+      await reviewAndConfirm()
+      expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({
+        has_iteration_column: true,
+        apply_iterations: true,
+        rows: [expect.objectContaining({ iteration: 'Planner\\PI 08\\Sprint 1' })],
+      }))
+    })
+
+    it('leaves placements alone when unticked', async () => {
+      mutateAsync.mockResolvedValue(okResult)
+      renderIterations()
+      await userEvent.click(await screen.findByRole('checkbox', { name: /place items on the pi board/i }))
+      await reviewAndConfirm()
+      expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ apply_iterations: false }))
+    })
+
+    it('warns when no PI has an iteration path to match', async () => {
+      renderIterations([{ ...mappedPI, iteration_path: null }])
+      expect(await screen.findByText(/no pi in this project has an iteration path yet/i)).toBeInTheDocument()
+    })
+
+    it('shows no panel for a file without the column', async () => {
+      render(<ImportCSVModal {...defaultProps} open file={makeFile()} />, { wrapper: makeWrapper() })
+      await screen.findByRole('button', { name: /review changes/i })
+      expect(screen.queryByText(/place items on the pi board/i)).not.toBeInTheDocument()
+    })
+
+    it('reviews placements and names the paths that matched nothing', async () => {
+      const counts = {
+        items_placed: 1,
+        placements_skipped: 0,
+        unmatched_iterations: [{ path: 'Planner\\PI 09', rows: 12 }],
+      }
+      dryRun.mockResolvedValue({
+        ...okResult, ...counts, plan_truncated: false,
+        plan: [{ action: 'placed', item_type: 'feature', user_id: 101, title: 'Auth', row: 2, changes: [], detail: '→ PI 08 · Needs Swimlane' }],
+      })
+      mutateAsync.mockResolvedValue({ ...okResult, ...counts })
+      renderIterations()
+      await userEvent.click(await screen.findByRole('button', { name: /review changes/i }))
+
+      expect(await screen.findByText('→ PI 08 · Needs Swimlane')).toBeInTheDocument()
+      expect(screen.getByText((_, el) => el?.tagName === 'SPAN' && el.textContent === '1 placed')).toBeInTheDocument()
+      expect(screen.getByText(/12 rows have Iteration Paths matching no PI or sprint/)).toBeInTheDocument()
+      expect(screen.getByText('Planner\\PI 09')).toBeInTheDocument()
+
+      await userEvent.click(screen.getByRole('button', { name: /confirm import/i }))
+      await screen.findByText(/import complete/i)
+      expect(screen.getByText(/1 item placed on the PI board/)).toBeInTheDocument()
     })
   })
 })

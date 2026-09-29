@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Annotated, Any, Generic, TypeVar
 
-from pydantic import BaseModel, Field, PlainSerializer, WithJsonSchema
+from pydantic import BaseModel, BeforeValidator, Field, PlainSerializer, StringConstraints, WithJsonSchema
 
 T = TypeVar("T")
 
@@ -20,6 +20,19 @@ UtcDatetime = Annotated[
     datetime,
     PlainSerializer(_utc_iso, return_type=str),
     WithJsonSchema({"type": "string", "format": "date-time"}),
+]
+
+
+def _blank_to_none(value: object) -> object:
+    if isinstance(value, str):
+        value = value.strip()
+        return value or None
+    return value
+
+
+# An Azure DevOps iteration path as typed; a blank field clears it.
+IterationPath = Annotated[
+    Annotated[str, StringConstraints(max_length=255)] | None, BeforeValidator(_blank_to_none)
 ]
 
 

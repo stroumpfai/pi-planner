@@ -133,7 +133,7 @@ describe('date format detection', () => {
 describe('completedOnFor', () => {
   const row = (completion: string): ParsedRow => ({
     rowNumber: 2, itemType: 'story', userId: 201, title: 'Login',
-    effort: null, parentId: null, state: 'Done', completion,
+    effort: null, parentId: null, state: 'Done', completion, iteration: '',
   })
 
   it('reads the completion cell under the given format', () => {

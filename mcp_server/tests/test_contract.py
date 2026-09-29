@@ -341,6 +341,15 @@ async def test_update_sprint_available_ge_zero():
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize("tool", ["create_pi", "update_pi", "update_sprint"])
+async def test_iteration_path_is_exposed_with_backend_max_length(tool):
+    """CSV import matches these paths; an agent must be able to set them (ADR 0007)."""
+    schema = await _get_tool_schema(projects_mcp, tool)
+    any_of = schema["properties"]["iteration_path"].get("anyOf", [])
+    assert 255 in [s.get("maxLength") for s in any_of]
+
+
+@pytest.mark.asyncio
 async def test_update_sprint_keeps_deprecated_capacity_alias():
     """Agent calls written before the rename must keep working for one release."""
     schema = await _get_tool_schema(projects_mcp, "update_sprint")

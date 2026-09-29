@@ -1249,6 +1249,16 @@ export interface components {
        * @default false
        */
       apply_type_changes?: boolean;
+      /**
+       * Has Iteration Column
+       * @default false
+       */
+      has_iteration_column?: boolean;
+      /**
+       * Apply Iterations
+       * @default false
+       */
+      apply_iterations?: boolean;
     };
     /** CsvImportResult */
     CsvImportResult: {
@@ -1331,6 +1341,21 @@ export interface components {
        * @default []
        */
       completion_date_contradiction_rows?: number[];
+      /**
+       * Items Placed
+       * @default 0
+       */
+      items_placed?: number;
+      /**
+       * Placements Skipped
+       * @default 0
+       */
+      placements_skipped?: number;
+      /**
+       * Unmatched Iterations
+       * @default []
+       */
+      unmatched_iterations?: components["schemas"]["UnmatchedIteration"][];
     };
     /** CsvRow */
     CsvRow: {
@@ -1350,6 +1375,8 @@ export interface components {
       state?: string | null;
       /** Completed On */
       completed_on?: string | null;
+      /** Iteration */
+      iteration?: string | null;
     };
     /** EditLockResponse */
     EditLockResponse: {
@@ -1986,6 +2013,8 @@ export interface components {
       start_date?: string | null;
       /** End Date */
       end_date?: string | null;
+      /** Iteration Path */
+      iteration_path?: string | null;
     };
     /** PIEventCreate */
     PIEventCreate: {
@@ -2056,6 +2085,8 @@ export interface components {
       start_date: string | null;
       /** End Date */
       end_date: string | null;
+      /** Iteration Path */
+      iteration_path?: string | null;
       /**
        * Total Effort
        * @default 0
@@ -2089,6 +2120,8 @@ export interface components {
       start_date?: string | null;
       /** End Date */
       end_date?: string | null;
+      /** Iteration Path */
+      iteration_path?: string | null;
     };
     /** PasswordReset */
     PasswordReset: {
@@ -2747,6 +2780,8 @@ export interface components {
       start_date: string | null;
       /** End Date */
       end_date: string | null;
+      /** Iteration Path */
+      iteration_path?: string | null;
       /**
        * Created At
        * Format: date-time
@@ -2766,6 +2801,8 @@ export interface components {
       start_date?: string | null;
       /** End Date */
       end_date?: string | null;
+      /** Iteration Path */
+      iteration_path?: string | null;
     };
     /** SwimlineCreate */
     SwimlineCreate: {
@@ -3008,6 +3045,16 @@ export interface components {
     /** TokenResponse */
     TokenResponse: {
       user: components["schemas"]["UserResponse"];
+    };
+    /**
+     * UnmatchedIteration
+     * @description An Iteration Path value that matched no PI or sprint, and how many rows had it.
+     */
+    UnmatchedIteration: {
+      /** Path */
+      path: string;
+      /** Rows */
+      rows: number;
     };
     /** UserCreate */
     UserCreate: {
