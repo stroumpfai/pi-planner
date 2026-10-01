@@ -12,11 +12,11 @@ export const useFeatures = (projectId: string, sort: 'created_at' | 'name' = 'cr
     enabled: !!projectId,
   })
 
-export const useFeature = (featureId: string) =>
+export const useFeature = (featureId: string, enabled = true) =>
   useQuery({
     queryKey: ['feature', featureId],
     queryFn: () => featuresApi.get(featureId),
-    enabled: !!featureId,
+    enabled: enabled && !!featureId,
   })
 
 export const useCreateFeature = (projectId: string) => {

@@ -1,0 +1,10 @@
+ID,Work Item Type,Title 1,Title 2,Title 3,Effort,Parent,Committed,State,State Change Date,Closed Date,Resolved Date,Area Path
+901,Epic,Security,,,,,,In Progress,3/2/2026 9:12:00 AM,,,Planner
+101,Feature,,Authentication,,,901,,New,3/4/2026 2:51:59 PM,,,Planner\Team A
+201,Product Backlog Item,,,Login form,3,101,Yes,New,3/10/2026 10:18:25 AM,,,Planner\Team A
+202,Product Backlog Item,,,Password reset,5,101,,Active,3/12/2026 1:38:11 PM,,,Planner\Team A
+301,Bug,,,Session expires too early,0.5,101,Yes,Active,3/15/2026 9:21:51 AM,,,Planner\Team B
+902,Epic,Insights,,,,,,New,1/21/2026 1:54:06 PM,,,Planner
+102,Feature,,Reporting,,,902,,New,1/21/2026 1:55:47 PM,,,Planner\Team B
+203,Product Backlog Item,,,CSV export of a PI,8,102,,New,2/3/2026 8:04:50 AM,,,Planner\Team B
+204,Product Backlog Item,,,Dashboard tiles,0,102,,New,2/5/2026 3:52:03 PM,,,Planner\Team B

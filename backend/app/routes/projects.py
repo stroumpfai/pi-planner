@@ -24,7 +24,12 @@ from app.models.swimline import Swimline
 from app.models.user import User
 from app.schemas import ProjectCreate, ProjectResponse, ProjectUpdate
 from app.services.events import broadcaster
-from app.services.snapshot import serialize_project, sprint_available
+from app.services.snapshot import (
+    ado_feature_fields,
+    ado_pbi_fields,
+    serialize_project,
+    sprint_available,
+)
 
 router = APIRouter(prefix="/api/v1/projects", tags=["projects"])
 
@@ -280,6 +285,7 @@ def _add_features(db: AsyncSession, proj_data: dict[str, Any], new_project_id: s
             pi_id=_remap(id_map, f.get("pi_id")),
             swimlane_id=_remap(id_map, f.get("swimlane_id")),
             state_id=_remap(id_map, f.get("state_id")),
+            **ado_feature_fields(f),
         ))
 
 
@@ -318,6 +324,7 @@ def _add_pbis(db: AsyncSession, proj_data: dict[str, Any], new_project_id: str, 
             # Absent in exports taken before completion dates existed: the item then
             # arrives done-but-undated, as it was (team-achievement.md §9.2).
             completed_on=_opt_date(p.get("completed_on")),
+            **ado_pbi_fields(p),
         ))
 
 

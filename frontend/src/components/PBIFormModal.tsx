@@ -4,8 +4,10 @@ import { Controller, useForm } from 'react-hook-form'
 import type { AxiosError } from 'axios'
 import type { PBI } from '@/types'
 import { EFFORT_VALUES } from '@/constants/effort'
+import { useFeature } from '@/hooks/useFeatures'
 import { useStates } from '@/hooks/useStates'
 import { useUiStore } from '@/stores/uiStore'
+import { AdoDetails, formatEpic } from './AdoDetails'
 import { DateInput } from './DateInput'
 import { StateSelect } from './StateSelect'
 import { WorkItemLink } from './WorkItemLink'
@@ -87,6 +89,8 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', readOnly = fals
   // Only while open: a closed modal sits mounted in every list row.
   const { data: allStates } = useStates(pbi?.project_id ?? activeProjectId ?? '', open)
   const states = (allStates ?? []).filter((s) => s.item_type === itemType)
+  // A story's Epic is its feature's. Only while open, like the State List.
+  const { data: parentFeature } = useFeature(pbi?.parent_feature_system_id ?? '', open)
   // Done-ness is the State's category, never its wording.
   const isDoneState = (id: string | null | undefined) =>
     !!id && states.find((s) => s.system_id === id)?.category === 'done'
@@ -317,6 +321,14 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', readOnly = fals
               </fieldset>
             </div>
             </fieldset>
+
+            {pbi && (
+              <AdoDetails fields={[
+                { label: 'Epic', value: formatEpic(parentFeature?.epic_id, parentFeature?.epic_title) },
+                { label: 'Area Path', value: pbi.area_path },
+                { label: 'Committed', value: pbi.committed ? 'Yes' : 'No' },
+              ]} />
+            )}
 
             {pbi && (
               <WorkItemLink projectId={pbi.project_id} id={pbi.id} variant="inline" label="Work item" />

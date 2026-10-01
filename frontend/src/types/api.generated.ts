@@ -1259,6 +1259,26 @@ export interface components {
        * @default false
        */
       apply_iterations?: boolean;
+      /**
+       * Has Parent Column
+       * @default false
+       */
+      has_parent_column?: boolean;
+      /**
+       * Has Area Path Column
+       * @default false
+       */
+      has_area_path_column?: boolean;
+      /**
+       * Has Committed Column
+       * @default false
+       */
+      has_committed_column?: boolean;
+      /**
+       * Has State Change Date Column
+       * @default false
+       */
+      has_state_change_date_column?: boolean;
     };
     /** CsvImportResult */
     CsvImportResult: {
@@ -1377,6 +1397,17 @@ export interface components {
       completed_on?: string | null;
       /** Iteration */
       iteration?: string | null;
+      /** Area Path */
+      area_path?: string | null;
+      /**
+       * Committed
+       * @default false
+       */
+      committed?: boolean;
+      /** State Changed On */
+      state_changed_on?: string | null;
+      /** Epic Title */
+      epic_title?: string | null;
     };
     /** EditLockResponse */
     EditLockResponse: {
@@ -1429,6 +1460,14 @@ export interface components {
       state_id?: string | null;
       /** State */
       state?: string | null;
+      /** Epic Id */
+      epic_id?: number | null;
+      /** Epic Title */
+      epic_title?: string | null;
+      /** Area Path */
+      area_path?: string | null;
+      /** State Changed On */
+      state_changed_on?: string | null;
       /** Project Id */
       project_id: string;
       /**
@@ -1959,6 +1998,15 @@ export interface components {
       state?: string | null;
       /** Completed On */
       completed_on?: string | null;
+      /** Area Path */
+      area_path?: string | null;
+      /**
+       * Committed
+       * @default false
+       */
+      committed?: boolean;
+      /** State Changed On */
+      state_changed_on?: string | null;
       /** Project Id */
       project_id: string;
       /**

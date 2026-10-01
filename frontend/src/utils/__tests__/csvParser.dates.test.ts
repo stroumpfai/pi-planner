@@ -134,6 +134,7 @@ describe('completedOnFor', () => {
   const row = (completion: string): ParsedRow => ({
     rowNumber: 2, itemType: 'story', userId: 201, title: 'Login',
     effort: null, parentId: null, state: 'Done', completion, iteration: '',
+    areaPath: '', committed: false, stateChange: '', epicTitle: null,
   })
 
   it('reads the completion cell under the given format', () => {

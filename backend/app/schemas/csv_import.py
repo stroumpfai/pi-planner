@@ -21,6 +21,16 @@ class CsvRow(BaseModel):
     # Raw Iteration Path cell. Only read when the request's has_iteration_column and
     # apply_iterations are both true.
     iteration: str | None = Field(None, max_length=500)
+    # Azure DevOps fields stored as they are, each read only when the request says
+    # the file had the column — a missing column changes nothing, a blank cell clears.
+    area_path: str | None = Field(None, max_length=500)
+    committed: bool = False
+    # State Change Date, converted to ISO by the client like completed_on.
+    state_changed_on: date | None = None
+    # A feature row only: the title of the Epic its Parent names, when the file lists
+    # that Epic. None means the file did not say, which keeps the stored title as
+    # long as the Epic is the same one.
+    epic_title: str | None = Field(None, max_length=500)
 
     @field_validator('effort', mode='before')
     @classmethod
@@ -61,6 +71,13 @@ class CsvImportRequest(BaseModel):
     # the import dialog asks by default. A file without the column places nothing.
     has_iteration_column: bool = False
     apply_iterations: bool = False
+    # Which Azure DevOps columns the file had. Each defaults to False, which leaves
+    # the matching field alone on every item. A feature's Parent is its Epic, so
+    # has_parent_column governs the feature's epic.
+    has_parent_column: bool = False
+    has_area_path_column: bool = False
+    has_committed_column: bool = False
+    has_state_change_date_column: bool = False
 
 
 class PlannedChange(BaseModel):

@@ -369,18 +369,22 @@ Sprint capacity: Set by clicking sprint header (integer, required, positive)
 
 ### 9.2 CSV Format
 
-Expected columns (any order): `State`, `ID`, `Work Item Type`, `Title 1`, `Title 2`, `Effort`, `Parent`, and optionally `Iteration Path`
+Expected columns (any order): `State`, `ID`, `Work Item Type`, `Title 1`, `Title 2` (and `Title 3` when the export includes Epics), `Effort`, `Parent`, and optionally `Iteration Path`, `Committed`, `Area Path`, `State Change Date`
+
+Both Azure DevOps tree-query exports are accepted: with or without `Epic` rows.
 
 | CSV value | Application entity |
 |-----------|-------------------|
 | `Feature` | Feature |
 | `Product Backlog Item` | PBI |
 | `Bug` | Bug (story with `item_type = bug`) |
+| `Epic` | Not an entity — its title is stored on the features whose `Parent` names it |
 
 ### 9.3 Import Rules
 
 - **Row filtering**: Rows where `State = Removed` are silently discarded
-- **Title resolution**: Features use `Title 1`; PBIs/Bugs use `Title 2` with fallback to `Title 1`
+- **Title resolution**: the deepest non-empty `Title N` column (a tree query writes each title at the item's depth)
+- **Azure DevOps fields**: a feature's Epic (`Parent` ID + the Epic row's title), Area Path, a story's Committed flag and State Change Date are stored and shown read-only. A missing column changes nothing; a blank cell clears
 - **Effort**: Blank or `0` → null; positive integer → stored as-is; non-numeric → validation error
 - **Parent format**: the cell must start with the parent's ID, optionally `#`-prefixed and
   optionally followed by its title (`101`, `#101`, `101: Auth`, `101 - Auth` all read as 101).

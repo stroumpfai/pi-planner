@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import type { AxiosError } from 'axios'
-import { parseImportCSV, buildPreview, selectImportRows, completedOnFor } from '@/utils/csvParser'
+import { parseImportCSV, buildPreview, selectImportRows, completedOnFor, isoDateFor } from '@/utils/csvParser'
 import type { ImportPreview, ParsedRow, ParseResult } from '@/utils/csvParser'
 import { DATE_FORMAT_LABELS } from '@/utils/dateFormat'
 import type { DateFormat, DateFormatDetection } from '@/utils/dateFormat'
@@ -162,8 +162,14 @@ function computeTypeChanges(
  * One row of the request. `completed_on` is sent only when the file has a
  * completion column (`completionFormat` not undefined): leaving it out is what
  * tells the backend to keep every existing date, whereas a null clears one.
+ * The Azure DevOps fields always travel; the request's `has_*_column` flags say
+ * whether the backend reads them.
  */
-function parsedRowToCsvRow(r: ParsedRow, completionFormat: DateFormat | null | undefined) {
+function parsedRowToCsvRow(
+  r: ParsedRow,
+  completionFormat: DateFormat | null | undefined,
+  readFormat: DateFormat | null,
+) {
   const row = {
     row_number: r.rowNumber,
     item_type: r.itemType,
@@ -173,6 +179,10 @@ function parsedRowToCsvRow(r: ParsedRow, completionFormat: DateFormat | null | u
     parent_id: r.parentId,
     state: r.state,
     iteration: r.iteration,
+    area_path: r.areaPath,
+    committed: r.committed,
+    state_changed_on: isoDateFor(r.stateChange, readFormat),
+    epic_title: r.epicTitle,
   }
   return completionFormat === undefined
     ? row
@@ -322,6 +332,15 @@ function PreviewTable({ preview }: { readonly preview: ImportPreview }) {
               ↳ {preview.childrenRemovedWithParent} child {preview.childrenRemovedWithParent === 1 ? 'story' : 'stories'} dropped (parent feature removed)
             </td>
             <td />
+          </tr>
+        )}
+        {preview.epicCount > 0 && (
+          <tr>
+            <td className="py-1.5 text-gray-500">
+              Epics
+              <span className="block text-xs text-gray-400">not imported as items — their titles are stored on their features</span>
+            </td>
+            <td className="py-1.5 text-right font-medium text-gray-800 align-top">{preview.epicCount}</td>
           </tr>
         )}
         <tr>
@@ -982,10 +1001,12 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
   }
 
   const hasCompletionColumns = preview?.hasCompletionColumns ?? false
+  // State Change Date is read under the same format as the completion dates.
+  const readsDates = hasCompletionColumns || (parsed?.hasStateChangeDateColumn ?? false)
   const readFormat = preview === null ? null : effectiveFormat(preview.dateFormat, chosenFormat)
   // Several formats fit and none is chosen: the file cannot be read yet.
   const needsFormat =
-    hasCompletionColumns && preview?.dateFormat.kind === 'ambiguous' && chosenFormat === null
+    readsDates && preview?.dateFormat.kind === 'ambiguous' && chosenFormat === null
 
   const dateSamples = useMemo(
     () => (parsed === null ? [] : sampleDates(parsed.rows, readFormat)),
@@ -1002,7 +1023,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
   function buildRequest(): CsvImportRequest {
     return {
       rows: rowsToImport.map((r) =>
-        parsedRowToCsvRow(r, hasCompletionColumns ? readFormat : undefined)),
+        parsedRowToCsvRow(r, hasCompletionColumns ? readFormat : undefined, readFormat)),
       // Forced children are handled by cascade, but including them is harmless and explicit.
       removals: Array.from(new Set([...removeSelection, ...forced])),
       // A file with no State column must leave every State untouched.
@@ -1014,6 +1035,11 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
       // Likewise a file with no Iteration Path column leaves every placement.
       has_iteration_column: preview?.hasIterationColumn ?? false,
       apply_iterations: (preview?.hasIterationColumn ?? false) && applyIterations,
+      // Azure DevOps fields stored as they are; a column the file lacks is left alone.
+      has_parent_column: parsed?.hasParentColumn ?? false,
+      has_area_path_column: parsed?.hasAreaPathColumn ?? false,
+      has_committed_column: parsed?.hasCommittedColumn ?? false,
+      has_state_change_date_column: parsed?.hasStateChangeDateColumn ?? false,
     }
   }
 
@@ -1106,7 +1132,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
                 <>
                   <PreviewTable preview={preview} />
 
-                  {hasCompletionColumns && preview.dateFormat.kind === 'ambiguous' && (
+                  {readsDates && preview.dateFormat.kind === 'ambiguous' && (
                     <DateFormatChoice
                       candidates={preview.dateFormat.candidates}
                       value={chosenFormat}

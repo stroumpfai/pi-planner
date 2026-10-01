@@ -1,3 +1,4 @@
+from datetime import date
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, field_validator
@@ -44,6 +45,11 @@ class FeatureResponse(BaseModel):
     continued_from_feature_id: str | None
     state_id: str | None = None
     state: str | None = None  # the State's value, resolved for display
+    # From Azure DevOps, written only by the CSV import. epic_id is the Epic's ADO ID.
+    epic_id: int | None = None
+    epic_title: str | None = None
+    area_path: str | None = None
+    state_changed_on: date | None = None
     project_id: str
     created_at: UtcDatetime
     modified_at: UtcDatetime

@@ -100,8 +100,15 @@ describe('parseImportCSV', () => {
   })
 
   it('records an error for an unknown Work Item Type', () => {
-    const result = parseImportCSV(csv('Epic,Something,,,,'))
+    const result = parseImportCSV(csv('Task,Something,,,,'))
     expect(result.errors.some((e) => /unknown Work Item Type/i.test(e.message))).toBe(true)
+  })
+
+  it('skips an Epic row without an error', () => {
+    const result = parseImportCSV(csv('Epic,Something,900,,,'))
+    expect(result.errors).toEqual([])
+    expect(result.rows).toEqual([])
+    expect(result.epicCount).toBe(1)
   })
 
   it('excludes Removed rows and increments removedCount', () => {
@@ -398,5 +405,96 @@ describe('the Iteration Path column', () => {
     expect(result.hasIterationColumn).toBe(false)
     expect(result.rows[0].iteration).toBe('')
     expect(buildPreview(result).iterationCount).toBe(0)
+  })
+})
+
+// ── The two Azure DevOps exports ───────────────────────────────────────────────
+
+// Excerpts of the two real exports: the planner one (no Epic rows, two title
+// levels) and the one with Epic rows, a third title level, Area Path and State
+// Change Date. Both must read to the same items.
+const PLANNER_EXPORT = [
+  'ID,Work Item Type,Title 1,Title 2,Effort,Parent,Iteration Path,Committed,State,Closed Date,Resolved Date',
+  '"142115","Feature","Logo Endpunkt",,,"113703","ASTRA_ISK",,"New",,',
+  '"142109","Product Backlog Item",,"Reenable the logo endpoint","3","142115","ASTRA_ISK\\PI 08\\Sprint 08.2","Yes","Done","9/22/2026 9:56:21 AM",',
+  '"151042","Product Backlog Item","ISK - Middleware Migration",,,,"ASTRA_ISK\\PI 08\\Sprint 08.3",,"In Progress",,',
+  '"157702","Bug","Finding re-open a mission",,,,"ASTRA_ISK\\PI 08\\Sprint 08.3",,"In Progress",,',
+].join('\n')
+
+const EPIC_EXPORT = [
+  'ID,Work Item Type,Title 1,Title 2,Title 3,Effort,Parent,Iteration Path,Committed,State,State Change Date,Closed Date,Resolved Date,Area Path',
+  '"113703","Epic","Organisationen",,,,,"ASTRA_ISK",,"In Progress","12/17/2025 9:12:00 AM",,,"ASTRA_ISK"',
+  '"142115","Feature",,"Logo Endpunkt",,,"113703","ASTRA_ISK",,"New","9/24/2025 12:05:20 PM",,,"ASTRA_ISK"',
+  '"142109","Product Backlog Item",,,"Reenable the logo endpoint","3","142115","ASTRA_ISK\\PI 08\\Sprint 08.2","Yes","Done","9/22/2026 9:56:21 AM","9/22/2026 9:56:21 AM",,"ASTRA_ISK\\ISK Development"',
+  '"151042","Product Backlog Item","ISK - Middleware Migration",,,,,"ASTRA_ISK\\PI 08\\Sprint 08.3",,"In Progress","6/10/2026 9:41:31 AM",,,"ASTRA_ISK\\ISK ISC-EJPD"',
+  '"157702","Bug","Finding re-open a mission",,,,,"ASTRA_ISK\\PI 08\\Sprint 08.3",,"In Progress","9/23/2026 3:44:12 PM",,,"ASTRA_ISK\\ISK Development"',
+].join('\n')
+
+describe('the two Azure DevOps exports', () => {
+  const core = (text: string) => parseImportCSV(text).rows.map((r) => ({
+    itemType: r.itemType, userId: r.userId, title: r.title, effort: r.effort,
+    parentId: r.parentId, state: r.state, completion: r.completion,
+    iteration: r.iteration, committed: r.committed,
+  }))
+
+  it('reads both without errors', () => {
+    expect(parseImportCSV(PLANNER_EXPORT).errors).toEqual([])
+    expect(parseImportCSV(EPIC_EXPORT).errors).toEqual([])
+  })
+
+  it('reads the same items from both', () => {
+    expect(core(EPIC_EXPORT)).toEqual(core(PLANNER_EXPORT))
+    expect(core(EPIC_EXPORT).map((r) => r.title)).toEqual([
+      'Logo Endpunkt', 'Reenable the logo endpoint', 'ISK - Middleware Migration', 'Finding re-open a mission',
+    ])
+  })
+
+  it('skips Epic rows, counting them apart from Removed', () => {
+    const result = parseImportCSV(EPIC_EXPORT)
+    expect(result.epicCount).toBe(1)
+    expect(result.removedCount).toBe(0)
+    expect(result.rows.some((r) => r.userId === 113703)).toBe(false)
+    expect(buildPreview(result).epicCount).toBe(1)
+  })
+
+  it('gives a feature the title of the Epic its Parent names', () => {
+    const feature = parseImportCSV(EPIC_EXPORT).rows.find((r) => r.userId === 142115)
+    expect(feature?.parentId).toBe(113703)
+    expect(feature?.epicTitle).toBe('Organisationen')
+  })
+
+  it('leaves the Epic title unknown when the file has no Epic row', () => {
+    const feature = parseImportCSV(PLANNER_EXPORT).rows.find((r) => r.userId === 142115)
+    expect(feature?.parentId).toBe(113703)
+    expect(feature?.epicTitle).toBeNull()
+  })
+
+  it('finds an Epic listed after its feature', () => {
+    const [header, epic, ...rest] = EPIC_EXPORT.split('\n')
+    const feature = parseImportCSV([header, ...rest, epic].join('\n')).rows.find((r) => r.userId === 142115)
+    expect(feature?.epicTitle).toBe('Organisationen')
+  })
+
+  it('reads Area Path, Committed and State Change Date', () => {
+    const story = parseImportCSV(EPIC_EXPORT).rows.find((r) => r.userId === 142109)
+    expect(story?.areaPath).toBe('ASTRA_ISK\\ISK Development')
+    expect(story?.committed).toBe(true)
+    expect(story?.stateChange).toBe('9/22/2026 9:56:21 AM')
+    const uncommitted = parseImportCSV(EPIC_EXPORT).rows.find((r) => r.userId === 151042)
+    expect(uncommitted?.committed).toBe(false)
+  })
+
+  it('reports which Azure DevOps columns each export has', () => {
+    const planner = parseImportCSV(PLANNER_EXPORT)
+    expect([planner.hasParentColumn, planner.hasAreaPathColumn, planner.hasCommittedColumn, planner.hasStateChangeDateColumn])
+      .toEqual([true, false, true, false])
+    const epic = parseImportCSV(EPIC_EXPORT)
+    expect([epic.hasParentColumn, epic.hasAreaPathColumn, epic.hasCommittedColumn, epic.hasStateChangeDateColumn])
+      .toEqual([true, true, true, true])
+  })
+
+  it('reads State Change Date into the file\'s one date format', () => {
+    const result = parseImportCSV(EPIC_EXPORT)
+    expect(result.dateFormat.kind).toBe('one')
   })
 })

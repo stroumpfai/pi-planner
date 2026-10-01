@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from sqlalchemy import ForeignKey, Index, Integer, Text, UniqueConstraint, func
+from sqlalchemy import Date, ForeignKey, Index, Integer, Text, UniqueConstraint, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -37,6 +37,13 @@ class Feature(Base):
     state_id: Mapped[str | None] = mapped_column(
         Text, ForeignKey("project_states.system_id", ondelete="RESTRICT")
     )
+    # Brought across from Azure DevOps by the CSV import and written by nothing else.
+    # The parent Epic is denormalised: its ADO ID (not a planner ID — epics are not
+    # items here) and the title the last file that listed it gave it.
+    epic_id: Mapped[int | None] = mapped_column(Integer)
+    epic_title: Mapped[str | None] = mapped_column(Text)
+    area_path: Mapped[str | None] = mapped_column(Text)
+    state_changed_on: Mapped[date | None] = mapped_column(Date)
     created_at: Mapped[datetime] = mapped_column(default=func.now())
     modified_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now())
 
@@ -55,5 +62,6 @@ class Feature(Base):
         Index("idx_features_swimlane", "swimlane_id"),
         Index("idx_features_continued_from", "continued_from_feature_id"),
         Index("idx_features_state", "state_id"),
+        Index("idx_features_epic", "project_id", "epic_id"),
         UniqueConstraint("project_id", "user_id"),
     )

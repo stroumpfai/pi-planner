@@ -1,8 +1,10 @@
 # CSV Import — what it does, and what it won't do
 
-Backlog → **Import CSV**. The file is meant to be an Azure DevOps query export
-(*Features*, *Product Backlog Items*, *Bugs*), but any CSV with the right column
-names works.
+Backlog → **Import CSV**. The file is meant to be an Azure DevOps tree-query
+export (*Features*, *Product Backlog Items*, *Bugs*, optionally with their
+*Epics*), but any CSV with the right column names works. Both exports in use read
+the same: the one without Epic rows (`Title 1`–`Title 2`) and the one with them
+(`Title 1`–`Title 3`, plus `State Change Date` and `Area Path`).
 
 Nothing is written until you press **Confirm Import**, and before that you are
 shown exactly what pressing it will do — see [the review step](#the-review-step).
@@ -35,22 +37,32 @@ columns are ignored.
 
 | Column | Used for | Notes |
 |---|---|---|
-| `Work Item Type` | Required | `Feature`, `Product Backlog Item` or `Bug`. Anything else is an error. |
+| `Work Item Type` | Required | `Feature`, `Product Backlog Item` or `Bug`. `Epic` rows are read for their titles only (see *Azure DevOps fields*). Anything else is an error. |
 | `ID` | The business ID | 1–999 999. May be blank → always creates a new item. |
-| `Title 1` | Feature title | Also used as a story's title if `Title 2` is blank. |
-| `Title 2` | Story / bug title | |
+| `Title 1`, `Title 2`, … | The item's title | One column per level of the tree query; the title is the deepest non-empty one. See *Titles* below. |
 | `Effort` | Story / bug effort | Only `0, 0.5, 1, 2, 3, 5, 8, 13, 21`. `0,5` and `0.5` both work. **Ignored on features** — a feature's effort is the sum of its stories. |
 | `Parent` | Which feature a story belongs to | See *Parent* below. |
 | `State` | The item's State, or the delete instruction | See *State* below. |
 | `Closed Date` | When a story or bug was completed | See *Completion dates* below. |
 | `Resolved Date` | Fallback for `Closed Date` | Used only where `Closed Date` is blank. |
 | `Iteration Path` | PI and sprint placement | See [Placing items on the PI board](#placing-items-on-the-pi-board). |
+| `Area Path` | Stored on features and stories | See *Azure DevOps fields* below. |
+| `Committed` | Stored on stories and bugs | `Yes` (or `true`, `1`) is committed; anything else is not. |
+| `State Change Date` | Stored on features and stories | Read in the file's date format. |
 
-Not imported: **descriptions**, comments, assignees, tags, area paths, and every
+Not imported: **descriptions**, comments, assignees, tags, and every
 other date (`Changed Date`, `Created Date`, …). Those other date
 columns are still worth exporting, because they help the import work out the
 file's date format (see below). An item's existing description in the planner is never overwritten by an
 import.
+
+### Titles
+
+A tree query writes each title into the column for the item's depth. Without
+Epic rows a feature sits in `Title 1` and its stories in `Title 2`; with them,
+Epics take `Title 1`, features `Title 2` and stories `Title 3`. A story with no
+parent is at the top either way. The import takes the deepest non-empty title
+column, so both layouts — and any other depth — read the same.
 
 ### Parent
 
@@ -142,6 +154,29 @@ Accepted shapes: `2026-09-03`, `3.9.2026`, `9/3/2026` and `3/9/2026`, with or
 without leading zeros, and with or without a time (24-hour or AM/PM). The time is
 dropped.
 
+### Azure DevOps fields
+
+Stored on the item exactly as the file gives them and shown read-only under
+**From Azure DevOps** in its details. Nothing in the planner edits them — the
+next import would overwrite the edit.
+
+| Field | Stored on | From |
+|---|---|---|
+| Epic | Features | The feature's `Parent` — its ADO ID — plus the title of that `Epic` row in the same file. A story shows its feature's Epic. |
+| Area Path | Features, stories, bugs | `Area Path` |
+| Committed | Stories, bugs | `Committed` |
+| State Change Date | Features, stories, bugs | `State Change Date` (stored, not yet shown) |
+
+Each follows the *State* rule: **a file without the column changes nothing**,
+and a blank cell clears the value. For the Epic, the column is `Parent` — so a
+file whose features have a blank Parent clears their Epic.
+
+Epics are not items in the planner: an `Epic` row is never created, updated,
+placed or deleted, and the preview counts Epic rows on their own line. A file
+that names an Epic without listing it (the export without Epic rows) keeps the
+title an earlier file gave it, as long as it is the same Epic; a different Epic
+shows its ID alone until a file titles it.
+
 ### Iteration Path
 
 Places features and stories on the PI board. It has a chapter of its own:
@@ -156,8 +191,8 @@ Places features and stories on the PI board. It has a chapter of its own:
 | Situation | Result |
 |---|---|
 | ID is new, or blank | Feature created in the backlog — then placed on the board if its `Iteration Path` matches. |
-| ID already exists as a feature | Title (and State) updated, wherever it lives. Its placement changes only through `Iteration Path`. |
-| The feature was **split across PIs** | Title and State are applied to *every* part of it, so later PIs don't keep showing the old text. |
+| ID already exists as a feature | Title, State and the [Azure DevOps fields](#azure-devops-fields) updated, wherever it lives. Its placement changes only through `Iteration Path`. |
+| The feature was **split across PIs** | Title, State and the Azure DevOps fields are applied to *every* part of it, so later PIs don't keep showing the old text. |
 | ID exists as a *story* | See *Type changes*. |
 
 ### Stories and bugs
@@ -165,7 +200,7 @@ Places features and stories on the PI board. It has a chapter of its own:
 | Situation | Result |
 |---|---|
 | ID is new, or blank | Story created under the feature its `Parent` names — then placed in a sprint if its `Iteration Path` matches. |
-| ID already exists | Title, Effort, type (story ↔ bug) and State updated **in place**. It keeps its sprint and group unless its `Iteration Path` says otherwise. |
+| ID already exists | Title, Effort, type (story ↔ bug), State and the [Azure DevOps fields](#azure-devops-fields) updated **in place**. It keeps its sprint and group unless its `Iteration Path` says otherwise. |
 | `Parent` names a feature that was split across PIs | A *new* story joins the newest part — the PI the work has actually reached. |
 | `Parent` names a different feature than the one holding it | Not moved unless you ask. See *Re-parenting*. |
 | Story ↔ bug switched, file has no `State` column | The State is cleared, because the old value belongs to the other list. |
@@ -396,7 +431,8 @@ imported** until the file is fixed and re-selected:
 - **Creating PIs.** An Iteration Path naming a PI the planner doesn't have is
   reported, not created.
 - **Descriptions, assignees, tags, links** — not read, not written. Of the
-  dates, only `Closed Date` and `Resolved Date` are imported.
+  dates, only `Closed Date`, `Resolved Date` and `State Change Date` are imported.
+- **Epics as items.** Epic rows only title their features' Epic.
 - **Effort on features** — always derived from the stories underneath.
 - **Deleting by omission.** An item missing from the CSV stays.
 - **Demoting a feature to a story.**
@@ -427,3 +463,4 @@ several of them are built to be applied *after* `01-basic.csv`.
 | `10-closed-dates.csv` | A real Azure DevOps export shape: completion dates, a month/day/year format settled by `Changed Date`. |
 | `11-dates-ambiguous.csv` | Every day is 12 or lower, so the import asks for the date format. |
 | `12-iterations.csv` | Iteration Path placement: a feature into PI 08, stories into its sprints, one unmapped PI reported. |
+| `13-epics.csv` | The export with Epic rows: three title columns, Epic, Area Path, Committed, State Change Date. |

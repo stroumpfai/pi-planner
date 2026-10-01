@@ -65,6 +65,10 @@ class PBIResponse(BaseModel):
     state_id: str | None = None
     state: str | None = None  # the State's value, resolved for display
     completed_on: date | None = None
+    # From Azure DevOps, written only by the CSV import.
+    area_path: str | None = None
+    committed: bool = False
+    state_changed_on: date | None = None
     project_id: str
     created_at: UtcDatetime
     modified_at: UtcDatetime

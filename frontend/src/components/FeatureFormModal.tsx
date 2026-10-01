@@ -2,6 +2,7 @@ import * as Dialog from '@radix-ui/react-dialog'
 import { Controller, useForm } from 'react-hook-form'
 import type { AxiosError } from 'axios'
 import type { Feature } from '@/types'
+import { AdoDetails, formatEpic } from './AdoDetails'
 import { StateSelect } from './StateSelect'
 import { WorkItemLink } from './WorkItemLink'
 
@@ -135,6 +136,13 @@ export function FeatureFormModal({ open, feature, readOnly = false, onClose, onS
               )}
             />
             </fieldset>
+
+            {feature && (
+              <AdoDetails fields={[
+                { label: 'Epic', value: formatEpic(feature.epic_id, feature.epic_title) },
+                { label: 'Area Path', value: feature.area_path },
+              ]} />
+            )}
 
             {feature && (
               <WorkItemLink projectId={feature.project_id} id={feature.id} variant="inline" label="Work item" />

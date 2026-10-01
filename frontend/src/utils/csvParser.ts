@@ -22,6 +22,15 @@ export interface ParsedRow {
   completion: string
   /** Raw, trimmed `Iteration Path` cell; '' when blank or when the column is absent. */
   iteration: string
+  /** Raw, trimmed `Area Path` cell; '' when blank or when the column is absent. */
+  areaPath: string
+  /** `Committed` reads Yes. False when blank or when the column is absent. */
+  committed: boolean
+  /** Raw, trimmed `State Change Date` cell, in the file's format — read it with `isoDateFor`. */
+  stateChange: string
+  /** Feature rows only: the title of the Epic its Parent names, when the file lists
+   *  that Epic. Null when it does not, which keeps the title the planner has. */
+  epicTitle: string | null
 }
 
 export interface ParseError {
@@ -48,6 +57,14 @@ export interface ParseResult {
   /** True when the header has `Iteration Path`: the import may then place items on the
    *  PI board. False leaves every placement alone. */
   hasIterationColumn: boolean
+  /** Which Azure DevOps-only columns the header has. Each false leaves that field alone
+   *  on every item; a feature's Parent is its Epic, so `hasParentColumn` covers that. */
+  hasParentColumn: boolean
+  hasAreaPathColumn: boolean
+  hasCommittedColumn: boolean
+  hasStateChangeDateColumn: boolean
+  /** Epic rows: never imported as items, only read for their titles. */
+  epicCount: number
   /** The file's one date format, judged from every cell of every `*Date` column. */
   dateFormat: DateFormatDetection
   errors: ParseError[]
@@ -67,6 +84,7 @@ export interface ImportPreview {
   completionCount: number // imported rows carrying a completion date
   hasIterationColumn: boolean
   iterationCount: number  // imported rows with a non-blank Iteration Path
+  epicCount: number       // Epic rows, read for the titles of their features' Epic
   errors: ParseError[]
   hasErrors: boolean
 }
@@ -76,13 +94,17 @@ export interface ImportPreview {
 const COL_STATE = 'State'
 const COL_ID = 'ID'
 const COL_TYPE = 'Work Item Type'
-const COL_TITLE1 = 'Title 1'
-const COL_TITLE2 = 'Title 2'
+/** `Title 1`, `Title 2`, … — one per level of the Azure DevOps tree query. */
+const COL_TITLE = /^Title (\d+)$/
 const COL_EFFORT = 'Effort'
 const COL_PARENT = 'Parent'
 const COL_CLOSED_DATE = 'Closed Date'
 const COL_RESOLVED_DATE = 'Resolved Date'
 const COL_ITERATION = 'Iteration Path'
+const COL_AREA_PATH = 'Area Path'
+const COL_COMMITTED = 'Committed'
+const COL_STATE_CHANGE_DATE = 'State Change Date'
+const TYPE_EPIC = 'Epic'
 
 /** Any column whose header ends in "Date" is a date column, and evidence for the
  *  file's format even when it is never imported (`Changed Date`, `Created Date`…). */
@@ -99,12 +121,25 @@ const USER_ID_MAX = 999_999
 
 // ── Field parsers ─────────────────────────────────────────────────────────────
 
-function resolveTitle(raw: Record<string, string>, itemType: ItemType): string {
-  if (itemType === 'feature') {
-    return (raw[COL_TITLE1] ?? '').trim()
+/** The header's title columns, shallowest level first. */
+function titleColumns(fields: readonly string[]): string[] {
+  return fields
+    .filter((f) => COL_TITLE.test(f))
+    .sort((a, b) => Number(COL_TITLE.exec(a)?.[1]) - Number(COL_TITLE.exec(b)?.[1]))
+}
+
+/**
+ * A tree query writes each title into the column for the item's depth, so the title
+ * is the deepest non-empty one. The same rule reads both exports: with Epic rows a
+ * feature sits in `Title 2` and its stories in `Title 3`; without, they are one
+ * column shallower. A story with no parent is at the top in either.
+ */
+function resolveTitle(raw: Record<string, string>, columns: readonly string[]): string {
+  for (let i = columns.length - 1; i >= 0; i--) {
+    const title = (raw[columns[i]] ?? '').trim()
+    if (title !== '') return title
   }
-  const t2 = (raw[COL_TITLE2] ?? '').trim()
-  return t2 === '' ? (raw[COL_TITLE1] ?? '').trim() : t2
+  return ''
 }
 
 function parseUserId(
@@ -229,8 +264,13 @@ function collectDateCells(
  * read under that format.
  */
 export function completedOnFor(row: ParsedRow, format: DateFormat | null): string | null {
-  if (row.completion === '' || format === null) return null
-  return toIsoDate(row.completion, format)
+  return isoDateFor(row.completion, format)
+}
+
+/** A raw date cell as `YYYY-MM-DD` under the file's format; null as for `completedOnFor`. */
+export function isoDateFor(cell: string, format: DateFormat | null): string | null {
+  if (cell === '' || format === null) return null
+  return toIsoDate(cell, format)
 }
 
 /** Parse an ID without surfacing errors — used for Removed rows, which aren't imported. */
@@ -269,6 +309,19 @@ export function parseImportCSV(text: string): ParseResult {
     fields.includes(COL_CLOSED_DATE) || fields.includes(COL_RESOLVED_DATE)
 
   const hasIterationColumn = fields.includes(COL_ITERATION)
+  const titles = titleColumns(fields)
+
+  // Epics are not items here. Read first, so a feature finds its Epic's title
+  // wherever in the file the Epic row sits.
+  const epicTitles = new Map<number, string>()
+  let epicCount = 0
+  for (const raw of allDataRows) {
+    if ((raw[COL_TYPE] ?? '').trim() !== TYPE_EPIC) continue
+    epicCount++
+    const id = parseUserIdLenient(raw[COL_ID] ?? '')
+    const title = resolveTitle(raw, titles)
+    if (id !== null && title !== '') epicTitles.set(id, title)
+  }
 
   // One file, one format: judged from the whole file before any row is read.
   const dateFormat = detectDateFormat(collectDateCells(allDataRows, fields))
@@ -287,6 +340,7 @@ export function parseImportCSV(text: string): ParseResult {
 
   allDataRows.forEach((raw, index) => {
     const rowNumber = index + 2  // +1 for 0-based, +1 for header row
+    if ((raw[COL_TYPE] ?? '').trim() === TYPE_EPIC) return
 
     // Filter removed items (case-insensitive). Capture those with a valid ID so the
     // caller can reconcile them against items already in the project.
@@ -299,12 +353,16 @@ export function parseImportCSV(text: string): ParseResult {
           rowNumber,
           itemType,
           userId,
-          title: resolveTitle(raw, itemType),
+          title: resolveTitle(raw, titles),
           effort: null,
           parentId: parseParentIdLenient(raw[COL_PARENT] ?? ''),
           state: '',
           completion: '',
           iteration: '',
+          areaPath: '',
+          committed: false,
+          stateChange: '',
+          epicTitle: null,
         })
       }
       return
@@ -318,7 +376,7 @@ export function parseImportCSV(text: string): ParseResult {
       return
     }
 
-    const title = resolveTitle(raw, itemType)
+    const title = resolveTitle(raw, titles)
     if (title === '') {
       errors.push({ row: rowNumber, message: 'missing title' })
     }
@@ -337,6 +395,12 @@ export function parseImportCSV(text: string): ParseResult {
       state: (raw[COL_STATE] ?? '').trim(),
       completion: resolveCompletion(raw),
       iteration: (raw[COL_ITERATION] ?? '').trim(),
+      areaPath: (raw[COL_AREA_PATH] ?? '').trim(),
+      committed: /^(yes|true|1)$/i.test((raw[COL_COMMITTED] ?? '').trim()),
+      stateChange: (raw[COL_STATE_CHANGE_DATE] ?? '').trim(),
+      epicTitle: itemType === 'feature' && parentId !== null
+        ? epicTitles.get(parentId) ?? null
+        : null,
     })
   })
 
@@ -368,7 +432,11 @@ export function parseImportCSV(text: string): ParseResult {
   return {
     rows, totalRows, removedCount, removedItems, removedFeatureIds,
     childrenOfRemovedCount, hasStateColumn, hasCompletionColumns, hasIterationColumn,
-    dateFormat, errors,
+    hasParentColumn: fields.includes(COL_PARENT),
+    hasAreaPathColumn: fields.includes(COL_AREA_PATH),
+    hasCommittedColumn: fields.includes(COL_COMMITTED),
+    hasStateChangeDateColumn: fields.includes(COL_STATE_CHANGE_DATE),
+    epicCount, dateFormat, errors,
   }
 }
 
@@ -457,6 +525,7 @@ export function buildPreview(
     completionCount: rows.filter((r) => r.completion !== '').length,
     hasIterationColumn: result.hasIterationColumn,
     iterationCount: rows.filter((r) => r.iteration !== '').length,
+    epicCount: result.epicCount,
     errors: result.errors,
     hasErrors: result.errors.length > 0,
   }

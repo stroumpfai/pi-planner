@@ -262,6 +262,11 @@ async def split_feature(
         # The continuation is the same work carried into a later PI, so it starts from
         # the same State. Both lists are the project's feature list, so the id is valid.
         state_id=feature.state_id,
+        # Azure DevOps knows one work item; the continuation carries its fields.
+        epic_id=feature.epic_id,
+        epic_title=feature.epic_title,
+        area_path=feature.area_path,
+        state_changed_on=feature.state_changed_on,
     )
     db.add(new_feature)
     await db.flush()

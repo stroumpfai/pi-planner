@@ -8,7 +8,7 @@ from app.middleware.deps import require_edit_lock
 from app.models.project import Project
 from app.models.user import User
 from app.schemas.csv_import import CsvImportRequest, CsvImportResult
-from app.services.csv_import import execute_import
+from app.services.csv_import import AdoColumns, execute_import
 
 router = APIRouter(tags=["import"])
 
@@ -32,4 +32,10 @@ async def import_csv(
         has_completion_columns=body.has_completion_columns,
         has_iteration_column=body.has_iteration_column,
         apply_iterations=body.apply_iterations,
+        ado_columns=AdoColumns(
+            parent=body.has_parent_column,
+            area_path=body.has_area_path_column,
+            committed=body.has_committed_column,
+            state_change_date=body.has_state_change_date_column,
+        ),
     )

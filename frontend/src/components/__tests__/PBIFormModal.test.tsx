@@ -4,9 +4,14 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { PBIFormModal } from '../PBIFormModal'
 import { useStates, useStatesForType } from '@/hooks/useStates'
+import { useFeature } from '@/hooks/useFeatures'
 import type { PBI, ProjectState, StateItemType } from '@/types'
 
 vi.mock('@/hooks/useStates')
+vi.mock('@/hooks/useFeatures', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/hooks/useFeatures')>()),
+  useFeature: vi.fn(() => ({ data: undefined })),
+}))
 
 // Every test here renders the modal, and the modal renders StateSelect (which reads
 // useStatesForType) and reads useStates itself for the chosen State's category.
@@ -202,6 +207,37 @@ describe('PBIFormModal', () => {
     const linkedPBI: PBI = { ...basePBI, id: 42 }
     render(<PBIFormModal {...defaultProps} pbi={linkedPBI} readOnly />, { wrapper: makeWrapper() })
     expect(screen.getByRole('button', { name: /copy work-item link/i })).toBeEnabled()
+  })
+})
+
+describe('PBIFormModal Azure DevOps fields', () => {
+  const ado = () => screen.getByRole('region', { name: /from azure devops/i })
+
+  beforeEach(() => {
+    vi.mocked(useFeature).mockReturnValue({ data: undefined } as ReturnType<typeof useFeature>)
+  })
+
+  it('shows Area Path, Committed and the Epic of its feature', () => {
+    vi.mocked(useFeature).mockReturnValue(
+      { data: { epic_id: 113703, epic_title: 'Organisationen' } } as ReturnType<typeof useFeature>,
+    )
+    const pbi: PBI = { ...basePBI, area_path: 'ASTRA_ISK\\ISK Development', committed: true }
+    render(<PBIFormModal {...defaultProps} pbi={pbi} readOnly />, { wrapper: makeWrapper() })
+    expect(ado()).toHaveTextContent('[113703] Organisationen')
+    expect(ado()).toHaveTextContent('ASTRA_ISK\\ISK Development')
+    expect(ado()).toHaveTextContent(/Committed\s*Yes/)
+    expect(useFeature).toHaveBeenCalledWith('f-1', true)
+  })
+
+  it('reads an uncommitted story as No and blanks as a dash', () => {
+    render(<PBIFormModal {...defaultProps} pbi={basePBI} />, { wrapper: makeWrapper() })
+    expect(ado()).toHaveTextContent(/Committed\s*No/)
+    expect(ado()).toHaveTextContent(/Area Path\s*—/)
+  })
+
+  it('does not fetch the feature while closed', () => {
+    render(<PBIFormModal {...defaultProps} open={false} pbi={basePBI} />, { wrapper: makeWrapper() })
+    expect(useFeature).toHaveBeenCalledWith('f-1', false)
   })
 })
 

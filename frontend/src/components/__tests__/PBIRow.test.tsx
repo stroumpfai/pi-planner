@@ -22,6 +22,12 @@ vi.mock('@/services/states', async (importOriginal) => {
   return { ...actual, statesApi: { ...actual.statesApi, list: vi.fn().mockResolvedValue([]) } }
 })
 
+// The modal reads the story's feature for its Epic; none here.
+vi.mock('@/hooks/useFeatures', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/hooks/useFeatures')>()),
+  useFeature: () => ({ data: undefined }),
+}))
+
 vi.mock('@/services/pbis', () => ({
   pbisApi: { update: vi.fn(), delete: vi.fn().mockResolvedValue(undefined), list: vi.fn().mockResolvedValue([]) },
 }))

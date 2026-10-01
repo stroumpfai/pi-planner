@@ -9940,6 +9940,26 @@
             "type": "boolean",
             "title": "Apply Iterations",
             "default": false
+          },
+          "has_parent_column": {
+            "type": "boolean",
+            "title": "Has Parent Column",
+            "default": false
+          },
+          "has_area_path_column": {
+            "type": "boolean",
+            "title": "Has Area Path Column",
+            "default": false
+          },
+          "has_committed_column": {
+            "type": "boolean",
+            "title": "Has Committed Column",
+            "default": false
+          },
+          "has_state_change_date_column": {
+            "type": "boolean",
+            "title": "Has State Change Date Column",
+            "default": false
           }
         },
         "type": "object",
@@ -10164,6 +10184,47 @@
               }
             ],
             "title": "Iteration"
+          },
+          "area_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Path"
+          },
+          "committed": {
+            "type": "boolean",
+            "title": "Committed",
+            "default": false
+          },
+          "state_changed_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State Changed On"
+          },
+          "epic_title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Epic Title"
           }
         },
         "type": "object",
@@ -10375,6 +10436,51 @@
               }
             ],
             "title": "State"
+          },
+          "epic_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Epic Id"
+          },
+          "epic_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Epic Title"
+          },
+          "area_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Path"
+          },
+          "state_changed_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State Changed On"
           },
           "project_id": {
             "type": "string",
@@ -11791,6 +11897,34 @@
               }
             ],
             "title": "Completed On"
+          },
+          "area_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Area Path"
+          },
+          "committed": {
+            "type": "boolean",
+            "title": "Committed",
+            "default": false
+          },
+          "state_changed_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State Changed On"
           },
           "project_id": {
             "type": "string",

@@ -181,6 +181,32 @@ describe('FeatureFormModal', () => {
   })
 })
 
+describe('FeatureFormModal Azure DevOps fields', () => {
+  const ado = () => screen.getByRole('region', { name: /from azure devops/i })
+
+  it('shows the Epic and Area Path the import brought across', () => {
+    const feature: Feature = {
+      ...baseFeature, epic_id: 113703, epic_title: 'Organisationen', area_path: 'ASTRA_ISK\\ISK Development',
+    }
+    render(<FeatureFormModal {...defaultProps} feature={feature} readOnly />, { wrapper: makeWrapper() })
+    expect(ado()).toHaveTextContent('[113703] Organisationen')
+    expect(ado()).toHaveTextContent('ASTRA_ISK\\ISK Development')
+  })
+
+  it('shows the Epic ID alone when no file has titled it', () => {
+    render(
+      <FeatureFormModal {...defaultProps} feature={{ ...baseFeature, epic_id: 113703 }} />,
+      { wrapper: makeWrapper() },
+    )
+    expect(ado()).toHaveTextContent('[113703]')
+  })
+
+  it('is absent from a create modal', () => {
+    render(<FeatureFormModal {...defaultProps} />, { wrapper: makeWrapper() })
+    expect(screen.queryByRole('region', { name: /from azure devops/i })).not.toBeInTheDocument()
+  })
+})
+
 describe('FeatureFormModal State field', () => {
   it('pre-fills the State when editing', () => {
     render(

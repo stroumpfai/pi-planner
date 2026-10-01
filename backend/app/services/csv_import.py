@@ -264,6 +264,71 @@ class CompletionTally:
         return pbi.completed_on != before
 
 
+class AdoColumns(NamedTuple):
+    """Which Azure DevOps-only columns the file had.
+
+    The State rule, applied to each: a missing column leaves the field alone on
+    every item, a blank cell clears it. Nothing but the import writes these fields.
+    """
+
+    parent: bool = False
+    """A feature's Parent is its Epic; on a story it is the feature (handled apart)."""
+    area_path: bool = False
+    committed: bool = False
+    state_change_date: bool = False
+
+
+def _feature_ado_values(feature: Feature, row: CsvRow, cols: AdoColumns) -> dict[str, object]:
+    """The Azure DevOps fields this row sets on ``feature``, keyed by attribute."""
+    values: dict[str, object] = {}
+    if cols.parent:
+        values["epic_id"] = row.parent_id
+        # A file that names the Epic without listing it (the older export has no
+        # Epic rows) keeps the title an earlier file gave — if it is the same Epic.
+        if row.parent_id is None:
+            values["epic_title"] = None
+        elif row.epic_title is not None:
+            values["epic_title"] = row.epic_title.strip() or None
+        elif row.parent_id != feature.epic_id:
+            values["epic_title"] = None
+    if cols.area_path:
+        values["area_path"] = (row.area_path or "").strip() or None
+    if cols.state_change_date:
+        values["state_changed_on"] = row.state_changed_on
+    return values
+
+
+def _story_ado_values(row: CsvRow, cols: AdoColumns) -> dict[str, object]:
+    """The Azure DevOps fields this row sets on a story or bug, keyed by attribute."""
+    values: dict[str, object] = {}
+    if cols.area_path:
+        values["area_path"] = (row.area_path or "").strip() or None
+    if cols.committed:
+        values["committed"] = row.committed
+    if cols.state_change_date:
+        values["state_changed_on"] = row.state_changed_on
+    return values
+
+
+_ADO_CHANGE_NAMES = {"epic_id": "epic", "epic_title": "epic"}
+
+
+def _ado_changes(item: Feature | PBI, values: dict[str, object]) -> list[str]:
+    """Plan change names for the fields ``values`` would alter, in a stable order."""
+    names: list[str] = []
+    for attr, value in values.items():
+        if getattr(item, attr) != value:
+            name = _ADO_CHANGE_NAMES.get(attr, attr)
+            if name not in names:
+                names.append(name)
+    return names
+
+
+def _set_all(item: Feature | PBI, values: dict[str, object]) -> None:
+    for attr, value in values.items():
+        setattr(item, attr, value)
+
+
 async def _resolve_row_state(
     db: AsyncSession,
     project_id: str,
@@ -292,6 +357,7 @@ async def _upsert_one_feature(
     feature_map: dict[int, str],
     has_state_column: bool,
     plan: ImportPlan,
+    ado: AdoColumns,
 ) -> tuple[str, int, int]:
     """Create or update a single Feature. Returns (system_id, created, updated)."""
     state_changed, state_id = await _resolve_row_state(
@@ -310,6 +376,8 @@ async def _upsert_one_feature(
             changed.append("title")
         if state_changed and feature.state_id != state_id:
             changed.append("state")
+        ado_values = _feature_ado_values(feature, row, ado)
+        changed += _ado_changes(feature, ado_values)
 
         # A split feature is one work item spread over several PIs, and only its
         # root carries the user_id this row matched. Applying the change to that
@@ -320,6 +388,7 @@ async def _upsert_one_feature(
             member.title = row.title
             if state_changed:
                 member.state_id = state_id
+            _set_all(member, ado_values)
 
         carried = len(members) - 1
         plan.add(
@@ -333,14 +402,16 @@ async def _upsert_one_feature(
         return sysid, 0, 1
 
     sysid = str(uuid4())
-    db.add(Feature(
+    new_feature = Feature(
         system_id=sysid,
         project_id=project_id,
         user_id=row.user_id,
         title=row.title,
         location="backlog",
         state_id=state_id if state_changed else None,
-    ))
+    )
+    _set_all(new_feature, _feature_ado_values(new_feature, row, ado))
+    db.add(new_feature)
     plan.add("created", "feature", row.title, user_id=row.user_id, row=row.row_number)
     return sysid, 1, 0
 
@@ -401,6 +472,7 @@ async def _upsert_features(
     feature_map: dict[int, str],
     has_state_column: bool,
     plan: ImportPlan,
+    ado: AdoColumns,
 ) -> tuple[dict[int, str], list[tuple[CsvRow, str]], int, int]:
     csv_feature_sysid: dict[int, str] = {}
     row_sysids: list[tuple[CsvRow, str]] = []
@@ -408,7 +480,7 @@ async def _upsert_features(
     updated = 0
     for row in feature_rows:
         sysid, was_created, was_updated = await _upsert_one_feature(
-            db, project_id, row, feature_map, has_state_column, plan
+            db, project_id, row, feature_map, has_state_column, plan, ado
         )
         created += was_created
         updated += was_updated
@@ -503,12 +575,15 @@ async def _upsert_one_story(
     plan: ImportPlan,
     parent_titles: dict[str, str],
     completion: CompletionTally,
+    ado: AdoColumns,
 ) -> _StoryOutcome:
     """Create or update a single Story/Bug."""
     # Stories and Bugs draw from separate State Lists.
     state_changed, state_id = await _resolve_row_state(
         db, project_id, state_item_type_for_pbi(row.item_type), row, has_state_column
     )
+
+    ado_values = _story_ado_values(row, ado)
 
     if row.user_id is not None and row.user_id in pbi_map:
         pbi = await db.get(PBI, pbi_map[row.user_id])
@@ -525,6 +600,8 @@ async def _upsert_one_story(
             changed.append("type")
         if state_changed and pbi.state_id != state_id:
             changed.append("state")
+        changed += _ado_changes(pbi, ado_values)
+        _set_all(pbi, ado_values)
 
         old_state = await load_state(db, pbi.state_id)
         pbi.title = row.title
@@ -599,6 +676,7 @@ async def _upsert_one_story(
         location="backlog",
         state_id=state_id if state_changed else None,
     )
+    _set_all(new_pbi, ado_values)
     completion.apply(new_pbi, None, await load_state(db, new_pbi.state_id), row)
     db.add(new_pbi)
     plan.add(
@@ -625,6 +703,7 @@ async def _upsert_stories(
     plan: ImportPlan,
     parent_titles: dict[str, str],
     completion: CompletionTally,
+    ado: AdoColumns,
 ) -> tuple[_StoryOutcome, list[str], list[tuple[CsvRow, str]]]:
     """Create or update every story row.
 
@@ -656,7 +735,7 @@ async def _upsert_stories(
             db, project_id, row,
             targets.get(matched_sysid) if matched_sysid is not None else None,
             unassigned_sysid, pbi_map, has_state_column, apply_reparenting,
-            plan, parent_titles, completion,
+            plan, parent_titles, completion, ado,
         )
         totals = _StoryOutcome(
             created=totals.created + outcome.created,
@@ -887,7 +966,9 @@ async def execute_import(
     has_completion_columns: bool = False,
     has_iteration_column: bool = False,
     apply_iterations: bool = False,
+    ado_columns: AdoColumns | None = None,
 ) -> CsvImportResult:
+    ado = ado_columns or AdoColumns()
     errors = _validate_rows(rows)
     if errors:
         raise HTTPException(
@@ -939,7 +1020,9 @@ async def execute_import(
     states_before = await _count_states(db, project_id)
 
     csv_feature_sysid, feature_row_sysids, created_features, updated_features = (
-        await _upsert_features(db, project_id, feature_rows, feature_map, has_state_column, plan)
+        await _upsert_features(
+            db, project_id, feature_rows, feature_map, has_state_column, plan, ado,
+        )
     )
     await db.flush()
 
@@ -1005,7 +1088,7 @@ async def execute_import(
     completion = CompletionTally(has_completion_columns)
     stories, freed_group_ids, story_row_sysids = await _upsert_stories(
         db, project_id, story_rows, parent_lookup, pbi_map, unassigned_sysid,
-        has_state_column, apply_reparenting, plan, parent_titles, completion,
+        has_state_column, apply_reparenting, plan, parent_titles, completion, ado,
     )
     deleted_group_ids += freed_group_ids
     if placing:

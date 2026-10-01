@@ -101,7 +101,31 @@ def restore_features(db: AsyncSession, proj_data: dict[str, Any], project_id: st
             pi_id=f.get("pi_id"),
             swimlane_id=f.get("swimlane_id"),
             state_id=f.get("state_id"),
+            **ado_feature_fields(f),
         ))
+
+
+def ado_feature_fields(f: dict[str, Any]) -> dict[str, Any]:
+    """A serialized feature's Azure DevOps fields, as model kwargs.
+
+    Absent from snapshots and exports taken before these fields existed; those
+    restore with none set, as they were.
+    """
+    return {
+        "epic_id": f.get("epic_id"),
+        "epic_title": f.get("epic_title"),
+        "area_path": f.get("area_path"),
+        "state_changed_on": _opt_date(f.get("state_changed_on")),
+    }
+
+
+def ado_pbi_fields(p: dict[str, Any]) -> dict[str, Any]:
+    """A serialized story's Azure DevOps fields, as model kwargs (see ``ado_feature_fields``)."""
+    return {
+        "area_path": p.get("area_path"),
+        "committed": bool(p.get("committed", False)),
+        "state_changed_on": _opt_date(p.get("state_changed_on")),
+    }
 
 
 def restore_groups(db: AsyncSession, proj_data: dict[str, Any]) -> None:
@@ -138,6 +162,7 @@ def restore_pbis(db: AsyncSession, proj_data: dict[str, Any], project_id: str) -
             # Permanent fallback: every snapshot taken before completion dates existed
             # lacks the key and restores as NULL ("done but undated"), never as today.
             completed_on=_opt_date(p.get("completed_on")),
+            **ado_pbi_fields(p),
         ))
 
 
@@ -306,6 +331,10 @@ async def serialize_project(db: AsyncSession, project: Project) -> dict[str, Any
                     "continued_from_feature_id": f.continued_from_feature_id,
                     "state_id": f.state_id,
                     "state": f.state.value if f.state else None,
+                    "epic_id": f.epic_id,
+                    "epic_title": f.epic_title,
+                    "area_path": f.area_path,
+                    "state_changed_on": f.state_changed_on.isoformat() if f.state_changed_on else None,
                     "created_at": f.created_at.isoformat(),
                     "modified_at": f.modified_at.isoformat(),
                 }
@@ -327,6 +356,9 @@ async def serialize_project(db: AsyncSession, project: Project) -> dict[str, Any
                     "state_id": p.state_id,
                     "state": p.state.value if p.state else None,
                     "completed_on": p.completed_on.isoformat() if p.completed_on else None,
+                    "area_path": p.area_path,
+                    "committed": p.committed,
+                    "state_changed_on": p.state_changed_on.isoformat() if p.state_changed_on else None,
                     "created_at": p.created_at.isoformat(),
                     "modified_at": p.modified_at.isoformat(),
                 }
