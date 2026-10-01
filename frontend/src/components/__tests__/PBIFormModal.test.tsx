@@ -308,6 +308,25 @@ describe('PBIFormModal Completed on field', () => {
     expect(field()).toHaveValue('14.03.2026')
   })
 
+  it('takes a fresher copy of the item that arrives just after opening', () => {
+    // Saved, then reopened before the refetch landed: the modal opened on the
+    // pre-save item, and must not keep showing — or later save — that copy.
+    const { rerender } = render(<PBIFormModal {...defaultProps} pbi={basePBI} />, { wrapper: makeWrapper() })
+    expect(field()).toHaveValue('')
+
+    rerender(<PBIFormModal {...defaultProps} pbi={{ ...doneItem, modified_at: '2026-03-14T10:00:00Z' }} />)
+    expect(screen.getByTestId('state-select')).toHaveValue('st-Shipped')
+    expect(field()).toHaveValue('14.03.2026')
+  })
+
+  it('keeps in-progress edits when a fresher copy of the item arrives', async () => {
+    const { rerender } = render(<PBIFormModal {...defaultProps} pbi={basePBI} />, { wrapper: makeWrapper() })
+    await userEvent.type(screen.getByLabelText(/title/i), ' v2')
+
+    rerender(<PBIFormModal {...defaultProps} pbi={{ ...doneItem, modified_at: '2026-03-14T10:00:00Z' }} />)
+    expect(screen.getByLabelText(/title/i)).toHaveValue('Login form v2')
+  })
+
   it('stays disabled for a State named "Done" whose category is not done', async () => {
     render(<PBIFormModal {...defaultProps} pbi={basePBI} />, { wrapper: makeWrapper() })
     await userEvent.selectOptions(screen.getByTestId('state-select'), 'st-Done')

@@ -47,7 +47,7 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', readOnly = fals
     pbi
       ? { title: pbi.title, description: pbi.description ?? undefined, effort: pbi.effort, id: pbi.id, item_type: pbi.item_type ?? 'story', state_id: pbi.state_id ?? null, completed_on: pbi.completed_on ?? '' }
       : { title: '', item_type: defaultType, state_id: null, completed_on: '' }
-  const { register, control, handleSubmit, reset, setError, clearErrors, watch, setValue, formState: { errors, isSubmitting } } =
+  const { register, control, handleSubmit, reset, setError, clearErrors, watch, setValue, formState: { errors, isSubmitting, isDirty } } =
     useForm<PBIFormValues>({ defaultValues: seed() })
   // Whether the user typed a date themselves. Only then is completed_on sent:
   // a prefilled "today" is the browser's calendar, and the server stamps its own.
@@ -65,6 +65,17 @@ export function PBIFormModal({ open, pbi, defaultType = 'story', readOnly = fals
     // modal is open doesn't wipe in-progress edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, pbi?.system_id, defaultType, reset])
+
+  // A newer copy of the same item — typically the refetch after a save, when the
+  // modal was reopened before it landed — replaces the one the form was seeded
+  // from, unless the user has started editing. Otherwise the form would show, and
+  // a save would write back, the item as it was before.
+  useEffect(() => {
+    if (!open || isDirty) return
+    reset(seed())
+    setDateEdited(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pbi?.modified_at])
 
   const itemType = watch('item_type')
   const effortValue = watch('effort')

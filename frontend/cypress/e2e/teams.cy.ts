@@ -110,10 +110,11 @@ describe('Teams', () => {
 
     projectsSection().contains('li', 'Atlas').should('contain', 'No team')
     teamRow('Atlas').find('[aria-label="0 members"]').should('be.visible')
-    // The project row has an Export button; the team row does not. Each section
-    // therefore found its own row and not the other one's.
-    projectsSection().contains('li', 'Atlas').find('button[aria-label="Export"]').should('exist')
-    teamRow('Atlas').find('button[aria-label="Export"]').should('not.exist')
+    // The project row has a Snapshots button; the team row does not. Each section
+    // therefore found its own row and not the other one's. (Not Export: since
+    // teams gained JSON export, both rows carry one.)
+    projectsSection().contains('li', 'Atlas').find('button[aria-label="Snapshots"]').should('exist')
+    teamRow('Atlas').find('button[aria-label="Snapshots"]').should('not.exist')
   })
 
   it('shows "No team" on a project row while nothing is assigned', () => {
