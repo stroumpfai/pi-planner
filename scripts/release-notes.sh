@@ -73,27 +73,53 @@ fi
 head_sha="$(cd "$ROOT" && git rev-parse --short HEAD)"
 tmp_out="$(mktemp)"
 
+# Renaming "## Unreleased" to the version is how a release is cut, so the run
+# after a bump finds no such section. Open a fresh one above the newest release
+# rather than appending nowhere — which used to advance the marker anyway and
+# silently drop every commit in between.
 awk -v newbullets="$commits_file" '
-  BEGIN { in_unreleased = 0; injected = 0 }
-  /^## Unreleased[ \t]*$/ { print; in_unreleased = 1; next }
-  /^## / && in_unreleased && !injected {
+  BEGIN { in_unreleased = 0; injected = 0; seen_unreleased = 0 }
+  function inject() {
     while ((getline line < newbullets) > 0) print line
     print ""
     injected = 1
+  }
+  /^## Unreleased[ \t]*$/ { print; in_unreleased = 1; seen_unreleased = 1; next }
+  # Any heading closes the section, whatever its level.
+  /^#+[ \t]/ && in_unreleased && !injected {
+    inject()
     in_unreleased = 0
+    print
+    next
+  }
+  /^#+[ \t]/ && !seen_unreleased && !injected {
+    print "## Unreleased"
+    print ""
+    inject()
+    seen_unreleased = 1
     print
     next
   }
   { print }
   END {
-    if (in_unreleased && !injected) {
+    if (!injected) {
+      if (!seen_unreleased) { print ""; print "## Unreleased"; print "" }
       while ((getline line < newbullets) > 0) print line
+      injected = 1
     }
   }
 ' "$FILE" | sed "s/<!-- since: $marker/<!-- since: $head_sha/" > "$tmp_out"
 
+# The marker must only move when the commits were written, or they are lost.
+n="$(wc -l < "$commits_file" | tr -d ' ')"
+written="$(grep -cFx -f "$commits_file" "$tmp_out" || true)"
+if (( written < n )); then
+  rm -f "$tmp_out"
+  echo "error: could not place the new commits in docs/RELEASE-NOTES.md — file and marker left untouched" >&2
+  exit 1
+fi
+
 mv "$tmp_out" "$FILE"
 
-n="$(wc -l < "$commits_file" | tr -d ' ')"
 echo "==> appended $n commit(s) to docs/RELEASE-NOTES.md's Unreleased section ($marker -> $head_sha)"
 echo "    edit the file directly to condense before committing"
