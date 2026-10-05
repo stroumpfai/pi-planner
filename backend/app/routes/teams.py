@@ -3,7 +3,7 @@ from datetime import date, datetime, timezone
 from typing import Annotated, Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -21,11 +21,14 @@ from app.schemas import (
     MAX_PATTERN_VERSIONS_PER_MEMBER,
     MAX_TEAMS,
     TeamCreate,
+    TeamImportResponse,
     TeamResponse,
     TeamUpdate,
 )
 from app.services.concurrency import IfMatch, check_if_match, set_etag
 from app.services.events import broadcaster, team_channel
+from app.services.holiday_import import apply_holiday_import, plan_holiday_import
+from app.services.holidays import forget_team
 from app.services.team_export import serialize_team
 
 _IMPORT_MAX_BYTES = 10 * 1024 * 1024  # 10 MB
@@ -219,6 +222,7 @@ async def delete_team(
             },
         )
 
+    await forget_team(db, team_id)
     await db.delete(team)
     await db.commit()
     await broadcaster.broadcast(team_channel(team_id), "team:deleted", {"system_id": team_id})
@@ -235,13 +239,18 @@ async def _unique_team_name(db: AsyncSession, base_name: str) -> str:
         suffix += 1
 
 
+#: 1.0 has no holiday calendars and imports as it always did, permanently;
+#: 1.1 carries them (public-holidays.md §8.2).
+SUPPORTED_IMPORT_VERSIONS = ("1.0", "1.1")
+
+
 def _validate_team_import_payload(payload: object) -> dict[str, Any]:
     if not isinstance(payload, dict) or "version" not in payload or "team" not in payload:
         raise HTTPException(
             status_code=422,
             detail={"error": "INVALID_FORMAT", "message": "Missing required top-level fields: version, team"},
         )
-    if payload["version"] != "1.0":
+    if payload["version"] not in SUPPORTED_IMPORT_VERSIONS:
         raise HTTPException(
             status_code=422,
             detail={"error": "UNSUPPORTED_VERSION", "message": f"Unsupported export version: {payload['version']}"},
@@ -399,7 +408,11 @@ async def import_team(
     file: UploadFile,
     db: Annotated[AsyncSession, Depends(get_session)],
     _: Annotated[User, Depends(require_editor_or_above)],
-) -> TeamResponse:
+    create_missing_calendars: Annotated[
+        bool,
+        Query(description="Create holiday calendars the file names that don't exist here"),
+    ] = False,
+) -> TeamImportResponse:
     raw = await file.read(_IMPORT_MAX_BYTES + 1)
     if len(raw) > _IMPORT_MAX_BYTES:
         raise HTTPException(
@@ -413,6 +426,10 @@ async def import_team(
 
     team_data = _validate_team_import_payload(payload)
     _check_import_limits(team_data)
+    # Decided before anything is written, so a refusal leaves no half-imported team.
+    holiday_plan = await plan_holiday_import(
+        db, team_data, create_missing_calendars=create_missing_calendars
+    )
 
     existing = await db.scalar(select(func.count(Team.system_id)))
     if (existing or 0) >= MAX_TEAMS:
@@ -438,6 +455,8 @@ async def import_team(
     _add_members(db, team_data, new_team_id, member_id_map)
     _add_absences(db, team_data, new_team_id, member_id_map)
     _add_meetings(db, team_data, new_team_id, member_id_map)
+    await db.flush()
+    notes = await apply_holiday_import(db, holiday_plan, new_team_id, member_id_map)
 
     try:
         await db.commit()
@@ -449,7 +468,8 @@ async def import_team(
         )
     await db.refresh(team)
     # No SSE broadcast: brand-new team has no subscribers yet.
-    return await _one_response(db, team)
+    imported = await _one_response(db, team)
+    return TeamImportResponse(**imported.model_dump(), import_notes=notes)
 
 
 @router.get("/{team_id}/export")

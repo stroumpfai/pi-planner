@@ -299,6 +299,16 @@ export interface paths {
      */
     get: operations["team_events_api_v1_teams__team_id__events_get"];
   };
+  "/api/v1/holiday-calendar-events": {
+    /**
+     * Holiday Calendar Events
+     * @description Live updates for the Calendars page.
+     *
+     * Calendars belong to no team, so their edits reach the page on one app-wide
+     * channel; teams hear them on their own (public-holidays.md §9.2).
+     */
+    get: operations["holiday_calendar_events_api_v1_holiday_calendar_events_get"];
+  };
   "/api/v1/projects/{project_id}/import/csv": {
     /** Import Csv */
     post: operations["import_csv_api_v1_projects__project_id__import_csv_post"];
@@ -658,6 +668,139 @@ export interface paths {
      */
     post: operations["push_team_api_v1_teams__team_id__push_post"];
   };
+  "/api/v1/holiday-calendars": {
+    /** List Calendars */
+    get: operations["list_calendars_api_v1_holiday_calendars_get"];
+    /** Create Calendar */
+    post: operations["create_calendar_api_v1_holiday_calendars_post"];
+  };
+  "/api/v1/holiday-calendars/{calendar_id}": {
+    /** Get Calendar */
+    get: operations["get_calendar_api_v1_holiday_calendars__calendar_id__get"];
+    /**
+     * Delete Calendar
+     * @description Permanent, and removes the calendar from every team using it (§3.6).
+     *
+     * The confirmation names those teams before the call; the cascade is explicit,
+     * since SQLite runs here without foreign-key enforcement.
+     */
+    delete: operations["delete_calendar_api_v1_holiday_calendars__calendar_id__delete"];
+    /** Update Calendar */
+    patch: operations["update_calendar_api_v1_holiday_calendars__calendar_id__patch"];
+  };
+  "/api/v1/holiday-calendars/{calendar_id}/entries": {
+    /**
+     * Replace Entries
+     * @description Replace every entry starting inside the window, in one transaction (§7.3).
+     *
+     * Membership of the window is decided by ``start_date``, as for the absence
+     * bulk import. An exception survives when an entry with the same dates, halves
+     * and label comes back — the usual case, a re-read of an unchanged page — and
+     * is dropped otherwise.
+     */
+    put: operations["replace_entries_api_v1_holiday_calendars__calendar_id__entries_put"];
+    /** Create Entry */
+    post: operations["create_entry_api_v1_holiday_calendars__calendar_id__entries_post"];
+  };
+  "/api/v1/holiday-calendars/{calendar_id}/entries/{entry_id}": {
+    /** Delete Entry */
+    delete: operations["delete_entry_api_v1_holiday_calendars__calendar_id__entries__entry_id__delete"];
+    /**
+     * Update Entry
+     * @description Edit an entry. Exceptions on days it no longer covers are deleted (§3.5).
+     *
+     * The patch is merged onto the stored row and the result validated, so a
+     * partial edit cannot leave an entry ending before it starts.
+     */
+    patch: operations["update_entry_api_v1_holiday_calendars__calendar_id__entries__entry_id__patch"];
+  };
+  "/api/v1/holiday-calendars/{calendar_id}/copy-year": {
+    /**
+     * Preview Copy Year
+     * @description Every entry of ``from_year``, proposed one year later.
+     *
+     * Nothing is inferred about which holidays move: the planner corrects Easter and
+     * its kin in the preview. A proposal landing on a weekend is flagged, never moved.
+     */
+    get: operations["preview_copy_year_api_v1_holiday_calendars__calendar_id__copy_year_get"];
+    /**
+     * Copy Year
+     * @description Create the reviewed entries; exceptions are never copied (§6.3).
+     */
+    post: operations["copy_year_api_v1_holiday_calendars__calendar_id__copy_year_post"];
+  };
+  "/api/v1/holiday-calendars/{calendar_id}/import/ics": {
+    /**
+     * Import Ics
+     * @description Merge an ``.ics`` file into the calendar, skipping duplicates.
+     *
+     * Re-importing the same file changes nothing. Replacing a year is the bulk
+     * path's job (§7.3). The preview is the same request with ``dry_run``.
+     */
+    post: operations["import_ics_api_v1_holiday_calendars__calendar_id__import_ics_post"];
+  };
+  "/api/v1/holiday-calendars/{calendar_id}/export/ics": {
+    /** Export Calendar Ics */
+    get: operations["export_calendar_ics_api_v1_holiday_calendars__calendar_id__export_ics_get"];
+  };
+  "/api/v1/teams/{team_id}/holidays": {
+    /**
+     * Get Team Holidays
+     * @description The enabled calendars' entries in a window, with each one's exceptions.
+     *
+     * One response feeds the strip, the member cells and the calendar panel's ticks,
+     * and it is expanded by the same generator the capacity figure is.
+     */
+    get: operations["get_team_holidays_api_v1_teams__team_id__holidays_get"];
+  };
+  "/api/v1/teams/{team_id}/holiday-calendars/{calendar_id}": {
+    /**
+     * Enable Calendar
+     * @description Enable a calendar for the team. Undated: history moves, and the UI warns (§3.4).
+     */
+    put: operations["enable_calendar_api_v1_teams__team_id__holiday_calendars__calendar_id__put"];
+    /**
+     * Disable Calendar
+     * @description Disable a calendar. Its exceptions stay stored and come back with it (§3.5).
+     */
+    delete: operations["disable_calendar_api_v1_teams__team_id__holiday_calendars__calendar_id__delete"];
+  };
+  "/api/v1/teams/{team_id}/members/{member_id}/holiday-exceptions/{entry_id}/{day}": {
+    /**
+     * Set Exception
+     * @description The member works this day of the holiday.
+     */
+    put: operations["set_exception_api_v1_teams__team_id__members__member_id__holiday_exceptions__entry_id___day__put"];
+    /**
+     * Clear Exception
+     * @description The member is off on this day of the holiday after all.
+     */
+    delete: operations["clear_exception_api_v1_teams__team_id__members__member_id__holiday_exceptions__entry_id___day__delete"];
+  };
+  "/api/v1/teams/{team_id}/holiday-cleanup": {
+    /** List Cleanup */
+    get: operations["list_cleanup_api_v1_teams__team_id__holiday_cleanup_get"];
+    /**
+     * Apply Cleanup
+     * @description Delete the ticked absences — only ones that are still candidates.
+     *
+     * Re-checked here rather than trusted from the client: between the list and the
+     * click, someone may have disabled the calendar that made a copy redundant.
+     */
+    post: operations["apply_cleanup_api_v1_teams__team_id__holiday_cleanup_post"];
+  };
+  "/api/v1/pis/{pi_id}/holidays": {
+    /**
+     * Get Pi Holidays
+     * @description Per sprint of the PI, the holidays that cost the serving team working time.
+     *
+     * An entry counts when it removes at least one contracted half-day from at least
+     * one member who counts towards capacity: a Saturday holiday, or one only
+     * part-timers are off for anyway, is not news to the sprint. Undated sprints get
+     * nothing, never a zero.
+     */
+    get: operations["get_pi_holidays_api_v1_pis__pi_id__holidays_get"];
+  };
   "/api/v1/release-notes": {
     /**
      * Get Release Notes
@@ -940,6 +1083,14 @@ export interface components {
      * @enum {string}
      */
     ActorType: "human" | "mcp_bot";
+    /** Body_import_ics_api_v1_holiday_calendars__calendar_id__import_ics_post */
+    Body_import_ics_api_v1_holiday_calendars__calendar_id__import_ics_post: {
+      /**
+       * File
+       * @description An iCalendar (.ics) file
+       */
+      file: string;
+    };
     /** Body_import_project_api_v1_projects_import_post */
     Body_import_project_api_v1_projects_import_post: {
       /** File */
@@ -1067,6 +1218,46 @@ export interface components {
       deleted_features: number;
     };
     /**
+     * BulkHolidayEntriesRequest
+     * @description Replace every entry whose ``start_date`` lies in the window, in one transaction.
+     *
+     * Replacement, not merge, for the reason the absence bulk import gives: a source
+     * re-read on a schedule would otherwise double everything, and only replacement
+     * survives an entry being deleted at the source.
+     */
+    BulkHolidayEntriesRequest: {
+      /**
+       * Window From
+       * Format: date
+       */
+      window_from: string;
+      /**
+       * Window To
+       * Format: date
+       */
+      window_to: string;
+      /** Entries */
+      entries?: components["schemas"]["HolidayEntryFields"][];
+      /**
+       * Dry Run
+       * @default false
+       */
+      dry_run?: boolean;
+    };
+    /** BulkHolidayEntriesResult */
+    BulkHolidayEntriesResult: {
+      /** Dry Run */
+      dry_run: boolean;
+      /** Created */
+      created: number;
+      /** Deleted */
+      deleted: number;
+      /** Exceptions Kept */
+      exceptions_kept: number;
+      /** Exceptions Dropped */
+      exceptions_dropped: number;
+    };
+    /**
      * BulkMeetingEntry
      * @description One line of a bulk import, addressing attendees **by name**.
      *
@@ -1186,6 +1377,11 @@ export interface components {
       contracted_hours: number;
       /** Absent Half Days */
       absent_half_days: number;
+      /**
+       * Holiday Half Days
+       * @default 0
+       */
+      holiday_half_days?: number;
       /** Hours After Absences */
       hours_after_absences: number;
       /** Meeting Hours */
@@ -1231,6 +1427,110 @@ export interface components {
       old_password: string;
       /** New Password */
       new_password: string;
+    };
+    /**
+     * CleanupGroup
+     * @description Old everyone-absences on dates an enabled calendar already covers (§6.4).
+     */
+    CleanupGroup: {
+      /** Label */
+      label: string | null;
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /**
+       * Start Half
+       * @enum {string}
+       */
+      start_half: "am" | "pm";
+      /**
+       * End Date
+       * Format: date
+       */
+      end_date: string;
+      /**
+       * End Half
+       * @enum {string}
+       */
+      end_half: "am" | "pm";
+      /** Members */
+      members: components["schemas"]["CleanupMember"][];
+    };
+    /** CleanupMember */
+    CleanupMember: {
+      /** Member Id */
+      member_id: string;
+      /** Name */
+      name: string;
+      /** Absence Id */
+      absence_id: string;
+    };
+    /** CleanupRequest */
+    CleanupRequest: {
+      /** Absence Ids */
+      absence_ids: string[];
+    };
+    /** CleanupResponse */
+    CleanupResponse: {
+      /** Groups */
+      groups: components["schemas"]["CleanupGroup"][];
+    };
+    /** CleanupResult */
+    CleanupResult: {
+      /** Deleted */
+      deleted: number;
+    };
+    /** CopyYearPreview */
+    CopyYearPreview: {
+      /** From Year */
+      from_year: number;
+      /** To Year */
+      to_year: number;
+      /** Proposals */
+      proposals: components["schemas"]["CopyYearProposal"][];
+    };
+    /** CopyYearProposal */
+    CopyYearProposal: {
+      /** Label */
+      label: string;
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /**
+       * Start Half
+       * @default am
+       * @enum {string}
+       */
+      start_half?: "am" | "pm";
+      /** End Date */
+      end_date?: string | null;
+      /**
+       * End Half
+       * @default pm
+       * @enum {string}
+       */
+      end_half?: "am" | "pm";
+      /**
+       * Source Start Date
+       * Format: date
+       */
+      source_start_date: string;
+      /** On Weekend */
+      on_weekend: boolean;
+      /** Duplicate */
+      duplicate: boolean;
+    };
+    /**
+     * CopyYearRequest
+     * @description The reviewed list. Nothing is inferred about which holidays move (§6.3).
+     */
+    CopyYearRequest: {
+      /** Entries */
+      entries: components["schemas"]["HolidayEntryFields"][];
     };
     /** CsvImportRequest */
     CsvImportRequest: {
@@ -1433,6 +1733,13 @@ export interface components {
       expires_at: string | null;
       /** Is Locked */
       is_locked: boolean;
+    };
+    /** EntriesCreatedResult */
+    EntriesCreatedResult: {
+      /** Created */
+      created: number;
+      /** Duplicates */
+      duplicates: number;
     };
     /** FeatureCreate */
     FeatureCreate: {
@@ -1675,6 +1982,211 @@ export interface components {
     HTTPValidationError: {
       /** Detail */
       detail?: components["schemas"]["ValidationError"][];
+    };
+    /** HolidayCalendarCreate */
+    HolidayCalendarCreate: {
+      /** Name */
+      name: string;
+      /** Description */
+      description?: string | null;
+    };
+    /** HolidayCalendarDetail */
+    HolidayCalendarDetail: {
+      /** System Id */
+      system_id: string;
+      /** Name */
+      name: string;
+      /** Description */
+      description: string | null;
+      /** Entry Count */
+      entry_count: number;
+      /** First Year */
+      first_year: number | null;
+      /** Last Year */
+      last_year: number | null;
+      /** Teams */
+      teams: components["schemas"]["TeamRef"][];
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Modified At
+       * Format: date-time
+       */
+      modified_at: string;
+      /**
+       * Etag
+       * @default
+       */
+      etag?: string;
+      /** Entries */
+      entries: components["schemas"]["HolidayEntryResponse"][];
+    };
+    /** HolidayCalendarSummary */
+    HolidayCalendarSummary: {
+      /** System Id */
+      system_id: string;
+      /** Name */
+      name: string;
+      /** Description */
+      description: string | null;
+      /** Entry Count */
+      entry_count: number;
+      /** First Year */
+      first_year: number | null;
+      /** Last Year */
+      last_year: number | null;
+      /** Teams */
+      teams: components["schemas"]["TeamRef"][];
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Modified At
+       * Format: date-time
+       */
+      modified_at: string;
+      /**
+       * Etag
+       * @default
+       */
+      etag?: string;
+    };
+    /** HolidayCalendarUpdate */
+    HolidayCalendarUpdate: {
+      /** Name */
+      name?: string | null;
+      /** Description */
+      description?: string | null;
+    };
+    /** HolidayDay */
+    HolidayDay: {
+      /**
+       * Date
+       * Format: date
+       */
+      date: string;
+      /** Halves */
+      halves: ("am" | "pm")[];
+    };
+    /** HolidayEntryFields */
+    HolidayEntryFields: {
+      /** Label */
+      label: string;
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /**
+       * Start Half
+       * @default am
+       * @enum {string}
+       */
+      start_half?: "am" | "pm";
+      /** End Date */
+      end_date?: string | null;
+      /**
+       * End Half
+       * @default pm
+       * @enum {string}
+       */
+      end_half?: "am" | "pm";
+    };
+    /** HolidayEntryResponse */
+    HolidayEntryResponse: {
+      /** System Id */
+      system_id: string;
+      /** Calendar Id */
+      calendar_id: string;
+      /** Label */
+      label: string;
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /**
+       * Start Half
+       * @enum {string}
+       */
+      start_half: "am" | "pm";
+      /**
+       * End Date
+       * Format: date
+       */
+      end_date: string;
+      /**
+       * End Half
+       * @enum {string}
+       */
+      end_half: "am" | "pm";
+      /** Exception Days */
+      exception_days?: string[];
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Modified At
+       * Format: date-time
+       */
+      modified_at: string;
+      /**
+       * Etag
+       * @default
+       */
+      etag?: string;
+    };
+    /** HolidayEntryUpdate */
+    HolidayEntryUpdate: {
+      /** Label */
+      label?: string | null;
+      /** Start Date */
+      start_date?: string | null;
+      /** Start Half */
+      start_half?: ("am" | "pm") | null;
+      /** End Date */
+      end_date?: string | null;
+      /** End Half */
+      end_half?: ("am" | "pm") | null;
+    };
+    /** HolidayExceptionRef */
+    HolidayExceptionRef: {
+      /** Member Id */
+      member_id: string;
+      /**
+       * Day
+       * Format: date
+       */
+      day: string;
+    };
+    /** IcsImportResult */
+    IcsImportResult: {
+      /** Dry Run */
+      dry_run: boolean;
+      /** Created */
+      created: number;
+      /** Duplicates */
+      duplicates: number;
+      /** Skipped */
+      skipped: components["schemas"]["IcsSkipped"][];
+      /** Truncated Labels */
+      truncated_labels: number;
+      /** Entries */
+      entries: components["schemas"]["HolidayEntryFields"][];
+    };
+    /** IcsSkipped */
+    IcsSkipped: {
+      /** Summary */
+      summary: string;
+      /** Reason */
+      reason: string;
     };
     /** LoginRequest */
     LoginRequest: {
@@ -2523,6 +3035,15 @@ export interface components {
       /** Work Item Path Template */
       work_item_path_template?: string | null;
     };
+    /** ProjectHolidaysResponse */
+    ProjectHolidaysResponse: {
+      /** Project Id */
+      project_id: string;
+      /** Team Id */
+      team_id: string | null;
+      /** Sprints */
+      sprints: components["schemas"]["SprintHolidays"][];
+    };
     /**
      * ProjectPushResult
      * @description One row of the per-project result list (§6.7).
@@ -2840,6 +3361,40 @@ export interface components {
       /** Created By */
       created_by: string | null;
     };
+    /** SprintHoliday */
+    SprintHoliday: {
+      /** Label */
+      label: string;
+      /** Calendar Name */
+      calendar_name: string;
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /**
+       * Start Half
+       * @enum {string}
+       */
+      start_half: "am" | "pm";
+      /**
+       * End Date
+       * Format: date
+       */
+      end_date: string;
+      /**
+       * End Half
+       * @enum {string}
+       */
+      end_half: "am" | "pm";
+    };
+    /** SprintHolidays */
+    SprintHolidays: {
+      /** Sprint Id */
+      sprint_id: string;
+      /** Holidays */
+      holidays: components["schemas"]["SprintHoliday"][];
+    };
     /** SprintIterationPath */
     SprintIterationPath: {
       /** System Id */
@@ -2998,6 +3553,99 @@ export interface components {
        */
       normal_day_hours?: number;
     };
+    /** TeamHolidayEntry */
+    TeamHolidayEntry: {
+      /** System Id */
+      system_id: string;
+      /** Calendar Id */
+      calendar_id: string;
+      /** Calendar Name */
+      calendar_name: string;
+      /** Label */
+      label: string;
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /**
+       * Start Half
+       * @enum {string}
+       */
+      start_half: "am" | "pm";
+      /**
+       * End Date
+       * Format: date
+       */
+      end_date: string;
+      /**
+       * End Half
+       * @enum {string}
+       */
+      end_half: "am" | "pm";
+      /** Days */
+      days: components["schemas"]["HolidayDay"][];
+      /** Exceptions */
+      exceptions: components["schemas"]["HolidayExceptionRef"][];
+    };
+    /** TeamHolidaysResponse */
+    TeamHolidaysResponse: {
+      /** Team Id */
+      team_id: string;
+      /** Enabled Calendar Ids */
+      enabled_calendar_ids: string[];
+      /** Entries */
+      entries: components["schemas"]["TeamHolidayEntry"][];
+    };
+    /**
+     * TeamImportResponse
+     * @description The imported team, plus what the import could not apply as written.
+     *
+     * Holiday calendars are shared, so an import reuses an existing calendar rather
+     * than editing it, and says so here (public-holidays.md §8.2).
+     */
+    TeamImportResponse: {
+      /** System Id */
+      system_id: string;
+      /** Name */
+      name: string;
+      /** Description */
+      description: string | null;
+      /** Normal Day Hours */
+      normal_day_hours: number;
+      /**
+       * Member Count
+       * @default 0
+       */
+      member_count?: number;
+      /**
+       * Project Ids
+       * @default []
+       */
+      project_ids?: string[];
+      /**
+       * Project Shares
+       * @default {}
+       */
+      project_shares?: {
+        [key: string]: number;
+      };
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /**
+       * Modified At
+       * Format: date-time
+       */
+      modified_at: string;
+      /**
+       * Import Notes
+       * @default []
+       */
+      import_notes?: string[];
+    };
     /** TeamProjectCreate */
     TeamProjectCreate: {
       /** Project Id */
@@ -3076,6 +3724,13 @@ export interface components {
       team_id: string;
       /** Results */
       results: components["schemas"]["ProjectPushResult"][];
+    };
+    /** TeamRef */
+    TeamRef: {
+      /** System Id */
+      system_id: string;
+      /** Name */
+      name: string;
     };
     /**
      * TeamResponse
@@ -5298,6 +5953,34 @@ export interface operations {
       };
     };
   };
+  /**
+   * Holiday Calendar Events
+   * @description Live updates for the Calendars page.
+   *
+   * Calendars belong to no team, so their edits reach the page on one app-wide
+   * channel; teams hear them on their own (public-holidays.md §9.2).
+   */
+  holiday_calendar_events_api_v1_holiday_calendar_events_get: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
   /** Import Csv */
   import_csv_api_v1_projects__project_id__import_csv_post: {
     parameters: {
@@ -5664,6 +6347,10 @@ export interface operations {
   /** Import Team */
   import_team_api_v1_teams_import_post: {
     parameters: {
+      query?: {
+        /** @description Create holiday calendars the file names that don't exist here */
+        create_missing_calendars?: boolean;
+      };
       cookie?: {
         pi_session?: string | null;
       };
@@ -5677,7 +6364,7 @@ export interface operations {
       /** @description Successful Response */
       201: {
         content: {
-          "application/json": components["schemas"]["TeamResponse"];
+          "application/json": components["schemas"]["TeamImportResponse"];
         };
       };
       /** @description Invalid or malformed import payload */
@@ -6858,6 +7545,660 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["TeamPushResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** List Calendars */
+  list_calendars_api_v1_holiday_calendars_get: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["HolidayCalendarSummary"][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Create Calendar */
+  create_calendar_api_v1_holiday_calendars_post: {
+    parameters: {
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["HolidayCalendarCreate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["HolidayCalendarDetail"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Get Calendar */
+  get_calendar_api_v1_holiday_calendars__calendar_id__get: {
+    parameters: {
+      query?: {
+        /** @description Only entries touching this year */
+        year?: number | null;
+      };
+      path: {
+        calendar_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["HolidayCalendarDetail"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Delete Calendar
+   * @description Permanent, and removes the calendar from every team using it (§3.6).
+   *
+   * The confirmation names those teams before the call; the cascade is explicit,
+   * since SQLite runs here without foreign-key enforcement.
+   */
+  delete_calendar_api_v1_holiday_calendars__calendar_id__delete: {
+    parameters: {
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        calendar_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Update Calendar */
+  update_calendar_api_v1_holiday_calendars__calendar_id__patch: {
+    parameters: {
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        calendar_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["HolidayCalendarUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["HolidayCalendarDetail"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Replace Entries
+   * @description Replace every entry starting inside the window, in one transaction (§7.3).
+   *
+   * Membership of the window is decided by ``start_date``, as for the absence
+   * bulk import. An exception survives when an entry with the same dates, halves
+   * and label comes back — the usual case, a re-read of an unchanged page — and
+   * is dropped otherwise.
+   */
+  replace_entries_api_v1_holiday_calendars__calendar_id__entries_put: {
+    parameters: {
+      path: {
+        calendar_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["BulkHolidayEntriesRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["BulkHolidayEntriesResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Create Entry */
+  create_entry_api_v1_holiday_calendars__calendar_id__entries_post: {
+    parameters: {
+      path: {
+        calendar_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["HolidayEntryFields"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        content: {
+          "application/json": components["schemas"]["HolidayEntryResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Delete Entry */
+  delete_entry_api_v1_holiday_calendars__calendar_id__entries__entry_id__delete: {
+    parameters: {
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        calendar_id: string;
+        entry_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Update Entry
+   * @description Edit an entry. Exceptions on days it no longer covers are deleted (§3.5).
+   *
+   * The patch is merged onto the stored row and the result validated, so a
+   * partial edit cannot leave an entry ending before it starts.
+   */
+  update_entry_api_v1_holiday_calendars__calendar_id__entries__entry_id__patch: {
+    parameters: {
+      header?: {
+        "If-Match"?: string | null;
+      };
+      path: {
+        calendar_id: string;
+        entry_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["HolidayEntryUpdate"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["HolidayEntryResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Preview Copy Year
+   * @description Every entry of ``from_year``, proposed one year later.
+   *
+   * Nothing is inferred about which holidays move: the planner corrects Easter and
+   * its kin in the preview. A proposal landing on a weekend is flagged, never moved.
+   */
+  preview_copy_year_api_v1_holiday_calendars__calendar_id__copy_year_get: {
+    parameters: {
+      query: {
+        from_year: number;
+      };
+      path: {
+        calendar_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CopyYearPreview"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Copy Year
+   * @description Create the reviewed entries; exceptions are never copied (§6.3).
+   */
+  copy_year_api_v1_holiday_calendars__calendar_id__copy_year_post: {
+    parameters: {
+      path: {
+        calendar_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CopyYearRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["EntriesCreatedResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Import Ics
+   * @description Merge an ``.ics`` file into the calendar, skipping duplicates.
+   *
+   * Re-importing the same file changes nothing. Replacing a year is the bulk
+   * path's job (§7.3). The preview is the same request with ``dry_run``.
+   */
+  import_ics_api_v1_holiday_calendars__calendar_id__import_ics_post: {
+    parameters: {
+      query?: {
+        dry_run?: boolean;
+        /** @description First year to expand yearly events into */
+        from_year?: number | null;
+        /** @description Last year to expand yearly events into */
+        to_year?: number | null;
+      };
+      path: {
+        calendar_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "multipart/form-data": components["schemas"]["Body_import_ics_api_v1_holiday_calendars__calendar_id__import_ics_post"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["IcsImportResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** Export Calendar Ics */
+  export_calendar_ics_api_v1_holiday_calendars__calendar_id__export_ics_get: {
+    parameters: {
+      path: {
+        calendar_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "text/plain": string;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Team Holidays
+   * @description The enabled calendars' entries in a window, with each one's exceptions.
+   *
+   * One response feeds the strip, the member cells and the calendar panel's ticks,
+   * and it is expanded by the same generator the capacity figure is.
+   */
+  get_team_holidays_api_v1_teams__team_id__holidays_get: {
+    parameters: {
+      query?: {
+        from?: string | null;
+        to?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["TeamHolidaysResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Enable Calendar
+   * @description Enable a calendar for the team. Undated: history moves, and the UI warns (§3.4).
+   */
+  enable_calendar_api_v1_teams__team_id__holiday_calendars__calendar_id__put: {
+    parameters: {
+      path: {
+        team_id: string;
+        calendar_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Disable Calendar
+   * @description Disable a calendar. Its exceptions stay stored and come back with it (§3.5).
+   */
+  disable_calendar_api_v1_teams__team_id__holiday_calendars__calendar_id__delete: {
+    parameters: {
+      path: {
+        team_id: string;
+        calendar_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Set Exception
+   * @description The member works this day of the holiday.
+   */
+  set_exception_api_v1_teams__team_id__members__member_id__holiday_exceptions__entry_id___day__put: {
+    parameters: {
+      path: {
+        team_id: string;
+        member_id: string;
+        entry_id: string;
+        day: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Clear Exception
+   * @description The member is off on this day of the holiday after all.
+   */
+  clear_exception_api_v1_teams__team_id__members__member_id__holiday_exceptions__entry_id___day__delete: {
+    parameters: {
+      path: {
+        team_id: string;
+        member_id: string;
+        entry_id: string;
+        day: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      204: {
+        content: never;
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /** List Cleanup */
+  list_cleanup_api_v1_teams__team_id__holiday_cleanup_get: {
+    parameters: {
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CleanupResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Apply Cleanup
+   * @description Delete the ticked absences — only ones that are still candidates.
+   *
+   * Re-checked here rather than trusted from the client: between the list and the
+   * click, someone may have disabled the calendar that made a copy redundant.
+   */
+  apply_cleanup_api_v1_teams__team_id__holiday_cleanup_post: {
+    parameters: {
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CleanupRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["CleanupResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Get Pi Holidays
+   * @description Per sprint of the PI, the holidays that cost the serving team working time.
+   *
+   * An entry counts when it removes at least one contracted half-day from at least
+   * one member who counts towards capacity: a Saturday holiday, or one only
+   * part-timers are off for anyway, is not news to the sprint. Undated sprints get
+   * nothing, never a zero.
+   */
+  get_pi_holidays_api_v1_pis__pi_id__holidays_get: {
+    parameters: {
+      path: {
+        pi_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["ProjectHolidaysResponse"];
         };
       };
       /** @description Validation Error */

@@ -180,3 +180,32 @@ def test_existing_items_get_no_completion_date_on_upgrade(tmp_path):
     )
     assert result.returncode == 0, result.stderr
     assert "completed_on" not in _columns(db_path, "pbis")
+
+
+def test_upgrade_head_creates_holiday_calendar_tables(tmp_path):
+    """Four new tables, nothing existing altered (public-holidays.md §3.8)."""
+    db_path = tmp_path / "holidays.sqlite"
+    _alembic("head", db_path)
+
+    with sqlite3.connect(db_path) as conn:
+        tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        assert {
+            "holiday_calendars", "holiday_entries", "team_holiday_calendars", "holiday_exceptions",
+        } <= tables
+        insert = (
+            "INSERT INTO holiday_calendars (system_id, name, created_at, modified_at)"
+            f" VALUES ('{{id}}', '{{name}}', '{_NOW}', '{_NOW}')"
+        )
+        conn.execute(insert.format(id="c1", name="Switzerland"))
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(insert.format(id="c2", name="SWITZERLAND"))
+
+    env = {**os.environ, "DATABASE_URL": f"sqlite+aiosqlite:///{db_path}"}
+    result = subprocess.run(
+        [sys.executable, "-m", "alembic", "downgrade", "e3f4a5b6c7d8"],
+        cwd=BACKEND_DIR, env=env, capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stderr
+    with sqlite3.connect(db_path) as conn:
+        tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+    assert "holiday_calendars" not in tables

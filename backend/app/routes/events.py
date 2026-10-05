@@ -6,6 +6,7 @@ from fastapi.responses import StreamingResponse
 from app.middleware.deps import get_current_user
 from app.models.user import User
 from app.services.events import broadcaster, team_channel
+from app.services.holidays import CALENDARS_CHANNEL
 
 router = APIRouter(tags=["events"])
 
@@ -40,6 +41,27 @@ async def team_events(
     """
     return StreamingResponse(
         broadcaster.stream(team_channel(team_id), request),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+@router.get("/api/v1/holiday-calendar-events")
+async def holiday_calendar_events(
+    request: Request,
+    _: Annotated[User, Depends(get_current_user)],
+) -> StreamingResponse:
+    """Live updates for the Calendars page.
+
+    Calendars belong to no team, so their edits reach the page on one app-wide
+    channel; teams hear them on their own (public-holidays.md §9.2).
+    """
+    return StreamingResponse(
+        broadcaster.stream(CALENDARS_CHANNEL, request),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",

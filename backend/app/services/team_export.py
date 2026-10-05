@@ -4,7 +4,12 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.holiday import HolidayCalendar, HolidayEntry, HolidayException, TeamHolidayCalendar
 from app.models.team import Absence, Meeting, MeetingAttendee, MemberPatternVersion, Team, TeamMember
+
+#: 1.1 adds the team's enabled holiday calendars and its exceptions
+#: (public-holidays.md §8.2). Import still reads 1.0, permanently.
+EXPORT_VERSION = "1.1"
 
 _HALF_DAY_FIELDS = (
     "mon_am", "mon_pm", "tue_am", "tue_pm", "wed_am", "wed_pm", "thu_am", "thu_pm",
@@ -114,8 +119,10 @@ async def serialize_team(db: AsyncSession, team: Team) -> dict[str, Any]:
             "attendee_member_ids": list(attendees_result.scalars().all()),
         })
 
+    holiday_calendars, holiday_exceptions = await _serialize_holidays(db, team_id, [m.system_id for m in members])
+
     return {
-        "version": "1.0",
+        "version": EXPORT_VERSION,
         "exported_at": datetime.now(timezone.utc).isoformat(),
         "team": {
             "system_id": team.system_id,
@@ -127,5 +134,65 @@ async def serialize_team(db: AsyncSession, team: Team) -> dict[str, Any]:
             "members": member_data,
             "absences": absence_data,
             "meetings": meeting_data,
+            "holiday_calendars": holiday_calendars,
+            "holiday_exceptions": holiday_exceptions,
         },
     }
+
+
+async def _serialize_holidays(
+    db: AsyncSession, team_id: str, member_ids: list[str]
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """The enabled calendars by name, each with **all** its entries, and the exceptions.
+
+    All the entries, so the file is complete on an installation that has never
+    seen the calendar. Exceptions refer to entries by calendar name, label and
+    start date, because entry ids do not survive the trip.
+    """
+    calendars = (await db.execute(
+        select(HolidayCalendar)
+        .join(TeamHolidayCalendar, TeamHolidayCalendar.calendar_id == HolidayCalendar.system_id)
+        .where(TeamHolidayCalendar.team_id == team_id)
+        .order_by(HolidayCalendar.name)
+    )).scalars().all()
+    names = {c.system_id: c.name for c in calendars}
+    entries = (await db.execute(
+        select(HolidayEntry)
+        .where(HolidayEntry.calendar_id.in_(list(names)))
+        .order_by(HolidayEntry.start_date, HolidayEntry.label)
+    )).scalars().all() if names else []
+    by_calendar: dict[str, list[dict[str, Any]]] = {cid: [] for cid in names}
+    entry_by_id = {}
+    for entry in entries:
+        entry_by_id[entry.system_id] = entry
+        by_calendar[entry.calendar_id].append({
+            "label": entry.label,
+            "start_date": entry.start_date.isoformat(),
+            "start_half": entry.start_half,
+            "end_date": entry.end_date.isoformat(),
+            "end_half": entry.end_half,
+        })
+    calendar_data = [
+        {"name": c.name, "description": c.description, "entries": by_calendar[c.system_id]}
+        for c in calendars
+    ]
+
+    exception_data: list[dict[str, Any]] = []
+    if member_ids and entry_by_id:
+        rows = (await db.execute(
+            select(HolidayException)
+            .where(
+                HolidayException.member_id.in_(member_ids),
+                HolidayException.entry_id.in_(list(entry_by_id)),
+            )
+            .order_by(HolidayException.day)
+        )).scalars().all()
+        for row in rows:
+            entry = entry_by_id[row.entry_id]
+            exception_data.append({
+                "member_id": row.member_id,
+                "calendar": names[entry.calendar_id],
+                "entry": {"label": entry.label, "start_date": entry.start_date.isoformat()},
+                "day": row.day.isoformat(),
+            })
+    return calendar_data, exception_data

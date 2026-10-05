@@ -4804,6 +4804,54 @@
         }
       }
     },
+    "/api/v1/holiday-calendar-events": {
+      "get": {
+        "tags": [
+          "events"
+        ],
+        "summary": "Holiday Calendar Events",
+        "description": "Live updates for the Calendars page.\n\nCalendars belong to no team, so their edits reach the page on one app-wide\nchannel; teams hear them on their own (public-holidays.md \u00a79.2).",
+        "operationId": "holiday_calendar_events_api_v1_holiday_calendar_events_get",
+        "parameters": [
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/projects/{project_id}/import/csv": {
       "post": {
         "tags": [
@@ -5648,6 +5696,18 @@
         "operationId": "import_team_api_v1_teams_import_post",
         "parameters": [
           {
+            "name": "create_missing_calendars",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Create holiday calendars the file names that don't exist here",
+              "default": false,
+              "title": "Create Missing Calendars"
+            },
+            "description": "Create holiday calendars the file names that don't exist here"
+          },
+          {
             "name": "pi_session",
             "in": "cookie",
             "required": false,
@@ -5680,7 +5740,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TeamResponse"
+                  "$ref": "#/components/schemas/TeamImportResponse"
                 }
               }
             }
@@ -8519,6 +8579,1514 @@
         }
       }
     },
+    "/api/v1/holiday-calendars": {
+      "get": {
+        "tags": [
+          "holiday-calendars"
+        ],
+        "summary": "List Calendars",
+        "operationId": "list_calendars_api_v1_holiday_calendars_get",
+        "parameters": [
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/HolidayCalendarSummary"
+                  },
+                  "title": "Response List Calendars Api V1 Holiday Calendars Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "holiday-calendars"
+        ],
+        "summary": "Create Calendar",
+        "operationId": "create_calendar_api_v1_holiday_calendars_post",
+        "parameters": [
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HolidayCalendarCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HolidayCalendarDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/holiday-calendars/{calendar_id}": {
+      "get": {
+        "tags": [
+          "holiday-calendars"
+        ],
+        "summary": "Get Calendar",
+        "operationId": "get_calendar_api_v1_holiday_calendars__calendar_id__get",
+        "parameters": [
+          {
+            "name": "calendar_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Calendar Id"
+            }
+          },
+          {
+            "name": "year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2200,
+                  "minimum": 1900
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only entries touching this year",
+              "title": "Year"
+            },
+            "description": "Only entries touching this year"
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HolidayCalendarDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "holiday-calendars"
+        ],
+        "summary": "Update Calendar",
+        "operationId": "update_calendar_api_v1_holiday_calendars__calendar_id__patch",
+        "parameters": [
+          {
+            "name": "calendar_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Calendar Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HolidayCalendarUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HolidayCalendarDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "holiday-calendars"
+        ],
+        "summary": "Delete Calendar",
+        "description": "Permanent, and removes the calendar from every team using it (\u00a73.6).\n\nThe confirmation names those teams before the call; the cascade is explicit,\nsince SQLite runs here without foreign-key enforcement.",
+        "operationId": "delete_calendar_api_v1_holiday_calendars__calendar_id__delete",
+        "parameters": [
+          {
+            "name": "calendar_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Calendar Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/holiday-calendars/{calendar_id}/entries": {
+      "post": {
+        "tags": [
+          "holiday-calendars"
+        ],
+        "summary": "Create Entry",
+        "operationId": "create_entry_api_v1_holiday_calendars__calendar_id__entries_post",
+        "parameters": [
+          {
+            "name": "calendar_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Calendar Id"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HolidayEntryFields"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HolidayEntryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "holiday-calendars"
+        ],
+        "summary": "Replace Entries",
+        "description": "Replace every entry starting inside the window, in one transaction (\u00a77.3).\n\nMembership of the window is decided by ``start_date``, as for the absence\nbulk import. An exception survives when an entry with the same dates, halves\nand label comes back \u2014 the usual case, a re-read of an unchanged page \u2014 and\nis dropped otherwise.",
+        "operationId": "replace_entries_api_v1_holiday_calendars__calendar_id__entries_put",
+        "parameters": [
+          {
+            "name": "calendar_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Calendar Id"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BulkHolidayEntriesRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BulkHolidayEntriesResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/holiday-calendars/{calendar_id}/entries/{entry_id}": {
+      "patch": {
+        "tags": [
+          "holiday-calendars"
+        ],
+        "summary": "Update Entry",
+        "description": "Edit an entry. Exceptions on days it no longer covers are deleted (\u00a73.5).\n\nThe patch is merged onto the stored row and the result validated, so a\npartial edit cannot leave an entry ending before it starts.",
+        "operationId": "update_entry_api_v1_holiday_calendars__calendar_id__entries__entry_id__patch",
+        "parameters": [
+          {
+            "name": "calendar_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Calendar Id"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entry Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HolidayEntryUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HolidayEntryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "holiday-calendars"
+        ],
+        "summary": "Delete Entry",
+        "operationId": "delete_entry_api_v1_holiday_calendars__calendar_id__entries__entry_id__delete",
+        "parameters": [
+          {
+            "name": "calendar_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Calendar Id"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entry Id"
+            }
+          },
+          {
+            "name": "If-Match",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "If-Match"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/holiday-calendars/{calendar_id}/copy-year": {
+      "get": {
+        "tags": [
+          "holiday-calendars"
+        ],
+        "summary": "Preview Copy Year",
+        "description": "Every entry of ``from_year``, proposed one year later.\n\nNothing is inferred about which holidays move: the planner corrects Easter and\nits kin in the preview. A proposal landing on a weekend is flagged, never moved.",
+        "operationId": "preview_copy_year_api_v1_holiday_calendars__calendar_id__copy_year_get",
+        "parameters": [
+          {
+            "name": "calendar_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Calendar Id"
+            }
+          },
+          {
+            "name": "from_year",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "maximum": 2199,
+              "minimum": 1900,
+              "title": "From Year"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CopyYearPreview"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "holiday-calendars"
+        ],
+        "summary": "Copy Year",
+        "description": "Create the reviewed entries; exceptions are never copied (\u00a76.3).",
+        "operationId": "copy_year_api_v1_holiday_calendars__calendar_id__copy_year_post",
+        "parameters": [
+          {
+            "name": "calendar_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Calendar Id"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CopyYearRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EntriesCreatedResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/holiday-calendars/{calendar_id}/import/ics": {
+      "post": {
+        "tags": [
+          "holiday-calendars"
+        ],
+        "summary": "Import Ics",
+        "description": "Merge an ``.ics`` file into the calendar, skipping duplicates.\n\nRe-importing the same file changes nothing. Replacing a year is the bulk\npath's job (\u00a77.3). The preview is the same request with ``dry_run``.",
+        "operationId": "import_ics_api_v1_holiday_calendars__calendar_id__import_ics_post",
+        "parameters": [
+          {
+            "name": "calendar_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Calendar Id"
+            }
+          },
+          {
+            "name": "dry_run",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Dry Run"
+            }
+          },
+          {
+            "name": "from_year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2199,
+                  "minimum": 1900
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First year to expand yearly events into",
+              "title": "From Year"
+            },
+            "description": "First year to expand yearly events into"
+          },
+          {
+            "name": "to_year",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2199,
+                  "minimum": 1900
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last year to expand yearly events into",
+              "title": "To Year"
+            },
+            "description": "Last year to expand yearly events into"
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_ics_api_v1_holiday_calendars__calendar_id__import_ics_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IcsImportResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/holiday-calendars/{calendar_id}/export/ics": {
+      "get": {
+        "tags": [
+          "holiday-calendars"
+        ],
+        "summary": "Export Calendar Ics",
+        "operationId": "export_calendar_ics_api_v1_holiday_calendars__calendar_id__export_ics_get",
+        "parameters": [
+          {
+            "name": "calendar_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Calendar Id"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{team_id}/holidays": {
+      "get": {
+        "tags": [
+          "team-holidays"
+        ],
+        "summary": "Get Team Holidays",
+        "description": "The enabled calendars' entries in a window, with each one's exceptions.\n\nOne response feeds the strip, the member cells and the calendar panel's ticks,\nand it is expanded by the same generator the capacity figure is.",
+        "operationId": "get_team_holidays_api_v1_teams__team_id__holidays_get",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamHolidaysResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{team_id}/holiday-calendars/{calendar_id}": {
+      "put": {
+        "tags": [
+          "team-holidays"
+        ],
+        "summary": "Enable Calendar",
+        "description": "Enable a calendar for the team. Undated: history moves, and the UI warns (\u00a73.4).",
+        "operationId": "enable_calendar_api_v1_teams__team_id__holiday_calendars__calendar_id__put",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "calendar_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Calendar Id"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "team-holidays"
+        ],
+        "summary": "Disable Calendar",
+        "description": "Disable a calendar. Its exceptions stay stored and come back with it (\u00a73.5).",
+        "operationId": "disable_calendar_api_v1_teams__team_id__holiday_calendars__calendar_id__delete",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "calendar_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Calendar Id"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{team_id}/members/{member_id}/holiday-exceptions/{entry_id}/{day}": {
+      "put": {
+        "tags": [
+          "team-holidays"
+        ],
+        "summary": "Set Exception",
+        "description": "The member works this day of the holiday.",
+        "operationId": "set_exception_api_v1_teams__team_id__members__member_id__holiday_exceptions__entry_id___day__put",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Member Id"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entry Id"
+            }
+          },
+          {
+            "name": "day",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Day"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "team-holidays"
+        ],
+        "summary": "Clear Exception",
+        "description": "The member is off on this day of the holiday after all.",
+        "operationId": "clear_exception_api_v1_teams__team_id__members__member_id__holiday_exceptions__entry_id___day__delete",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Member Id"
+            }
+          },
+          {
+            "name": "entry_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Entry Id"
+            }
+          },
+          {
+            "name": "day",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Day"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/teams/{team_id}/holiday-cleanup": {
+      "get": {
+        "tags": [
+          "team-holidays"
+        ],
+        "summary": "List Cleanup",
+        "operationId": "list_cleanup_api_v1_teams__team_id__holiday_cleanup_get",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CleanupResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "team-holidays"
+        ],
+        "summary": "Apply Cleanup",
+        "description": "Delete the ticked absences \u2014 only ones that are still candidates.\n\nRe-checked here rather than trusted from the client: between the list and the\nclick, someone may have disabled the calendar that made a copy redundant.",
+        "operationId": "apply_cleanup_api_v1_teams__team_id__holiday_cleanup_post",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CleanupRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CleanupResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/pis/{pi_id}/holidays": {
+      "get": {
+        "tags": [
+          "team-holidays"
+        ],
+        "summary": "Get Pi Holidays",
+        "description": "Per sprint of the PI, the holidays that cost the serving team working time.\n\nAn entry counts when it removes at least one contracted half-day from at least\none member who counts towards capacity: a Saturday holiday, or one only\npart-timers are off for anyway, is not news to the sprint. Undated sprints get\nnothing, never a zero.",
+        "operationId": "get_pi_holidays_api_v1_pis__pi_id__holidays_get",
+        "parameters": [
+          {
+            "name": "pi_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pi Id"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProjectHolidaysResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/release-notes": {
       "get": {
         "tags": [
@@ -9381,6 +10949,21 @@
         ],
         "title": "ActorType"
       },
+      "Body_import_ics_api_v1_holiday_calendars__calendar_id__import_ics_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "An iCalendar (.ics) file"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_ics_api_v1_holiday_calendars__calendar_id__import_ics_post"
+      },
       "Body_import_project_api_v1_projects_import_post": {
         "properties": {
           "file": {
@@ -9629,6 +11212,73 @@
         ],
         "title": "BulkDeleteResponse"
       },
+      "BulkHolidayEntriesRequest": {
+        "properties": {
+          "window_from": {
+            "type": "string",
+            "format": "date",
+            "title": "Window From"
+          },
+          "window_to": {
+            "type": "string",
+            "format": "date",
+            "title": "Window To"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/HolidayEntryFields"
+            },
+            "type": "array",
+            "maxItems": 2000,
+            "title": "Entries"
+          },
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "window_from",
+          "window_to"
+        ],
+        "title": "BulkHolidayEntriesRequest",
+        "description": "Replace every entry whose ``start_date`` lies in the window, in one transaction.\n\nReplacement, not merge, for the reason the absence bulk import gives: a source\nre-read on a schedule would otherwise double everything, and only replacement\nsurvives an entry being deleted at the source."
+      },
+      "BulkHolidayEntriesResult": {
+        "properties": {
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run"
+          },
+          "created": {
+            "type": "integer",
+            "title": "Created"
+          },
+          "deleted": {
+            "type": "integer",
+            "title": "Deleted"
+          },
+          "exceptions_kept": {
+            "type": "integer",
+            "title": "Exceptions Kept"
+          },
+          "exceptions_dropped": {
+            "type": "integer",
+            "title": "Exceptions Dropped"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dry_run",
+          "created",
+          "deleted",
+          "exceptions_kept",
+          "exceptions_dropped"
+        ],
+        "title": "BulkHolidayEntriesResult"
+      },
       "BulkMeetingEntry": {
         "properties": {
           "title": {
@@ -9829,6 +11479,11 @@
             "type": "integer",
             "title": "Absent Half Days"
           },
+          "holiday_half_days": {
+            "type": "integer",
+            "title": "Holiday Half Days",
+            "default": 0
+          },
           "hours_after_absences": {
             "type": "number",
             "title": "Hours After Absences"
@@ -9962,6 +11617,246 @@
           "new_password"
         ],
         "title": "ChangePassword"
+      },
+      "CleanupGroup": {
+        "properties": {
+          "label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "start_half": {
+            "type": "string",
+            "enum": [
+              "am",
+              "pm"
+            ],
+            "title": "Start Half"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "end_half": {
+            "type": "string",
+            "enum": [
+              "am",
+              "pm"
+            ],
+            "title": "End Half"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/CleanupMember"
+            },
+            "type": "array",
+            "title": "Members"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "start_date",
+          "start_half",
+          "end_date",
+          "end_half",
+          "members"
+        ],
+        "title": "CleanupGroup",
+        "description": "Old everyone-absences on dates an enabled calendar already covers (\u00a76.4)."
+      },
+      "CleanupMember": {
+        "properties": {
+          "member_id": {
+            "type": "string",
+            "title": "Member Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "absence_id": {
+            "type": "string",
+            "title": "Absence Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "member_id",
+          "name",
+          "absence_id"
+        ],
+        "title": "CleanupMember"
+      },
+      "CleanupRequest": {
+        "properties": {
+          "absence_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 5000,
+            "minItems": 1,
+            "title": "Absence Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "absence_ids"
+        ],
+        "title": "CleanupRequest"
+      },
+      "CleanupResponse": {
+        "properties": {
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/CleanupGroup"
+            },
+            "type": "array",
+            "title": "Groups"
+          }
+        },
+        "type": "object",
+        "required": [
+          "groups"
+        ],
+        "title": "CleanupResponse"
+      },
+      "CleanupResult": {
+        "properties": {
+          "deleted": {
+            "type": "integer",
+            "title": "Deleted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted"
+        ],
+        "title": "CleanupResult"
+      },
+      "CopyYearPreview": {
+        "properties": {
+          "from_year": {
+            "type": "integer",
+            "title": "From Year"
+          },
+          "to_year": {
+            "type": "integer",
+            "title": "To Year"
+          },
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/CopyYearProposal"
+            },
+            "type": "array",
+            "title": "Proposals"
+          }
+        },
+        "type": "object",
+        "required": [
+          "from_year",
+          "to_year",
+          "proposals"
+        ],
+        "title": "CopyYearPreview"
+      },
+      "CopyYearProposal": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "start_half": {
+            "type": "string",
+            "enum": [
+              "am",
+              "pm"
+            ],
+            "title": "Start Half",
+            "default": "am"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "end_half": {
+            "type": "string",
+            "enum": [
+              "am",
+              "pm"
+            ],
+            "title": "End Half",
+            "default": "pm"
+          },
+          "source_start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Source Start Date"
+          },
+          "on_weekend": {
+            "type": "boolean",
+            "title": "On Weekend"
+          },
+          "duplicate": {
+            "type": "boolean",
+            "title": "Duplicate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "start_date",
+          "source_start_date",
+          "on_weekend",
+          "duplicate"
+        ],
+        "title": "CopyYearProposal"
+      },
+      "CopyYearRequest": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/HolidayEntryFields"
+            },
+            "type": "array",
+            "maxItems": 2000,
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entries"
+        ],
+        "title": "CopyYearRequest",
+        "description": "The reviewed list. Nothing is inferred about which holidays move (\u00a76.3)."
       },
       "CsvImportRequest": {
         "properties": {
@@ -10359,6 +12254,24 @@
           "is_locked"
         ],
         "title": "EditLockResponse"
+      },
+      "EntriesCreatedResult": {
+        "properties": {
+          "created": {
+            "type": "integer",
+            "title": "Created"
+          },
+          "duplicates": {
+            "type": "integer",
+            "title": "Duplicates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "created",
+          "duplicates"
+        ],
+        "title": "EntriesCreatedResult"
       },
       "FeatureCreate": {
         "properties": {
@@ -11015,6 +12928,549 @@
         },
         "type": "object",
         "title": "HTTPValidationError"
+      },
+      "HolidayCalendarCreate": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "HolidayCalendarCreate"
+      },
+      "HolidayCalendarDetail": {
+        "properties": {
+          "system_id": {
+            "type": "string",
+            "title": "System Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "entry_count": {
+            "type": "integer",
+            "title": "Entry Count"
+          },
+          "first_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Year"
+          },
+          "last_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Year"
+          },
+          "teams": {
+            "items": {
+              "$ref": "#/components/schemas/TeamRef"
+            },
+            "type": "array",
+            "title": "Teams"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Modified At"
+          },
+          "etag": {
+            "type": "string",
+            "title": "Etag",
+            "default": ""
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/HolidayEntryResponse"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "system_id",
+          "name",
+          "description",
+          "entry_count",
+          "first_year",
+          "last_year",
+          "teams",
+          "created_at",
+          "modified_at",
+          "entries"
+        ],
+        "title": "HolidayCalendarDetail"
+      },
+      "HolidayCalendarSummary": {
+        "properties": {
+          "system_id": {
+            "type": "string",
+            "title": "System Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "entry_count": {
+            "type": "integer",
+            "title": "Entry Count"
+          },
+          "first_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Year"
+          },
+          "last_year": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Year"
+          },
+          "teams": {
+            "items": {
+              "$ref": "#/components/schemas/TeamRef"
+            },
+            "type": "array",
+            "title": "Teams"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Modified At"
+          },
+          "etag": {
+            "type": "string",
+            "title": "Etag",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "system_id",
+          "name",
+          "description",
+          "entry_count",
+          "first_year",
+          "last_year",
+          "teams",
+          "created_at",
+          "modified_at"
+        ],
+        "title": "HolidayCalendarSummary"
+      },
+      "HolidayCalendarUpdate": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "title": "HolidayCalendarUpdate"
+      },
+      "HolidayDay": {
+        "properties": {
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "halves": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "am",
+                "pm"
+              ]
+            },
+            "type": "array",
+            "title": "Halves"
+          }
+        },
+        "type": "object",
+        "required": [
+          "date",
+          "halves"
+        ],
+        "title": "HolidayDay"
+      },
+      "HolidayEntryFields": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Label"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "start_half": {
+            "type": "string",
+            "enum": [
+              "am",
+              "pm"
+            ],
+            "title": "Start Half",
+            "default": "am"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "end_half": {
+            "type": "string",
+            "enum": [
+              "am",
+              "pm"
+            ],
+            "title": "End Half",
+            "default": "pm"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "start_date"
+        ],
+        "title": "HolidayEntryFields"
+      },
+      "HolidayEntryResponse": {
+        "properties": {
+          "system_id": {
+            "type": "string",
+            "title": "System Id"
+          },
+          "calendar_id": {
+            "type": "string",
+            "title": "Calendar Id"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "start_half": {
+            "type": "string",
+            "enum": [
+              "am",
+              "pm"
+            ],
+            "title": "Start Half"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "end_half": {
+            "type": "string",
+            "enum": [
+              "am",
+              "pm"
+            ],
+            "title": "End Half"
+          },
+          "exception_days": {
+            "items": {
+              "type": "string",
+              "format": "date"
+            },
+            "type": "array",
+            "title": "Exception Days"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Modified At"
+          },
+          "etag": {
+            "type": "string",
+            "title": "Etag",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "system_id",
+          "calendar_id",
+          "label",
+          "start_date",
+          "start_half",
+          "end_date",
+          "end_half",
+          "created_at",
+          "modified_at"
+        ],
+        "title": "HolidayEntryResponse"
+      },
+      "HolidayEntryUpdate": {
+        "properties": {
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "start_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Date"
+          },
+          "start_half": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "am",
+                  "pm"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Half"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "end_half": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "am",
+                  "pm"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Half"
+          }
+        },
+        "type": "object",
+        "title": "HolidayEntryUpdate"
+      },
+      "HolidayExceptionRef": {
+        "properties": {
+          "member_id": {
+            "type": "string",
+            "title": "Member Id"
+          },
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          }
+        },
+        "type": "object",
+        "required": [
+          "member_id",
+          "day"
+        ],
+        "title": "HolidayExceptionRef"
+      },
+      "IcsImportResult": {
+        "properties": {
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run"
+          },
+          "created": {
+            "type": "integer",
+            "title": "Created"
+          },
+          "duplicates": {
+            "type": "integer",
+            "title": "Duplicates"
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/IcsSkipped"
+            },
+            "type": "array",
+            "title": "Skipped"
+          },
+          "truncated_labels": {
+            "type": "integer",
+            "title": "Truncated Labels"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/HolidayEntryFields"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "dry_run",
+          "created",
+          "duplicates",
+          "skipped",
+          "truncated_labels",
+          "entries"
+        ],
+        "title": "IcsImportResult"
+      },
+      "IcsSkipped": {
+        "properties": {
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "summary",
+          "reason"
+        ],
+        "title": "IcsSkipped"
       },
       "LoginRequest": {
         "properties": {
@@ -13448,6 +15904,39 @@
         ],
         "title": "ProjectCreate"
       },
+      "ProjectHolidaysResponse": {
+        "properties": {
+          "project_id": {
+            "type": "string",
+            "title": "Project Id"
+          },
+          "team_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Team Id"
+          },
+          "sprints": {
+            "items": {
+              "$ref": "#/components/schemas/SprintHolidays"
+            },
+            "type": "array",
+            "title": "Sprints"
+          }
+        },
+        "type": "object",
+        "required": [
+          "project_id",
+          "team_id",
+          "sprints"
+        ],
+        "title": "ProjectHolidaysResponse"
+      },
       "ProjectPushResult": {
         "properties": {
           "project_id": {
@@ -14293,6 +16782,75 @@
         ],
         "title": "SnapshotResponse"
       },
+      "SprintHoliday": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "calendar_name": {
+            "type": "string",
+            "title": "Calendar Name"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "start_half": {
+            "type": "string",
+            "enum": [
+              "am",
+              "pm"
+            ],
+            "title": "Start Half"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "end_half": {
+            "type": "string",
+            "enum": [
+              "am",
+              "pm"
+            ],
+            "title": "End Half"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "calendar_name",
+          "start_date",
+          "start_half",
+          "end_date",
+          "end_half"
+        ],
+        "title": "SprintHoliday"
+      },
+      "SprintHolidays": {
+        "properties": {
+          "sprint_id": {
+            "type": "string",
+            "title": "Sprint Id"
+          },
+          "holidays": {
+            "items": {
+              "$ref": "#/components/schemas/SprintHoliday"
+            },
+            "type": "array",
+            "title": "Holidays"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sprint_id",
+          "holidays"
+        ],
+        "title": "SprintHolidays"
+      },
       "SprintIterationPath": {
         "properties": {
           "system_id": {
@@ -14803,6 +17361,186 @@
         ],
         "title": "TeamCreate"
       },
+      "TeamHolidayEntry": {
+        "properties": {
+          "system_id": {
+            "type": "string",
+            "title": "System Id"
+          },
+          "calendar_id": {
+            "type": "string",
+            "title": "Calendar Id"
+          },
+          "calendar_name": {
+            "type": "string",
+            "title": "Calendar Name"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "start_half": {
+            "type": "string",
+            "enum": [
+              "am",
+              "pm"
+            ],
+            "title": "Start Half"
+          },
+          "end_date": {
+            "type": "string",
+            "format": "date",
+            "title": "End Date"
+          },
+          "end_half": {
+            "type": "string",
+            "enum": [
+              "am",
+              "pm"
+            ],
+            "title": "End Half"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/HolidayDay"
+            },
+            "type": "array",
+            "title": "Days"
+          },
+          "exceptions": {
+            "items": {
+              "$ref": "#/components/schemas/HolidayExceptionRef"
+            },
+            "type": "array",
+            "title": "Exceptions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "system_id",
+          "calendar_id",
+          "calendar_name",
+          "label",
+          "start_date",
+          "start_half",
+          "end_date",
+          "end_half",
+          "days",
+          "exceptions"
+        ],
+        "title": "TeamHolidayEntry"
+      },
+      "TeamHolidaysResponse": {
+        "properties": {
+          "team_id": {
+            "type": "string",
+            "title": "Team Id"
+          },
+          "enabled_calendar_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Enabled Calendar Ids"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/TeamHolidayEntry"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "team_id",
+          "enabled_calendar_ids",
+          "entries"
+        ],
+        "title": "TeamHolidaysResponse"
+      },
+      "TeamImportResponse": {
+        "properties": {
+          "system_id": {
+            "type": "string",
+            "title": "System Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "normal_day_hours": {
+            "type": "number",
+            "title": "Normal Day Hours"
+          },
+          "member_count": {
+            "type": "integer",
+            "title": "Member Count",
+            "default": 0
+          },
+          "project_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Project Ids",
+            "default": []
+          },
+          "project_shares": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Project Shares",
+            "default": {}
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "modified_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Modified At"
+          },
+          "import_notes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Import Notes",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "system_id",
+          "name",
+          "description",
+          "normal_day_hours",
+          "created_at",
+          "modified_at"
+        ],
+        "title": "TeamImportResponse",
+        "description": "The imported team, plus what the import could not apply as written.\n\nHoliday calendars are shared, so an import reuses an existing calendar rather\nthan editing it, and says so here (public-holidays.md \u00a78.2)."
+      },
       "TeamProjectCreate": {
         "properties": {
           "project_id": {
@@ -14975,6 +17713,24 @@
           "results"
         ],
         "title": "TeamPushResponse"
+      },
+      "TeamRef": {
+        "properties": {
+          "system_id": {
+            "type": "string",
+            "title": "System Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "system_id",
+          "name"
+        ],
+        "title": "TeamRef"
       },
       "TeamResponse": {
         "properties": {

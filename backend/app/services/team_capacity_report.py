@@ -30,6 +30,7 @@ from app.schemas.team_capacity import (
     TeamCapacityResponse,
 )
 from app.services.absences import build_lookup, load_absences
+from app.services.holidays import holiday_lookup
 from app.services.meetings import build_lookup as build_meeting_lookup
 from app.services.meetings import load_meetings
 from app.services.team_capacity import (
@@ -154,6 +155,7 @@ def _breakdown(capacity: MemberCapacity) -> CapacityBreakdown:
         contracted_half_days=capacity.contracted_half_days,
         contracted_hours=capacity.contracted_hours,
         absent_half_days=capacity.absent_half_days,
+        holiday_half_days=capacity.holiday_half_days,
         hours_after_absences=capacity.hours_after_absences,
         meeting_hours=capacity.meeting_hours,
         hours_after_meetings=capacity.hours_after_meetings,
@@ -174,6 +176,7 @@ def _totalled(cells: list[CapacityBreakdown]) -> CapacityBreakdown:
         contracted_half_days=sum(c.contracted_half_days for c in cells),
         contracted_hours=sum(c.contracted_hours for c in cells),
         absent_half_days=sum(c.absent_half_days for c in cells),
+        holiday_half_days=sum(c.holiday_half_days for c in cells),
         hours_after_absences=sum(c.hours_after_absences for c in cells),
         meeting_hours=sum(c.meeting_hours for c in cells),
         hours_after_meetings=sum(c.hours_after_meetings for c in cells),
@@ -211,6 +214,9 @@ async def build_report(
     # and it is the engine's per-day clamp — not this lookup — that stops the total
     # exceeding the hours a member actually has (§5.4 step 4).
     booked: MeetingLookup = no_meetings
+    # Holidays come from the team's enabled calendars, less each member's
+    # exceptions — a second seam, so the engine can report them apart (§4.1).
+    on_holiday: AbsenceLookup = no_absences
     dated = [c for c in columns if c.start_date is not None and c.end_date is not None]
     if dated:
         span_start = min(c.start_date for c in dated if c.start_date is not None)
@@ -219,6 +225,7 @@ async def build_report(
         booked = build_meeting_lookup(
             await load_meetings(db, team.system_id), span_start, span_end
         )
+        on_holiday = await holiday_lookup(db, team.system_id, span_start, span_end)
 
     rows: list[MemberCapacityRow] = []
     per_sprint: list[list[CapacityBreakdown]] = [[] for _ in columns]
@@ -238,6 +245,7 @@ async def build_report(
                 column.end_date,
                 absent=absent,
                 meetings=booked,
+                holiday=on_holiday,
             )
             breakdown = _breakdown(capacity)
             # Shown, never totalled: someone tracked for their absences only

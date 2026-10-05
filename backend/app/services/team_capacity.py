@@ -141,6 +141,8 @@ class MemberCapacity:
     contracted_half_days: int = 0
     contracted_hours: float = 0.0
     absent_half_days: int = 0
+    # The subset of absent_half_days a public holiday removed (public-holidays.md §4.2).
+    holiday_half_days: int = 0
     hours_after_absences: float = 0.0
     meeting_hours: float = 0.0
     hours_after_meetings: float = 0.0
@@ -241,8 +243,16 @@ def compute_member_capacity(
     end: date,
     absent: AbsenceLookup = no_absences,
     meetings: MeetingLookup = no_meetings,
+    holiday: AbsenceLookup = no_absences,
 ) -> MemberCapacity:
-    """One member's capacity over ``[start, end]`` inclusive, per §5.4."""
+    """One member's capacity over ``[start, end]`` inclusive, per §5.4.
+
+    ``holiday`` is a second absence seam, filled from the team's enabled holiday
+    calendars less the member's exceptions (public-holidays.md §4.1). A half it
+    covers is removed exactly as an absence is, and counted once even when an
+    absence covers it too — **as a holiday**: the day was not the member's to take
+    off, so leave on it is not leave spent (§4.2).
+    """
     result = MemberCapacity(member_id=member.member_id)
 
     for day in days_in(start, end):
@@ -257,6 +267,10 @@ def compute_member_capacity(
                 continue
             result.contracted_half_days += 1
             result.contracted_hours += version.hours_per_day / 2
+            if holiday(member.member_id, day, half):
+                result.absent_half_days += 1
+                result.holiday_half_days += 1
+                continue
             if absent(member.member_id, day, half):
                 result.absent_half_days += 1
                 continue
@@ -292,6 +306,7 @@ def compute_team_capacity(
     end: date,
     absent: AbsenceLookup = no_absences,
     meetings: MeetingLookup = no_meetings,
+    holiday: AbsenceLookup = no_absences,
 ) -> TeamCapacity:
     """Team totals over a window.
 
@@ -306,7 +321,8 @@ def compute_team_capacity(
     result = TeamCapacity()
     for member in members:
         capacity = compute_member_capacity(
-            member, normal_day_hours, start, end, absent=absent, meetings=meetings
+            member, normal_day_hours, start, end,
+            absent=absent, meetings=meetings, holiday=holiday,
         )
         result.members.append(capacity)
         if member.counts_towards_capacity:

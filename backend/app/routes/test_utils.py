@@ -14,6 +14,9 @@ from app.models import (
     EditLock,
     Feature,
     Group,
+    HolidayCalendar,
+    HolidayEntry,
+    HolidayException,
     Meeting,
     MeetingAttendee,
     MemberPatternVersion,
@@ -22,6 +25,7 @@ from app.models import (
     Sprint,
     Swimline,
     Team,
+    TeamHolidayCalendar,
     TeamMember,
     TeamProject,
 )
@@ -41,6 +45,10 @@ async def reset_database(
     # Teams section is never empty again. Children first, then TeamProject before
     # Project, since it points at both sides.
     for model in (
+        HolidayException,
+        TeamHolidayCalendar,
+        HolidayEntry,
+        HolidayCalendar,
         MeetingAttendee,
         Meeting,
         Absence,

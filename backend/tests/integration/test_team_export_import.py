@@ -99,7 +99,7 @@ async def test_export_team(client):
     resp = await client.get(f"{_TEAMS}/{team['system_id']}/export")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["version"] == "1.0"
+    assert data["version"] == "1.1"
     assert "exported_at" in data
     assert data["team"]["name"] == "Export Me"
     assert data["team"]["members"] == []

@@ -392,8 +392,8 @@ Hovering lists each one with its date and label.
   for anyway, isn't news to the sprint.
 - **Not shown:** for a project with no team, and for an undated sprint. An undated sprint is
   never shown as zero (teams.md §7.0.1).
-- **Data:** a new read endpoint, `GET /api/v1/projects/{id}/holidays?from=&to=`, returns the
-  qualifying entries per sprint, so the board doesn't load team data it doesn't otherwise need.
+- **Data:** a new read endpoint, `GET /api/v1/pis/{pi_id}/holidays`, returns the qualifying
+  entries per sprint of that PI, so the board doesn't load team data it doesn't otherwise need.
 - **Live updates:** calendar and switch writes broadcast to each affected team's channel
   (§9.2), and project boards refetch when their team's capacity status changes.
 
@@ -478,9 +478,10 @@ the same engine, so the report and the Capacity view can't disagree.
 | `PUT` / `DELETE` | `/api/v1/teams/{team_id}/members/{member_id}/holiday-exceptions/{entry_id}/{day}` | Works this day / doesn't | `require_editor_or_above` |
 | `GET` | `/api/v1/teams/{team_id}/holidays?from=&to=` | The team's effective holidays and exceptions in a window, for the strip and the cells | `get_current_user` |
 | `GET` | `/api/v1/teams/{team_id}/holiday-cleanup` / `POST …` | §6.4: candidates / delete the ticked groups | read / `require_editor_or_above` |
-| `GET` | `/api/v1/projects/{id}/holidays?from=&to=` | §8.1 sprint-header chips | `get_current_user` |
+| `GET` | `/api/v1/pis/{pi_id}/holidays` | §8.1 sprint-header chips | `get_current_user` |
+| `GET` | `/api/v1/holiday-calendar-events` | §9.2 the Calendars page's SSE stream | `get_current_user` |
 | `GET` | `/api/v1/teams/{id}/capacity` | `holiday_half_days` added (§4.2) | unchanged |
-| `POST` | `/api/v1/teams/import` | `create_missing_calendars`, `409 CALENDARS_MISSING` (§8.2) | unchanged |
+| `POST` | `/api/v1/teams/import` | `?create_missing_calendars=true`, `409 CALENDARS_MISSING` (§8.2); the response gains `import_notes` | unchanged |
 
 All responses use the standard envelope. Calendar writes take no edit lock: they aren't
 project data, and the per-row `If-Match` covers concurrent editors, as for teams
@@ -494,8 +495,8 @@ Calendars belong to no team, but their effects land in teams. So:
   the channel of **each team that has the calendar enabled**. This is the same
   broadcast-not-write crossing that `notify_team_achievement` makes (team-achievement.md §8.2).
 - **Enabling, disabling and exception writes** broadcast on that one team's channel.
-- **The Calendars page** listens on one new app-wide channel, `holiday-calendars`, so two
-  editors on the page see each other's changes.
+- **The Calendars page** listens on one new app-wide channel, `holiday-calendars`, streamed at
+  `/api/v1/holiday-calendar-events`, so two editors on the page see each other's changes.
 - Team views refetch their holidays and capacity on `holidays:changed`. The PI board refetches
   its chips through the existing team-capacity-status invalidation.
 

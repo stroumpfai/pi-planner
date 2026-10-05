@@ -40,6 +40,7 @@ from app.schemas.team_push import (
     PushSprintRow,
 )
 from app.services.absences import build_lookup, load_absences
+from app.services.holidays import holiday_lookup
 from app.services.meetings import build_lookup as build_meeting_lookup
 from app.services.meetings import load_meetings
 from app.services.team_capacity import (
@@ -157,6 +158,7 @@ async def compute_rows(
     # them five times would expand every open-ended recurrence five times.
     absent: AbsenceLookup = no_absences
     booked: MeetingLookup = no_meetings
+    on_holiday: AbsenceLookup = no_absences
     dated = [s for s, _ in sprints if s.start_date is not None and s.end_date is not None]
     if dated:
         span_start = min(s.start_date for s in dated if s.start_date is not None)
@@ -165,6 +167,7 @@ async def compute_rows(
         booked = build_meeting_lookup(
             await load_meetings(db, context.team.system_id), span_start, span_end
         )
+        on_holiday = await holiday_lookup(db, context.team.system_id, span_start, span_end)
 
     share = context.assignment.share_pct / 100
     rows: list[PushSprintRow] = []
@@ -184,6 +187,7 @@ async def compute_rows(
                 sprint.end_date,
                 absent=absent,
                 meetings=booked,
+                holiday=on_holiday,
             )
             team_pd = capacity.person_days
             share_pd = team_pd * share

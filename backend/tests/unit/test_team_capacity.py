@@ -374,3 +374,55 @@ def test_the_boundary_rounds_half_up_not_to_even(value, expected):
 def test_rounding_sees_the_number_as_it_reads():
     """2.675 is 2.67499999999999982… in binary, and would round down from the float."""
     assert round_half_up(2.675) == 3
+
+
+# ── holidays (public-holidays.md §4) ─────────────────────────────────────────
+
+EASTER_MONDAY = date(2026, 4, 6)
+
+
+def _holiday_on(*days: date):
+    covered = {(d, h) for d in days for h in HALVES}
+    return lambda member_id, day, half: (day, half) in covered
+
+
+def test_a_holiday_removes_contracted_halves_and_is_counted_apart():
+    alice = member("alice", pattern("mon-fri"))
+    result = compute_member_capacity(
+        alice, 8.0, SPRINT_START, SPRINT_END, holiday=_holiday_on(EASTER_MONDAY)
+    )
+    assert result.absent_half_days == 2
+    assert result.holiday_half_days == 2
+    assert result.person_days == pytest.approx(9.0)
+
+
+def test_leave_on_a_holiday_counts_once_and_as_holiday():
+    alice = member("alice", pattern("mon-fri"))
+    leave = {(EASTER_MONDAY, h) for h in HALVES} | {(date(2026, 4, 7), h) for h in HALVES}
+    result = compute_member_capacity(
+        alice, 8.0, SPRINT_START, SPRINT_END,
+        absent=lambda m, d, h: (d, h) in leave,
+        holiday=_holiday_on(EASTER_MONDAY),
+    )
+    assert result.absent_half_days == 4
+    assert result.holiday_half_days == 2
+    assert result.person_days == pytest.approx(8.0)
+
+
+def test_a_holiday_on_a_day_not_worked_costs_nothing():
+    part_timer = member("bob", pattern("tue-fri"))
+    saturday = date(2026, 4, 11)
+    result = compute_member_capacity(
+        part_timer, 8.0, SPRINT_START, SPRINT_END, holiday=_holiday_on(EASTER_MONDAY, saturday)
+    )
+    assert result.holiday_half_days == 0
+    assert result.absent_half_days == 0
+
+
+def test_the_team_total_carries_holidays_through():
+    team = compute_team_capacity(
+        [member("alice", pattern("mon-fri")), member("bob", pattern("mon-fri"))],
+        8.0, SPRINT_START, SPRINT_END, holiday=_holiday_on(EASTER_MONDAY),
+    )
+    assert team.person_days == pytest.approx(18.0)
+    assert sum(m.holiday_half_days for m in team.members) == 4

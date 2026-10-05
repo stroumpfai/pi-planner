@@ -31,6 +31,7 @@ from app.routes import (
     events,
     features,
     groups,
+    holiday_calendars,
     meetings,
     pbis,
     pi_events,
@@ -42,6 +43,7 @@ from app.routes import (
     sprints,
     swimlines,
     team_achievement,
+    team_holidays,
     team_members,
     team_projects,
     team_push,
@@ -110,6 +112,8 @@ for _router in [
     team_projects.router,
     team_achievement.router,
     team_push.router,
+    holiday_calendars.router,
+    team_holidays.router,
     release_notes.router,
 ]:
     app.include_router(_router)

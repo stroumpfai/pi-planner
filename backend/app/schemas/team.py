@@ -77,6 +77,16 @@ def _validate_focus(value: float) -> float:
     return value
 
 
+
+class TeamImportResponse(TeamResponse):
+    """The imported team, plus what the import could not apply as written.
+
+    Holiday calendars are shared, so an import reuses an existing calendar rather
+    than editing it, and says so here (public-holidays.md §8.2).
+    """
+
+    import_notes: list[str] = []
+
 class PatternFields(BaseModel):
     """The contract itself: which half-days are owed, how long they are, and focus.
 

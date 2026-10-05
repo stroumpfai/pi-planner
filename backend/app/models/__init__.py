@@ -3,6 +3,7 @@ from app.models.api_key import APIKey
 from app.models.edit_lock import EditLock
 from app.models.feature import Feature
 from app.models.group import Group
+from app.models.holiday import HolidayCalendar, HolidayEntry, HolidayException, TeamHolidayCalendar
 from app.models.pbi import PBI
 from app.models.pi import PI
 from app.models.pi_event import PIEvent
@@ -47,4 +48,8 @@ __all__ = [
     "Meeting",
     "MeetingAttendee",
     "TeamProject",
+    "HolidayCalendar",
+    "HolidayEntry",
+    "TeamHolidayCalendar",
+    "HolidayException",
 ]

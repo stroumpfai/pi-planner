@@ -37,7 +37,11 @@ class CapacityBreakdown(BaseModel):
 
     contracted_half_days: int
     contracted_hours: float
+    # Every contracted half-day removed, holidays included.
     absent_half_days: int
+    # The subset removed by a public holiday; leave is the difference
+    # (public-holidays.md §4.2). Defaulted so payloads from before it still parse.
+    holiday_half_days: int = 0
     hours_after_absences: float
     meeting_hours: float
     hours_after_meetings: float

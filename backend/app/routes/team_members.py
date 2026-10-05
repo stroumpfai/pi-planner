@@ -53,6 +53,7 @@ from app.services.concurrency import (
     set_etag,
 )
 from app.services.events import broadcaster, team_channel
+from app.services.holidays import forget_members
 from app.services.team_capacity import resolve_version
 
 router = APIRouter(prefix="/api/v1/teams/{team_id}/members", tags=["team-members"])
@@ -386,6 +387,7 @@ async def delete_member(
 
     # Loaded eagerly so the ORM cascade can run without a lazy load mid-flush.
     await db.refresh(member, ["pattern_versions", "absences", "meeting_attendances"])
+    await forget_members(db, [member.system_id])
     await db.delete(member)
     await db.commit()
 
