@@ -487,6 +487,10 @@ async def get_team_capacity(
     different, and a zero would read as a team that does no work.
     `present_days` answers a different question from `person_days`: someone can be
     around for 9 days and contribute 6.3 PD.
+    `absent_half_days` counts every contracted half-day removed, public holidays
+    included; `holiday_half_days` (and `holiday_hours`) is the part the team's
+    enabled holiday calendars removed. Where a holiday and leave overlap, the half
+    counts once, as holiday.
     A member row with counts_towards_capacity=false is someone tracked for their
     absences only: their cells are computed, but the team row and every project
     row leave them out.
@@ -646,3 +650,57 @@ async def get_team_achievement(
     return await call_backend(
         "GET", f"/api/v1/teams/{team_id}/achievement", params=params or None
     )
+
+
+# ── Shared holiday calendars (spec/public-holidays.md §9.3) ──────────────────
+
+
+@read_mcp.tool()
+async def list_holiday_calendars(ctx: Context) -> dict:
+    """
+    List the shared holiday calendars, with how many holidays each holds, the
+    years they span, and the teams that have each one enabled.
+
+    A calendar belongs to no team; teams enable the calendars whose holidays they
+    observe, and those holidays remove capacity like absences do.
+    """
+    return await call_backend("GET", "/api/v1/holiday-calendars")
+
+
+@read_mcp.tool()
+async def get_holiday_calendar(
+    calendar: Annotated[str, Field(description="Holiday calendar name, as list_holiday_calendars reports it")],
+    ctx: Context,
+    year: Annotated[int | None, Field(default=None, description="Only holidays touching this year")] = None,
+) -> dict:
+    """
+    One holiday calendar with its holidays (each a dated range with halves),
+    their `etag`, and the days anyone works them (`exception_days`).
+
+    An unknown name is rejected with the list of calendars that exist.
+    """
+    from mcp_server.tools.holidays import resolve_calendar
+
+    current = await resolve_calendar(calendar)
+    params = {"year": year} if year is not None else None
+    return await call_backend("GET", f"/api/v1/holiday-calendars/{current['system_id']}", params=params)
+
+
+@read_mcp.tool()
+async def list_team_holidays(
+    team_id: Annotated[str, Field(description="Team system_id (UUID) — from list_teams")],
+    ctx: Context,
+    date_from: Annotated[str | None, Field(default=None, description="From this date (YYYY-MM-DD)")] = None,
+    date_to: Annotated[str | None, Field(default=None, description="Up to this date (YYYY-MM-DD)")] = None,
+) -> dict:
+    """
+    The public holidays a team observes in a window: the entries of its enabled
+    calendars, each with the days and halves it covers and the members who work
+    it (exceptions). `enabled_calendar_ids` lists the calendars switched on.
+    """
+    params = {}
+    if date_from:
+        params["from"] = date_from
+    if date_to:
+        params["to"] = date_to
+    return await call_backend("GET", f"/api/v1/teams/{team_id}/holidays", params=params or None)

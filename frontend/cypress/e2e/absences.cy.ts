@@ -87,7 +87,8 @@ describe('Absences', () => {
     showSeptember()
     cy.contains('button', /^\+ Add absence$/).click()
 
-    // "all N" is one click, and is how a public holiday is entered (§3.4).
+    // "all N" is one click — for something the whole team is off for. Public
+    // holidays live in shared calendars instead (holidays.cy.ts).
     absenceDialog().contains('button', /^all 2$/).click()
     absenceDialog().find('#absence-label').type('Company day')
     absenceDialog().find('#absence-from').type('09.09.2026')

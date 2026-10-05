@@ -8,8 +8,8 @@ doc explains the implementation; it does not replace the spec.
 
 ## TL;DR
 
-- **Team capacity** = for every member, `(contracted hours − absences − meetings) ×
-  focus`, summed and divided by the team's `normal_day_hours` to get **person-days
+- **Team capacity** = for every member, `(contracted hours − absences and public
+  holidays − meetings) × focus`, summed and divided by the team's `normal_day_hours` to get **person-days
   (PD)**. One member's day can be 6h, another's 8h — PD normalises them onto the
   same scale so they can be added.
 - A member can be marked **"doesn't count towards capacity"** (POs, SMs,
@@ -116,6 +116,30 @@ stops there — his day costs 6h, not 8h, and his sprint drops to 44.0h / 5.5 PD
 A per-half clamp would have wrongly billed only 3h and handed back a free
 afternoon.
 
+### Public holidays
+
+Public holidays come from **shared holiday calendars** that each team enables
+([`spec/public-holidays.md`](../spec/public-holidays.md),
+[ADR 0008](adr/0008-public-holidays-live-in-shared-calendars.md)), not from
+per-member absences. They enter the engine at step 2, through a second lookup
+beside the absence one (`holiday=` on `compute_member_capacity`):
+
+- A half-day is a holiday for a member when an entry of any enabled calendar
+  covers it and the member has no "works this holiday" exception for that day.
+- Holidays and absences **union**: a half covered by both is removed once. It is
+  counted **as a holiday**, because the day was not the member's to take off.
+- `absent_half_days` stays the total of every half-day removed;
+  `holiday_half_days` and `holiday_hours` are the holiday share of it. The
+  Capacity cell shows "− public holidays" and "− leave" on separate lines, and
+  the minimap draws the holiday share at the foot of each bar
+  (`holiday_hours ÷ normal_day_hours`).
+- An exception cancels only the holiday: leave booked on the same day still
+  counts.
+
+Enabling, disabling or editing a calendar restates capacity for every sprint it
+touches, closed ones included. Sprint Available is never rewritten — a derived
+project reads stale until someone pushes.
+
 ## Who counts towards the team total
 
 Every member's chain above is always computed and shown — but a member has a
@@ -210,7 +234,7 @@ TeamCapacityResponse
 ```
 
 `CapacityBreakdown` carries the full chain from the diagram above —
-`contracted_half_days`, `contracted_hours`, `absent_half_days`,
+`contracted_half_days`, `contracted_hours`, `absent_half_days`, `holiday_half_days`, `holiday_hours`,
 `hours_after_absences`, `meeting_hours`, `hours_after_meetings`, `net_hours`,
 `person_days`, `present_days` — so any figure in the UI is traceable back to the
 inputs that produced it.

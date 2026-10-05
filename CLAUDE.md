@@ -106,6 +106,7 @@ pi-planner/
 │   │   │   ├── edit_lock.py
 │   │   │   ├── feature.py
 │   │   │   ├── group.py    # includes is_implicit, story_system_id
+│   │   │   ├── holiday.py  # Shared holiday calendars, entries, team switch, "works this holiday" exceptions
 │   │   │   ├── pbi.py      # includes item_type (pbi|bug)
 │   │   │   ├── pi.py
 │   │   │   ├── project.py
@@ -123,6 +124,8 @@ pi-planner/
 │   │   │   ├── events.py   # SSE stream
 │   │   │   ├── features.py
 │   │   │   ├── groups.py
+│   │   │   ├── holiday_calendars.py  # App-wide holiday calendars + entries, copy year, .ics import/export
+│   │   │   ├── team_holidays.py      # Team switch, exceptions, cleanup, PI sprint holiday chips
 │   │   │   ├── pbis.py
 │   │   │   ├── pis.py
 │   │   │   ├── project_states.py  # State Lists: list/create/rename/reorder/guarded delete
@@ -137,6 +140,7 @@ pi-planner/
 │   │   │   ├── csv_import.py
 │   │   │   ├── effort.py   # Derived effort calculations
 │   │   │   ├── events.py   # SSE broadcaster
+│   │   │   ├── holidays.py # A team's effective holidays → the capacity engine's holiday seam
 │   │   │   ├── project_state.py  # State dedupe, select-or-create, usage checks
 │   │   │   ├── users.py    # User CRUD + seed_from_config
 │   │   │   └── validation.py
@@ -187,6 +191,7 @@ pi-planner/
 │   ├── lock.py
 │   └── tools/
 │       ├── read.py         # Read-only MCP tools
+│       ├── holidays.py     # Holiday calendar write tools (no calendar delete)
 │       └── projects.py     # Write MCP tools (create PI, update project, etc.)
 │
 ├── scripts/
@@ -527,6 +532,7 @@ your environment; `scripts/e2e.sh` already unsets it.
 - Duplicate server state in Zustand
 - Let CSV import place anything on the board except through an `Iteration Path` that exactly matches a PI/sprint `iteration_path`, or move anything *to* the backlog, create a PI, or touch named groups, split features or closed PIs. One exception: a feature the CSV moves to another PI loses all its groups, named ones included, and the review must name each one (see `docs/adr/0007-csv-import-places-by-explicit-iteration-paths.md`)
 - Let a CSV file with **no** `State` column clear anyone's States (blank cell clears; absent column changes nothing)
+- Copy public holidays into per-member absences — they live in shared holiday calendars that teams enable, so one copy serves every team and new members get them (see `docs/adr/0008-public-holidays-live-in-shared-calendars.md`). Holidays and absences union in the capacity engine; a holiday wins where they overlap
 - Let an *item* write create a State List entry — feature/PBI writes take `state_id` only, and MCP rejects unknown names there. Vocabulary is created deliberately: by CSV import, in the States editor, or via the MCP `create_state` tool (see `docs/adr/0003-states-are-managed-explicitly.md`)
 - Allow multiple PIs in `in_progress` state
 - Allow undelete/trash (deletions are permanent)

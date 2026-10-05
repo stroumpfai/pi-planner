@@ -209,6 +209,14 @@ export function AbsenceGrid({
   }
 
   const click = (event: React.MouseEvent) => {
+    // A click is a press that never travelled, so it ends any gesture it began.
+    // Left pending, the next pointer movement — towards a dialog this click
+    // opened, say — would count as the drag and draft an absence nobody drew.
+    if (pressRef.current && !pressRef.current.moved) {
+      pressRef.current = null
+      setAnchor(null)
+      setHead(null)
+    }
     const cell = cellAt(event.target as Element)
     if (!cell) return
     setFocused(cell)

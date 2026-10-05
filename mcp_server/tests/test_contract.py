@@ -13,6 +13,7 @@ from mcp_server.tools.workflows import workflows_mcp
 from mcp_server.tools.pi_events import pi_events_mcp
 from mcp_server.tools.states import states_mcp
 from mcp_server.tools.teams import teams_mcp
+from mcp_server.tools.holidays import holidays_mcp
 from mcp_server.server import mcp
 
 
@@ -42,6 +43,9 @@ EXPECTED_READ_TOOLS = {
     "get_team_capacity",
     "preview_team_capacity",
     "get_team_achievement",
+    "list_holiday_calendars",
+    "get_holiday_calendar",
+    "list_team_holidays",
 }
 
 EXPECTED_PROJECTS_TOOLS = {
@@ -121,6 +125,22 @@ EXPECTED_TEAMS_TOOLS = {
     # The one team tool that writes project data, and so the one that takes the
     # edit lock (§8.2, WP-7H).
     "push_team_capacity",
+}
+
+# Holiday calendars: a calendar is a container other teams depend on, so there is
+# no delete_holiday_calendar (teams.md §8.2.6); a single entry is a leaf, so
+# delete_holiday_entry is here (public-holidays.md §9.3).
+EXPECTED_HOLIDAYS_TOOLS = {
+    "create_holiday_calendar",
+    "update_holiday_calendar",
+    "create_holiday_entry",
+    "update_holiday_entry",
+    "delete_holiday_entry",
+    "replace_holiday_entries",
+    "import_holiday_ics",
+    "enable_team_calendar",
+    "disable_team_calendar",
+    "set_holiday_exception",
 }
 
 EXPECTED_WORKFLOWS_TOOLS = {
@@ -227,7 +247,7 @@ async def test_teams_module_exposes_no_delete():
 @pytest.mark.asyncio
 async def test_total_tool_count():
     all_names = set()
-    for server in (read_mcp, projects_mcp, swimlines_mcp, features_mcp, groups_mcp, workflows_mcp, pi_events_mcp, states_mcp, teams_mcp):
+    for server in (read_mcp, projects_mcp, swimlines_mcp, features_mcp, groups_mcp, workflows_mcp, pi_events_mcp, states_mcp, teams_mcp, holidays_mcp):
         all_names |= await _tool_names(server)
     assert len(all_names) >= 50, f"Expected at least 50 tools, found {len(all_names)}: {all_names}"
 
@@ -237,7 +257,7 @@ async def test_main_server_mounts_all_groups():
     """Verify the main server exposes tools from every sub-server (prefixed)."""
     all_tools = await _tool_names(mcp)
     prefixes = {name.split("_")[0] for name in all_tools if "_" in name}
-    for expected_prefix in ("read", "projects", "swimlines", "features", "groups", "workflows", "pi", "states", "teams"):
+    for expected_prefix in ("read", "projects", "swimlines", "features", "groups", "workflows", "pi", "states", "teams", "holidays"):
         assert expected_prefix in prefixes, (
             f"Mount prefix '{expected_prefix}' not found in main server tools. "
             f"Found prefixes: {prefixes}"
@@ -374,3 +394,10 @@ async def test_create_team_normal_day_hours_bounds():
     schema_str = str(hours)
     assert "1.0" in schema_str or "1" in schema_str, f"ge=1.0 missing: {hours}"
     assert "24" in schema_str, f"le=24.0 missing: {hours}"
+
+
+@pytest.mark.asyncio
+async def test_holidays_tools_all_registered():
+    names = await _tool_names(holidays_mcp)
+    assert names == EXPECTED_HOLIDAYS_TOOLS, f"holidays tools drifted: {names}"
+    assert "delete_holiday_calendar" not in names

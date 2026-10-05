@@ -37,10 +37,12 @@ export function CalendarsPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [creating, setCreating] = useState(false)
 
-  // Open the first calendar once the list arrives, and let go of a deleted one.
+  // Open the first calendar once the list arrives. Only when nothing is open: a
+  // calendar created a moment ago is not in the cached list yet, and falling
+  // back on "not in the list" would snap away from it. A calendar that goes
+  // away clears the selection itself (onGone).
   useEffect(() => {
-    if (!calendars) return
-    if (selectedId && calendars.some((c) => c.system_id === selectedId)) return
+    if (!calendars || selectedId) return
     setSelectedId(calendars[0]?.system_id ?? null)
   }, [calendars, selectedId])
 
@@ -94,7 +96,14 @@ export function CalendarsPage() {
         </section>
 
         <div className="flex-1 min-w-0">
-          {selectedId && <CalendarDetail key={selectedId} calendarId={selectedId} canEdit={canEdit} />}
+          {selectedId && (
+            <CalendarDetail
+              key={selectedId}
+              calendarId={selectedId}
+              canEdit={canEdit}
+              onGone={() => setSelectedId(null)}
+            />
+          )}
         </div>
       </div>
     </div>
@@ -147,11 +156,17 @@ function NewCalendarForm({ onDone }: { readonly onDone: (id: string | null) => v
 interface DetailProps {
   readonly calendarId: string
   readonly canEdit: boolean
+  /** The calendar was deleted — here, or by someone else (a 404 on refetch). */
+  readonly onGone: () => void
 }
 
-function CalendarDetail({ calendarId, canEdit }: DetailProps) {
+function CalendarDetail({ calendarId, canEdit, onGone }: DetailProps) {
   const [year, setYear] = useState(() => new Date().getFullYear())
-  const { data: calendar, isLoading } = useHolidayCalendar(calendarId, year)
+  const { data: calendar, isLoading, isError } = useHolidayCalendar(calendarId, year)
+
+  useEffect(() => {
+    if (isError) onGone()
+  }, [isError, onGone])
   const removeEntry = useDeleteHolidayEntry(calendarId)
   const removeCalendar = useDeleteHolidayCalendar()
   const [entryDialog, setEntryDialog] = useState<{ open: boolean; editing: HolidayEntry | null }>({ open: false, editing: null })
@@ -180,6 +195,7 @@ function CalendarDetail({ calendarId, canEdit }: DetailProps) {
     try {
       await removeCalendar.mutateAsync({ id: calendar.system_id, etag: calendar.etag ?? '' })
       setDeletingCalendar(false)
+      onGone()
     } catch (err) {
       setError(holidayErrorMessage(err, 'Could not delete that calendar.'))
       setDeletingCalendar(false)

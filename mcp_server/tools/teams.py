@@ -821,7 +821,8 @@ async def create_absence(
             description=(
                 "The people this applies to, by name as list_members reports them. "
                 "One record is created per person, each editable afterwards. Leave "
-                "empty and set all_members instead for a public holiday."
+                "empty and set all_members instead for something the whole team is off for. "
+                "Public holidays belong in a holiday calendar instead (create_holiday_entry)."
             ),
         ),
     ] = [],
@@ -830,7 +831,7 @@ async def create_absence(
         Field(
             default=False,
             description=(
-                "Apply to everyone currently on the team — the public-holiday flow. "
+                "Apply to everyone currently on the team, e.g. an offsite. "
                 "Overrides member_names, and stays right as the team changes, which a "
                 "list copied from list_members does not."
             ),
@@ -886,8 +887,10 @@ async def create_absence(
     Naming several members creates **one record each**, independently editable
     afterwards — that is deliberate, so "everyone's Christmas" can be corrected
     for the one person on call without deleting and recreating the lot. Pass
-    all_members=true for the whole team rather than listing everybody: it is the
-    public-holiday flow, and it cannot go stale when somebody joins.
+    all_members=true for the whole team rather than listing everybody: it cannot
+    go stale when somebody joins. **Public holidays do not belong here**: put them
+    in a shared holiday calendar (create_holiday_entry) and enable it for the team
+    (enable_team_calendar), so every team shares one copy and new members get them.
     Unknown names are rejected with the list of members who do exist; no tool
     creates a person implicitly (use create_member).
 

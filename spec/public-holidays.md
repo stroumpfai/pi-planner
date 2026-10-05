@@ -394,8 +394,10 @@ Hovering lists each one with its date and label.
   never shown as zero (teams.md §7.0.1).
 - **Data:** a new read endpoint, `GET /api/v1/pis/{pi_id}/holidays`, returns the qualifying
   entries per sprint of that PI, so the board doesn't load team data it doesn't otherwise need.
-- **Live updates:** calendar and switch writes broadcast to each affected team's channel
-  (§9.2), and project boards refetch when their team's capacity status changes.
+- **Refresh:** calendar and switch writes broadcast on team channels (§9.2), which a board
+  does not listen to. The chips refresh on the board's own sprint events and otherwise after
+  a minute (a 60 s stale time). They are a planning hint, and a live channel per team behind
+  every board was not worth it.
 
 ### 8.2 Team JSON export and import
 
@@ -497,8 +499,8 @@ Calendars belong to no team, but their effects land in teams. So:
 - **Enabling, disabling and exception writes** broadcast on that one team's channel.
 - **The Calendars page** listens on one new app-wide channel, `holiday-calendars`, streamed at
   `/api/v1/holiday-calendar-events`, so two editors on the page see each other's changes.
-- Team views refetch their holidays and capacity on `holidays:changed`. The PI board refetches
-  its chips through the existing team-capacity-status invalidation.
+- Team views refetch their holidays and capacity on `holidays:changed`. The PI board's chips
+  refresh as §8.1 describes.
 
 ### 9.3 MCP
 
