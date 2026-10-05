@@ -30,7 +30,8 @@ RUN pip install --no-cache-dir \
     "pyjwt>=2.13.0" \
     "python-dotenv>=1.2.2" \
     "pillow>=11.0" \
-    "reportlab>=4.2"
+    "reportlab>=4.2" \
+    "icalendar>=6.0"
 
 # Copy backend source and migrations
 COPY backend/app/ ./app/
