@@ -143,6 +143,9 @@ class MemberCapacity:
     absent_half_days: int = 0
     # The subset of absent_half_days a public holiday removed (public-holidays.md §4.2).
     holiday_half_days: int = 0
+    # The contracted hours those holiday half-days held — what the capacity
+    # strip splits its bars by (public-holidays.md §5.4).
+    holiday_hours: float = 0.0
     hours_after_absences: float = 0.0
     meeting_hours: float = 0.0
     hours_after_meetings: float = 0.0
@@ -270,6 +273,7 @@ def compute_member_capacity(
             if holiday(member.member_id, day, half):
                 result.absent_half_days += 1
                 result.holiday_half_days += 1
+                result.holiday_hours += version.hours_per_day / 2
                 continue
             if absent(member.member_id, day, half):
                 result.absent_half_days += 1

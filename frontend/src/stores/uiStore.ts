@@ -5,11 +5,14 @@ interface UiState {
   activeProjectId: string | null
   activePIId: string | null
   activeTeamId: string | null
+  /** The Calendars page (public-holidays.md §6.1) — a peer of a project or a team. */
+  calendarsOpen: boolean
   openModal: (id: string) => void
   closeModal: () => void
   setActiveProject: (id: string | null) => void
   setActivePI: (id: string | null) => void
   setActiveTeam: (id: string | null) => void
+  setCalendarsOpen: (open: boolean) => void
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -17,12 +20,17 @@ export const useUiStore = create<UiState>((set) => ({
   activeProjectId: null,
   activePIId: null,
   activeTeamId: null,
+  calendarsOpen: false,
   openModal: (id) => set({ activeModal: id }),
   closeModal: () => set({ activeModal: null }),
   // A project and a team are mutually exclusive views, the same way a PI belongs
   // to exactly one project: opening one closes the other rather than leaving a
   // stale id behind for a later branch to read.
-  setActiveProject: (id) => set({ activeProjectId: id, activePIId: null, activeTeamId: null }),
+  setActiveProject: (id) =>
+    set({ activeProjectId: id, activePIId: null, activeTeamId: null, calendarsOpen: false }),
   setActivePI: (id) => set({ activePIId: id }),
-  setActiveTeam: (id) => set({ activeTeamId: id, activeProjectId: null, activePIId: null }),
+  setActiveTeam: (id) =>
+    set({ activeTeamId: id, activeProjectId: null, activePIId: null, calendarsOpen: false }),
+  setCalendarsOpen: (open) =>
+    set({ calendarsOpen: open, activeProjectId: null, activePIId: null, activeTeamId: null }),
 }))

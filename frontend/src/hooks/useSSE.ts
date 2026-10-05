@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
+import { invalidateHolidays } from './useHolidays'
 import { invalidateAllProjectData } from './useSnapshots'
 import { toast } from '@/stores/toastStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -62,11 +63,30 @@ export function useTeamSSE(teamId: string | null) {
   )
 }
 
+/**
+ * Live updates for the Calendars page (public-holidays.md §9.2).
+ *
+ * Calendars belong to no team, so their edits arrive on one app-wide channel.
+ * Teams hear the same edits on their own channel, as `holidays:changed`.
+ */
+export function useHolidayCalendarsSSE(active: boolean) {
+  const qc = useQueryClient()
+  useEventStream(active ? '/api/v1/holiday-calendar-events' : null, (event) => {
+    if (event.type === 'holidays:changed') invalidateHolidays(qc)
+  })
+}
+
 function handleTeamSSEEvent(
   event: SSEEvent,
   teamId: string,
   qc: ReturnType<typeof useQueryClient>,
 ) {
+  // A calendar this team enables changed, or its switch or an exception did.
+  // Holidays feed capacity, so the refresh reaches every figure built on them.
+  if (event.type === 'holidays:changed') {
+    invalidateHolidays(qc)
+    return
+  }
   // Every team event refetches the team's own data. The channel carries nothing
   // else, so naming each type would buy nothing the prefix does not already say.
   if (!event.type.startsWith('team:') && !event.type.startsWith('member:')) return
@@ -158,6 +178,8 @@ function handleSSEEvent(
     // ── Sprints ───────────────────────────────────────────────────────────
     case 'sprint:capacity_changed':
       qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'sprints' })
+      // A sprint's dates decide which holidays its chip names.
+      qc.invalidateQueries({ queryKey: ['piHolidays'] })
       qc.invalidateQueries({ predicate: (q) => q.queryKey[0] === 'swimlines' })
       qc.invalidateQueries({ queryKey: ['pis'] })
       break

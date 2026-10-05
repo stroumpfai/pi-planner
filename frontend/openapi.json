@@ -11484,6 +11484,11 @@
             "title": "Holiday Half Days",
             "default": 0
           },
+          "holiday_hours": {
+            "type": "number",
+            "title": "Holiday Hours",
+            "default": 0.0
+          },
           "hours_after_absences": {
             "type": "number",
             "title": "Hours After Absences"

@@ -114,33 +114,49 @@ function ImportButton({ importUrl, accessibleLabel, queryKey }: ImportButtonProp
   const fileRef = useRef<HTMLInputElement>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [notes, setNotes] = useState<string[]>([])
+  // A team file naming holiday calendars this installation lacks: they are
+  // app-wide, so creating them needs a yes (public-holidays.md §8.2).
+  const [missing, setMissing] = useState<{ file: File; calendars: string[] } | null>(null)
   const qc = useQueryClient()
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
+  const upload = async (file: File, createMissingCalendars: boolean) => {
     setLoading(true)
     setError(null)
+    setNotes([])
     try {
       const form = new FormData()
       form.append('file', file)
-      const resp = await fetch(importUrl, {
+      const url = createMissingCalendars ? `${importUrl}?create_missing_calendars=true` : importUrl
+      const resp = await fetch(url, {
         method: 'POST',
         body: form,
         credentials: 'include',
       })
+      const body = await resp.json().catch(() => ({}))
       if (!resp.ok) {
-        const body = await resp.json().catch(() => ({}))
+        if (resp.status === 409 && body?.detail?.error === 'CALENDARS_MISSING') {
+          setMissing({ file, calendars: body.detail.calendars ?? [] })
+          return
+        }
         setError(body?.detail?.message ?? 'Import failed')
         return
       }
+      setNotes(Array.isArray(body?.import_notes) ? body.import_notes : [])
       await qc.invalidateQueries({ queryKey })
+      if (createMissingCalendars) await qc.invalidateQueries({ queryKey: ['holidayCalendars'] })
     } catch {
       setError('Import failed')
     } finally {
       setLoading(false)
       if (fileRef.current) fileRef.current.value = ''
     }
+  }
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    await upload(file, false)
   }
 
   return (
@@ -165,6 +181,26 @@ function ImportButton({ importUrl, accessibleLabel, queryKey }: ImportButtonProp
           {error}
         </p>
       )}
+      {notes.length > 0 && (
+        <ul role="status" className="absolute top-full right-0 mt-1 w-72 z-10 rounded-md bg-amber-50 dark:bg-amber-950/40 p-2 text-xs text-amber-900 dark:text-amber-200 shadow-soft">
+          {notes.map((note) => <li key={note}>{note}</li>)}
+          <li>
+            <button type="button" onClick={() => setNotes([])} className="mt-1 underline">Dismiss</button>
+          </li>
+        </ul>
+      )}
+      <ConfirmDialog
+        open={missing !== null}
+        title="Create holiday calendars?"
+        description={`This file uses ${missing?.calendars.join(', ') ?? ''}, which ${missing?.calendars.length === 1 ? "doesn't" : "don't"} exist here. Every team will be able to see them once created.`}
+        confirmLabel="Create and import"
+        onConfirm={() => {
+          const pending = missing
+          setMissing(null)
+          if (pending) void upload(pending.file, true)
+        }}
+        onCancel={() => setMissing(null)}
+      />
     </div>
   )
 }
@@ -242,6 +278,7 @@ function plural(count: number, noun: string): string {
 export function ProjectListPage() {
   const { data: projects, isLoading } = useProjects()
   const { data: teams, isLoading: teamsLoading } = useTeams()
+  const setCalendarsOpen = useUiStore((s) => s.setCalendarsOpen)
   // Staleness sits on the project row, one glance from the team that moved — the
   // whole reason projects and teams share this page (§6.6, §7.0).
   const { data: pushStatuses } = useTeamCapacityStatus()
@@ -433,6 +470,15 @@ export function ProjectListPage() {
                 Teams
               </h2>
               <span className="text-sm text-gray-400 dark:text-gray-500">{teams?.length ?? 0}</span>
+              {/* Calendars belong to no team, but teams are who use them, so the
+                  way in sits with the teams (public-holidays.md §6.1). */}
+              <button
+                type="button"
+                onClick={() => setCalendarsOpen(true)}
+                className="ml-2 text-xs text-blue-600 hover:underline"
+              >
+                Holiday calendars
+              </button>
             </div>
             {canEdit && (
               <div className="flex items-center gap-2">

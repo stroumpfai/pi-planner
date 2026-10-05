@@ -4,7 +4,11 @@ import { AbsenceGrid, AbsenceLegend } from '@/components/AbsenceGrid'
 import { AbsenceMinimap } from '@/components/AbsenceMinimap'
 import { CapacityMembersSummary } from '@/components/CapacityMembersSummary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
+import { HolidayCalendarPanel } from '@/components/HolidayCalendarPanel'
+import { HolidayCleanupDialog } from '@/components/HolidayCleanupDialog'
+import { HolidayDayDialog } from '@/components/HolidayDayDialog'
 import { useAbsences, useDeleteAbsence } from '@/hooks/useAbsences'
+import { useTeamHolidays } from '@/hooks/useHolidays'
 import { useTeamMembers } from '@/hooks/useTeamMembers'
 import { absenceErrorCode, staleAbsence } from '@/services/absences'
 import { useAuthStore } from '@/stores/authStore'
@@ -91,7 +95,11 @@ export function AbsencesView({ teamId }: Props) {
   // capacity maths resolves the version per half-day regardless (§5.4).
   const { data: members } = useTeamMembers(teamId, firstDay(gridStart))
   const { data: absences, isLoading } = useAbsences(teamId, year.from, year.to)
+  // Holidays for the grid's own months: the strip and the cells draw nothing else.
+  const { data: holidays } = useTeamHolidays(teamId, grid.from, grid.to)
   const remove = useDeleteAbsence(teamId)
+  const [holidayDay, setHolidayDay] = useState<{ memberId: string; entryIds: string[]; date: string } | null>(null)
+  const [cleanupOpen, setCleanupOpen] = useState(false)
 
   const [draft, setDraft] = useState<AbsenceDraft | null>(null)
   const [editing, setEditing] = useState<Absence | null>(null)
@@ -194,6 +202,14 @@ export function AbsencesView({ teamId }: Props) {
 
       <CapacityMembersSummary members={rows} />
 
+      <HolidayCalendarPanel
+        teamId={teamId}
+        enabledIds={holidays?.enabled_calendar_ids ?? []}
+        visibleEntries={holidays?.entries ?? []}
+        canEdit={canEdit}
+        onCleanup={() => setCleanupOpen(true)}
+      />
+
       <div className="bg-canvas shadow-soft rounded-xl p-4 space-y-4">
         <AbsenceMinimap
           windowStart={minimapStart}
@@ -251,6 +267,11 @@ export function AbsencesView({ teamId }: Props) {
               onSelect={setSelected}
               onDraft={openFromDrag}
               onDeleteSelected={() => setConfirming(true)}
+              holidays={holidays?.entries ?? []}
+              calendarsEnabled={(holidays?.enabled_calendar_ids.length ?? 0) > 0}
+              onHolidayClick={(member, entries, date) =>
+                setHolidayDay({ memberId: member.system_id, entryIds: entries.map((e) => e.system_id), date })
+              }
             />
           </div>
         )}
@@ -296,6 +317,17 @@ export function AbsencesView({ teamId }: Props) {
           setSelected(theirs)
         }}
       />
+
+      <HolidayDayDialog
+        teamId={teamId}
+        member={holidayDay ? (rows.find((m) => m.system_id === holidayDay.memberId) ?? null) : null}
+        entries={(holidays?.entries ?? []).filter((e) => holidayDay?.entryIds.includes(e.system_id))}
+        date={holidayDay?.date ?? ''}
+        canEdit={canEdit}
+        onClose={() => setHolidayDay(null)}
+      />
+
+      <HolidayCleanupDialog teamId={teamId} open={cleanupOpen} onClose={() => setCleanupOpen(false)} />
 
       <ConfirmDialog
         open={confirming}

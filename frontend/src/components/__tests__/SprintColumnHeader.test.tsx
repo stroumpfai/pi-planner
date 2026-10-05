@@ -117,4 +117,23 @@ describe('SprintColumnHeader', () => {
     )
     expect(screen.getByTitle('Edit Available')).toBeInTheDocument()
   })
+
+  it('names the public holidays that cost the team time, and draws nothing without any', () => {
+    const { rerender } = render(<SprintColumnHeader sprint={makeSprint()} usedEffort={0} />)
+    expect(screen.queryByText(/public holiday/)).not.toBeInTheDocument()
+
+    rerender(
+      <SprintColumnHeader
+        sprint={makeSprint()}
+        usedEffort={0}
+        holidays={[
+          { label: 'Easter Monday', calendar_name: 'National', start_date: '2026-04-06', start_half: 'am', end_date: '2026-04-06', end_half: 'pm' },
+          { label: 'Office closed', calendar_name: 'Company', start_date: '2026-04-07', start_half: 'pm', end_date: '2026-04-07', end_half: 'pm' },
+        ]}
+      />,
+    )
+    const chip = screen.getByText('2 public holidays')
+    expect(chip.title).toContain('Easter Monday · 2026-04-06 · National')
+    expect(chip.title).toContain('Office closed · 2026-04-07 afternoon · Company')
+  })
 })

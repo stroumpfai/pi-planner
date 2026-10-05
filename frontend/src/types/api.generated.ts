@@ -1382,6 +1382,11 @@ export interface components {
        * @default 0
        */
       holiday_half_days?: number;
+      /**
+       * Holiday Hours
+       * @default 0
+       */
+      holiday_hours?: number;
       /** Hours After Absences */
       hours_after_absences: number;
       /** Meeting Hours */

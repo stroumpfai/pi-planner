@@ -1,6 +1,7 @@
 import {
   bestSprintIndex,
   frameMonthFor,
+  holidayPersonDays,
   lostPersonDays,
   monthlyLostCapacity,
   sprintOffsetFor,
@@ -162,5 +163,18 @@ describe('windowHoldsMonth', () => {
     expect(windowHoldsMonth(windowed, { year: 2027, month: 2 })).toBe(false)
     expect(windowHoldsMonth([sprint({ start_date: null, end_date: null })], { year: 2026, month: 7 }))
       .toBe(false)
+  })
+})
+
+describe('holidayPersonDays', () => {
+  it('is the holiday hours over the normal day, and zero without a breakdown', () => {
+    const cell = {
+      contracted_half_days: 20, contracted_hours: 80, absent_half_days: 4, holiday_half_days: 2,
+      holiday_hours: 8, hours_after_absences: 64, meeting_hours: 0, hours_after_meetings: 64,
+      net_hours: 64, person_days: 8, present_days: 8,
+    }
+    expect(holidayPersonDays(cell, 8)).toBe(1)
+    expect(lostPersonDays(cell, 8)).toBe(2)
+    expect(holidayPersonDays(null, 8)).toBe(0)
   })
 })

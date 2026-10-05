@@ -393,6 +393,7 @@ def test_a_holiday_removes_contracted_halves_and_is_counted_apart():
     )
     assert result.absent_half_days == 2
     assert result.holiday_half_days == 2
+    assert result.holiday_hours == pytest.approx(8.0)
     assert result.person_days == pytest.approx(9.0)
 
 

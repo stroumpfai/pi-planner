@@ -69,6 +69,30 @@ export type Meeting = components['schemas']['MeetingResponse']
 export type MeetingCreate = components['schemas']['MeetingCreate']
 export type MeetingUpdate = components['schemas']['MeetingUpdate']
 
+/** A shared holiday calendar: app-wide, enabled per team (public-holidays.md §3). */
+export type HolidayCalendarSummary = components['schemas']['HolidayCalendarSummary']
+export type HolidayCalendarDetail = components['schemas']['HolidayCalendarDetail']
+export type HolidayCalendarCreate = components['schemas']['HolidayCalendarCreate']
+export type HolidayCalendarUpdate = components['schemas']['HolidayCalendarUpdate']
+/** One holiday: a dated range with a starting and an ending half. Never recurring. */
+export type HolidayEntry = components['schemas']['HolidayEntryResponse']
+export type HolidayEntryFields = components['schemas']['HolidayEntryFields']
+export type HolidayEntryUpdate = components['schemas']['HolidayEntryUpdate']
+export type CopyYearPreview = components['schemas']['CopyYearPreview']
+export type CopyYearProposal = components['schemas']['CopyYearProposal']
+export type EntriesCreatedResult = components['schemas']['EntriesCreatedResult']
+export type IcsImportResult = components['schemas']['IcsImportResult']
+/** What a team sees of its enabled calendars in a window, exceptions included. */
+export type TeamHolidays = components['schemas']['TeamHolidaysResponse']
+export type TeamHolidayEntry = components['schemas']['TeamHolidayEntry']
+export type HolidayCleanupGroup = components['schemas']['CleanupGroup']
+export type HolidayCleanup = components['schemas']['CleanupResponse']
+/** Per sprint of a PI, the holidays that cost the serving team working time. */
+export type PIHolidays = components['schemas']['ProjectHolidaysResponse']
+export type SprintHoliday = components['schemas']['SprintHoliday']
+export type TeamImportResponse = components['schemas']['TeamImportResponse']
+export type TeamRef = components['schemas']['TeamRef']
+
 export type PI = components['schemas']['PIResponse'] & { total_effort: number; total_available: number }
 export type PICreate = components['schemas']['PICreate']
 export type PIUpdate = components['schemas']['PIUpdate']

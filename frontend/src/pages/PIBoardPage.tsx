@@ -21,6 +21,7 @@ import { useSwimlinesForPI, useReorderSwimlines } from '@/hooks/useSwimlinesAndG
 import { groupsApi } from '@/services/groups'
 import { pbisApi } from '@/services/pbis'
 import { useSprints } from '@/hooks/useSprints'
+import { usePIHolidays } from '@/hooks/useHolidays'
 import { statusFor, useTeamCapacityStatus } from '@/hooks/useTeamPush'
 import { useFeatures, useUpdateFeature } from '@/hooks/useFeatures'
 import { useAuthStore } from '@/stores/authStore'
@@ -162,6 +163,7 @@ export function PIBoardPage({ projectId, piId }: Props) {
   const { data: pis } = usePIs(projectId)
   const { data: swimlines } = useSwimlinesForPI(piId)
   const { data: sprints, isLoading: sprintsLoading } = useSprints(piId)
+  const { data: piHolidays } = usePIHolidays(piId)
   const { data: features } = useFeatures(projectId)
   // The team behind this project's Available, if one derives it (§6.6). Readers
   // see it too: staleness is information, not an action.
@@ -431,6 +433,7 @@ export function PIBoardPage({ projectId, piId }: Props) {
                     unit={effortUnit}
                     onEditCapacity={canEdit ? () => setEditCapacitySprint(sprint) : undefined}
                     pushStatus={pushStatus}
+                    holidays={piHolidays?.sprints.find((s) => s.sprint_id === sprint.system_id)?.holidays}
                   />
                 </div>
               ))}

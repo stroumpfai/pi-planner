@@ -506,4 +506,30 @@ describe('ProjectListPage — Teams section', () => {
       expect.objectContaining({ method: 'POST' }),
     )
   })
+
+  it('asks before creating holiday calendars a team file names, then retries with consent', async () => {
+    mockTeams.list = vi.fn().mockResolvedValue([team()])
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        detail: { error: 'CALENDARS_MISSING', message: 'missing', calendars: ['Switzerland'] },
+      }), { status: 409 }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({
+        system_id: 't-2', name: 'Imported', import_notes: ['Created holiday calendar "Switzerland" with 9 entries.'],
+      }), { status: 201 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+    await teamsSection()
+    const file = new File(['{}'], 'team.json', { type: 'application/json' })
+    await userEvent.upload(screen.getByLabelText('Import team file'), file)
+
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent('Switzerland')
+    expect(dialog).toHaveTextContent(/every team will be able to see/i)
+    await userEvent.click(screen.getByRole('button', { name: /create and import/i }))
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+    expect(fetchMock.mock.calls[1][0]).toBe('/api/v1/teams/import?create_missing_calendars=true')
+    expect(await screen.findByText(/Created holiday calendar "Switzerland"/)).toBeInTheDocument()
+  })
 })

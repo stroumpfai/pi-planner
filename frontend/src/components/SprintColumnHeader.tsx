@@ -1,6 +1,7 @@
 import { fmtDate, fmtDateTime } from '@/utils/dates'
 import { CapacityBar } from './CapacityBar'
-import type { ProjectPushStatus, Sprint } from '@/types'
+import type { ProjectPushStatus, Sprint, SprintHoliday } from '@/types'
+import { holidaySpan } from '@/utils/holidayGrid'
 
 interface Props {
   readonly sprint: Sprint
@@ -12,6 +13,11 @@ interface Props {
    * a hand-typed project, which is every project until someone opts in.
    */
   readonly pushStatus?: ProjectPushStatus | null
+  /**
+   * Holidays from the serving team's calendars that cost it working time in this
+   * sprint (public-holidays.md §8.1). Empty, and nothing is drawn, otherwise.
+   */
+  readonly holidays?: readonly SprintHoliday[]
 }
 
 /**
@@ -29,7 +35,7 @@ interface Props {
  * turns read-only, so the one thing the API would refuse with 409
  * `AVAILABLE_IS_DERIVED` is also the one thing the form stops offering.
  */
-export function SprintColumnHeader({ sprint, usedEffort, unit, onEditCapacity, pushStatus }: Props) {
+export function SprintColumnHeader({ sprint, usedEffort, unit, onEditCapacity, pushStatus, holidays = [] }: Props) {
   const label = `Sprint ${(sprint.sprint_index ?? 0) + 1}`
   const dates = sprint.start_date ?? sprint.end_date
     ? `${fmtDate(sprint.start_date)} – ${fmtDate(sprint.end_date)}`
@@ -62,6 +68,14 @@ export function SprintColumnHeader({ sprint, usedEffort, unit, onEditCapacity, p
         </span>
       </div>
       {dates && <p className="text-xs text-gray-400 dark:text-gray-500">{dates}</p>}
+      {holidays.length > 0 && (
+        <p
+          className="inline-block text-[10px] px-1.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+          title={holidays.map((h) => `${h.label} · ${holidaySpan(h)} · ${h.calendar_name}`).join('\n')}
+        >
+          {holidays.length} public {holidays.length === 1 ? 'holiday' : 'holidays'}
+        </p>
+      )}
       <CapacityBar used={usedEffort} available={sprint.available ?? 0} unit={unit} />
       {derived && (
         <p className="text-[10px] text-gray-400 dark:text-gray-500">

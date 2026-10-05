@@ -55,6 +55,7 @@ vi.mock('@/hooks/useSprints', () => ({
   useUpdateSprint: () => ({ mutate: vi.fn(), isPending: false }),
 }))
 // PIEventsRow fetches on render; without this the spec hits the network.
+vi.mock('@/hooks/useHolidays', () => ({ usePIHolidays: () => ({ data: undefined }) }))
 vi.mock('@/hooks/usePIEvents', () => ({
   usePIEvents: () => ({ data: board.events }),
   useCreatePIEvent: () => ({ mutate: vi.fn(), isPending: false }),

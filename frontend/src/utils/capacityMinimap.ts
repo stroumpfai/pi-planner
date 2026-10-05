@@ -32,6 +32,15 @@ export function lostPersonDays(
   return Math.max(0, (breakdown.contracted_hours - breakdown.hours_after_meetings) / normalDayHours)
 }
 
+/** What public holidays alone took out of one sprint, in person-days (public-holidays.md §5.4). */
+export function holidayPersonDays(
+  breakdown: CapacityBreakdown | null | undefined,
+  normalDayHours: number,
+): number {
+  if (!breakdown || normalDayHours <= 0) return 0
+  return Math.max(0, (breakdown.holiday_hours ?? 0) / normalDayHours)
+}
+
 /**
  * Person-days lost per month — the capacity strip's bars (§7.6).
  *
@@ -53,13 +62,14 @@ export function monthlyLostCapacity(
   team: readonly (CapacityBreakdown | null)[],
   normalDayHours: number,
   months: readonly YearMonth[],
+  measure: (breakdown: CapacityBreakdown | null | undefined, normalDayHours: number) => number = lostPersonDays,
 ): number[] {
   const totals = months.map(() => 0)
   const slot = new Map(months.map((month, index) => [`${month.year}-${pad(month.month)}`, index]))
 
   sprints.forEach((sprint, index) => {
     if (!dated(sprint)) return
-    const lost = lostPersonDays(team[index], normalDayHours)
+    const lost = measure(team[index], normalDayHours)
     if (lost <= 0) return
     const days = daysBetween(sprint.start_date, sprint.end_date)
     if (days.length === 0) return

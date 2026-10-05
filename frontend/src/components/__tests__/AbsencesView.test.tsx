@@ -5,14 +5,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { AbsencesView, deletePrompt } from '../AbsencesView'
 import * as apiModule from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
-import type { Absence, TeamMember, User } from '@/types'
+import type { Absence, HolidayCalendarSummary, TeamHolidayEntry, TeamHolidays, TeamMember, User } from '@/types'
 
 vi.mock('@/services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof apiModule>()
-  return { ...actual, api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() } }
+  return { ...actual, api: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn(), put: vi.fn() } }
 })
 
-const mockApi = apiModule.api as unknown as { get: Mock; post: Mock; patch: Mock; delete: Mock }
+const mockApi = apiModule.api as unknown as { get: Mock; post: Mock; patch: Mock; delete: Mock; put: Mock }
 
 function wrapper() {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -104,10 +104,44 @@ function withScreenWidth(width: number) {
   }
 }
 
-function respondWith(members: TeamMember[], absences: Absence[]) {
-  mockApi.get.mockImplementation((url: string) =>
-    Promise.resolve({ data: url.includes('/absences') ? absences : members, headers: {} }),
-  )
+const calendar: HolidayCalendarSummary = {
+  system_id: 'cal-1',
+  name: 'Switzerland',
+  description: null,
+  entry_count: 1,
+  first_year: 2026,
+  last_year: 2026,
+  teams: [],
+  created_at: '2026-01-01T00:00:00Z',
+  modified_at: '2026-01-01T00:00:00Z',
+  etag: '"cal"',
+}
+
+const holiday = (over: Partial<TeamHolidayEntry> = {}): TeamHolidayEntry => ({
+  system_id: 'h-1',
+  calendar_id: 'cal-1',
+  calendar_name: 'Switzerland',
+  label: 'Knabenschiessen',
+  start_date: '2026-09-21',
+  start_half: 'am',
+  end_date: '2026-09-21',
+  end_half: 'pm',
+  days: [{ date: '2026-09-21', halves: ['am', 'pm'] }],
+  exceptions: [],
+  ...over,
+})
+
+function respondWith(
+  members: TeamMember[],
+  absences: Absence[],
+  holidays: TeamHolidays = { team_id: 't-1', enabled_calendar_ids: [], entries: [] },
+) {
+  mockApi.get.mockImplementation((url: string) => {
+    if (url.includes('/absences')) return Promise.resolve({ data: absences, headers: {} })
+    if (url.endsWith('/holidays')) return Promise.resolve({ data: holidays, headers: {} })
+    if (url.startsWith('/holiday-calendars')) return Promise.resolve({ data: [calendar], headers: {} })
+    return Promise.resolve({ data: members, headers: {} })
+  })
 }
 
 describe('AbsencesView', () => {
@@ -495,6 +529,66 @@ describe('AbsencesView', () => {
     // Wednesday the 16th: Marta works it and is not away.
     const free = within(grid).getByTitle('Marta Lindqvist · 2026-09-16 am')
     expect(free.className).not.toMatch(/\bbg-canvas\b/)
+  })
+
+  it('draws an enabled holiday in the strip and as its own state in every row', async () => {
+    respondWith([member('m-1', 'Marta Lindqvist'), member('m-2', 'Rui Domingues')], [], {
+      team_id: 't-1', enabled_calendar_ids: ['cal-1'], entries: [holiday()],
+    })
+    render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })
+    const strip = await screen.findByRole('region', { name: 'Public holidays' })
+    expect(within(strip).getByText('Knabenschiessen')).toBeInTheDocument()
+    const grid = screen.getByRole('grid', { name: /absences by member/i })
+    expect(within(grid).getByTitle('Marta Lindqvist · 2026-09-21 am').className).toMatch(/bg-amber/)
+    expect(within(grid).getByTitle('Rui Domingues · 2026-09-21 pm').className).toMatch(/bg-amber/)
+    expect(screen.getByRole('checkbox', { name: /Switzerland/ })).toBeChecked()
+  })
+
+  it('wins over leave on the same day, and shows who works it', async () => {
+    const onHoliday = absence({
+      start_date: '2026-09-21', end_date: '2026-09-21',
+      occurrences: [{ date: '2026-09-21', halves: ['am', 'pm'] }],
+    })
+    respondWith([member('m-1', 'Marta Lindqvist'), member('m-2', 'Rui Domingues')], [onHoliday], {
+      team_id: 't-1', enabled_calendar_ids: ['cal-1'],
+      entries: [holiday({ exceptions: [{ member_id: 'm-2', day: '2026-09-21' }] })],
+    })
+    render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })
+    const grid = await screen.findByRole('grid', { name: /absences by member/i })
+    expect(within(grid).getByTitle('Marta Lindqvist · 2026-09-21 am').className).toMatch(/bg-amber/)
+    expect(within(grid).getByTitle('Rui Domingues · 2026-09-21 am').className).toMatch(/inset/)
+    const strip = screen.getByRole('region', { name: 'Public holidays' })
+    expect(within(strip).getByTitle(/1 of 2 members \(Rui Domingues work\)/)).toBeInTheDocument()
+  })
+
+  it('opens the holiday, with a toggle for working it, when a holiday cell is clicked', async () => {
+    respondWith([member('m-1', 'Marta Lindqvist')], [], {
+      team_id: 't-1', enabled_calendar_ids: ['cal-1'], entries: [holiday()],
+    })
+    mockApi.put = vi.fn().mockResolvedValue({ data: null })
+    render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })
+    const grid = await screen.findByRole('grid', { name: /absences by member/i })
+    await userEvent.click(within(grid).getByTitle('Marta Lindqvist · 2026-09-21 am'))
+    const dialog = await screen.findByRole('dialog')
+    expect(within(dialog).getByText('Knabenschiessen')).toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('checkbox', { name: /works this day/i }))
+    expect(mockApi.put).toHaveBeenCalledWith('/teams/t-1/members/m-1/holiday-exceptions/h-1/2026-09-21')
+  })
+
+  it('says when no holiday calendar is enabled', async () => {
+    render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })
+    expect(await screen.findByText(/no holiday calendar is enabled/i)).toBeInTheDocument()
+  })
+
+  it('warns that enabling a calendar restates history before doing it', async () => {
+    mockApi.put = vi.fn().mockResolvedValue({ data: null })
+    render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })
+    await userEvent.click(await screen.findByRole('checkbox', { name: /Switzerland/ }))
+    const dialog = await screen.findByRole('dialog')
+    expect(dialog).toHaveTextContent(/including closed ones/i)
+    expect(mockApi.put).not.toHaveBeenCalled()
+    await userEvent.click(within(dialog).getByRole('button', { name: /^Enable$/ }))
+    expect(mockApi.put).toHaveBeenCalledWith('/teams/t-1/holiday-calendars/cal-1')
   })
 
   it('says why the grid is empty when nobody is on the team', async () => {

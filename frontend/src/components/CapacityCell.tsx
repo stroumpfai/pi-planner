@@ -45,6 +45,11 @@ export function CapacityCell({
     )
   }
 
+  // `absent_half_days` is every half-day removed; holidays are the subset a
+  // calendar removed, and leave is the rest (public-holidays.md §4.2).
+  const holidayHalfDays = breakdown.holiday_half_days ?? 0
+  const leaveHalfDays = breakdown.absent_half_days - holidayHalfDays
+
   return (
     <td className="px-3 py-2 align-top">
       <button
@@ -73,8 +78,14 @@ export function CapacityCell({
             term={`Contracted ${breakdown.contracted_half_days} half-days`}
             value={`${fmt1(breakdown.contracted_hours)} h`}
           />
+          {/* Holidays and leave on separate lines, each left out at zero; the
+              running total lands once, after both (public-holidays.md §5.4). */}
+          {holidayHalfDays > 0 && (
+            <Step term={`− public holidays (${holidayHalfDays} half-days)`} value="" />
+          )}
+          {leaveHalfDays > 0 && <Step term={`− leave (${leaveHalfDays} half-days)`} value="" />}
           <Step
-            term={`− absences (${breakdown.absent_half_days} half-days)`}
+            term={breakdown.absent_half_days > 0 ? '= after absences' : '− absences (none)'}
             value={`${fmt1(breakdown.hours_after_absences)} h`}
           />
           <Step

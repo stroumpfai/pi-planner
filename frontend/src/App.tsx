@@ -17,12 +17,13 @@ import { ProjectListPage } from '@/pages/ProjectListPage'
 import { BacklogPage } from '@/pages/BacklogPage'
 import { PIBoardPage } from '@/pages/PIBoardPage'
 import { TeamPage } from '@/pages/TeamPage'
+import { CalendarsPage } from '@/pages/CalendarsPage'
 
 export default function App() {
   useTheme()
   const { data: user, isLoading, isError } = useCurrentUser()
   const logout = useLogout()
-  const { activeProjectId, activePIId, activeTeamId, setActiveProject } = useUiStore()
+  const { activeProjectId, activePIId, activeTeamId, calendarsOpen, setActiveProject } = useUiStore()
   const { data: activeProject } = useProject(activeProjectId ?? '')
   const { data: activeTeam } = useTeamRead(activeTeamId ?? '')
   const isAdmin = useAuthStore((s) => s.isAdmin())
@@ -70,6 +71,12 @@ export default function App() {
               <span className="text-sm font-medium text-gray-600 dark:text-gray-300">{activeTeam.team.name}</span>
             </>
           )}
+          {calendarsOpen && (
+            <>
+              <span className="text-gray-300 dark:text-gray-600">/</span>
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-300">Holiday calendars</span>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-4">
           {activeProjectId && <EditLockButton projectId={activeProjectId} />}
@@ -112,6 +119,8 @@ export default function App() {
           </>
         ) : activeTeamId ? (
           <TeamPage teamId={activeTeamId} />
+        ) : calendarsOpen ? (
+          <CalendarsPage />
         ) : (
           <ProjectListPage />
         )}

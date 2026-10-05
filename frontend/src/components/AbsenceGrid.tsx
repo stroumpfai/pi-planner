@@ -1,6 +1,14 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { NOT_COUNTED_RULE, NotCountedChip } from '@/components/NotCountedChip'
-import type { Absence, TeamMember } from '@/types'
+import type { Absence, TeamHolidayEntry, TeamMember } from '@/types'
+import {
+  EMPTY_HOLIDAYS,
+  buildHolidayIndex,
+  coverageSummary,
+  holidaySpan,
+  holidaysAt,
+  stripRows,
+} from '@/utils/holidayGrid'
 import {
   MIN_DAY_WIDTH,
   buildCoverage,
@@ -31,6 +39,12 @@ interface Props {
   readonly onDraft: (range: DragRange) => void
   /** The Delete key on a selected entry — the same action as the bin. */
   readonly onDeleteSelected: () => void
+  /** The team's enabled calendars' entries in the window (public-holidays.md §5.2). */
+  readonly holidays?: readonly TeamHolidayEntry[]
+  /** Whether any calendar is enabled — the strip's empty line differs (§5.2). */
+  readonly calendarsEnabled?: boolean
+  /** A click on a member's holiday cell: who, which holidays, which day (§5.3). */
+  readonly onHolidayClick?: (member: TeamMember, entries: readonly TeamHolidayEntry[], date: string) => void
 }
 
 /** Pointer travel before a press becomes a drag, so a click stays a click. */
@@ -70,6 +84,11 @@ const STATE_CLASS: Record<CellState, string> = {
   // Filled: an entered absence. Hatched: one occurrence of a recurring rule —
   // clicking either selects the whole entry, because there is no such thing as
   // one occurrence in this model (§3.4).
+  // Amber, not blue: a public holiday is "everyone", where blue is "someone".
+  holiday: 'bg-amber-400 dark:bg-amber-500',
+  // Free, outlined in the holiday's colour: this member works it, and the
+  // correction stays visible rather than reading as an ordinary day.
+  'works-holiday': 'bg-white dark:bg-white/[0.08] [box-shadow:inset_0_0_0_1px_rgb(251,191,36)]',
   absence: 'bg-blue-500',
   recurring: 'bg-blue-400 [background-image:repeating-linear-gradient(45deg,transparent,transparent_1px,rgba(255,255,255,.65)_1px,rgba(255,255,255,.65)_2px)]',
   'non-working': 'bg-band',
@@ -115,9 +134,16 @@ export function AbsenceGrid({
   onSelect,
   onDraft,
   onDeleteSelected,
+  holidays,
+  calendarsEnabled = false,
+  onHolidayClick,
 }: Props) {
   const days = daysBetween(from, to)
   const coverage = buildCoverage(absences)
+  const holidayIndex = useMemo(
+    () => (holidays && holidays.length > 0 ? buildHolidayIndex(holidays) : EMPTY_HOLIDAYS),
+    [holidays],
+  )
 
   const [focused, setFocused] = useState<GridCell | null>(null)
   const [anchor, setAnchor] = useState<GridCell | null>(null)
@@ -187,7 +213,21 @@ export function AbsenceGrid({
     if (!cell) return
     setFocused(cell)
     const member = members[cell.memberIndex]
-    onSelect(member ? (coverage.get(cellKey(member.system_id, cell.date, cell.half)) ?? null) : null)
+    if (!member) {
+      onSelect(null)
+      return
+    }
+    // A holiday cell is about the holiday — who works it — not about the leave
+    // that may sit underneath it (§5.3).
+    const onHoliday = holidaysAt(cell.date, cell.half, holidayIndex)
+    if (onHoliday.length > 0 && onHolidayClick) {
+      const state = cellStateFor(member, cell.date, cell.half, coverage, holidayIndex)
+      if (state === 'holiday' || state === 'works-holiday') {
+        onHolidayClick(member, onHoliday, cell.date)
+        return
+      }
+    }
+    onSelect(coverage.get(cellKey(member.system_id, cell.date, cell.half)) ?? null)
   }
 
   /**
@@ -254,6 +294,15 @@ export function AbsenceGrid({
   return (
     <div className="relative min-w-max">
       <MonthHeader days={days} />
+      {holidays !== undefined && (
+        <HolidayStrip
+          holidays={holidays}
+          members={members}
+          from={from}
+          to={to}
+          calendarsEnabled={calendarsEnabled}
+        />
+      )}
       <div
         ref={gridRef}
         role="grid"
@@ -305,7 +354,7 @@ export function AbsenceGrid({
                   data-day={date}
                 >
                   {HALVES.map((half) => {
-                    const state = cellStateFor(member, date, half, coverage)
+                    const state = cellStateFor(member, date, half, coverage, holidayIndex)
                     const selected =
                       selectedId !== null &&
                       coverage.get(cellKey(member.system_id, date, half))?.system_id === selectedId
@@ -351,6 +400,65 @@ export function AbsenceGrid({
         </div>
       )}
     </div>
+  )
+}
+
+interface HolidayStripProps {
+  readonly holidays: readonly TeamHolidayEntry[]
+  readonly members: readonly TeamMember[]
+  readonly from: string
+  readonly to: string
+  readonly calendarsEnabled: boolean
+}
+
+/**
+ * The holidays above the member rows, on the same day columns (public-holidays.md §5.2).
+ *
+ * Drawn once per entry rather than once per member, which is the whole point: the
+ * grid answers "who is away", the strip answers "is the team away". Overlapping
+ * entries stack. Each says who has it, so a holiday corrected for someone on call
+ * reads as a correction, not as a gap.
+ */
+function HolidayStrip({ holidays, members, from, to, calendarsEnabled }: HolidayStripProps) {
+  const rows = stripRows(holidays, from, to)
+  return (
+    <section aria-label="Public holidays" className="flex items-start py-1 border-b border-gray-300/60 dark:border-gray-600/60">
+      <div className="w-[140px] shrink-0 pr-2 text-xs font-semibold text-amber-700 dark:text-amber-400 pt-0.5">
+        Public holidays
+      </div>
+      <div className="flex-1 min-w-0 space-y-0.5">
+        {rows.length === 0 ? (
+          <p className="text-[11px] text-gray-400 dark:text-gray-500 py-0.5">
+            {calendarsEnabled
+              ? 'No public holidays in these months'
+              : 'No holiday calendar is enabled for this team'}
+          </p>
+        ) : (
+          rows.map((segments, row) => (
+            <div key={row} className="flex">
+              {segments.map((segment, index) =>
+                segment.kind === 'gap' ? (
+                  <div
+                    key={`gap-${index}`}
+                    style={{ flex: `${segment.days} 1 0%`, minWidth: segment.days * MIN_DAY_WIDTH }}
+                  />
+                ) : (
+                  <div
+                    key={segment.entry.system_id}
+                    title={`${coverageSummary(segment.entry, members)} · ${holidaySpan(segment.entry)} · ${segment.entry.calendar_name}`}
+                    className="h-4 rounded-sm bg-amber-400/90 dark:bg-amber-500/90 px-1 text-[10px] leading-4 text-amber-950 truncate"
+                    style={{ flex: `${segment.days} 1 0%`, minWidth: segment.days * MIN_DAY_WIDTH }}
+                  >
+                    {segment.entry.label}
+                    {segment.entry.exceptions.length > 0 ? ' *' : ''}
+                  </div>
+                ),
+              )}
+            </div>
+          ))
+        )}
+      </div>
+    </section>
   )
 }
 
@@ -403,6 +511,8 @@ function MonthHeader({ days }: MonthHeaderProps) {
  */
 export function AbsenceLegend() {
   const items: { state: CellState; label: string }[] = [
+    { state: 'holiday', label: 'public holiday' },
+    { state: 'works-holiday', label: 'works holiday' },
     { state: 'absence', label: 'absence' },
     { state: 'recurring', label: 'recurring' },
     { state: 'non-working', label: 'not working' },

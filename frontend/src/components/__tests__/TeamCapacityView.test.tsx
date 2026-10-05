@@ -130,11 +130,27 @@ describe('TeamCapacityView', () => {
 
     // The §5.4 steps, in order, so a surprising number traces to its cause.
     expect(screen.getByText('Contracted 20 half-days')).toBeInTheDocument()
-    expect(screen.getByText('− absences (2 half-days)')).toBeInTheDocument()
+    expect(screen.getByText('− leave (2 half-days)')).toBeInTheDocument()
+    expect(screen.queryByText(/public holidays/)).not.toBeInTheDocument()
+    expect(screen.getByText('= after absences')).toBeInTheDocument()
     expect(screen.getByText('− meetings (3.0 h)')).toBeInTheDocument()
     expect(screen.getByText('× focus')).toBeInTheDocument()
     expect(screen.getByText('÷ 8.0 h per day')).toBeInTheDocument()
     expect(cell).toHaveAttribute('aria-expanded', 'true')
+  })
+
+  it('names public holidays apart from leave', async () => {
+    const withHoliday = { ...alice, absent_half_days: 4, holiday_half_days: 2, holiday_hours: 8 }
+    mockApi.get.mockResolvedValue({
+      data: report({
+        members: [{ member_id: 'm-1', name: 'Marta Lindqvist', counts_towards_capacity: true, cells: [withHoliday] }],
+        team: [withHoliday],
+      }),
+    })
+    render(<TeamCapacityView teamId="t-1" onOpenProjects={onOpenProjects} />, { wrapper: wrapper() })
+    await userEvent.click(await screen.findByRole('button', { name: /Marta Lindqvist, Q2-2026\.1/ }))
+    expect(screen.getByText('− public holidays (2 half-days)')).toBeInTheDocument()
+    expect(screen.getByText('− leave (2 half-days)')).toBeInTheDocument()
   })
 
   it('reads "—" for a sprint without dates, never 0', async () => {

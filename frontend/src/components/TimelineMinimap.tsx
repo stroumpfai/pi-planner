@@ -33,6 +33,12 @@ interface Props {
    * what a caller mid-resize has.
    */
   readonly density: readonly number[]
+  /**
+   * The part of each bar to draw apart, at its foot — public holidays in the
+   * capacity strip (public-holidays.md §5.4). Same scale as `density`, never
+   * more than it; the bar's total height is unchanged.
+   */
+  readonly highlight?: readonly number[]
   /** What a bar's value means, spoken — "12 half-days", "3.5 PD lost". */
   readonly describeDensity: (value: number) => string
   readonly onFrameStart: (month: YearMonth) => void
@@ -80,6 +86,7 @@ export function TimelineMinimap({
   frameStart,
   frameMonths = DEFAULT_FRAME_MONTHS,
   density,
+  highlight,
   describeDensity,
   onFrameStart,
   stripMonths,
@@ -206,13 +213,21 @@ export function TimelineMinimap({
                 }`}
               >
                 <span
-                  className={`w-full rounded-sm ${
+                  className={`w-full rounded-sm flex flex-col justify-end overflow-hidden ${
                     value > 0
                       ? 'bg-blue-400/70 group-hover:bg-blue-500'
                       : 'bg-band shadow-soft-inset group-hover:bg-blue-200/50'
                   }`}
                   style={{ height: `${value > 0 ? 20 + (value / busiest) * 60 : 12}%` }}
-                />
+                >
+                  {value > 0 && (highlight?.[index] ?? 0) > 0 && (
+                    <span
+                      data-testid="minimap-highlight"
+                      className="w-full bg-amber-400"
+                      style={{ height: `${Math.min(100, ((highlight?.[index] ?? 0) / value) * 100)}%` }}
+                    />
+                  )}
+                </span>
               </button>
             )
           })}

@@ -7,6 +7,7 @@ import type { CapacitySprint, MemberCapacityRow, ProjectCapacityRow } from '@/ty
 import {
   bestSprintIndex,
   frameMonthFor,
+  holidayPersonDays,
   monthlyLostCapacity,
   sprintOffsetFor,
   windowHoldsMonth,
@@ -90,6 +91,12 @@ export function TeamCapacityView({ teamId, onOpenProjects }: Props) {
   // The bars: person-days absences and meetings took out of each month (§7.6).
   const density = useMemo(
     () => monthlyLostCapacity(sprints, data?.team ?? [], data?.normal_day_hours ?? 0, months),
+    [sprints, data, months],
+  )
+  // The holiday share of each bar, drawn at its foot (public-holidays.md §5.4).
+  const holidayDensity = useMemo(
+    () =>
+      monthlyLostCapacity(sprints, data?.team ?? [], data?.normal_day_hours ?? 0, months, holidayPersonDays),
     [sprints, data, months],
   )
 
@@ -205,6 +212,7 @@ export function TeamCapacityView({ teamId, onOpenProjects }: Props) {
           frameStart={frameStart}
           frameMonths={FRAME_MONTHS}
           density={density}
+          highlight={holidayDensity}
           describeDensity={(value) =>
             value > 0 ? `${fmt1(value)} person-days lost` : 'nothing lost'
           }

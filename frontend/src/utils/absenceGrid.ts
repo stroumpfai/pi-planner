@@ -1,4 +1,5 @@
 import type { Absence, TeamMember } from '@/types'
+import { EMPTY_HOLIDAYS, holidayStateFor, type HolidayIndex } from '@/utils/holidayGrid'
 import { daysBetween, pad, shiftDays, type YearMonth } from '@/utils/timelineMonths'
 import { HALVES, WEEKDAYS, type Half, type HalfDayKey, type Weekday } from '@/utils/workingDays'
 
@@ -89,8 +90,22 @@ export const isWeekStart = (iso: string) => weekdayIndex(iso) === 0
  * is a real entry someone made and hiding it would make it uneditable. "Off the
  * team" wins over everything, because those days are not the member's to be
  * absent from (§7.4).
+ *
+ * A public holiday comes next, above leave: where both cover a half the day was
+ * not the member's to take off, and capacity counts it as holiday too
+ * (public-holidays.md §4.2). A member who works the holiday is drawn as
+ * `works-holiday` — unless they booked leave there anyway, because an exception
+ * cancels only the holiday (§4.1).
  */
-export type CellState = 'off-team' | 'absence' | 'recurring' | 'non-working' | 'weekend' | 'free'
+export type CellState =
+  | 'off-team'
+  | 'holiday'
+  | 'absence'
+  | 'recurring'
+  | 'works-holiday'
+  | 'non-working'
+  | 'weekend'
+  | 'free'
 
 /** Which absence covers each `member|date|half`, keyed for O(1) lookup. */
 export type Coverage = ReadonlyMap<string, Absence>
@@ -134,10 +149,14 @@ export function cellStateFor(
   date: string,
   half: Half,
   coverage: Coverage,
+  holidays: HolidayIndex = EMPTY_HOLIDAYS,
 ): CellState {
   if (!onTeam(member, date)) return 'off-team'
+  const holiday = holidayStateFor(member.system_id, date, half, holidays)
+  if (holiday === 'holiday') return 'holiday'
   const absence = coverage.get(cellKey(member.system_id, date, half))
   if (absence) return absence.kind === 'range' ? 'absence' : 'recurring'
+  if (holiday === 'works-holiday') return 'works-holiday'
   if (!worksHalf(member, date, half)) {
     return isWeekendDay(date) ? 'weekend' : 'non-working'
   }

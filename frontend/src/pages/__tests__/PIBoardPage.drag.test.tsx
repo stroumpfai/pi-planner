@@ -76,6 +76,7 @@ vi.mock('@/hooks/useSwimlinesAndGroups', () => ({
   useDeleteGroup: () => ({ mutate: vi.fn() }),
 }))
 vi.mock('@/hooks/useSprints', () => ({ useSprints: () => ({ data: [], isLoading: false }) }))
+vi.mock('@/hooks/useHolidays', () => ({ usePIHolidays: () => ({ data: undefined }) }))
 vi.mock('@/hooks/useFeatures', () => ({
   useFeatures: () => ({ data: [{ system_id: 'f-1', id: 101, title: 'Auth', location: 'pi' }] }),
   useUpdateFeature: () => ({ mutate: hooks.updateFeature }),
