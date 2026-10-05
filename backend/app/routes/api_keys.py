@@ -10,6 +10,7 @@ from app.models.api_key import APIKey
 from app.models.user import User
 from app.schemas.api_keys import (
     ActivityLogResponse,
+    APIKeyCheckRequest,
     APIKeyCreate,
     APIKeyCreateResponse,
     APIKeyResponse,
@@ -189,6 +190,29 @@ async def verify_key(
     Returns the username and role associated with the key.
     """
     result = await auth_service.verify_api_key(db, body.token)
+    return await _verified_key_response(db, result)
+
+
+@router.post("/admin/check")
+async def check_key(
+    body: APIKeyCheckRequest,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[None, Depends(require_service_jwt)],
+) -> APIKeyVerifyResponse:
+    """Confirm that a key the MCP server verified earlier is still usable.
+
+    An OAuth grant outlives the consent where its key was pasted, so the MCP
+    server re-checks the key by id (it never keeps the secret) on every token
+    use and refresh. Same answer as /admin/verify; 401 once the key is revoked,
+    expired, or its user deleted.
+    """
+    result = await auth_service.check_api_key_id(db, body.key_id)
+    return await _verified_key_response(db, result)
+
+
+async def _verified_key_response(
+    db: AsyncSession, result: tuple[str, str] | None
+) -> APIKeyVerifyResponse:
     if result is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

@@ -15,7 +15,7 @@ from fastmcp.server.auth import MultiAuth
 
 from mcp_server.auth import APIKeyAuthProvider
 from mcp_server.backend import call_backend_raw, get_client, set_http_client
-from mcp_server.config import settings
+from mcp_server.config import secret_problem, settings
 from mcp_server.oauth_provider import ScopeHintMiddleware
 from mcp_server.tools.read import read_mcp
 from mcp_server.tools.projects import projects_mcp
@@ -34,9 +34,9 @@ log = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(server: FastMCP):
     """Create a shared httpx client at startup and close it on shutdown."""
-    if settings.mcp_signing_secret in ("", "change-me"):
+    if problem := secret_problem(settings.mcp_signing_secret):
         raise RuntimeError(
-            "MCP_SIGNING_SECRET is not configured. "
+            f"MCP_SIGNING_SECRET {problem}. "
             "Set a strong random value (e.g. `openssl rand -hex 32`) in the environment."
         )
     from importlib.metadata import version as _pkg_version
@@ -73,6 +73,7 @@ if settings.oauth_base_url:
         token_storage_path=settings.oauth_token_storage,
         token_ttl=settings.oauth_token_ttl,
         refresh_token_ttl=settings.oauth_refresh_token_ttl,
+        grant_max_age=settings.oauth_grant_max_age,
     )
     _auth = MultiAuth(server=_oauth, verifiers=[_api_key_auth])
 else:

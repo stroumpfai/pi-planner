@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     oauth_token_storage: str = str(Path.home() / ".pi-planning" / "oauth_tokens.json")
     oauth_token_ttl: int = 3600          # access token lifetime in seconds
     oauth_refresh_token_ttl: int = 2592000  # refresh token lifetime in seconds (30 days)
+    # Absolute ceiling on one consent: refresh rotation can't stretch a grant past
+    # this, after which the user must paste an API key again (90 days).
+    oauth_grant_max_age: int = 7776000
 
     @field_validator("oauth_base_url")
     @classmethod
@@ -39,3 +42,20 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+# Mirrors backend/app/config.py:secret_problem — keep the two in sync. Every
+# placeholder in an example file contains the marker, so matching it catches all.
+_PLACEHOLDER_MARKER = "change-me"
+MIN_SECRET_LENGTH = 32
+
+
+def secret_problem(value: str) -> str | None:
+    """Why *value* is unfit to sign service JWTs, or None when it is fine."""
+    if not value:
+        return "is not set"
+    if _PLACEHOLDER_MARKER in value.lower():
+        return "is still the example placeholder"
+    if len(value) < MIN_SECRET_LENGTH:
+        return f"is shorter than {MIN_SECRET_LENGTH} characters"
+    return None

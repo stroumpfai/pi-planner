@@ -5372,6 +5372,66 @@
         }
       }
     },
+    "/api/v1/api-keys/admin/check": {
+      "post": {
+        "tags": [
+          "api-keys"
+        ],
+        "summary": "Check Key",
+        "description": "Confirm that a key the MCP server verified earlier is still usable.\n\nAn OAuth grant outlives the consent where its key was pasted, so the MCP\nserver re-checks the key by id (it never keeps the secret) on every token\nuse and refresh. Same answer as /admin/verify; 401 once the key is revoked,\nexpired, or its user deleted.",
+        "operationId": "check_key_api_v1_api_keys_admin_check_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/APIKeyCheckRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/APIKeyVerifyResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/teams": {
       "get": {
         "tags": [
@@ -10160,6 +10220,21 @@
   },
   "components": {
     "schemas": {
+      "APIKeyCheckRequest": {
+        "properties": {
+          "key_id": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Key Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key_id"
+        ],
+        "title": "APIKeyCheckRequest"
+      },
       "APIKeyCreate": {
         "properties": {
           "username": {

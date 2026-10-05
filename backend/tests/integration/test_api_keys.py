@@ -176,6 +176,77 @@ async def test_verify_rejects_wrong_secret(client, mcp_secret):
     assert resp.status_code == 401
 
 
+# MCP service-JWT check endpoint — is an OAuth grant's key still usable?
+# ---------------------------------------------------------------------------
+
+
+async def _check(client, key_id: str, secret: str = _TEST_SECRET):
+    return await client.post(
+        f"{_KEYS_URL}/admin/check",
+        json={"key_id": key_id},
+        headers={"Authorization": f"Bearer {_service_jwt(secret)}"},
+    )
+
+
+async def test_check_active_key_by_id(client, mcp_secret):
+    created = (
+        await client.post(f"{_KEYS_URL}/admin/keys", json={"username": "testuser", "name": "MCP"})
+    ).json()
+
+    resp = await _check(client, created["id"])
+
+    assert resp.status_code == 200
+    assert resp.json() == {"username": "testuser", "role": "admin", "key_id": created["id"]}
+    # OAuth traffic counts as use of the key, like the direct-Bearer path.
+    keys = (await client.get(f"{_KEYS_URL}/admin/all-keys")).json()
+    assert next(k for k in keys if k["id"] == created["id"])["last_used_at"] is not None
+
+
+async def test_check_revoked_key_401(client, mcp_secret):
+    created = (
+        await client.post(f"{_KEYS_URL}/admin/keys", json={"username": "testuser", "name": "MCP"})
+    ).json()
+    await client.delete(f"{_KEYS_URL}/admin/keys/{created['id']}")
+
+    assert (await _check(client, created["id"])).status_code == 401
+
+
+async def test_check_cycled_key_401(client, mcp_secret):
+    created = (
+        await client.post(f"{_KEYS_URL}/admin/keys", json={"username": "testuser", "name": "MCP"})
+    ).json()
+    await client.post(f"{_KEYS_URL}/admin/cycle/{created['id']}")
+
+    assert (await _check(client, created["id"])).status_code == 401
+
+
+async def test_check_expired_key_401(client, db, mcp_secret):
+    from app.models.api_key import APIKey
+
+    created = (
+        await client.post(f"{_KEYS_URL}/admin/keys", json={"username": "testuser", "name": "MCP"})
+    ).json()
+    key = await db.get(APIKey, created["id"])
+    key.expires_at = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=1)
+    await db.commit()
+
+    assert (await _check(client, created["id"])).status_code == 401
+
+
+async def test_check_unknown_key_401(client, mcp_secret):
+    assert (await _check(client, "kid_nope")).status_code == 401
+
+
+async def test_check_requires_service_jwt(client):
+    resp = await client.post(f"{_KEYS_URL}/admin/check", json={"key_id": "kid_x"})
+    assert resp.status_code == 401
+
+
+async def test_check_rejects_wrong_secret(client, mcp_secret):
+    resp = await _check(client, "kid_x", secret="a-different-secret-also-32-bytes-long!!")
+    assert resp.status_code == 401
+
+
 # ---------------------------------------------------------------------------
 # MCP actor authentication path on a normal (read) endpoint
 # ---------------------------------------------------------------------------

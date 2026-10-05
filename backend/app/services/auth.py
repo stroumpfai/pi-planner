@@ -179,19 +179,47 @@ async def verify_api_key(
     if "." not in full_token:
         return None
     key_id, secret = full_token.split(".", 1)
-    api_key = await db.get(APIKey, key_id)
-    if not api_key or not api_key.is_active:
-        return None
-    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
-    if api_key.expires_at and api_key.expires_at < now_utc:
+    api_key = await _active_api_key(db, key_id)
+    if not api_key:
         return None
     try:
         _ph.verify(api_key.key_hash, secret)
     except Exception:
         return None
-    api_key.last_used_at = now_utc
+    return await _mark_used(db, api_key)
+
+
+async def check_api_key_id(db: AsyncSession, key_id: str) -> tuple[str, str] | None:
+    """Is the key behind an already-verified credential still usable?
+
+    For OAuth grants the MCP server issued from this key: it no longer holds the
+    secret, only the id, and must stop honouring the grant once the key is
+    revoked or expires. Returns (key_id, username) like verify_api_key, and
+    counts as a use so the key's last_used_at reflects OAuth traffic too.
+    """
+    api_key = await _active_api_key(db, key_id)
+    if not api_key:
+        return None
+    return await _mark_used(db, api_key)
+
+
+async def _active_api_key(db: AsyncSession, key_id: str) -> APIKey | None:
+    api_key = await db.get(APIKey, key_id)
+    if not api_key or not api_key.is_active:
+        return None
+    if api_key.expires_at and api_key.expires_at < _utcnow_naive():
+        return None
+    return api_key
+
+
+async def _mark_used(db: AsyncSession, api_key: APIKey) -> tuple[str, str]:
+    api_key.last_used_at = _utcnow_naive()
     await db.commit()
     return api_key.id, api_key.username
+
+
+def _utcnow_naive() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
 async def revoke_api_key(db: AsyncSession, key_id: str) -> bool:

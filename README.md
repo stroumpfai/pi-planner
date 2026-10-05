@@ -59,11 +59,11 @@ docker run -d \
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `SECRET_KEY` | `change-me-in-production` | **Required in prod.** Session signing key — generate with `python -c "import secrets; print(secrets.token_hex(32))"` |
+| `SECRET_KEY` | — | **Required.** Session signing key — generate with `python -c "import secrets; print(secrets.token_hex(32))"`. The app refuses to start if it is unset, still a `change-me…` placeholder, or shorter than 32 characters |
 | `DATABASE_URL` | `sqlite+aiosqlite:////data/db.sqlite` | SQLite path inside the container |
 | `ALLOWED_ORIGINS` | `http://localhost:8000` | CORS allowed origins (comma-separated) |
 | `USERS_FILE` | `/config/users.json` | Path to the users bootstrap file |
-| `MCP_SIGNING_SECRET` | `change-me-in-production` | Shared secret between the app and the MCP server |
+| `MCP_SIGNING_SECRET` | *(empty)* | Shared secret between the app and the MCP server. Empty disables the MCP path; once set, the same rule as `SECRET_KEY` applies, because anyone who knows it can act as any user |
 | `LOG_LEVEL` | `WARNING` | Log level for the application (`DEBUG`, `INFO`, `WARNING`, `ERROR`). Also controls uvicorn startup logs. Do not use `DEBUG` in production — request data may appear in logs. |
 
 The container runs `alembic upgrade head` on every startup before launching uvicorn, so schema migrations apply automatically on upgrade.
@@ -133,12 +133,13 @@ Configure the MCP server by editing `mcp_server/.env` (copy from `mcp_server/.en
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MCP_SIGNING_SECRET` | — | **Required.** Must match the app's `MCP_SIGNING_SECRET` |
+| `MCP_SIGNING_SECRET` | — | **Required.** Must match the app's `MCP_SIGNING_SECRET`. The server refuses to start if it is still a `change-me…` placeholder or shorter than 32 characters |
 | `BACKEND_URL` | `http://localhost:8000` | URL of the main app (overridden to `http://app:8000` in Docker Compose) |
 | `PORT` | `8010` | Port the MCP server listens on |
 | `LOG_LEVEL` | `WARNING` | Log level for MCP server code (`DEBUG`, `INFO`, `WARNING`, `ERROR`). Set to `INFO` to see the startup version line and OAuth flow logs. |
 | `FASTMCP_LOG_LEVEL` | `INFO` | Log level for FastMCP/uvicorn framework logs. Set to `warning` to suppress `INFO: Started server...` noise. |
 | `OAUTH_BASE_URL` | *(empty)* | Public URL of the MCP server — enables OAuth 2.1 for Claude.ai / ChatGPT. Leave empty for Claude Code (direct API key auth). |
+| `OAUTH_GRANT_MAX_AGE` | `7776000` (90 days) | Longest an OAuth connection lasts, in seconds, however often it refreshes. After that the user pastes an API key again |
 
 To rebuild after a code change:
 ```bash

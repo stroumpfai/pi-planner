@@ -19,7 +19,7 @@ from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.config import settings
+from app.config import secret_problem, settings
 from app.database import AsyncSessionLocal, get_session
 from app.middleware.mcp_activity import MCPActivityMiddleware
 from app.routes import (
@@ -56,14 +56,27 @@ from app.services import users as users_service
 logger = logging.getLogger(__name__)
 
 
-# Known placeholder values that must never be used as a real signing key.
-_INSECURE_SECRET_KEYS = frozenset({"", "change-me", "change-me-in-production", "change-me-to-a-random-secret-key"})
+def assert_secrets_configured() -> None:
+    """Refuse to start with a missing, placeholder or short signing secret.
+
+    MCP_SIGNING_SECRET may be empty — that just disables the MCP service path
+    (deps answers 503) — but once set it must be as strong as SECRET_KEY.
+    """
+    problems = []
+    if problem := secret_problem(settings.secret_key):
+        problems.append(f"SECRET_KEY {problem}")
+    if settings.mcp_signing_secret and (problem := secret_problem(settings.mcp_signing_secret)):
+        problems.append(f"MCP_SIGNING_SECRET {problem}")
+    if problems:
+        raise RuntimeError(
+            "; ".join(problems)
+            + ". Set a strong random value in .env (e.g. `openssl rand -hex 32`)."
+        )
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
-    if settings.secret_key in _INSECURE_SECRET_KEYS:
-        raise RuntimeError("SECRET_KEY is not configured. Set a strong random value in .env")
+    assert_secrets_configured()
     async with AsyncSessionLocal() as db:
         await users_service.seed_from_config(db, settings.users_file)
     yield

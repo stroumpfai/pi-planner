@@ -384,6 +384,11 @@ Admin                                   Backend DB
   Use this when removing a user's Claude access entirely.
 - Keys are soft-deleted (`is_active = false`) so the activity log retains its foreign key reference.
 - Expired keys (past `expires_at`) are automatically treated as inactive — no explicit revoke needed.
+- OAuth connections (Claude.ai, ChatGPT) made by pasting a key end with it: the MCP server re-checks
+  the key by id via `POST /api/v1/api-keys/admin/check` on every token use (cached 60 s) and every
+  refresh, and drops all tokens issued from it once it is revoked, cycled, expired, or its user is
+  deleted or made a reader. Each connection also ends after `OAUTH_GRANT_MAX_AGE` (90 days) however
+  often it refreshes.
 
 #### Role enforcement
 

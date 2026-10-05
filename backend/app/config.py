@@ -29,3 +29,25 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
+
+
+# Every placeholder shipped in an example file contains this marker, so matching
+# it catches all of them (and any future one) rather than a hand-kept list.
+_PLACEHOLDER_MARKER = "change-me"
+MIN_SECRET_LENGTH = 32
+
+
+def secret_problem(value: str) -> str | None:
+    """Why *value* is unfit to sign anything, or None when it is fine.
+
+    Shared by SECRET_KEY and MCP_SIGNING_SECRET. The MCP server applies the same
+    rule (mcp_server/config.py) — a signing secret that is anyone's to read lets
+    them mint a service JWT for any actor, admin included.
+    """
+    if not value:
+        return "is not set"
+    if _PLACEHOLDER_MARKER in value.lower():
+        return "is still the example placeholder"
+    if len(value) < MIN_SECRET_LENGTH:
+        return f"is shorter than {MIN_SECRET_LENGTH} characters"
+    return None

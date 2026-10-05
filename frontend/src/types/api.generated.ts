@@ -351,6 +351,18 @@ export interface paths {
      */
     post: operations["verify_key_api_v1_api_keys_admin_verify_post"];
   };
+  "/api/v1/api-keys/admin/check": {
+    /**
+     * Check Key
+     * @description Confirm that a key the MCP server verified earlier is still usable.
+     *
+     * An OAuth grant outlives the consent where its key was pasted, so the MCP
+     * server re-checks the key by id (it never keeps the secret) on every token
+     * use and refresh. Same answer as /admin/verify; 401 once the key is revoked,
+     * expired, or its user deleted.
+     */
+    post: operations["check_key_api_v1_api_keys_admin_check_post"];
+  };
   "/api/v1/teams": {
     /** List Teams */
     get: operations["list_teams_api_v1_teams_get"];
@@ -818,6 +830,11 @@ export type webhooks = Record<string, never>;
 
 export interface components {
   schemas: {
+    /** APIKeyCheckRequest */
+    APIKeyCheckRequest: {
+      /** Key Id */
+      key_id: string;
+    };
     /** APIKeyCreate */
     APIKeyCreate: {
       /** Username */
@@ -6199,6 +6216,41 @@ export interface operations {
     requestBody: {
       content: {
         "application/json": components["schemas"]["APIKeyVerifyRequest"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["APIKeyVerifyResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Check Key
+   * @description Confirm that a key the MCP server verified earlier is still usable.
+   *
+   * An OAuth grant outlives the consent where its key was pasted, so the MCP
+   * server re-checks the key by id (it never keeps the secret) on every token
+   * use and refresh. Same answer as /admin/verify; 401 once the key is revoked,
+   * expired, or its user deleted.
+   */
+  check_key_api_v1_api_keys_admin_check_post: {
+    parameters: {
+      header?: {
+        authorization?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["APIKeyCheckRequest"];
       };
     };
     responses: {

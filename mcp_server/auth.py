@@ -26,6 +26,8 @@ _RATE_LIMIT = 20
 # raw secret never sits in the map. TTL is deliberately short so revoked or
 # role-changed keys stop working within a minute.
 _verify_cache: dict[str, tuple[float, tuple[str, str, str]]] = {}
+# The same, keyed by key_id, for re-checking the key behind an OAuth grant.
+_check_cache: dict[str, tuple[float, tuple[str, str, str]]] = {}
 _VERIFY_CACHE_TTL = 60.0
 
 
@@ -96,6 +98,7 @@ def _cache_put(token: str, value: tuple[str, str, str]) -> None:
 
 def clear_verify_cache() -> None:
     _verify_cache.clear()
+    _check_cache.clear()
 
 
 def actor_username(token: AccessToken) -> str:
@@ -122,12 +125,39 @@ async def verify_api_key(raw_token: str) -> tuple[str, str, str] | None:
     cached = _cache_get(raw_token)
     if cached is not None:
         return cached
+    result = await _ask_backend("/api/v1/api-keys/admin/verify", {"token": raw_token})
+    if result is not None:
+        _cache_put(raw_token, result)
+    return result
 
+
+async def check_api_key_id(key_id: str) -> tuple[str, str, str] | None:
+    """
+    Is the API key behind an OAuth grant still usable? Calls backend
+    POST /api/v1/api-keys/admin/check, which answers by id — the OAuth store
+    never holds the key's secret.
+
+    Same contract as verify_api_key: (key_id, username, role), None once the key
+    is revoked, expired or its user deleted, BackendAuthUnavailable on an outage.
+    Successful results are cached for _VERIFY_CACHE_TTL seconds, so a revocation
+    takes effect within a minute — the same window as the direct-Bearer path.
+    """
+    entry = _check_cache.get(key_id)
+    if entry and entry[0] > time.monotonic():
+        return entry[1]
+    _check_cache.pop(key_id, None)
+    result = await _ask_backend("/api/v1/api-keys/admin/check", {"key_id": key_id})
+    if result is not None:
+        _check_cache[key_id] = (time.monotonic() + _VERIFY_CACHE_TTL, result)
+    return result
+
+
+async def _ask_backend(path: str, body: dict[str, str]) -> tuple[str, str, str] | None:
     try:
         async with httpx.AsyncClient(base_url=settings.backend_url, timeout=5.0) as client:
             r = await client.post(
-                "/api/v1/api-keys/admin/verify",
-                json={"token": raw_token},
+                path,
+                json=body,
                 headers={"Authorization": f"Bearer {mint_service_jwt()}"},
             )
     except Exception as exc:
@@ -136,12 +166,10 @@ async def verify_api_key(raw_token: str) -> tuple[str, str, str] | None:
     if r.status_code == 200:
         try:
             data = r.json()
-            result = (data["key_id"], data["username"], data["role"])
+            return (data["key_id"], data["username"], data["role"])
         except (KeyError, ValueError):
-            log.warning("api_key_verify malformed 200 response")
+            log.warning("api_key_verify malformed 200 response path=%s", path)
             return None
-        _cache_put(raw_token, result)
-        return result
 
     if r.status_code >= 500:
         raise BackendAuthUnavailable(f"backend returned {r.status_code}")

@@ -6,6 +6,7 @@ from fastmcp.server.auth import TokenVerifier
 from mcp_server.auth import (
     APIKeyAuthProvider,
     BackendAuthUnavailable,
+    check_api_key_id,
     verify_api_key,
     is_rate_limited,
     record_auth_failure,
@@ -286,3 +287,44 @@ def test_client_ip_uses_xff_when_trusted(monkeypatch):
     monkeypatch.setattr(settings, "trust_proxy_headers", True)
     ip = auth.client_ip(_fake_request("10.0.0.1", "203.0.113.9, 10.0.0.1"))
     assert ip == "203.0.113.9"
+
+
+# ---------------------------------------------------------------------------
+# check_api_key_id — re-checking the key behind an OAuth grant, by id
+# ---------------------------------------------------------------------------
+
+
+async def test_check_api_key_id_asks_backend_by_id(mock_backend):
+    route = mock_backend.post("/api/v1/api-keys/admin/check").mock(
+        return_value=httpx.Response(200, json={"key_id": "kid_abc", "username": "alice", "role": "editor"})
+    )
+    assert await check_api_key_id("kid_abc") == ("kid_abc", "alice", "editor")
+    # The OAuth store never holds the secret, so only the id goes over the wire.
+    assert route.calls.last.request.content == b'{"key_id":"kid_abc"}'
+
+
+async def test_check_api_key_id_revoked_returns_none_and_is_not_cached(mock_backend):
+    route = mock_backend.post("/api/v1/api-keys/admin/check").mock(
+        return_value=httpx.Response(401, text="Unauthorized")
+    )
+    assert await check_api_key_id("kid_gone") is None
+    assert await check_api_key_id("kid_gone") is None
+    assert route.call_count == 2
+
+
+async def test_check_api_key_id_caches_success(mock_backend):
+    route = mock_backend.post("/api/v1/api-keys/admin/check").mock(
+        return_value=httpx.Response(200, json={"key_id": "kid_abc", "username": "alice", "role": "admin"})
+    )
+    await check_api_key_id("kid_abc")
+    await check_api_key_id("kid_abc")
+    assert route.call_count == 1
+    clear_verify_cache()
+    await check_api_key_id("kid_abc")
+    assert route.call_count == 2
+
+
+async def test_check_api_key_id_backend_500_raises(mock_backend):
+    mock_backend.post("/api/v1/api-keys/admin/check").mock(return_value=httpx.Response(503))
+    with pytest.raises(BackendAuthUnavailable):
+        await check_api_key_id("kid_abc")

@@ -40,6 +40,10 @@ class APIKeyVerifyRequest(BaseModel):
     token: str
 
 
+class APIKeyCheckRequest(BaseModel):
+    key_id: str = Field(..., min_length=1, max_length=64)
+
+
 class APIKeyVerifyResponse(BaseModel):
     username: str
     role: Role

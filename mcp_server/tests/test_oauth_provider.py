@@ -28,6 +28,18 @@ _REDIRECT_URI = "https://claude.ai/callback"
 # ---------------------------------------------------------------------------
 
 
+@pytest.fixture(autouse=True)
+def key_still_active():
+    """Every grant's API key checks out as alice's admin key unless a test says
+    otherwise — load_access_token and exchange_refresh_token re-check it with the
+    backend, and no test here should reach a real one. Tests re-patch to vary it."""
+    with patch(
+        "mcp_server.oauth_provider.check_api_key_id",
+        new=AsyncMock(return_value=("kid_abc", "alice", "admin")),
+    ) as check:
+        yield check
+
+
 def _make_client(client_id: str = "test-client") -> OAuthClientInformationFull:
     return OAuthClientInformationFull(
         client_id=client_id,
@@ -408,7 +420,9 @@ async def test_exchange_code_also_issues_refresh_token(tmp_path):
     assert stored_refresh.scopes == ["admin", "editor"]
 
     claims = provider._store.get_refresh_token_claims(token_response.refresh_token)
+    granted_at = claims.pop("granted_at")
     assert claims == {"key_id": "kid_abc", "username": "alice", "role": "admin"}
+    assert abs(granted_at - time.time()) < 5
 
 
 async def test_exchange_code_token_persisted_to_store(tmp_path):
@@ -457,7 +471,9 @@ async def test_exchange_code_refresh_token_persisted_to_store(tmp_path):
     # Reload store from disk — refresh token and its claims should survive
     store2 = TokenStore(str(tmp_path / "tokens.json"))
     assert store2.get_refresh_token(token_response.refresh_token) is not None
-    assert store2.get_refresh_token_claims(token_response.refresh_token) == {
+    claims = store2.get_refresh_token_claims(token_response.refresh_token)
+    assert "granted_at" in claims
+    assert {k: v for k, v in claims.items() if k != "granted_at"} == {
         "key_id": "kid_xyz", "username": "bob", "role": "editor"
     }
 
@@ -600,9 +616,10 @@ async def test_exchange_refresh_token_rotates_tokens(tmp_path):
     new_refresh = provider._store.get_refresh_token(token_response.refresh_token)
     assert new_refresh is not None
     assert new_refresh.client_id == "test-client"
-    assert provider._store.get_refresh_token_claims(token_response.refresh_token) == {
-        "key_id": "kid_abc", "username": "alice", "role": "admin"
-    }
+    # The seeded grant predates granted_at, so its clock starts at this refresh.
+    new_claims = provider._store.get_refresh_token_claims(token_response.refresh_token)
+    assert abs(new_claims.pop("granted_at") - time.time()) < 5
+    assert new_claims == {"key_id": "kid_abc", "username": "alice", "role": "admin"}
 
     # New access token follows the same client_id=OAuth-client convention as
     # exchange_authorization_code; the acting user travels as claims["username"]
@@ -639,6 +656,133 @@ async def test_exchange_refresh_token_missing_claims_raises_invalid_grant(tmp_pa
     with pytest.raises(TokenError) as exc_info:
         await provider.exchange_refresh_token(client, refresh_token, ["admin", "editor"])
     assert exc_info.value.error == "invalid_grant"
+
+
+# ---------------------------------------------------------------------------
+# Revoked API keys end the grants issued from them (audit finding #2)
+# ---------------------------------------------------------------------------
+
+
+async def _seed_grant(provider: PiPlannerOAuthProvider, key_id: str, suffix: str) -> tuple[str, str]:
+    """An access token and a refresh token from one consent with *key_id*."""
+    claims = {"key_id": key_id, "username": "alice", "role": "admin"}
+    access = AccessToken(
+        token=f"at_{suffix}", client_id="test-client", scopes=["admin", "editor"],
+        claims=claims, expires_at=int(time.time()) + 3600,
+    )
+    await provider._store.save_token(access)
+    await _seed_refresh_token(provider, token_value=f"rt_{suffix}", claims={**claims, "granted_at": int(time.time())})
+    return access.token, f"rt_{suffix}"
+
+
+async def test_load_access_token_rejects_and_drops_grants_once_key_revoked(tmp_path, key_still_active):
+    provider = _make_provider(tmp_path)
+    access, refresh = await _seed_grant(provider, "kid_revoked", "a")
+    other_access, other_refresh = await _seed_grant(provider, "kid_other", "b")
+    key_still_active.return_value = None  # the backend no longer knows kid_revoked
+
+    assert await provider.load_access_token(access) is None
+
+    key_still_active.assert_awaited_with("kid_revoked")
+    # The whole grant goes, not just the token presented.
+    assert provider._store.get_token(access) is None
+    assert provider._store.get_refresh_token(refresh) is None
+    # Other keys' grants are untouched.
+    assert provider._store.get_token(other_access) is not None
+    assert provider._store.get_refresh_token(other_refresh) is not None
+
+
+async def test_load_access_token_rejects_key_now_owned_by_reader(tmp_path, key_still_active):
+    provider = _make_provider(tmp_path)
+    access, _ = await _seed_grant(provider, "kid_abc", "a")
+    key_still_active.return_value = ("kid_abc", "alice", "reader")
+
+    assert await provider.load_access_token(access) is None
+
+
+async def test_load_access_token_fails_open_when_backend_down(tmp_path, key_still_active):
+    """Every tool call goes through the same backend, so a token accepted during an
+    outage can do nothing — and logging users out on each blip would be worse."""
+    from mcp_server.auth import BackendAuthUnavailable
+
+    provider = _make_provider(tmp_path)
+    access, refresh = await _seed_grant(provider, "kid_abc", "a")
+    key_still_active.side_effect = BackendAuthUnavailable("down")
+
+    assert await provider.load_access_token(access) is not None
+    assert provider._store.get_refresh_token(refresh) is not None
+
+
+async def test_exchange_refresh_token_rejects_revoked_key(tmp_path, key_still_active):
+    from mcp.server.auth.provider import TokenError
+
+    provider = _make_provider(tmp_path)
+    access, refresh_value = await _seed_grant(provider, "kid_revoked", "a")
+    refresh_token = provider._store.get_refresh_token(refresh_value)
+    key_still_active.return_value = None
+
+    with pytest.raises(TokenError) as exc_info:
+        await provider.exchange_refresh_token(_make_client(), refresh_token, ["admin", "editor"])
+    assert exc_info.value.error == "invalid_grant"
+    assert provider._store.get_token(access) is None
+    assert provider._store.get_refresh_token(refresh_value) is None
+
+
+async def test_exchange_refresh_token_follows_role_change(tmp_path, key_still_active):
+    provider = _make_provider(tmp_path)
+    refresh_token = await _seed_refresh_token(provider)  # alice, admin
+    key_still_active.return_value = ("kid_abc", "alice", "editor")
+
+    response = await provider.exchange_refresh_token(_make_client(), refresh_token, ["admin", "editor"])
+
+    assert response.scope == "editor"
+    access = provider._store.get_token(response.access_token)
+    assert access.claims["role"] == "editor"
+    assert provider._store.get_refresh_token_claims(response.refresh_token)["role"] == "editor"
+
+
+async def test_exchange_refresh_token_keeps_grant_age_across_rotation(tmp_path):
+    provider = _make_provider(tmp_path)
+    granted_at = int(time.time()) - 86400
+    refresh_token = await _seed_refresh_token(
+        provider, claims={"key_id": "kid_abc", "username": "alice", "role": "admin", "granted_at": granted_at}
+    )
+
+    response = await provider.exchange_refresh_token(_make_client(), refresh_token, ["admin", "editor"])
+
+    assert provider._store.get_refresh_token_claims(response.refresh_token)["granted_at"] == granted_at
+
+
+async def test_exchange_refresh_token_rejects_grant_past_max_age(tmp_path, key_still_active):
+    from mcp.server.auth.provider import TokenError
+
+    provider = PiPlannerOAuthProvider(
+        base_url=_BASE_URL, token_storage_path=str(tmp_path / "tokens.json"), grant_max_age=3600,
+    )
+    refresh_token = await _seed_refresh_token(
+        provider,
+        claims={"key_id": "kid_abc", "username": "alice", "role": "admin", "granted_at": int(time.time()) - 7200},
+    )
+
+    with pytest.raises(TokenError) as exc_info:
+        await provider.exchange_refresh_token(_make_client(), refresh_token, ["admin", "editor"])
+    assert exc_info.value.error == "invalid_grant"
+    assert provider._store.get_refresh_token(refresh_token.token) is None
+    # Too old is decided locally — no need to ask the backend.
+    key_still_active.assert_not_awaited()
+
+
+async def test_delete_grants_for_key_also_drops_unused_auth_codes(tmp_path):
+    provider = _make_provider(tmp_path)
+    auth_code = AuthorizationCode(
+        code="code_x", client_id="test-client", redirect_uri=AnyUrl(_REDIRECT_URI),
+        redirect_uri_provided_explicitly=True, scopes=["editor"],
+        expires_at=time.time() + 300, code_challenge="c",
+    )
+    await provider._store.save_auth_code("code_x", auth_code, ("kid_revoked", "alice", "editor"))
+
+    assert await provider._store.delete_grants_for_key("kid_revoked") == 1
+    assert provider._store.get_auth_code("code_x") is None
 
 
 # ---------------------------------------------------------------------------

@@ -39,6 +39,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from mcp_server.auth import (
     BackendAuthUnavailable,
+    check_api_key_id,
     clear_auth_failures,
     client_ip,
     is_rate_limited,
@@ -53,6 +54,14 @@ _AUTH_CODE_TTL = 300  # 5 minutes — auth codes and pending consent sessions
 # The scopes this server supports (mirrors ClientRegistrationOptions.valid_scopes).
 _VALID_SCOPES = ["admin", "editor"]
 _DEFAULT_CLIENT_SCOPE = " ".join(_VALID_SCOPES)
+
+# Sentinel from _recheck_key: the backend says the grant's API key is no longer usable.
+_KEY_REVOKED = object()
+
+
+def _scopes_for_role(role: str) -> list[str]:
+    # Admin tokens carry both scopes so required_scopes=["editor"] passes for admins.
+    return ["admin", "editor"] if role == "admin" else ["editor"]
 
 
 # ---------------------------------------------------------------------------
@@ -307,6 +316,31 @@ class TokenStore:
                 del self._refresh_tokens[key]
                 self._write()
 
+    async def delete_grants_for_key(self, key_id: str) -> int:
+        """Drop every access token, refresh token and auth code issued from *key_id*.
+
+        Called once the key is found revoked, so a client holding several tokens
+        from that consent loses all of them at once rather than one per request.
+        Returns how many entries went.
+        """
+        async with self._lock:
+            before = len(self._tokens) + len(self._refresh_tokens) + len(self._auth_codes)
+            self._tokens = {
+                k: v for k, v in self._tokens.items() if v.get("claims", {}).get("key_id") != key_id
+            }
+            self._refresh_tokens = {
+                k: v for k, v in self._refresh_tokens.items()
+                if v.get("claims", {}).get("key_id") != key_id
+            }
+            self._auth_codes = {
+                k: v for k, v in self._auth_codes.items()
+                if (v.get("_claims") or [""])[0] != key_id
+            }
+            removed = before - len(self._tokens) - len(self._refresh_tokens) - len(self._auth_codes)
+            if removed:
+                self._write()
+            return removed
+
     # -- Authorization code methods --
 
     async def save_auth_code(
@@ -417,6 +451,7 @@ class PiPlannerOAuthProvider(OAuthProvider):
         token_storage_path: str,
         token_ttl: int = 3600,
         refresh_token_ttl: int = 2592000,
+        grant_max_age: int = 7776000,
     ) -> None:
         super().__init__(
             base_url=base_url,
@@ -432,6 +467,7 @@ class PiPlannerOAuthProvider(OAuthProvider):
         self._store = TokenStore(token_storage_path)
         self._token_ttl = token_ttl
         self._refresh_token_ttl = refresh_token_ttl
+        self._grant_max_age = grant_max_age
         self._base_url_str = str(base_url).rstrip("/")
         self._cimd_fetcher = CIMDFetcher()
 
@@ -599,8 +635,7 @@ class PiPlannerOAuthProvider(OAuthProvider):
         await self._store.delete_auth_code(authorization_code.code)
 
         claims = {"key_id": key_id, "username": username, "role": role}
-        # Admin tokens carry both scopes so required_scopes=["editor"] passes for admins.
-        scopes = ["admin", "editor"] if role == "admin" else ["editor"]
+        scopes = _scopes_for_role(role)
 
         # client_id identifies the calling OAuth client (mirrors RefreshToken
         # and APIKeyAuthProvider's key_id convention) — the acting PI Planner
@@ -626,8 +661,11 @@ class PiPlannerOAuthProvider(OAuthProvider):
             scopes=scopes,
             expires_at=int(time.time()) + self._refresh_token_ttl,
         )
+        # granted_at is the consent itself; rotation carries it forward unchanged,
+        # so _grant_max_age bounds the whole chain, not each refresh token.
         await self._store.save_refresh_token(
-            refresh_token, claims={"key_id": key_id, "username": username, "role": role}
+            refresh_token,
+            claims={"key_id": key_id, "username": username, "role": role, "granted_at": int(time.time())},
         )
 
         log.info(
@@ -660,9 +698,31 @@ class PiPlannerOAuthProvider(OAuthProvider):
         belongs to `client`, and that `scopes` is a subset of its granted
         scopes before calling us.
         """
-        claims = self._store.get_refresh_token_claims(refresh_token.token)
+        # A copy: the store hands back its own entry, which must not change under it.
+        claims = dict(self._store.get_refresh_token_claims(refresh_token.token))
         if not claims or "key_id" not in claims or "username" not in claims or "role" not in claims:
             raise TokenError("invalid_grant", "Refresh token claims not found.")
+
+        # Grants from before granted_at existed start their clock at their first
+        # refresh after the upgrade, rather than all expiring at once.
+        granted_at = claims.get("granted_at") or int(time.time())
+        if time.time() - granted_at > self._grant_max_age:
+            await self._store.delete_refresh_token(refresh_token.token)
+            log.info("oauth_refresh_rejected user=%s reason=grant_too_old", claims["username"])
+            raise TokenError("invalid_grant", "This authorization has expired. Authorize again.")
+
+        # Re-check the API key the user pasted at consent: revoking it must end
+        # the grant, which would otherwise rotate forever.
+        current = await self._recheck_key(claims["key_id"])
+        if current is _KEY_REVOKED:
+            raise TokenError("invalid_grant", "The API key behind this authorization was revoked.")
+        if isinstance(current, tuple):
+            # The key's user or role may have changed since consent.
+            _, claims_username, claims_role = current
+            claims = {**claims, "username": claims_username, "role": claims_role}
+            allowed = _scopes_for_role(claims_role)
+            scopes = [s for s in scopes if s in allowed] or ["editor"]
+        claims["granted_at"] = granted_at
 
         key_id = claims["key_id"]
         username = claims["username"]
@@ -712,8 +772,32 @@ class PiPlannerOAuthProvider(OAuthProvider):
         result = self._store.get_token(token)
         if result is None:
             log.debug("oauth_token_lookup token=%.8s... result=miss", token)
-        else:
-            log.debug("oauth_token_lookup token=%.8s... user=%s result=hit", token, result.client_id)
+            return None
+        log.debug("oauth_token_lookup token=%.8s... user=%s result=hit", token, result.client_id)
+        key_id = result.claims.get("key_id")
+        if key_id and await self._recheck_key(key_id) is _KEY_REVOKED:
+            return None
+        return result
+
+    async def _recheck_key(self, key_id: str) -> tuple[str, str, str] | object | None:
+        """Ask the backend whether the API key behind a grant is still usable.
+
+        Returns the key's current (key_id, username, role); _KEY_REVOKED after
+        dropping every grant issued from it; or None when the backend can't be
+        reached. That last case fails open on purpose: every MCP tool call goes
+        through the same backend, so while it is down the token can do nothing,
+        and the next call re-checks.
+        """
+        try:
+            result = await check_api_key_id(key_id)
+        except BackendAuthUnavailable as exc:
+            log.warning("oauth_key_recheck key_id=%.8s result=backend_unavailable: %s", key_id, exc)
+            return None
+        # A key demoted to a reader account can't authorize MCP either (see consent).
+        if result is None or result[2] == "reader":
+            removed = await self._store.delete_grants_for_key(key_id)
+            log.info("oauth_grants_dropped key_id=%.8s reason=key_revoked removed=%d", key_id, removed)
+            return _KEY_REVOKED
         return result
 
     async def revoke_token(self, token: AccessToken | RefreshToken) -> None:
