@@ -420,6 +420,82 @@ async def test_iteration_paths_are_unique_across_pis_and_sprints(client, pid):
     assert cleared.json()["iteration_path"] is None
 
 
+def _paths_url(pi: dict[str, Any]) -> str:
+    return f"/api/v1/pis/{pi['system_id']}/iteration-paths"
+
+
+@pytest.mark.asyncio
+async def test_iteration_paths_move_and_swap_in_one_save(client, pid):
+    pi = await _make_pi(client, pid, "PI 08", PI8)
+    s1, s2 = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()[:2]
+
+    # Sprint 1's path moves up to the PI, and sprints 1 and 2 swap — each of
+    # which collides with an old value if saved one row at a time.
+    resp = await client.put(_paths_url(pi), json={
+        "iteration_path": PI8 + "\\Sprint 1",
+        "sprints": [
+            {"system_id": s1["system_id"], "iteration_path": PI8 + "\\Sprint 2"},
+            {"system_id": s2["system_id"], "iteration_path": PI8},
+        ],
+    })
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["iteration_path"] == PI8 + "\\Sprint 1"
+    assert [s["iteration_path"] for s in body["sprints"][:3]] == [
+        PI8 + "\\Sprint 2", PI8, PI8 + "\\Sprint 3",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_iteration_paths_refuse_a_duplicate_within_one_save(client, pid):
+    pi = await _make_pi(client, pid, "PI 08", None)
+    s1, s2 = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()[:2]
+
+    resp = await client.put(_paths_url(pi), json={
+        "iteration_path": None,
+        "sprints": [
+            {"system_id": s1["system_id"], "iteration_path": "Planner\\X"},
+            {"system_id": s2["system_id"], "iteration_path": "planner / x"},
+        ],
+    })
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["error"] == "ITERATION_PATH_TAKEN"
+    # Nothing was written.
+    sprints = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()
+    assert all(s["iteration_path"] is None for s in sprints)
+
+
+@pytest.mark.asyncio
+async def test_iteration_paths_refuse_another_pis_path(client, pid):
+    await _make_pi(client, pid, "PI 08", PI8)
+    pi9 = await _make_pi(client, pid, "PI 09", None)
+
+    resp = await client.put(_paths_url(pi9), json={"iteration_path": PI8 + "\\Sprint 4"})
+    assert resp.status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_iteration_paths_refuse_a_sprint_of_another_pi(client, pid):
+    pi8 = await _make_pi(client, pid, "PI 08", None)
+    pi9 = await _make_pi(client, pid, "PI 09", None)
+    foreign = (await client.get(f"/api/v1/pis/{pi9['system_id']}/sprints")).json()[0]
+
+    resp = await client.put(_paths_url(pi8), json={
+        "sprints": [{"system_id": foreign["system_id"], "iteration_path": "Planner\\Y"}],
+    })
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"] == "SPRINT_NOT_IN_PI"
+
+
+@pytest.mark.asyncio
+async def test_iteration_paths_refused_on_a_closed_pi(client, pid):
+    pi = await _make_pi(client, pid, "PI 08", None)
+    await client.patch(f"/api/v1/pis/{pi['system_id']}", json={"state": "closed"})
+
+    resp = await client.put(_paths_url(pi), json={"iteration_path": PI9})
+    assert resp.status_code == 403
+
+
 @pytest.mark.asyncio
 async def test_iteration_paths_survive_export_and_import(client, pid):
     await _make_pi(client, pid, "PI 08", PI8)

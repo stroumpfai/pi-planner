@@ -14,10 +14,17 @@ from app.models.project import Project
 from app.models.sprint import Sprint
 from app.models.swimline import Swimline
 from app.models.user import User
-from app.schemas import PICreate, PIResponse, PIUpdate
+from app.schemas import (
+    PICreate,
+    PIIterationPaths,
+    PIIterationPathsResponse,
+    PIResponse,
+    PIUpdate,
+    SprintIterationPath,
+)
 from app.services.effort import pi_effort_and_available
 from app.services.events import broadcaster
-from app.services.iteration_placement import iteration_path_taken
+from app.services.iteration_placement import first_conflicting_path, iteration_path_taken
 from app.services.pi_dashboard import DashboardOptions, dashboard_filename, export_pi_dashboard
 from app.services.pi_export import PNGExportOptions, export_pi_csv, export_pi_png, safe_filename
 from app.services.pi_report import (
@@ -181,6 +188,67 @@ async def update_pi(
     event = "pi:state_changed" if "state" in fields else "pi:updated"
     await broadcaster.broadcast(pi.project_id, event, {"system_id": pi_id, "state": pi.state})
     return await _pi_response(db, pi)
+
+
+@router.put("/api/v1/pis/{pi_id}/iteration-paths")
+async def set_iteration_paths(
+    pi_id: str,
+    body: PIIterationPaths,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(require_edit_lock)],
+) -> PIIterationPathsResponse:
+    """Set a PI's iteration path and its sprints' paths in one transaction.
+
+    Saving them one row at a time cannot move a path from a sprint to the PI, or
+    swap two sprints' paths: whichever row saves first collides with the other's
+    old value. Checking the whole intended set at once also stops two rows of the
+    same edit both claiming one path, which separate requests can each let past.
+    """
+    pi = await _get_or_404(db, pi_id)
+    _assert_not_closed(pi)
+
+    sprints = {
+        s.system_id: s
+        for s in (await db.execute(select(Sprint).where(Sprint.pi_id == pi_id))).scalars().all()
+    }
+    unknown = [row.system_id for row in body.sprints if row.system_id not in sprints]
+    if unknown:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "error": "SPRINT_NOT_IN_PI",
+                "message": "Every sprint must belong to this PI",
+                "details": {"sprint_ids": unknown},
+            },
+        )
+
+    intended = {sid: s.iteration_path for sid, s in sprints.items()}
+    intended.update({row.system_id: row.iteration_path for row in body.sprints})
+    conflict = await first_conflicting_path(
+        db, pi.project_id, pi_id, [body.iteration_path, *intended.values()]
+    )
+    if conflict is not None:
+        raise _iteration_path_conflict(conflict)
+
+    now = datetime.now(timezone.utc)
+    if pi.iteration_path != body.iteration_path:
+        pi.iteration_path = body.iteration_path
+        pi.modified_at = now
+    for sid, path in intended.items():
+        if sprints[sid].iteration_path != path:
+            sprints[sid].iteration_path = path
+            sprints[sid].modified_at = now
+    await db.commit()
+
+    await broadcaster.broadcast(pi.project_id, "pi:updated", {"system_id": pi_id, "state": pi.state})
+    ordered = sorted(sprints.values(), key=lambda s: s.sprint_index or 0)
+    return PIIterationPathsResponse(
+        iteration_path=pi.iteration_path,
+        sprints=[
+            SprintIterationPath(system_id=s.system_id, iteration_path=s.iteration_path)
+            for s in ordered
+        ],
+    )
 
 
 @router.delete("/api/v1/pis/{pi_id}", status_code=status.HTTP_204_NO_CONTENT)

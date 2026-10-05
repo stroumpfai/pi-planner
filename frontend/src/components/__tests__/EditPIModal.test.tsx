@@ -6,6 +6,7 @@ import { EditPIModal } from '../EditPIModal'
 import { useUpdatePI } from '@/hooks/usePIs'
 import { useSprints } from '@/hooks/useSprints'
 import { useTeamCapacityStatus } from '@/hooks/useTeamPush'
+import * as pisService from '@/services/pis'
 import * as sprintsService from '@/services/sprints'
 import type { PI, ProjectPushStatus, Sprint } from '@/types'
 
@@ -14,6 +15,9 @@ vi.mock('@/hooks/useSprints')
 vi.mock('@/hooks/useTeamPush', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/hooks/useTeamPush')>()),
   useTeamCapacityStatus: vi.fn(),
+}))
+vi.mock('@/services/pis', () => ({
+  pisApi: { setIterationPaths: vi.fn() },
 }))
 vi.mock('@/services/sprints', () => ({
   sprintsApi: { update: vi.fn(), list: vi.fn(), create: vi.fn() },
@@ -90,6 +94,7 @@ beforeEach(() => {
     isLoading: false,
   } as ReturnType<typeof useSprints>)
   vi.mocked(sprintsService.sprintsApi.update).mockResolvedValue(fakeSprint)
+  vi.mocked(pisService.pisApi.setIterationPaths).mockResolvedValue({ iteration_path: null, sprints: [] })
   mockPushStatus([])
 })
 
@@ -199,7 +204,7 @@ describe('EditPIModal', () => {
 
   // ── Iteration paths (CSV import placement) ───────────────────────────────────
 
-  it('saves the PI and sprint iteration paths, and a blank as null', async () => {
+  it('saves the PI and sprint iteration paths together, and a blank as null', async () => {
     updateMutateAsync.mockResolvedValue(fakePI)
     render(<EditPIModal {...defaultProps} />, { wrapper: makeWrapper() })
     await waitFor(() => screen.getByText('Sprint 1'))
@@ -208,13 +213,15 @@ describe('EditPIModal', () => {
     await userEvent.click(screen.getByRole('button', { name: /save/i }))
 
     await waitFor(() =>
-      expect(updateMutateAsync).toHaveBeenCalledWith(expect.objectContaining({
-        body: expect.objectContaining({ iteration_path: 'Planner\\PI 08' }),
-      })),
+      expect(pisService.pisApi.setIterationPaths).toHaveBeenCalledWith('pi-1', {
+        iteration_path: 'Planner\\PI 08',
+        sprints: [{ system_id: 's-1', iteration_path: null }],
+      }),
     )
-    expect(sprintsService.sprintsApi.update).toHaveBeenCalledWith(
-      's-1', expect.objectContaining({ iteration_path: null }),
-    )
+    // Paths travel only in the combined call, never row by row.
+    await waitFor(() => expect(updateMutateAsync).toHaveBeenCalled())
+    expect(updateMutateAsync.mock.calls[0][0].body).not.toHaveProperty('iteration_path')
+    expect(vi.mocked(sprintsService.sprintsApi.update).mock.calls[0][1]).not.toHaveProperty('iteration_path')
   })
 
   it('pre-fills a sprint iteration path and sends it back', async () => {
@@ -229,14 +236,14 @@ describe('EditPIModal', () => {
 
     await userEvent.click(screen.getByRole('button', { name: /save/i }))
     await waitFor(() =>
-      expect(sprintsService.sprintsApi.update).toHaveBeenCalledWith(
-        's-1', expect.objectContaining({ iteration_path: 'Planner\\PI 08\\Sprint 1' }),
-      ),
+      expect(pisService.pisApi.setIterationPaths).toHaveBeenCalledWith('pi-1', expect.objectContaining({
+        sprints: [{ system_id: 's-1', iteration_path: 'Planner\\PI 08\\Sprint 1' }],
+      })),
     )
   })
 
-  it('shows the server reason when an iteration path is already taken', async () => {
-    updateMutateAsync.mockRejectedValue({
+  it('shows the server reason when an iteration path is taken, and writes nothing else', async () => {
+    vi.mocked(pisService.pisApi.setIterationPaths).mockRejectedValue({
       response: { data: { detail: {
         error: 'ITERATION_PATH_TAKEN',
         message: 'Another PI or sprint in this project already has iteration path "Planner\\PI 08"',
@@ -245,5 +252,7 @@ describe('EditPIModal', () => {
     render(<EditPIModal {...defaultProps} />, { wrapper: makeWrapper() })
     await userEvent.click(screen.getByRole('button', { name: /save/i }))
     expect(await screen.findByRole('alert')).toHaveTextContent(/already has iteration path/i)
+    expect(updateMutateAsync).not.toHaveBeenCalled()
+    expect(sprintsService.sprintsApi.update).not.toHaveBeenCalled()
   })
 })

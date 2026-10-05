@@ -133,6 +133,18 @@ export interface paths {
     /** Update Pi */
     patch: operations["update_pi_api_v1_pis__pi_id__patch"];
   };
+  "/api/v1/pis/{pi_id}/iteration-paths": {
+    /**
+     * Set Iteration Paths
+     * @description Set a PI's iteration path and its sprints' paths in one transaction.
+     *
+     * Saving them one row at a time cannot move a path from a sprint to the PI, or
+     * swap two sprints' paths: whichever row saves first collides with the other's
+     * old value. Checking the whole intended set at once also stops two rows of the
+     * same edit both claiming one path, which separate requests can each let past.
+     */
+    put: operations["set_iteration_paths_api_v1_pis__pi_id__iteration_paths_put"];
+  };
   "/api/v1/pis/{pi_id}/export/csv": {
     /** Export Pi Csv Endpoint */
     get: operations["export_pi_csv_endpoint_api_v1_pis__pi_id__export_csv_get"];
@@ -2117,6 +2129,27 @@ export interface components {
       /** Event Type */
       event_type?: ("release" | "milestone" | "deadline" | "pilot" | "go_no_go" | "other") | null;
     };
+    /**
+     * PIIterationPaths
+     * @description A PI's path and its sprints' paths, written together.
+     *
+     * Sprints left out of ``sprints`` keep the path they have. Uniqueness is checked
+     * over the result as a whole, so a path can move between the PI and its sprints,
+     * or two sprints can swap, in one save.
+     */
+    PIIterationPaths: {
+      /** Iteration Path */
+      iteration_path?: string | null;
+      /** Sprints */
+      sprints?: components["schemas"]["SprintIterationPath"][];
+    };
+    /** PIIterationPathsResponse */
+    PIIterationPathsResponse: {
+      /** Iteration Path */
+      iteration_path: string | null;
+      /** Sprints */
+      sprints: components["schemas"]["SprintIterationPath"][];
+    };
     /** PIResponse */
     PIResponse: {
       /** System Id */
@@ -2806,6 +2839,13 @@ export interface components {
       created_at: string;
       /** Created By */
       created_by: string | null;
+    };
+    /** SprintIterationPath */
+    SprintIterationPath: {
+      /** System Id */
+      system_id: string;
+      /** Iteration Path */
+      iteration_path?: string | null;
     };
     /** SprintResponse */
     SprintResponse: {
@@ -4249,6 +4289,44 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["PIResponse"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Set Iteration Paths
+   * @description Set a PI's iteration path and its sprints' paths in one transaction.
+   *
+   * Saving them one row at a time cannot move a path from a sprint to the PI, or
+   * swap two sprints' paths: whichever row saves first collides with the other's
+   * old value. Checking the whole intended set at once also stops two rows of the
+   * same edit both claiming one path, which separate requests can each let past.
+   */
+  set_iteration_paths_api_v1_pis__pi_id__iteration_paths_put: {
+    parameters: {
+      path: {
+        pi_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["PIIterationPaths"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["PIIterationPathsResponse"];
         };
       };
       /** @description Validation Error */

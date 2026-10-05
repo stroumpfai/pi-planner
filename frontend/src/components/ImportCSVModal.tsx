@@ -8,6 +8,7 @@ import type { DateFormat, DateFormatDetection } from '@/utils/dateFormat'
 import { DateFormatChoice } from './DateFormatChoice'
 import type { DateSample } from './DateFormatChoice'
 import { useCsvImport, useCsvDryRun } from '@/hooks/useCsvImport'
+import { useAnyIterationPath } from '@/hooks/useSprints'
 import type { CsvImportResult, CsvImportRequest, Feature, PBI, PI, PlannedChange } from '@/types'
 
 interface Props {
@@ -511,10 +512,11 @@ function ReparentPanel({
  * DevOps already schedules is the reason to import the column at all.
  */
 function IterationPanel({
-  rowCount, mappedPIs, apply, onToggle,
+  rowCount, anyPathSet, apply, onToggle,
 }: {
   readonly rowCount: number
-  readonly mappedPIs: number
+  /** Whether a PI or sprint has a path to match; undefined while loading. */
+  readonly anyPathSet: boolean | undefined
   readonly apply: boolean
   readonly onToggle: (v: boolean) => void
 }) {
@@ -536,10 +538,10 @@ function IterationPanel({
           </span>
         </span>
       </label>
-      {apply && mappedPIs === 0 && (
+      {apply && anyPathSet === false && (
         <p className="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded px-2 py-1">
-          No PI in this project has an iteration path yet, so nothing can be placed. Set them in
-          Edit PI first.
+          No PI or sprint in this project has an iteration path yet, so nothing can be placed.
+          Set them in Edit PI first.
         </p>
       )}
     </div>
@@ -900,6 +902,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
 
   const importMutation = useCsvImport(projectId)
   const dryRunMutation = useCsvDryRun(projectId)
+  const anyPathSet = useAnyIterationPath(pis)
 
   // Project data is read when the file is parsed, but must not re-trigger the
   // parse: a successful import invalidates the features/pbis queries, and the
@@ -1144,7 +1147,7 @@ export function ImportCSVModal({ open, projectId, file, features, pbis, pis, onC
                   {preview.hasIterationColumn && preview.iterationCount > 0 && !preview.hasErrors && (
                     <IterationPanel
                       rowCount={preview.iterationCount}
-                      mappedPIs={pis.filter((p) => p.iteration_path).length}
+                      anyPathSet={anyPathSet}
                       apply={applyIterations}
                       onToggle={setApplyIterations}
                     />

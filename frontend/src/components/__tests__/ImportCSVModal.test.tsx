@@ -5,10 +5,14 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ImportCSVModal } from '../ImportCSVModal'
 import { useCsvImport, useCsvDryRun } from '@/hooks/useCsvImport'
 import * as csvParser from '@/utils/csvParser'
-import type { Feature, PBI, PI } from '@/types'
+import * as sprintsService from '@/services/sprints'
+import type { Feature, PBI, PI, Sprint } from '@/types'
 import type { DateFormat } from '@/utils/dateFormat'
 
 vi.mock('@/hooks/useCsvImport')
+vi.mock('@/services/sprints', () => ({
+  sprintsApi: { list: vi.fn(), update: vi.fn(), create: vi.fn() },
+}))
 // Only the file-reading entry points are faked; selectImportRows stays real so the
 // tests exercise the actual remove-with-parent rules.
 vi.mock('@/utils/csvParser', async (importOriginal) => ({
@@ -105,6 +109,7 @@ beforeEach(() => {
     { mutateAsync: dryRun } as unknown as ReturnType<typeof useCsvDryRun>,
   )
   vi.mocked(csvParser.parseImportCSV).mockReturnValue(fakeParseResult)
+  vi.mocked(sprintsService.sprintsApi.list).mockResolvedValue([])
   vi.mocked(csvParser.buildPreview).mockReturnValue(fakePreview)
   vi.mocked(csvParser.completedOnFor).mockImplementation(fakeCompletedOnFor)
 })
@@ -968,9 +973,20 @@ describe('ImportCSVModal', () => {
       expect(mutateAsync).toHaveBeenCalledWith(expect.objectContaining({ apply_iterations: false }))
     })
 
-    it('warns when no PI has an iteration path to match', async () => {
+    it('warns when no PI or sprint has an iteration path to match', async () => {
+      vi.mocked(sprintsService.sprintsApi.list).mockResolvedValue([])
       renderIterations([{ ...mappedPI, iteration_path: null }])
-      expect(await screen.findByText(/no pi in this project has an iteration path yet/i)).toBeInTheDocument()
+      expect(await screen.findByText(/no pi or sprint in this project has an iteration path yet/i)).toBeInTheDocument()
+    })
+
+    it('does not warn when only sprints have iteration paths', async () => {
+      vi.mocked(sprintsService.sprintsApi.list).mockResolvedValue([
+        { system_id: 's-1', sprint_index: 0, iteration_path: 'Planner\\PI 08\\Sprint 1' } as unknown as Sprint,
+      ])
+      renderIterations([{ ...mappedPI, iteration_path: null }])
+      await screen.findByRole('checkbox', { name: /place items on the pi board/i })
+      await waitFor(() => expect(sprintsService.sprintsApi.list).toHaveBeenCalledWith('pi-8'))
+      expect(screen.queryByText(/has an iteration path yet/i)).not.toBeInTheDocument()
     })
 
     it('shows no panel for a file without the column', async () => {

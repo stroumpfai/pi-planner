@@ -6,6 +6,7 @@ import type { AxiosError } from 'axios'
 import { useUpdatePI } from '@/hooks/usePIs'
 import { useSprints } from '@/hooks/useSprints'
 import { useTeamCapacityStatus, statusFor } from '@/hooks/useTeamPush'
+import { pisApi } from '@/services/pis'
 import { sprintsApi } from '@/services/sprints'
 import { DateInput } from './DateInput'
 import type { PI, Sprint } from '@/types'
@@ -90,6 +91,18 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
   const onSubmit = async (values: PIFormValues) => {
     setError(null)
     try {
+      // Paths first, all in one request: they are unique across the PI and its
+      // sprints, so saving them row by row cannot move a path from a sprint to
+      // the PI or swap two sprints'. A clash here refuses the save before
+      // anything else is written.
+      await pisApi.setIterationPaths(pi.system_id, {
+        iteration_path: values.iteration_path || null,
+        sprints: sprintRows.map((row) => ({
+          system_id: row.system_id,
+          iteration_path: row.iteration_path || null,
+        })),
+      })
+
       await updatePI.mutateAsync({
         piId: pi.system_id,
         body: {
@@ -97,7 +110,6 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
           description: values.description || null,
           start_date: values.start_date || null,
           end_date: values.end_date || null,
-          iteration_path: values.iteration_path || null,
         },
       })
 
@@ -109,7 +121,6 @@ export function EditPIModal({ open, pi, projectId, onClose }: Props) {
               : { available: Number.parseInt(row.available, 10) || 0 }),
             start_date: row.start_date || null,
             end_date: row.end_date || null,
-            iteration_path: row.iteration_path || null,
           })
         )
       )

@@ -72,6 +72,8 @@ export type MeetingUpdate = components['schemas']['MeetingUpdate']
 export type PI = components['schemas']['PIResponse'] & { total_effort: number; total_available: number }
 export type PICreate = components['schemas']['PICreate']
 export type PIUpdate = components['schemas']['PIUpdate']
+export type PIIterationPaths = components['schemas']['PIIterationPaths']
+export type PIIterationPathsResponse = components['schemas']['PIIterationPathsResponse']
 export type PIState = 'draft' | 'in_progress' | 'closed'
 
 export type PIEvent = components['schemas']['PIEventResponse']

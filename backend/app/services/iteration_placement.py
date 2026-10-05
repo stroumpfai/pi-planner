@@ -112,6 +112,49 @@ async def iteration_path_taken(
     return any(normalise_iteration_path(p) == key for p in sprint_paths)
 
 
+async def first_conflicting_path(
+    db: AsyncSession, project_id: str, pi_id: str, paths: list[str | None]
+) -> str | None:
+    """The first of a PI's intended paths that is not unique, or None when all are.
+
+    ``paths`` is the PI's whole intended set — its own path and every sprint's —
+    so this PI and its sprints are judged by ``paths`` alone, never by what they
+    hold now. That is what lets a path move between them, or two sprints swap,
+    in one write. A path repeated within ``paths`` conflicts with itself.
+    """
+    seen: set[str] = set()
+    for path in paths:
+        key = normalise_iteration_path(path)
+        if not key:
+            continue
+        if key in seen:
+            return path
+        seen.add(key)
+    if not seen:
+        return None
+
+    other_pis = (await db.execute(
+        select(PI.system_id, PI.iteration_path).where(
+            PI.project_id == project_id, PI.system_id != pi_id
+        )
+    )).all()
+    taken = {normalise_iteration_path(p) for _, p in other_pis}
+    if other_pis:
+        taken.update(
+            normalise_iteration_path(p)
+            for p in (await db.execute(
+                select(Sprint.iteration_path).where(
+                    Sprint.pi_id.in_([sid for sid, _ in other_pis]),
+                    Sprint.iteration_path.is_not(None),
+                )
+            )).scalars().all()
+        )
+    for path in paths:
+        if normalise_iteration_path(path) in taken - {""}:
+            return path
+    return None
+
+
 class Outcome(NamedTuple):
     action: str | None
     """"placed", "skipped", or None when the item is already where the path says."""

@@ -2418,6 +2418,75 @@
         }
       }
     },
+    "/api/v1/pis/{pi_id}/iteration-paths": {
+      "put": {
+        "tags": [
+          "pis"
+        ],
+        "summary": "Set Iteration Paths",
+        "description": "Set a PI's iteration path and its sprints' paths in one transaction.\n\nSaving them one row at a time cannot move a path from a sprint to the PI, or\nswap two sprints' paths: whichever row saves first collides with the other's\nold value. Checking the whole intended set at once also stops two rows of the\nsame edit both claiming one path, which separate requests can each let past.",
+        "operationId": "set_iteration_paths_api_v1_pis__pi_id__iteration_paths_put",
+        "parameters": [
+          {
+            "name": "pi_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Pi Id"
+            }
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PIIterationPaths"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PIIterationPathsResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/pis/{pi_id}/export/csv": {
       "get": {
         "tags": [
@@ -12307,6 +12376,60 @@
         "type": "object",
         "title": "PIEventUpdate"
       },
+      "PIIterationPaths": {
+        "properties": {
+          "iteration_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iteration Path"
+          },
+          "sprints": {
+            "items": {
+              "$ref": "#/components/schemas/SprintIterationPath"
+            },
+            "type": "array",
+            "title": "Sprints"
+          }
+        },
+        "type": "object",
+        "title": "PIIterationPaths",
+        "description": "A PI's path and its sprints' paths, written together.\n\nSprints left out of ``sprints`` keep the path they have. Uniqueness is checked\nover the result as a whole, so a path can move between the PI and its sprints,\nor two sprints can swap, in one save."
+      },
+      "PIIterationPathsResponse": {
+        "properties": {
+          "iteration_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iteration Path"
+          },
+          "sprints": {
+            "items": {
+              "$ref": "#/components/schemas/SprintIterationPath"
+            },
+            "type": "array",
+            "title": "Sprints"
+          }
+        },
+        "type": "object",
+        "required": [
+          "iteration_path",
+          "sprints"
+        ],
+        "title": "PIIterationPathsResponse"
+      },
       "PIResponse": {
         "properties": {
           "system_id": {
@@ -14169,6 +14292,31 @@
           "created_by"
         ],
         "title": "SnapshotResponse"
+      },
+      "SprintIterationPath": {
+        "properties": {
+          "system_id": {
+            "type": "string",
+            "title": "System Id"
+          },
+          "iteration_path": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 255
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Iteration Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "system_id"
+        ],
+        "title": "SprintIterationPath"
       },
       "SprintResponse": {
         "properties": {

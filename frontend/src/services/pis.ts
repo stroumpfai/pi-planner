@@ -1,5 +1,5 @@
 import { api } from './api'
-import type { PI, PICreate, PIUpdate } from '@/types'
+import type { PI, PICreate, PIIterationPaths, PIIterationPathsResponse, PIUpdate } from '@/types'
 
 export const pisApi = {
   list: (projectId: string) =>
@@ -13,6 +13,11 @@ export const pisApi = {
 
   update: (piId: string, body: PIUpdate) =>
     api.patch<PI>(`/pis/${piId}`, body).then((r) => r.data),
+
+  // The PI's path and its sprints' paths in one transaction, checked as a whole,
+  // so a path can move between them or two sprints can swap in one save.
+  setIterationPaths: (piId: string, body: PIIterationPaths) =>
+    api.put<PIIterationPathsResponse>(`/pis/${piId}/iteration-paths`, body).then((r) => r.data),
 
   delete: (piId: string) =>
     api.delete(`/pis/${piId}`),

@@ -26,6 +26,28 @@ class PIUpdate(BaseModel):
     iteration_path: IterationPath = None
 
 
+class SprintIterationPath(BaseModel):
+    system_id: str
+    iteration_path: IterationPath = None
+
+
+class PIIterationPaths(BaseModel):
+    """A PI's path and its sprints' paths, written together.
+
+    Sprints left out of ``sprints`` keep the path they have. Uniqueness is checked
+    over the result as a whole, so a path can move between the PI and its sprints,
+    or two sprints can swap, in one save.
+    """
+
+    iteration_path: IterationPath = None
+    sprints: list[SprintIterationPath] = Field(default_factory=list)
+
+
+class PIIterationPathsResponse(BaseModel):
+    iteration_path: str | None
+    sprints: list[SprintIterationPath]
+
+
 class PIResponse(BaseModel):
     system_id: str
     project_id: str
