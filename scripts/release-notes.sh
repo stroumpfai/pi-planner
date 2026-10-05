@@ -108,9 +108,12 @@ awk -v newbullets="$commits_file" '
       injected = 1
     }
   }
-' "$FILE" | sed "s/<!-- since: $marker/<!-- since: $head_sha/" > "$tmp_out"
+' "$FILE" | sed "s/<!-- since: [0-9a-f]\{7,40\}/<!-- since: $head_sha/" > "$tmp_out"
 
 # The marker must only move when the commits were written, or they are lost.
+# It is the *file's* marker that moves, not "$marker": after --since the two
+# differ, and matching on "$marker" would leave the file's marker where it was,
+# so the next plain run would append the same commits again.
 n="$(wc -l < "$commits_file" | tr -d ' ')"
 written="$(grep -cFx -f "$commits_file" "$tmp_out" || true)"
 if (( written < n )); then

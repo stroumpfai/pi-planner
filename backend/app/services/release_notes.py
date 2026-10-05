@@ -2,8 +2,10 @@
 
 The file is hand-authored (see scripts/release-notes.sh): a `<!-- since: <sha> -->`
 marker comment, then '## ' headings ("Unreleased", or "1.14.0 — 2026-10-05") each
-followed by '- ' bullet lines. This module only reads that shape — it never writes
-the file.
+followed by '- ' bullet lines. A heading of any level starts a section, the same
+rule scripts/release-notes.sh uses to close "Unreleased" — a hand-written
+'# Version 1.14' must not fold its bullets into the section above it. This module
+only reads that shape — it never writes the file.
 """
 
 import re
@@ -12,7 +14,7 @@ from pathlib import Path
 from app.schemas.release_notes import ReleaseNoteEntry
 
 _COMMENT_RE = re.compile(r"<!--.*?-->", re.DOTALL)
-_HEADING_RE = re.compile(r"^## (.+)$", re.MULTILINE)
+_HEADING_RE = re.compile(r"^#+[ \t]+(.+)$", re.MULTILINE)
 
 
 def parse_release_notes(text: str) -> list[ReleaseNoteEntry]:

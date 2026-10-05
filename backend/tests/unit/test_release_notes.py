@@ -34,6 +34,17 @@ def test_parses_unreleased_and_shipped_sections():
     ]
 
 
+def test_any_heading_level_starts_a_section():
+    # scripts/release-notes.sh closes "Unreleased" at a heading of any level;
+    # the parser must agree, or a '# Version' section reads as unreleased.
+    entries = parse_release_notes(
+        "## Unreleased\n\n- New thing\n\n# Version 1.14\n- Shipped thing\n"
+    )
+    assert [e.version for e in entries] == ["Unreleased", "Version 1.14"]
+    assert entries[0].notes == ["New thing"]
+    assert entries[1].notes == ["Shipped thing"]
+
+
 def test_strips_marker_comment():
     entries = parse_release_notes(FIXTURE)
     for entry in entries:
