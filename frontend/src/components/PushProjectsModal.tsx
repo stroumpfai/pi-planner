@@ -288,6 +288,14 @@ function ProjectPreview({ preview, error, fallbackName, included }: PreviewProps
         <span>Δ</span>
         <span>behind it</span>
       </div>
+      {/* A scoped project's PD is its members', not the team's — say whose, or
+          "behind it" reads as a team figure that does not add up (ADR 0009). */}
+      {preview.all_members === false && (
+        <p className="px-3 py-1 text-[11px] text-gray-500 dark:text-gray-400 bg-band/20">
+          Counts only{' '}
+          {(preview.member_names ?? []).length > 0 ? (preview.member_names ?? []).join(', ') : 'nobody'}
+        </p>
+      )}
       <ul className="divide-y divide-white/60 dark:divide-white/10">
         {preview.sprints.map((row) => (
           <ReviewRow key={row.sprint_id} row={row} unit={preview.effort_unit} />

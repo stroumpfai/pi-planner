@@ -75,7 +75,35 @@ describe('Team capacity', () => {
     cy.contains('80.0 h').should('be.visible')
   })
 
-  it('expands a cell into the chain that produced the number', () => {
+  it('counts only the members a project is assigned to (ADR 0009)', () => {
+    // Bruno works elsewhere; the Portal counts Marta alone.
+    cy.request('GET', '/api/v1/teams').then((teams) => {
+      cy.request('POST', `/api/v1/teams/${teams.body[0].system_id}/members`, {
+        name: 'Bruno Keller',
+        pattern: { effective_from: '2026-01-01' },
+      })
+    })
+    cy.reload()
+    cy.openTeam('Platform')
+
+    capacityTab('Projects').click()
+    cy.contains('button', /^\+ Assign project$/).click()
+    capacityDialog().find('select[name="project_id"]').select('ISK Portal')
+    capacityDialog().contains('label', 'Only these members').click()
+    capacityDialog().contains('label', 'Marta Lindqvist').click()
+    capacityDialog().contains('button', /^Assign project$/).click()
+
+    cy.contains('li', 'ISK Portal').should('contain', 'counts Marta Lindqvist')
+
+    capacityTab('Capacity').click()
+    // The team is 20 PD; the Portal gets Marta's 10.
+    cy.contains('tr', /^Team/).should('contain', '20.0 PD')
+    cy.contains('tr', 'ISK Portal')
+      .should('contain', '100% of Marta Lindqvist')
+      .and('contain', '10.0 PD')
+  })
+
+    it('expands a cell into the chain that produced the number', () => {
     cy.request('GET', '/api/v1/teams').then((teams) => {
       cy.request('GET', '/api/v1/projects/').then((projects) => {
         cy.request('POST', `/api/v1/teams/${teams.body[0].system_id}/projects`, {
@@ -142,7 +170,8 @@ describe('Team capacity', () => {
     capacityTab('Projects').click()
 
     // Warn, never block: both assignments are still there (§6.3).
-    cy.contains('Shares total 140% — this team is over-allocated').should('be.visible')
+    // Both projects count the whole team, so Marta carries both shares.
+    cy.contains('Over-allocated: Marta Lindqvist 140%').should('be.visible')
     cy.get('li').filter(':contains("ISK Portal"), :contains("Data Exchange")').should('have.length', 2)
   })
 

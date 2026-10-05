@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
+import { MemberScopeField } from '@/components/MemberScopeField'
 import { useUpdateAssignment } from '@/hooks/useTeamProjects'
 import { useProjectVelocity } from '@/hooks/useTeamAchievement'
 import { assignmentErrorCode } from '@/services/teamProjects'
@@ -27,6 +28,8 @@ export function EditAssignmentModal({ open, teamId, assignment, onClose }: Props
   const update = useUpdateAssignment(teamId)
 
   const [sharePct, setSharePct] = useState(String(assignment.share_pct))
+  const [allMembers, setAllMembers] = useState<boolean>(assignment.all_members ?? true)
+  const [memberIds, setMemberIds] = useState<string[]>(assignment.member_ids ?? [])
   const [source, setSource] = useState<'manual' | 'factor'>(
     assignment.available_source === 'factor' ? 'factor' : 'manual',
   )
@@ -44,6 +47,12 @@ export function EditAssignmentModal({ open, teamId, assignment, onClose }: Props
   const measured = velocity.data
   const usedSprints = measured?.sprints.length ?? 0
 
+  const initialIds = assignment.member_ids ?? []
+  const scopeChanged =
+    allMembers !== (assignment.all_members ?? true) ||
+    (!allMembers &&
+      (memberIds.length !== initialIds.length || memberIds.some((id, i) => id !== initialIds[i])))
+
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     setError(null)
@@ -56,6 +65,8 @@ export function EditAssignmentModal({ open, teamId, assignment, onClose }: Props
           share_pct: Number(sharePct),
           available_source: source,
           units_per_pd: Number(unitsPerPd),
+          // The scope only when it moved, so a share edit stays a share edit.
+          ...(scopeChanged ? { all_members: allMembers, member_ids: allMembers ? [] : memberIds } : {}),
         },
       })
       onClose()
@@ -81,9 +92,16 @@ export function EditAssignmentModal({ open, teamId, assignment, onClose }: Props
           </Dialog.Title>
 
           <form onSubmit={onSubmit} className="mt-4 space-y-4">
+            <MemberScopeField
+              teamId={teamId}
+              allMembers={allMembers}
+              memberIds={memberIds}
+              onChange={(all, ids) => { setAllMembers(all); setMemberIds(ids) }}
+            />
+
             <div>
               <label htmlFor="edit-share" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Share of the team
+                {allMembers ? 'Share of the team' : 'Share of these members'}
               </label>
               <div className="mt-1 flex items-center gap-2">
                 <input

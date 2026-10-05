@@ -30,6 +30,7 @@ from app.schemas.team_capacity import (
     TeamCapacityResponse,
 )
 from app.services.absences import build_lookup, load_absences
+from app.services.assignment_scope import EVERYONE, load_scopes
 from app.services.holidays import holiday_lookup
 from app.services.meetings import build_lookup as build_meeting_lookup
 from app.services.meetings import load_meetings
@@ -231,6 +232,9 @@ async def build_report(
 
     rows: list[MemberCapacityRow] = []
     per_sprint: list[list[CapacityBreakdown]] = [[] for _ in columns]
+    # The counting members' PD per sprint, by member, so that a project counting
+    # only some of them can sum just those (§6.3, ADR 0009).
+    member_pd: list[dict[str, float]] = [{} for _ in columns]
     for row, member in members:
         cells: list[CapacityBreakdown | None] = []
         for index, column in enumerate(columns):
@@ -255,6 +259,7 @@ async def build_report(
             # minimap bars that read off the team row (§3.2, §7.6).
             if member.counts_towards_capacity:
                 per_sprint[index].append(breakdown)
+                member_pd[index][member.member_id] = breakdown.person_days
             cells.append(breakdown)
         rows.append(
             MemberCapacityRow(
@@ -270,19 +275,29 @@ async def build_report(
         for index, column in enumerate(columns)
     ]
 
+    scopes = await load_scopes(db, [assignment for assignment, _ in assignments])
+    member_order = [row.system_id for row, _ in members]
     projects: list[ProjectCapacityRow] = []
     for assignment, project in assignments:
+        scope = scopes.get(assignment.system_id, EVERYONE)
         share = assignment.share_pct / 100
         person_days: list[float | None] = []
         units: list[float | None] = []
         proposed: list[int | None] = []
-        for cell in team_cells:
+        for index, cell in enumerate(team_cells):
             if cell is None:
                 person_days.append(None)
                 units.append(None)
                 proposed.append(None)
                 continue
-            share_pd = cell.person_days * share
+            # The whole team reads the team row itself, so an unscoped project is
+            # the same number to the last decimal as before scopes existed.
+            scoped_pd = (
+                cell.person_days
+                if scope.all_members
+                else sum(pd for m, pd in member_pd[index].items() if scope.counts_for(m))
+            )
+            share_pd = scoped_pd * share
             in_units = share_pd * assignment.units_per_pd
             person_days.append(share_pd)
             units.append(in_units)
@@ -299,6 +314,8 @@ async def build_report(
                 share_pct=assignment.share_pct,
                 available_source=assignment.available_source,
                 units_per_pd=assignment.units_per_pd,
+                all_members=scope.all_members,
+                member_ids=[m for m in member_order if m in scope.member_ids],
                 person_days=person_days,
                 units=units,
                 proposed_available=proposed,

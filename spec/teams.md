@@ -608,10 +608,47 @@ permanently — this is not a migration that can be finished.
 Each project assignment carries **`share_pct`, an integer 1–100**. The team's capacity for
 that project is `team_PD(s) × share_pct / 100`.
 
-If a team's shares sum to **more than 100%**, show an amber over-allocation warning on the
-team and on every affected project — **warn, do not block**. Teams really are overcommitted,
-and a planner that refuses to represent the situation it exists to reveal is worse than one
-that colours it amber. Under 100% is normal (slack, unassigned work) and is not flagged.
+#### Counting only some members
+
+An assignment counts **the whole team** by default. It can instead count **only listed
+members** (`all_members = false` plus a `team_project_members` join), and the share then
+applies to their PD alone:
+
+`project_PD(s) = Σ member_PD(m, s) over the listed members that count towards capacity × share_pct / 100`
+
+This is how one team holds people who work on one project exclusively. Anna and Bruno only
+on the Portal, Carla and Dario covering Billing and Search: the Portal counts {Anna, Bruno}
+at 100%, Billing and Search count {Carla, Dario} at 60% and 40%. Meetings, absences, the
+holiday calendars and the anchor calendar all stay with the one team, which is what splitting
+it into two teams would have cost (ADR 0009).
+
+- **"Everyone" is a flag, not an empty list.** Deleting the last listed member leaves the
+  assignment scoped to nobody, and the project reads **0 PD** — visibly, rather than silently
+  receiving the whole team again.
+- **Not dated**, like `counts_towards_capacity` (ADR 0005): changing who an assignment counts
+  restates every sprint the Capacity view and Achievement show, closed ones included. Sprint
+  Available is never rewritten — a derived project reads stale until someone pushes. Someone
+  who moves from one group to the other on a date is recorded as two memberships
+  (`active_to`, then a new member), exactly as in §3.2.
+- A listed member who does not count towards capacity (§3.2) adds nothing; the UI does not
+  offer them for listing.
+- The team row of the Capacity view is unchanged — it is still every counting member.
+- Only members of the team can be listed: anyone else is a 422 naming them, never a silent
+  drop.
+
+#### Over-allocation is per member
+
+A member's **load** is the sum of `share_pct` over every assignment that counts them. If
+any current, counting member's load is **more than 100%**, show an amber over-allocation
+warning naming them, on the team and on the Projects tab — **warn, do not block**. Teams
+really are overcommitted, and a planner that refuses to represent the situation it exists to
+reveal is worse than one that colours it amber. Under 100% is normal (slack, unassigned work)
+and is not flagged.
+
+When every assignment counts the whole team, every member's load is the team's shares
+summed — the same rule as before scopes existed. Once some count only some members, the
+team-wide sum is nobody's load (the example above sums to 200% with nobody over), so the
+warning reads the per-member figure the API returns as `member_loads`.
 
 ### 6.4 Translating PD into the project's effort unit
 
@@ -1242,7 +1279,9 @@ REST.
 | Meeting on an absent or non-contracted half-day | Not deducted |
 | Overlapping absences | Counted once |
 | Sprints overlapping each other in one PI | Capacity counted in both; alignment check flags it |
-| `share_pct` sum > 100 | Amber warning on team and projects; never blocked |
+| A member's load (Σ `share_pct` of the assignments counting them) > 100 | Amber warning naming them, on the team and its Projects tab; never blocked |
+| Last listed member of a scoped assignment deleted | Assignment stays scoped to nobody and reads 0 PD; never reverts to the whole team (§6.3) |
+| Served project deleted | Its assignment and scope go with it; the team's viewers hear `team:project:unassigned` |
 | Push while another user holds the project lock | 409 with `locked_by` / `expires_at`; project stays stale, nothing partially written |
 | Push to a team's projects, one of them locked | Others still apply; result lists the failure per project (§6.7) |
 | Push with nothing changed | No write, reports no changes; safe to repeat |
@@ -1271,6 +1310,7 @@ No open questions remain. The ones that shaped this document, and how they were 
 |----------|----------|-------|
 | Team capacity vs. the board's capacity number | Sprint keeps the project's effort unit; `capacity` renamed **Available**; team PD translates into it | §6.2, §6.4 |
 | Splitting a team across projects | **Team-level `share_pct`** per project assignment | §6.3 |
+| Some members working on one project only | An assignment **counts the whole team or only listed members**; the share applies to them; over-allocation is per member (ADR 0009) | §6.3 |
 | Meetings vs. focus double-counting | Meetings subtract **before** focus | §5.4 |
 | Edit-lock scope for cross-project teams | No lock change — team routes fall outside it by construction; one explicit push meets the existing lock | §4.1 |
 | Team-data concurrency | **`If-Match` from the start**, `412` on mismatch — not last-write-wins, not a team lock | §4.2 |

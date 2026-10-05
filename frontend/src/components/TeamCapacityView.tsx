@@ -319,7 +319,12 @@ export function TeamCapacityView({ teamId, onOpenProjects }: Props) {
             </tr>
 
             {data.projects.map((project) => (
-              <ProjectRow key={project.project_id} project={project} indices={indices} />
+              <ProjectRow
+                key={project.project_id}
+                project={project}
+                indices={indices}
+                counted={countedNames(project, data.members)}
+              />
             ))}
 
             {notCounted.length > 0 && (
@@ -391,6 +396,19 @@ function MemberRow({ member, sprints, indices, normalDayHours, expanded, onToggl
 interface ProjectRowProps {
   readonly project: ProjectCapacityRow
   readonly indices: readonly number[]
+  /** Who the row's PD comes from, when the project counts only some members. */
+  readonly counted: string | null
+}
+
+/** "Anna, Bruno" for a project scoped to them; null when it counts the whole team. */
+function countedNames(
+  project: ProjectCapacityRow,
+  members: readonly { member_id: string; name: string }[],
+): string | null {
+  if (project.all_members ?? true) return null
+  const ids = new Set(project.member_ids ?? [])
+  const names = members.filter((m) => ids.has(m.member_id)).map((m) => m.name)
+  return names.length > 0 ? names.join(', ') : 'nobody'
 }
 
 /**
@@ -401,14 +419,15 @@ interface ProjectRowProps {
  * number lies about its own outcome. A `manual` project shows the same figure
  * marked as a reference: nothing flows into it until someone changes that.
  */
-function ProjectRow({ project, indices }: ProjectRowProps) {
+function ProjectRow({ project, indices, counted }: ProjectRowProps) {
   const derived = project.available_source === 'factor'
   return (
     <tr className="bg-band/20">
       <th scope="row" className="px-4 py-2 text-left">
         <span className="block text-xs font-medium text-gray-700 dark:text-gray-200">{project.name}</span>
         <span className="block text-[11px] text-gray-400 dark:text-gray-500">
-          {project.share_pct}% · {derived ? `${project.units_per_pd} ${project.effort_unit}/PD` : 'manual'}
+          {project.share_pct}%{counted !== null && ` of ${counted}`} ·{' '}
+          {derived ? `${project.units_per_pd} ${project.effort_unit}/PD` : 'manual'}
         </span>
       </th>
       {indices.map((index) => {

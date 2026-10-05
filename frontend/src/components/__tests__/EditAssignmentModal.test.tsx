@@ -8,6 +8,15 @@ import { achievementApi } from '@/services/achievement'
 import type { ProjectVelocity, TeamAssignment } from '@/types'
 
 vi.mock('@/hooks/useTeamProjects')
+vi.mock('@/hooks/useTeamMembers', () => ({
+  useTeamMembers: () => ({
+    data: [
+      { system_id: 'm-1', name: 'Anna', counts_towards_capacity: true },
+      { system_id: 'm-2', name: 'Bruno', counts_towards_capacity: true },
+      { system_id: 'm-3', name: 'Pia', counts_towards_capacity: false },
+    ],
+  }),
+}))
 vi.mock('@/services/achievement', () => ({
   achievementApi: { get: vi.fn(), velocity: vi.fn() },
 }))
@@ -78,6 +87,35 @@ describe('EditAssignmentModal', () => {
     expect(screen.getByRole('spinbutton', { name: /share of the team/i })).toHaveValue(60)
     expect(screen.getByRole('radio', { name: /derived from the team/i })).toBeChecked()
     expect(factorInput()).toHaveValue(1.5)
+  })
+
+  it('leaves the scope out of a save that did not change it', async () => {
+    mutateAsync.mockResolvedValue({})
+    renderModal()
+
+    await userEvent.clear(screen.getByLabelText('Share of the team'))
+    await userEvent.type(screen.getByLabelText('Share of the team'), '50')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled())
+    const { body } = mutateAsync.mock.calls[0][0]
+    expect(body).not.toHaveProperty('all_members')
+    expect(body).not.toHaveProperty('member_ids')
+  })
+
+  it('sends the new scope when members are ticked', async () => {
+    mutateAsync.mockResolvedValue({})
+    renderModal()
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Only these members' }))
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Bruno' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled())
+    expect(mutateAsync.mock.calls[0][0].body).toMatchObject({
+      all_members: false,
+      member_ids: ['m-2'],
+    })
   })
 
   it('saves the typed factor', async () => {

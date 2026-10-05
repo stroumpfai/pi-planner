@@ -28,6 +28,7 @@ from app.models import (
     TeamHolidayCalendar,
     TeamMember,
     TeamProject,
+    TeamProjectMember,
 )
 from app.models.user import User
 
@@ -53,6 +54,7 @@ async def reset_database(
         Meeting,
         Absence,
         MemberPatternVersion,
+        TeamProjectMember,
         TeamProject,
         TeamMember,
         Team,

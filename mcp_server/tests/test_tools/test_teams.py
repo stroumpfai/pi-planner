@@ -880,6 +880,71 @@ async def test_update_assignment_quotes_the_etag_of_the_row_it_read(
     _assert_no_lock_calls(mock_backend)
 
 
+async def test_assign_project_scopes_to_the_named_members(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    _list_members_mock(mock_backend)
+    mock_backend.post(f"/api/v1/teams/{TEAM_ID}/projects").mock(
+        return_value=httpx.Response(201, json=ASSIGNMENT)
+    )
+    await assign_project(
+        team_id=TEAM_ID, project_id=PROJECT_ID, member_names=["aïcha ben salah"], ctx=mock_ctx,
+    )
+    assert _last_call_body(mock_backend, "POST") == {
+        "project_id": PROJECT_ID,
+        "all_members": False,
+        "member_ids": [MEMBER_ID],
+    }
+
+
+async def test_assign_project_refuses_an_unknown_member_before_posting(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    # No POST is mocked: the fixture fails any request it was not told about, so
+    # this also proves nothing was sent.
+    _list_members_mock(mock_backend)
+    with pytest.raises(ValueError) as exc:
+        await assign_project(
+            team_id=TEAM_ID, project_id=PROJECT_ID, member_names=["Nobody"], ctx=mock_ctx,
+        )
+    assert "Aïcha Ben Salah" in str(exc.value)
+
+
+async def test_update_assignment_replaces_the_scope_with_the_named_members(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    _list_members_mock(mock_backend)
+    mock_backend.get(f"/api/v1/teams/{TEAM_ID}/projects").mock(
+        return_value=httpx.Response(200, json=[ASSIGNMENT])
+    )
+    mock_backend.patch(f"/api/v1/teams/{TEAM_ID}/projects/{PROJECT_ID}").mock(
+        return_value=httpx.Response(200, json=ASSIGNMENT)
+    )
+    await update_assignment(
+        team_id=TEAM_ID, project_id=PROJECT_ID, member_names=["Aïcha Ben Salah"], ctx=mock_ctx,
+    )
+    assert _last_call_body(mock_backend, "PATCH") == {
+        "all_members": False,
+        "member_ids": [MEMBER_ID],
+    }
+
+
+async def test_update_assignment_all_members_wins_over_names(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    mock_backend.get(f"/api/v1/teams/{TEAM_ID}/projects").mock(
+        return_value=httpx.Response(200, json=[ASSIGNMENT])
+    )
+    mock_backend.patch(f"/api/v1/teams/{TEAM_ID}/projects/{PROJECT_ID}").mock(
+        return_value=httpx.Response(200, json=ASSIGNMENT)
+    )
+    await update_assignment(
+        team_id=TEAM_ID, project_id=PROJECT_ID,
+        member_names=["Nobody"], all_members=True, ctx=mock_ctx,
+    )
+    assert _last_call_body(mock_backend, "PATCH") == {"all_members": True}
+
+
 async def test_update_assignment_rejects_a_project_the_team_does_not_serve(
     mock_backend, mock_ctx, patch_get_http_request
 ):

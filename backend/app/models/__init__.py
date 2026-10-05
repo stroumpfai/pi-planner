@@ -21,6 +21,7 @@ from app.models.team import (
     Team,
     TeamMember,
     TeamProject,
+    TeamProjectMember,
 )
 from app.models.user import User
 
@@ -48,6 +49,7 @@ __all__ = [
     "Meeting",
     "MeetingAttendee",
     "TeamProject",
+    "TeamProjectMember",
     "HolidayCalendar",
     "HolidayEntry",
     "TeamHolidayCalendar",

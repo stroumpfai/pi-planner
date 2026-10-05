@@ -2391,6 +2391,15 @@ export interface components {
       counts_towards_capacity?: boolean;
       pattern?: components["schemas"]["FirstPatternVersion"];
     };
+    /** MemberLoad */
+    MemberLoad: {
+      /** Member Id */
+      member_id: string;
+      /** Name */
+      name: string;
+      /** Share Pct */
+      share_pct: number;
+    };
     /** MemberReorder */
     MemberReorder: {
       /** Order */
@@ -3039,6 +3048,16 @@ export interface components {
       available_source: string;
       /** Units Per Pd */
       units_per_pd: number;
+      /**
+       * All Members
+       * @default true
+       */
+      all_members?: boolean;
+      /**
+       * Member Ids
+       * @default []
+       */
+      member_ids?: string[];
       /** Person Days */
       person_days: (number | null)[];
       /** Units */
@@ -3259,6 +3278,16 @@ export interface components {
       team_name: string;
       /** Share Pct */
       share_pct: number;
+      /**
+       * All Members
+       * @default true
+       */
+      all_members?: boolean;
+      /**
+       * Member Names
+       * @default []
+       */
+      member_names?: string[];
       /** Available Source */
       available_source: string;
       /** Units Per Pd */
@@ -3653,6 +3682,11 @@ export interface components {
         [key: string]: number;
       };
       /**
+       * Member Loads
+       * @default []
+       */
+      member_loads?: components["schemas"]["MemberLoad"][];
+      /**
        * Created At
        * Format: date-time
        */
@@ -3688,6 +3722,13 @@ export interface components {
        * @default 1
        */
       units_per_pd?: number;
+      /**
+       * All Members
+       * @default true
+       */
+      all_members?: boolean;
+      /** Member Ids */
+      member_ids?: string[];
     };
     /**
      * TeamProjectResponse
@@ -3710,6 +3751,16 @@ export interface components {
       available_source: string;
       /** Units Per Pd */
       units_per_pd: number;
+      /**
+       * All Members
+       * @default true
+       */
+      all_members?: boolean;
+      /**
+       * Member Ids
+       * @default []
+       */
+      member_ids?: string[];
       /**
        * Is Anchor
        * @default false
@@ -3739,6 +3790,10 @@ export interface components {
       available_source?: ("manual" | "factor") | null;
       /** Units Per Pd */
       units_per_pd?: number | null;
+      /** All Members */
+      all_members?: boolean | null;
+      /** Member Ids */
+      member_ids?: string[] | null;
     };
     /** TeamPushResponse */
     TeamPushResponse: {
@@ -3787,6 +3842,11 @@ export interface components {
       project_shares?: {
         [key: string]: number;
       };
+      /**
+       * Member Loads
+       * @default []
+       */
+      member_loads?: components["schemas"]["MemberLoad"][];
       /**
        * Created At
        * Format: date-time

@@ -9,6 +9,15 @@ import type { Project } from '@/types'
 
 vi.mock('@/hooks/useProjects')
 vi.mock('@/hooks/useTeamProjects')
+vi.mock('@/hooks/useTeamMembers', () => ({
+  useTeamMembers: () => ({
+    data: [
+      { system_id: 'm-1', name: 'Anna', counts_towards_capacity: true },
+      { system_id: 'm-2', name: 'Bruno', counts_towards_capacity: true },
+      { system_id: 'm-3', name: 'Pia', counts_towards_capacity: false },
+    ],
+  }),
+}))
 
 const makeWrapper = () => {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
@@ -99,6 +108,27 @@ describe('AssignProjectModal', () => {
     await submitWith(new Error('network'))
 
     expect(await screen.findByRole('alert')).toHaveTextContent(/please try again/i)
+  })
+
+  it('counts only the ticked members when asked to', async () => {
+    mutateAsync.mockResolvedValue({})
+    render(<AssignProjectModal {...defaultProps} />, { wrapper: makeWrapper() })
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /project/i }), 'p-1')
+    await userEvent.click(screen.getByRole('radio', { name: 'Only these members' }))
+    // Ticking nobody is allowed but said out loud: the project would get 0 PD.
+    expect(screen.getByRole('status')).toHaveTextContent(/no capacity at all/)
+    // Someone tracked for absences only brings nothing to count.
+    expect(screen.getByRole('checkbox', { name: /Pia/ })).toBeDisabled()
+    await userEvent.click(screen.getByRole('checkbox', { name: 'Anna' }))
+    expect(screen.getByLabelText('Share of these members')).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /^assign project$/i }))
+
+    await waitFor(() =>
+      expect(mutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ project_id: 'p-1', all_members: false, member_ids: ['m-1'] }),
+      ),
+    )
   })
 
   it('assigns the project when the API accepts it', async () => {

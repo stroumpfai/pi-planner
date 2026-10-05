@@ -18,6 +18,11 @@ doc explains the implementation; it does not replace the spec.
 - Team PD flows into a project as **Available** = `team_PD × share% × units_per_pd`,
   rounded to an integer only at that last step, and only written to a sprint when
   someone explicitly **pushes** it — never automatically.
+- An assignment can count **only some members** — for people who work on one
+  project exclusively. Its PD is then theirs × share%, not the team's
+  ([ADR 0009](adr/0009-an-assignment-can-count-only-some-members.md)), and
+  over-allocation is judged per member: the sum of the shares of the projects
+  that count them.
 - This is a **different feature** from the amber/red bar on the PI board
   (`CapacityBar`), which compares story points *used* against a sprint's Available
   *budget*. The two connect only through the push: team capacity computes

@@ -602,6 +602,17 @@ async def add_pattern_version(
 # with step 7.
 
 
+_SCOPE_NAMES = (
+    "Only these members' capacity reaches the project, by name as list_members "
+    "reports them — for people who work on this project exclusively, or a group "
+    "covering it. Leave unset to count the whole team."
+)
+_SCOPE_ALL = (
+    "true to count the whole team again (wins over member_names). Only needed to "
+    "undo an earlier member_names."
+)
+
+
 async def _assignment_of(team_id: str, project_id: str) -> dict:
     """This team's assignment for one project, with the ETag a PATCH must quote."""
     response = await call_backend("GET", f"/api/v1/teams/{team_id}/projects")
@@ -652,6 +663,9 @@ async def assign_project(
             ),
         ),
     ] = None,
+    member_names: Annotated[
+        list[str] | None, Field(default=None, min_length=1, max_length=50, description=_SCOPE_NAMES)
+    ] = None,
 ) -> dict:
     """
     Assign a team to a project.
@@ -664,9 +678,15 @@ async def assign_project(
     every capacity figure for this team is counted in. Assign the project whose
     PI dates the team actually plans against first.
 
-    Shares are per project and may sum past 100% across a team — that is an
+    Shares are per project and may sum past 100% for a member — that is an
     over-allocation warning in the UI, never a refusal, because teams really are
     overcommitted and the tool exists to show it.
+
+    By default the whole team's capacity counts. member_names narrows it: to model
+    two people who work only on project X while the rest cover everything else,
+    assign X with member_names=[those two] and share_pct=100, and the other
+    projects with member_names=[everyone else] and their shares. Unknown names
+    are refused — no tool creates a person implicitly.
 
     available_source defaults to 'manual', which changes nothing about the
     project: Available stays whatever a human typed. 'factor' makes it derivable,
@@ -681,6 +701,9 @@ async def assign_project(
         body["available_source"] = available_source
     if units_per_pd is not None:
         body["units_per_pd"] = units_per_pd
+    if member_names is not None:
+        body["all_members"] = False
+        body["member_ids"] = [await resolve_member_id(team_id, name) for name in member_names]
     return await call_backend("POST", f"/api/v1/teams/{team_id}/projects", json=body)
 
 
@@ -699,15 +722,22 @@ async def update_assignment(
         float | None,
         Field(default=None, gt=0, description="New effort units per person-day (factor projects)"),
     ] = None,
+    member_names: Annotated[
+        list[str] | None, Field(default=None, min_length=1, max_length=50, description=_SCOPE_NAMES)
+    ] = None,
+    all_members: Annotated[bool | None, Field(default=None, description=_SCOPE_ALL)] = None,
 ) -> dict:
     """
-    Change a project's share, conversion factor, or how its Available is produced.
+    Change a project's share, conversion factor, how its Available is produced,
+    or whose capacity counts for it.
 
     Only supply what you want to change. Switching to 'factor' makes Available
     derivable from the team; it does not write it — a push does, and the preview
     (preview_team_capacity) is where a wrong units_per_pd shows up as visibly
     wrong integers before anything is stored.
     Switching back to 'manual' leaves every sprint exactly as it stands.
+    member_names replaces the set of members counted for this project (it is
+    not added to); all_members=true counts the whole team again.
 
     Concurrency works as in update_team: the assignment is read and written inside
     one call, quoting the ETag from that read, and a STALE failure is retried once
@@ -724,6 +754,13 @@ async def update_assignment(
         body["available_source"] = available_source
     if units_per_pd is not None:
         body["units_per_pd"] = units_per_pd
+    # all_members wins over member_names, as it does for absences and meetings:
+    # an agent that says both means everyone (§8.2.4).
+    if all_members:
+        body["all_members"] = True
+    elif member_names is not None:
+        body["all_members"] = False
+        body["member_ids"] = [await resolve_member_id(team_id, name) for name in member_names]
 
     async def attempt() -> dict:
         assignment = await _assignment_of(team_id, project_id)

@@ -44,7 +44,9 @@ class PushSprintRow(BaseModel):
     proposed_available: int | None
     delta: int | None
     # "behind it" — the float chain that produced the integer, so a surprising
-    # proposal is traceable without opening the Capacity view.
+    # proposal is traceable without opening the Capacity view. team_person_days
+    # is the PD of the members this project counts: the whole team unless the
+    # assignment is scoped (§6.3, ADR 0009).
     team_person_days: float | None
     share_adjusted_person_days: float | None
     in_project_units: float | None
@@ -60,6 +62,10 @@ class PushPreview(BaseModel):
     team_id: str
     team_name: str
     share_pct: int
+    # Whose capacity the proposal is built from; ``member_names`` lists them, in
+    # display order, when ``all_members`` is off (§6.3, ADR 0009).
+    all_members: bool = True
+    member_names: list[str] = []
     available_source: str
     units_per_pd: float
     sprints: list[PushSprintRow]

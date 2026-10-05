@@ -4,11 +4,14 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { EditAssignmentModal } from '@/components/EditAssignmentModal'
 import { PushProjectsModal } from '@/components/PushProjectsModal'
 import { StalenessBadge } from '@/components/StalenessBadge'
+import { useTeamMembers } from '@/hooks/useTeamMembers'
 import { useTeamProjects, useUnassignProject } from '@/hooks/useTeamProjects'
+import { useTeams } from '@/hooks/useTeams'
 import { statusFor, useTeamCapacityStatus } from '@/hooks/useTeamPush'
 import { assignmentErrorCode } from '@/services/teamProjects'
 import { useAuthStore } from '@/stores/authStore'
 import type { TeamAssignment } from '@/types'
+import { groupLoads, overAllocated } from '@/utils/memberLoads'
 
 interface Props {
   readonly teamId: string
@@ -22,6 +25,12 @@ interface Props {
  * overcommitted, and a planner that refuses to represent the situation it exists
  * to reveal is worse than one that colours it amber. Under 100% is normal —
  * slack, unassigned work — and is not flagged at all.
+ *
+ * **The load is per member, not the team's shares summed.** A project can count
+ * only some members (ADR 0009) — two people on the Portal at 100%, everyone else
+ * on Billing and Search at 60/40 — and summing the team's shares would then read
+ * 200% for a team where nobody is over. The footer groups members by what the
+ * projects counting them add up to, and the warning names who is over.
  *
  * The first row is the **anchor**: its sprint calendar is what the Capacity view
  * counts in. That is worth a badge, because nothing else on screen would explain
@@ -44,8 +53,19 @@ export function TeamProjectsView({ teamId, teamName }: Props) {
   const [unassigning, setUnassigning] = useState<TeamAssignment | null>(null)
   const [unassignError, setUnassignError] = useState<string | null>(null)
 
+  const { data: teams } = useTeams()
+  const { data: members } = useTeamMembers(teamId)
+
   const rows = assignments ?? []
-  const totalShare = rows.reduce((sum, row) => sum + row.share_pct, 0)
+  const loads = teams?.find((t) => t.system_id === teamId)?.member_loads ?? []
+  const loadGroups = groupLoads(loads)
+  const over = overAllocated(loads)
+  const nameOf = new Map((members ?? []).map((m) => [m.system_id, m.name]))
+  const countedLabel = (row: TeamAssignment) => {
+    if (row.all_members ?? true) return 'whole team'
+    const names = (row.member_ids ?? []).map((id) => nameOf.get(id) ?? '…')
+    return names.length > 0 ? names.join(', ') : 'nobody — no capacity'
+  }
 
   const confirmUnassign = async () => {
     if (!unassigning) return
@@ -98,13 +118,13 @@ export function TeamProjectsView({ teamId, teamName }: Props) {
         </p>
       </div>
 
-      {totalShare > 100 && (
+      {over.length > 0 && (
         <p
           role="status"
           className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2"
         >
-          ⚠ Shares total {totalShare}% — this team is over-allocated. You can still save; the
-          numbers will be optimistic.
+          ⚠ Over-allocated: {over.map((load) => `${load.name} ${load.share_pct}%`).join(', ')}. You
+          can still save; the numbers will be optimistic.
         </p>
       )}
 
@@ -140,6 +160,9 @@ export function TeamProjectsView({ teamId, teamName }: Props) {
                     </span>
                   )}
                 </p>
+                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                  counts {countedLabel(row)}
+                </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   conversion{' '}
                   {row.available_source === 'factor'
@@ -165,18 +188,33 @@ export function TeamProjectsView({ teamId, teamName }: Props) {
               )}
             </li>
           ))}
-          {/* The total is the point of the column: a share only means something
-              against the others, and 120% is only visible here (§6.3). */}
-          <li className="px-4 py-2 flex items-center justify-between bg-band/30">
-            <span className="text-xs text-gray-500 dark:text-gray-400">Total</span>
-            <span
-              className={`text-xs font-medium ${
-                totalShare > 100 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-600 dark:text-gray-300'
-              }`}
-            >
-              {totalShare}%
-            </span>
-          </li>
+          {/* The load is the point of the column: a share only means something
+              against the others, and 120% is only visible here (§6.3). One group
+              when every project counts the whole team — the old total. */}
+          {loadGroups.length > 0 && (
+            <li className="px-4 py-2 flex items-start justify-between gap-4 bg-band/30">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Load</span>
+              <span className="text-xs text-right space-y-0.5">
+                {loadGroups.map((group) => (
+                  <span
+                    key={group.sharePct}
+                    className={`block font-medium ${
+                      group.sharePct > 100
+                        ? 'text-amber-600 dark:text-amber-400'
+                        : 'text-gray-600 dark:text-gray-300'
+                    }`}
+                  >
+                    {group.sharePct}%
+                    {loadGroups.length > 1 && (
+                      <span className="font-normal text-gray-500 dark:text-gray-400">
+                        {' '}— {group.names.join(', ')}
+                      </span>
+                    )}
+                  </span>
+                ))}
+              </span>
+            </li>
+          )}
         </ul>
       )}
 

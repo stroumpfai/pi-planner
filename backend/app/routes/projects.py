@@ -5,6 +5,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile, status
 from fastapi.responses import JSONResponse
+from sqlalchemy import delete as sql_delete
 from sqlalchemy import select
 from sqlalchemy import update as sql_update
 from sqlalchemy.exc import IntegrityError
@@ -21,9 +22,11 @@ from app.models.project import Project
 from app.models.project_state import ProjectState
 from app.models.sprint import Sprint
 from app.models.swimline import Swimline
+from app.models.team import TeamProject
 from app.models.user import User
 from app.schemas import ProjectCreate, ProjectResponse, ProjectUpdate
-from app.services.events import broadcaster
+from app.services.assignment_scope import forget_assignments
+from app.services.events import broadcaster, team_channel
 from app.services.snapshot import (
     ado_feature_fields,
     ado_pbi_fields,
@@ -134,9 +137,25 @@ async def delete_project(
     await db.execute(
         sql_update(Group).where(Group.feature_system_id.in_(feature_ids)).values(story_system_id=None)
     )
+    # The team assignment goes with the project. Nothing cascades it — SQLite runs
+    # without PRAGMA foreign_keys — and an orphaned row would keep counting
+    # towards the team's project limit with no project to unassign.
+    assignments = (
+        await db.execute(
+            select(TeamProject.system_id, TeamProject.team_id).where(
+                TeamProject.project_id == project_id
+            )
+        )
+    ).all()
+    await forget_assignments(db, [assignment_id for assignment_id, _ in assignments])
+    await db.execute(sql_delete(TeamProject).where(TeamProject.project_id == project_id))
     await db.delete(project)
     await db.commit()
     await broadcaster.broadcast(project_id, "project:deleted", {"system_id": project_id})
+    for _, team_id in assignments:
+        await broadcaster.broadcast(
+            team_channel(team_id), "team:project:unassigned", {"project_id": project_id}
+        )
 
 
 async def _unique_project_name(db: AsyncSession, base_name: str) -> str:

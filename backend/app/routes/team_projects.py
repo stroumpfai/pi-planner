@@ -10,8 +10,9 @@ Two rules here read as omissions and are not:
 **Shares over 100% are allowed.** ``share_pct`` is validated 1–100 per assignment,
 but a team's shares may sum past 100 and nothing here blocks it. Teams really are
 overcommitted, and a planner that refuses to represent the situation it exists to
-reveal is worse than one that colours it amber (§6.3). The warning is the
-frontend's, computed from the same list this returns.
+reveal is worse than one that colours it amber (§6.3). The warning is per
+member — an assignment can count only some of them (ADR 0009) — and reads
+``member_loads`` on the team.
 
 **Unassigning writes nothing to the project.** Every sprint's Available stays
 exactly as it stands, at whatever was last pushed, and the project is back to
@@ -36,7 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.database import get_session
 from app.middleware.deps import get_current_user, require_editor_or_above
 from app.models.project import Project
-from app.models.team import Team, TeamProject
+from app.models.team import Team, TeamMember, TeamProject
 from app.models.user import User
 from app.schemas import (
     MAX_PROJECTS_PER_TEAM,
@@ -44,6 +45,14 @@ from app.schemas import (
     TeamProjectCreate,
     TeamProjectResponse,
     TeamProjectUpdate,
+)
+from app.services.assignment_scope import (
+    EVERYONE,
+    Scope,
+    check_scope,
+    forget_assignments,
+    load_scopes,
+    set_scope,
 )
 from app.services.concurrency import IfMatch, check_if_match, etag_for, set_etag
 from app.services.events import broadcaster, team_channel
@@ -60,12 +69,19 @@ async def _team_or_404(db: AsyncSession, team_id: str) -> Team:
     return team
 
 
-def _response(assignment: TeamProject, project: Project, is_anchor: bool) -> TeamProjectResponse:
+def _response(
+    assignment: TeamProject,
+    project: Project,
+    is_anchor: bool,
+    scope: Scope,
+    member_order: list[str],
+) -> TeamProjectResponse:
     """One assignment, joined to the project it names.
 
     Built field by field rather than validated from the row: ``project_name`` and
     ``effort_unit`` live on the project, and both are required here — the Projects
-    tab has no second read to fill them in from.
+    tab has no second read to fill them in from. Scoped members come back in the
+    team's display order, so the list reads the way the Members view does.
     """
     return TeamProjectResponse(
         system_id=assignment.system_id,
@@ -76,6 +92,8 @@ def _response(assignment: TeamProject, project: Project, is_anchor: bool) -> Tea
         share_pct=assignment.share_pct,
         available_source=assignment.available_source,
         units_per_pd=assignment.units_per_pd,
+        all_members=scope.all_members,
+        member_ids=[m for m in member_order if m in scope.member_ids],
         is_anchor=is_anchor,
         created_at=assignment.created_at,
         modified_at=assignment.modified_at,
@@ -85,8 +103,24 @@ def _response(assignment: TeamProject, project: Project, is_anchor: bool) -> Tea
 
 async def _all_responses(db: AsyncSession, team_id: str) -> list[TeamProjectResponse]:
     rows = await load_assignments(db, team_id)
+    scopes = await load_scopes(db, [assignment for assignment, _ in rows])
+    member_order = list(
+        (
+            await db.execute(
+                select(TeamMember.system_id)
+                .where(TeamMember.team_id == team_id)
+                .order_by(TeamMember.order_index.asc(), TeamMember.created_at.asc())
+            )
+        ).scalars().all()
+    )
     return [
-        _response(assignment, project, is_anchor=index == 0)
+        _response(
+            assignment,
+            project,
+            is_anchor=index == 0,
+            scope=scopes.get(assignment.system_id, EVERYONE),
+            member_order=member_order,
+        )
         for index, (assignment, project) in enumerate(rows)
     ]
 
@@ -199,6 +233,7 @@ async def assign_project(
             },
         )
 
+    await check_scope(db, team_id, body.all_members, body.member_ids)
     assignment = TeamProject(
         team_id=team_id,
         project_id=body.project_id,
@@ -208,6 +243,8 @@ async def assign_project(
     )
     db.add(assignment)
     try:
+        await db.flush()
+        await set_scope(db, assignment, body.all_members, body.member_ids)
         await db.commit()
     except IntegrityError:
         # The unique index, in case two assignments raced past the check above.
@@ -244,12 +281,20 @@ async def update_assignment(
         if_match, assignment.modified_at, await _one_response(db, team_id, project_id)
     )
 
+    rescoped = body.all_members is not None or body.member_ids is not None
+    # member_ids alone means "only these"; all_members alone means everyone.
+    all_members = bool(body.all_members)
+    if rescoped:
+        await check_scope(db, team_id, all_members, body.member_ids or [])
+
     if body.share_pct is not None:
         assignment.share_pct = body.share_pct
     if body.available_source is not None:
         assignment.available_source = body.available_source
     if body.units_per_pd is not None:
         assignment.units_per_pd = body.units_per_pd
+    if rescoped:
+        await set_scope(db, assignment, all_members, body.member_ids or [])
     assignment.modified_at = datetime.now(timezone.utc)
 
     await db.commit()
@@ -277,6 +322,7 @@ async def unassign_project(
         if_match, assignment.modified_at, await _one_response(db, team_id, project_id)
     )
 
+    await forget_assignments(db, [assignment.system_id])
     await db.delete(assignment)
     await db.commit()
 

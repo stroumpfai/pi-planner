@@ -1,4 +1,5 @@
 import json
+from dataclasses import dataclass, field
 from datetime import date, datetime, timezone
 from typing import Annotated, Any
 from uuid import uuid4
@@ -20,11 +21,13 @@ from app.schemas import (
     MAX_MEMBERS_PER_TEAM,
     MAX_PATTERN_VERSIONS_PER_MEMBER,
     MAX_TEAMS,
+    MemberLoad,
     TeamCreate,
     TeamImportResponse,
     TeamResponse,
     TeamUpdate,
 )
+from app.services.assignment_scope import load_scopes, member_loads
 from app.services.concurrency import IfMatch, check_if_match, set_etag
 from app.services.events import broadcaster, team_channel
 from app.services.holiday_import import apply_holiday_import, plan_holiday_import
@@ -47,45 +50,75 @@ async def _get_or_404(db: AsyncSession, team_id: str) -> Team:
     return team
 
 
-async def _counts(
-    db: AsyncSession, team_ids: list[str]
-) -> tuple[dict[str, int], dict[str, list[tuple[str, int]]]]:
-    """Member counts, and served projects with their shares, in two queries."""
+@dataclass
+class _Summary:
+    """What a team row carries beyond the team itself."""
+
+    member_count: int = 0
+    # (project_id, share_pct), anchor first.
+    assignments: list[tuple[str, int]] = field(default_factory=list)
+    member_loads: list[MemberLoad] = field(default_factory=list)
+
+
+async def _summaries(db: AsyncSession, team_ids: list[str]) -> dict[str, _Summary]:
+    """Member counts, served projects with their shares, and member loads.
+
+    A fixed number of queries however many teams are listed: the landing page
+    reads every team at once (§7.1).
+    """
+    summaries = {team_id: _Summary() for team_id in team_ids}
     if not team_ids:
-        return {}, {}
-    member_rows = await db.execute(
-        select(TeamMember.team_id, func.count(TeamMember.system_id))
-        .where(TeamMember.team_id.in_(team_ids))
-        .group_by(TeamMember.team_id)
+        return summaries
+
+    member_rows = (
+        await db.execute(
+            select(TeamMember)
+            .where(TeamMember.team_id.in_(team_ids))
+            .order_by(TeamMember.order_index.asc(), TeamMember.created_at.asc())
+        )
+    ).scalars().all()
+    members: dict[str, list[TeamMember]] = {}
+    for member in member_rows:
+        members.setdefault(member.team_id, []).append(member)
+
+    assignment_rows = list(
+        (
+            await db.execute(
+                select(TeamProject)
+                .where(TeamProject.team_id.in_(team_ids))
+                .order_by(TeamProject.created_at.asc())
+            )
+        ).scalars().all()
     )
-    members = {team_id: count for team_id, count in member_rows.all()}
+    assignments: dict[str, list[TeamProject]] = {}
+    for assignment in assignment_rows:
+        assignments.setdefault(assignment.team_id, []).append(assignment)
+    scopes = await load_scopes(db, assignment_rows)
 
-    project_rows = await db.execute(
-        select(TeamProject.team_id, TeamProject.project_id, TeamProject.share_pct)
-        .where(TeamProject.team_id.in_(team_ids))
-        .order_by(TeamProject.created_at.asc())
-    )
-    projects: dict[str, list[tuple[str, int]]] = {}
-    for team_id, project_id, share_pct in project_rows.all():
-        projects.setdefault(team_id, []).append((project_id, share_pct))
-    return members, projects
+    today = date.today()
+    for team_id, summary in summaries.items():
+        team_members = members.get(team_id, [])
+        team_assignments = assignments.get(team_id, [])
+        summary.member_count = len(team_members)
+        summary.assignments = [(a.project_id, a.share_pct) for a in team_assignments]
+        summary.member_loads = member_loads(team_members, team_assignments, scopes, today)
+    return summaries
 
 
-def _response(
-    team: Team, member_count: int, assignments: list[tuple[str, int]]
-) -> TeamResponse:
+def _response(team: Team, summary: _Summary) -> TeamResponse:
     return TeamResponse.model_validate(team).model_copy(
         update={
-            "member_count": member_count,
-            "project_ids": [project_id for project_id, _ in assignments],
-            "project_shares": {project_id: share for project_id, share in assignments},
+            "member_count": summary.member_count,
+            "project_ids": [project_id for project_id, _ in summary.assignments],
+            "project_shares": {project_id: share for project_id, share in summary.assignments},
+            "member_loads": summary.member_loads,
         }
     )
 
 
 async def _one_response(db: AsyncSession, team: Team) -> TeamResponse:
-    members, projects = await _counts(db, [team.system_id])
-    return _response(team, members.get(team.system_id, 0), projects.get(team.system_id, []))
+    summaries = await _summaries(db, [team.system_id])
+    return _response(team, summaries[team.system_id])
 
 
 def _name_taken(name: str) -> HTTPException:
@@ -102,11 +135,8 @@ async def list_teams(
 ) -> list[TeamResponse]:
     result = await db.execute(select(Team).order_by(func.lower(Team.name).asc()))
     teams = list(result.scalars().all())
-    members, projects = await _counts(db, [t.system_id for t in teams])
-    return [
-        _response(t, members.get(t.system_id, 0), projects.get(t.system_id, []))
-        for t in teams
-    ]
+    summaries = await _summaries(db, [t.system_id for t in teams])
+    return [_response(t, summaries[t.system_id]) for t in teams]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -144,7 +174,7 @@ async def create_team(
     # Stamp the tag here too, so "create then immediately rename" does not need a
     # GET in between purely to learn a value this response already knows.
     set_etag(response, team.modified_at)
-    return _response(team, 0, [])
+    return _response(team, _Summary())
 
 
 @router.get("/{team_id}")

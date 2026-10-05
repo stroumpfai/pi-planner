@@ -206,6 +206,25 @@ describe('TeamCapacityView', () => {
     expect(await screen.findByText('≈ 10.5 pts · manual')).toBeInTheDocument()
   })
 
+  it('names who a project counts when it counts only some members', async () => {
+    mockApi.get.mockResolvedValue({
+      data: report({
+        projects: [
+          {
+            project_id: 'p-1', name: 'ISK Portal', effort_unit: 'pts', share_pct: 100,
+            available_source: 'factor', units_per_pd: 1.5,
+            all_members: false, member_ids: ['m-1'],
+            person_days: [6.9], units: [10.35], proposed_available: [10],
+          },
+        ],
+      }),
+      headers: {},
+    })
+    render(<TeamCapacityView teamId="t-1" onOpenProjects={onOpenProjects} />, { wrapper: wrapper() })
+
+    expect(await screen.findByText(/100% of Marta Lindqvist/)).toBeInTheDocument()
+  })
+
   it('sends a team with no project to the tab that gives it one', async () => {
     mockApi.get.mockResolvedValue({
       data: report({ anchor_project_id: null, sprints: [], members: [], team: [], projects: [] }),

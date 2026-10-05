@@ -5,7 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { TeamProjectsView } from '../TeamProjectsView'
 import * as apiModule from '@/services/api'
 import { useAuthStore } from '@/stores/authStore'
-import type { Project, ProjectPushStatus, TeamAssignment, User } from '@/types'
+import type { MemberLoad, Project, ProjectPushStatus, TeamAssignment, User } from '@/types'
 
 vi.mock('@/services/api', async (importOriginal) => {
   const actual = await importOriginal<typeof apiModule>()
@@ -52,15 +52,36 @@ const pushStatus = (over: Partial<ProjectPushStatus> = {}): ProjectPushStatus =>
   ...over,
 })
 
-/** Assignments, the project list and the staleness read share one mocked axios. */
+const MEMBERS = [
+  { system_id: 'm-1', name: 'Anna', counts_towards_capacity: true },
+  { system_id: 'm-2', name: 'Bruno', counts_towards_capacity: true },
+]
+
+/**
+ * Assignments, the project list, the team list, members and the staleness read
+ * share one mocked axios.
+ *
+ * ``loads`` defaults to what the server reports when every assignment counts the
+ * whole team: each member carries the sum of the shares.
+ */
 function respondWith(
   assignments: TeamAssignment[],
   projects: Project[] = [],
   statuses: ProjectPushStatus[] = [],
+  loads?: MemberLoad[],
 ) {
+  const total = assignments.reduce((sum, a) => sum + a.share_pct, 0)
+  const memberLoads =
+    loads ?? MEMBERS.map((m) => ({ member_id: m.system_id, name: m.name, share_pct: total }))
   mockApi.get.mockImplementation((url: string) => {
     if (url.startsWith('/team-capacity/status')) {
       return Promise.resolve({ data: statuses, headers: {} })
+    }
+    if (url === '/teams' || url === '/teams/') {
+      return Promise.resolve({ data: [{ system_id: 't-1', member_loads: memberLoads }], headers: {} })
+    }
+    if (url.startsWith('/teams/t-1/members')) {
+      return Promise.resolve({ data: MEMBERS, headers: {} })
     }
     return Promise.resolve({
       data: url.includes('/projects') && url.startsWith('/teams') ? assignments : projects,
@@ -87,13 +108,42 @@ describe('TeamProjectsView', () => {
     expect(row.getByText(/conversion — Available typed by hand/)).toBeInTheDocument()
   })
 
-  it('totals the shares, because one share only means something against the others', async () => {
+  it('shows the load, because one share only means something against the others', async () => {
     render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })
 
-    const rows = await screen.findAllByRole('listitem')
-    const total = within(rows[rows.length - 1])
-    expect(total.getByText('Total')).toBeInTheDocument()
+    // Every project counts the whole team, so everyone carries one load: the
+    // old total, with no names needed.
+    const total = within(await screen.findByText('Load').then((el) => el.closest('li') as HTMLElement))
     expect(total.getByText('70%')).toBeInTheDocument()
+    expect(total.queryByText(/Anna/)).not.toBeInTheDocument()
+  })
+
+  it('says who each project counts, and groups the load by member once it differs', async () => {
+    // Anna works only on the Portal; Bruno covers Data Exchange (ADR 0009).
+    respondWith(
+      [
+        assignment({ share_pct: 100, all_members: false, member_ids: ['m-1'] }),
+        assignment({
+          system_id: 'a-2', project_id: 'p-2', project_name: 'Data Exchange',
+          share_pct: 60, is_anchor: false, all_members: false, member_ids: ['m-2'],
+        }),
+      ],
+      [],
+      [],
+      [
+        { member_id: 'm-1', name: 'Anna', share_pct: 100 },
+        { member_id: 'm-2', name: 'Bruno', share_pct: 60 },
+      ],
+    )
+    render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })
+
+    expect(await screen.findByText('counts Anna')).toBeInTheDocument()
+    expect(screen.getByText('counts Bruno')).toBeInTheDocument()
+    const load = within(screen.getByText('Load').closest('li') as HTMLElement)
+    expect(load.getByText(/— Anna/)).toBeInTheDocument()
+    expect(load.getByText(/— Bruno/)).toBeInTheDocument()
+    // 160% summed, but nobody is over: no warning.
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
   it('warns above 100% and never blocks', async () => {
@@ -106,7 +156,7 @@ describe('TeamProjectsView', () => {
     render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })
 
     expect(await screen.findByRole('status')).toHaveTextContent(
-      '⚠ Shares total 130% — this team is over-allocated. You can still save; the numbers will be optimistic.',
+      '⚠ Over-allocated: Anna 130%, Bruno 130%. You can still save; the numbers will be optimistic.',
     )
     // Two assignments plus the total row: warned, and not one of them blocked.
     expect(screen.getAllByRole('listitem')).toHaveLength(3)
@@ -139,6 +189,8 @@ describe('TeamProjectsView', () => {
       share_pct: 100,
       available_source: 'manual',
       units_per_pd: 1,
+      all_members: true,
+      member_ids: [],
     })
   })
 

@@ -14,6 +14,7 @@ import { DeleteTeamDialog } from '@/components/DeleteTeamDialog'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { SnapshotsModal } from '@/components/SnapshotsModal'
 import type { Project, Team } from '@/types'
+import { overAllocated } from '@/utils/memberLoads'
 
 interface ExportButtonProps {
   /** e.g. `/api/v1/projects/{id}/export` or `/api/v1/teams/{id}/export`. */
@@ -244,7 +245,8 @@ interface ServedProjectsProps {
  *
  * The over-allocation warning lives here rather than on the project rows because
  * this is where the shares are all visible at once — a single project row cannot
- * show that its 70% is part of a 120% (§6.3). It warns and never blocks: teams
+ * show that its 70% is part of a 120% (§6.3), and the per-member loads name who
+ * is over (ADR 0009). It warns and never blocks: teams
  * really are overcommitted, and the tool exists to show it.
  */
 function ServedProjects({ team, nameOf }: ServedProjectsProps) {
@@ -254,7 +256,9 @@ function ServedProjects({ team, nameOf }: ServedProjectsProps) {
   }
 
   const shares = team.project_shares ?? {}
-  const total = served.reduce((sum, projectId) => sum + (shares[projectId] ?? 0), 0)
+  // Per member, not the shares summed: a project can count only some of the
+  // team, and then the sum is nobody's load (ADR 0009).
+  const over = overAllocated(team.member_loads ?? [])
 
   return (
     <div className="min-w-0 text-xs pt-0.5 space-y-0.5">
@@ -264,8 +268,10 @@ function ServedProjects({ team, nameOf }: ServedProjectsProps) {
           <span className="text-gray-400 dark:text-gray-500">{shares[projectId] ?? 100}%</span>
         </p>
       ))}
-      {total > 100 && (
-        <p className="text-amber-600 dark:text-amber-400">Σ {total}% — over-allocated</p>
+      {over.length > 0 && (
+        <p className="text-amber-600 dark:text-amber-400">
+          over-allocated: {over.map((load) => `${load.name} ${load.share_pct}%`).join(', ')}
+        </p>
       )}
     </div>
   )

@@ -360,15 +360,41 @@ describe('ProjectListPage — Teams section', () => {
     expect(row.getByText('70%')).toBeInTheDocument()
   })
 
-  it('warns on the team row when its shares add up past 100%', async () => {
-    // The shares are only all visible here, so this is where Σ > 100% surfaces (§6.3).
+  it('warns on the team row, naming whoever carries more than 100%', async () => {
+    // The shares are only all visible here, so this is where over-allocation
+    // surfaces (§6.3) — per member, since a project may count only some (ADR 0009).
     mockApi.list = vi.fn().mockResolvedValue([project(), project({ system_id: 'p-2', name: 'Data Exchange' })])
     mockTeams.list = vi.fn().mockResolvedValue([
-      team({ project_ids: ['p-1', 'p-2'], project_shares: { 'p-1': 70, 'p-2': 60 } }),
+      team({
+        project_ids: ['p-1', 'p-2'],
+        project_shares: { 'p-1': 70, 'p-2': 60 },
+        member_loads: [
+          { member_id: 'm-1', name: 'Anna', share_pct: 130 },
+          { member_id: 'm-2', name: 'Bruno', share_pct: 60 },
+        ],
+      }),
     ])
     render(<ProjectListPage />, { wrapper: makeWrapper() })
 
-    expect(await screen.findByText('Σ 130% — over-allocated')).toBeInTheDocument()
+    expect(await screen.findByText('over-allocated: Anna 130%')).toBeInTheDocument()
+  })
+
+  it('does not warn when the shares only add up past 100% across different members', async () => {
+    mockApi.list = vi.fn().mockResolvedValue([project(), project({ system_id: 'p-2', name: 'Data Exchange' })])
+    mockTeams.list = vi.fn().mockResolvedValue([
+      team({
+        project_ids: ['p-1', 'p-2'],
+        project_shares: { 'p-1': 100, 'p-2': 100 },
+        member_loads: [
+          { member_id: 'm-1', name: 'Anna', share_pct: 100 },
+          { member_id: 'm-2', name: 'Bruno', share_pct: 100 },
+        ],
+      }),
+    ])
+    render(<ProjectListPage />, { wrapper: makeWrapper() })
+
+    await screen.findAllByText('Data Exchange')
+    expect(screen.queryByText(/over-allocated/)).not.toBeInTheDocument()
   })
 
   it('says a team serves nothing rather than showing an empty column', async () => {

@@ -353,6 +353,14 @@ class TeamProject(Base):
     units_per_pd: Mapped[float] = mapped_column(
         Float, nullable=False, server_default=text("1.0"), default=1.0
     )
+    # Whether every member's capacity reaches this project, or only the ones listed
+    # in ``team_project_members``. A flag rather than "an empty list means
+    # everyone", so that deleting the last listed member leaves a project nobody
+    # counts for — visibly zero — instead of silently handing it the whole team
+    # (ADR 0009).
+    all_members: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("1"), default=True
+    )
     created_at: Mapped[datetime] = mapped_column(default=_utcnow)
     modified_at: Mapped[datetime] = mapped_column(default=_utcnow, onupdate=_utcnow)
 
@@ -362,4 +370,29 @@ class TeamProject(Base):
     __table_args__ = (
         Index("idx_team_projects_team", "team_id"),
         Index("uq_team_projects_project", "project_id", unique=True),
+    )
+
+
+class TeamProjectMember(Base):
+    """One member whose capacity counts for one project assignment (ADR 0009).
+
+    Read only when the assignment's ``all_members`` is off. A pure join, like
+    ``MeetingAttendee``: the scope is edited through the assignment, which carries
+    the concurrency token for both. SQLite runs without ``PRAGMA foreign_keys``, so
+    the cascades below are documentation; ``services/assignment_scope.py`` deletes
+    these rows wherever a member or an assignment goes.
+    """
+
+    __tablename__ = "team_project_members"
+
+    team_project_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("team_projects.system_id", ondelete="CASCADE"), primary_key=True
+    )
+    member_id: Mapped[str] = mapped_column(
+        Text, ForeignKey("team_members.system_id", ondelete="CASCADE"), primary_key=True
+    )
+    created_at: Mapped[datetime] = mapped_column(default=_utcnow)
+
+    __table_args__ = (
+        Index("idx_team_project_members_member", "member_id"),
     )

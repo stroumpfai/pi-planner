@@ -44,6 +44,7 @@ from app.schemas import (
     PatternVersionResponse,
     PatternVersionUpdate,
 )
+from app.services.assignment_scope import forget_members as forget_scoped_members
 from app.services.concurrency import (
     IfMatch,
     OptionalIfMatch,
@@ -388,6 +389,9 @@ async def delete_member(
     # Loaded eagerly so the ORM cascade can run without a lazy load mid-flush.
     await db.refresh(member, ["pattern_versions", "absences", "meeting_attendances"])
     await forget_members(db, [member.system_id])
+    # Out of every project scope as well. One left with nobody counts zero rather
+    # than reverting to the whole team (ADR 0009).
+    await forget_scoped_members(db, [member.system_id])
     await db.delete(member)
     await db.commit()
 

@@ -40,6 +40,7 @@ from app.schemas.team_push import (
     PushSprintRow,
 )
 from app.services.absences import build_lookup, load_absences
+from app.services.assignment_scope import EVERYONE, Scope, load_scope
 from app.services.holidays import holiday_lookup
 from app.services.meetings import build_lookup as build_meeting_lookup
 from app.services.meetings import load_meetings
@@ -60,11 +61,13 @@ _UNDATED = date.max
 
 @dataclass(frozen=True)
 class PushContext:
-    """The three rows a push needs before it can compute anything."""
+    """The three rows a push needs before it can compute anything, and who counts."""
 
     assignment: TeamProject
     team: Team
     project: Project
+    # Whose capacity reaches the project (§6.3, ADR 0009).
+    scope: Scope = EVERYONE
 
     @property
     def is_manual(self) -> bool:
@@ -87,7 +90,10 @@ async def load_context(db: AsyncSession, project_id: str) -> PushContext | None:
     if row is None:
         return None
     assignment, team, project = row
-    return PushContext(assignment=assignment, team=team, project=project)
+    return PushContext(
+        assignment=assignment, team=team, project=project,
+        scope=await load_scope(db, assignment),
+    )
 
 
 async def _pushable_sprints(
@@ -151,7 +157,13 @@ async def compute_rows(
     is the route's, not this function's.
     """
     sprints = await _pushable_sprints(db, context.project.system_id, window_from, window_to)
-    members = [member for _, member in await load_members(db, context.team.system_id)]
+    # Only the members this project counts. compute_team_capacity still skips
+    # those who count towards no capacity at all, so the two filters compose.
+    members = [
+        member
+        for _, member in await load_members(db, context.team.system_id)
+        if context.scope.counts_for(member.member_id)
+    ]
 
     # Absences and meetings are expanded once over the whole span the sprints
     # cover, not per sprint: the lookups are the engine's seams, and rebuilding
@@ -220,7 +232,23 @@ def changed(rows: list[PushSprintRow]) -> list[PushSprintRow]:
     return [row for row in rows if row.delta not in (None, 0)]
 
 
-def build_preview(context: PushContext, rows: list[PushSprintRow]) -> PushPreview:
+async def counted_member_names(db: AsyncSession, context: PushContext) -> list[str]:
+    """The names of the members a scoped project counts, in display order.
+
+    Empty for an unscoped project, which counts the whole team.
+    """
+    if context.scope.all_members:
+        return []
+    return [
+        row.name
+        for row, _ in await load_members(db, context.team.system_id)
+        if context.scope.counts_for(row.system_id)
+    ]
+
+
+def build_preview(
+    context: PushContext, rows: list[PushSprintRow], member_names: list[str] | None = None
+) -> PushPreview:
     moved = changed(rows)
     return PushPreview(
         project_id=context.project.system_id,
@@ -229,6 +257,8 @@ def build_preview(context: PushContext, rows: list[PushSprintRow]) -> PushPrevie
         team_id=context.team.system_id,
         team_name=context.team.name,
         share_pct=context.assignment.share_pct,
+        all_members=context.scope.all_members,
+        member_names=member_names or [],
         available_source=context.assignment.available_source,
         units_per_pd=context.assignment.units_per_pd,
         sprints=rows,
@@ -351,7 +381,10 @@ async def status_for(db: AsyncSession, project_id: str | None = None) -> list[Pr
 
     statuses: list[ProjectPushStatus] = []
     for assignment, team, project in result.all():
-        context = PushContext(assignment=assignment, team=team, project=project)
+        context = PushContext(
+            assignment=assignment, team=team, project=project,
+            scope=await load_scope(db, assignment),
+        )
         rows = [] if context.is_manual else await compute_rows(db, context)
         pushed = [row.available_pushed_at for row in rows if row.available_pushed_at]
         statuses.append(

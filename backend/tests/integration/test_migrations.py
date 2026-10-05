@@ -209,3 +209,34 @@ def test_upgrade_head_creates_holiday_calendar_tables(tmp_path):
     with sqlite3.connect(db_path) as conn:
         tables = {row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
     assert "holiday_calendars" not in tables
+
+
+def test_existing_assignments_still_count_the_whole_team_after_upgrade(tmp_path):
+    """The scope arrives as "everyone" for every assignment (ADR 0009)."""
+    db_path = tmp_path / "scope.sqlite"
+    _alembic("f4a5b6c7d8e9", db_path)  # head before assignment scopes
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(_insert_team("t1", "Platform"))
+        conn.execute(
+            "INSERT INTO projects (system_id, name, effort_unit, created_at, modified_at)"
+            f" VALUES ('p1', 'Portal', 'pts', '{_NOW}', '{_NOW}')"
+        )
+        conn.execute(
+            "INSERT INTO team_projects (system_id, team_id, project_id, created_at, modified_at)"
+            f" VALUES ('a1', 't1', 'p1', '{_NOW}', '{_NOW}')"
+        )
+
+    _alembic("head", db_path)
+
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute("SELECT all_members FROM team_projects WHERE system_id = 'a1'").fetchone()
+        assert row[0] == 1
+        tables = {r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        assert "team_project_members" in tables
+        # Adding the column must not have dropped the one-team-per-project index.
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(
+                "INSERT INTO team_projects (system_id, team_id, project_id, created_at, modified_at)"
+                f" VALUES ('a2', 't1', 'p1', '{_NOW}', '{_NOW}')"
+            )

@@ -102,7 +102,9 @@ async def preview_push(
     """What a push would write. Writes nothing."""
     context = await _context_or_error(db, project_id)
     rows = await team_push.compute_rows(db, context, window_from=window_from, window_to=window_to)
-    return team_push.build_preview(context, rows)
+    return team_push.build_preview(
+        context, rows, await team_push.counted_member_names(db, context)
+    )
 
 
 @router.post("/api/v1/projects/{project_id}/team-capacity/apply")

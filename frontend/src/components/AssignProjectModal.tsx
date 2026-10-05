@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
+import { MemberScopeField } from '@/components/MemberScopeField'
 import { useProjects } from '@/hooks/useProjects'
 import { useAssignProject } from '@/hooks/useTeamProjects'
 import { assignmentErrorCode, sprintConflicts, type SprintConflict } from '@/services/teamProjects'
@@ -33,6 +34,8 @@ export function AssignProjectModal({ open, teamId, assigned, onClose }: Props) {
 
   const [projectId, setProjectId] = useState('')
   const [sharePct, setSharePct] = useState('100')
+  const [allMembers, setAllMembers] = useState<boolean>(true)
+  const [memberIds, setMemberIds] = useState<string[]>([])
   const [source, setSource] = useState<'manual' | 'factor'>('manual')
   const [unitsPerPd, setUnitsPerPd] = useState('1')
   const [error, setError] = useState<string | null>(null)
@@ -51,6 +54,8 @@ export function AssignProjectModal({ open, teamId, assigned, onClose }: Props) {
   const close = () => {
     setProjectId('')
     setSharePct('100')
+    setAllMembers(true)
+    setMemberIds([])
     setSource('manual')
     setUnitsPerPd('1')
     setError(null)
@@ -72,6 +77,8 @@ export function AssignProjectModal({ open, teamId, assigned, onClose }: Props) {
         share_pct: Number(sharePct),
         available_source: source,
         units_per_pd: Number(unitsPerPd),
+        all_members: allMembers,
+        member_ids: allMembers ? [] : memberIds,
       })
       close()
     } catch (err) {
@@ -127,9 +134,16 @@ export function AssignProjectModal({ open, teamId, assigned, onClose }: Props) {
               )}
             </div>
 
+            <MemberScopeField
+              teamId={teamId}
+              allMembers={allMembers}
+              memberIds={memberIds}
+              onChange={(all, ids) => { setAllMembers(all); setMemberIds(ids) }}
+            />
+
             <div>
               <label htmlFor="assign-share" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Share of the team
+                {allMembers ? 'Share of the team' : 'Share of these members'}
               </label>
               <div className="mt-1 flex items-center gap-2">
                 <input

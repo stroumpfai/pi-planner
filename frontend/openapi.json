@@ -14053,6 +14053,29 @@
         "title": "MemberCreate",
         "description": "A member and their first working pattern, created together.\n\nThey cannot be separated: a member with no version has no contracted\nhalf-days, which computes as zero capacity and reads as a bug rather than as\nmissing data (\u00a73.3)."
       },
+      "MemberLoad": {
+        "properties": {
+          "member_id": {
+            "type": "string",
+            "title": "Member Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "share_pct": {
+            "type": "integer",
+            "title": "Share Pct"
+          }
+        },
+        "type": "object",
+        "required": [
+          "member_id",
+          "name",
+          "share_pct"
+        ],
+        "title": "MemberLoad"
+      },
       "MemberReorder": {
         "properties": {
           "order": {
@@ -15876,6 +15899,19 @@
             "type": "number",
             "title": "Units Per Pd"
           },
+          "all_members": {
+            "type": "boolean",
+            "title": "All Members",
+            "default": true
+          },
+          "member_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Member Ids",
+            "default": []
+          },
           "person_days": {
             "items": {
               "anyOf": [
@@ -16518,6 +16554,19 @@
           "share_pct": {
             "type": "integer",
             "title": "Share Pct"
+          },
+          "all_members": {
+            "type": "boolean",
+            "title": "All Members",
+            "default": true
+          },
+          "member_names": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Member Names",
+            "default": []
           },
           "available_source": {
             "type": "string",
@@ -17590,6 +17639,14 @@
             "title": "Project Shares",
             "default": {}
           },
+          "member_loads": {
+            "items": {
+              "$ref": "#/components/schemas/MemberLoad"
+            },
+            "type": "array",
+            "title": "Member Loads",
+            "default": []
+          },
           "created_at": {
             "type": "string",
             "format": "date-time",
@@ -17648,6 +17705,19 @@
             "exclusiveMinimum": 0.0,
             "title": "Units Per Pd",
             "default": 1.0
+          },
+          "all_members": {
+            "type": "boolean",
+            "title": "All Members",
+            "default": true
+          },
+          "member_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Member Ids"
           }
         },
         "type": "object",
@@ -17689,6 +17759,19 @@
           "units_per_pd": {
             "type": "number",
             "title": "Units Per Pd"
+          },
+          "all_members": {
+            "type": "boolean",
+            "title": "All Members",
+            "default": true
+          },
+          "member_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Member Ids",
+            "default": []
           },
           "is_anchor": {
             "type": "boolean",
@@ -17768,6 +17851,32 @@
               }
             ],
             "title": "Units Per Pd"
+          },
+          "all_members": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "All Members"
+          },
+          "member_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Ids"
           }
         },
         "type": "object",
@@ -17857,6 +17966,14 @@
             "type": "object",
             "title": "Project Shares",
             "default": {}
+          },
+          "member_loads": {
+            "items": {
+              "$ref": "#/components/schemas/MemberLoad"
+            },
+            "type": "array",
+            "title": "Member Loads",
+            "default": []
           },
           "created_at": {
             "type": "string",

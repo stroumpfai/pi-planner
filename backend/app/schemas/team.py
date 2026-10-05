@@ -25,6 +25,12 @@ class TeamUpdate(BaseModel):
     normal_day_hours: float | None = Field(None, ge=1.0, le=24.0)
 
 
+class MemberLoad(BaseModel):
+    member_id: str
+    name: str
+    share_pct: int
+
+
 class TeamResponse(BaseModel):
     """A team, with the two counts the landing page reads.
 
@@ -46,6 +52,10 @@ class TeamResponse(BaseModel):
     # on the project row, and a second request per team to learn one integer
     # would be a request per row on the landing page (§7.1).
     project_shares: dict[str, int] = {}
+    # Σ share_pct over the projects each counting member's capacity reaches —
+    # what "over-allocated" means once an assignment can count only some members
+    # (§6.3, ADR 0009). Current members who count towards capacity, in display order.
+    member_loads: list[MemberLoad] = []
     created_at: UtcDatetime
     modified_at: UtcDatetime
 
@@ -310,12 +320,20 @@ class TeamProjectCreate(BaseModel):
     # Always the user's, validated for nothing beyond > 0. effort_unit is free
     # text, so the app cannot tell points from hours and does not try (§6.4).
     units_per_pd: float = Field(1.0, gt=0)
+    # Whose capacity reaches the project: the whole team, or only ``member_ids``
+    # (§6.3, ADR 0009). Listing members with ``all_members`` on is refused.
+    all_members: bool = True
+    member_ids: list[str] = Field(default_factory=list, max_length=MAX_MEMBERS_PER_TEAM)
 
 
 class TeamProjectUpdate(BaseModel):
     share_pct: int | None = Field(None, ge=1, le=100)
     available_source: AvailableSource | None = None
     units_per_pd: float | None = Field(None, gt=0)
+    # Omit both to leave the scope alone. ``member_ids`` alone means "only these";
+    # ``all_members: true`` alone means everyone again.
+    all_members: bool | None = None
+    member_ids: list[str] | None = Field(None, max_length=MAX_MEMBERS_PER_TEAM)
 
 
 class TeamProjectResponse(BaseModel):
@@ -331,6 +349,10 @@ class TeamProjectResponse(BaseModel):
     share_pct: int
     available_source: str
     units_per_pd: float
+    all_members: bool = True
+    # The members counted when ``all_members`` is off, in the team's display order.
+    # Empty and scoped means nobody counts: the project gets 0 PD.
+    member_ids: list[str] = []
     # The earliest assignment is the team's anchor: its sprint calendar is the one
     # the team's own views count in (§6.8).
     is_anchor: bool = False

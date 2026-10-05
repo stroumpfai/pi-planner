@@ -300,7 +300,9 @@ async def list_teams(ctx: Context) -> dict:
     Call this first to discover teams and their system_id values, which every
     other team call needs. Returns each team with name, description,
     normal_day_hours (the divisor turning hours into person-days), member_count,
-    project_ids (the projects this team serves) and timestamps.
+    project_ids (the projects this team serves), project_shares, member_loads
+    (each counting member's summed share across the projects that count them —
+    over 100 means that person is over-allocated) and timestamps.
     Teams are not planning items: there is no user-facing id beside system_id.
     """
     return await call_backend("GET", "/api/v1/teams")
@@ -497,8 +499,10 @@ async def get_team_capacity(
 
     Also returns one row per served project with the share-adjusted PD, the value
     in that project's own effort unit, and — for `factor` projects — the integer a
-    push would write. Reading this changes nothing: capacity reaches a project
-    only through an explicit push.
+    push would write. A project row with all_members=false counts only the members
+    whose system_id is in its member_ids (match them against the member rows): its
+    PD is theirs × share_pct, not the team's. Reading this changes nothing:
+    capacity reaches a project only through an explicit push.
     """
     params = {}
     if date_from:
@@ -572,6 +576,8 @@ async def preview_team_capacity(
         "project_name": preview["project_name"],
         "effort_unit": preview["effort_unit"],
         "share_pct": preview["share_pct"],
+        "all_members": preview.get("all_members", True),
+        "member_names": preview.get("member_names", []),
         "available_source": preview["available_source"],
         "units_per_pd": preview["units_per_pd"],
         "changed_count": preview["changed_count"],
@@ -623,7 +629,7 @@ async def get_team_achievement(
       whatever their State. What the plan said.
     - `achieved`: points whose `completed_on` falls in the column's dates. What
       happened. `achieved_items` lists the stories and bugs behind each cell.
-    - `pd_given`: team PD × share_pct / 100.
+    - `pd_given`: PD of the members the project counts × share_pct / 100.
     - `velocity`: achieved ÷ pd_given, in units per PD — the `units_per_pd`
       factor, measured rather than typed.
     Team row: `achieved_pd` (Σ achieved ÷ units_per_pd), `available_pd` (the
