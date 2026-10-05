@@ -67,14 +67,20 @@ export function SprintColumnHeader({ sprint, usedEffort, unit, onEditCapacity, p
           )}
         </span>
       </div>
-      {dates && <p className="text-xs text-gray-400 dark:text-gray-500">{dates}</p>}
-      {holidays.length > 0 && (
-        <p
-          className="inline-block text-[10px] px-1.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
-          title={holidays.map((h) => `${h.label} · ${holidaySpan(h)} · ${h.calendar_name}`).join('\n')}
-        >
-          {holidays.length} public {holidays.length === 1 ? 'holiday' : 'holidays'}
-        </p>
+      {/* The chip shares the dates' row, right-aligned, so a sprint with
+          holidays is no taller than its neighbours and the bars stay level. */}
+      {(dates || holidays.length > 0) && (
+        <div className="flex items-center justify-between gap-1 min-w-0">
+          <p className="text-xs text-gray-400 dark:text-gray-500 truncate">{dates}</p>
+          {holidays.length > 0 && (
+            <span
+              className="shrink-0 text-[10px] leading-4 px-1.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300"
+              title={holidays.map((h) => `${h.label} · ${holidaySpan(h)} · ${h.calendar_name}`).join('\n')}
+            >
+              {holidays.length} public {holidays.length === 1 ? 'holiday' : 'holidays'}
+            </span>
+          )}
+        </div>
       )}
       <CapacityBar used={usedEffort} available={sprint.available ?? 0} unit={unit} />
       {derived && (

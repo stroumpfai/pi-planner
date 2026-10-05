@@ -124,7 +124,7 @@ describe('SprintColumnHeader', () => {
 
     rerender(
       <SprintColumnHeader
-        sprint={makeSprint()}
+        sprint={makeSprint({ start_date: '2026-04-06', end_date: '2026-04-17' })}
         usedEffort={0}
         holidays={[
           { label: 'Easter Monday', calendar_name: 'National', start_date: '2026-04-06', start_half: 'am', end_date: '2026-04-06', end_half: 'pm' },
@@ -133,6 +133,9 @@ describe('SprintColumnHeader', () => {
       />,
     )
     const chip = screen.getByText('2 public holidays')
+    // On the dates' row, not a row of its own — or this column's bar would sit
+    // lower than its neighbours'.
+    expect(chip.parentElement).toContainElement(screen.getByText(/–/))
     expect(chip.title).toContain('Easter Monday · 2026-04-06 · National')
     expect(chip.title).toContain('Office closed · 2026-04-07 afternoon · Company')
   })
