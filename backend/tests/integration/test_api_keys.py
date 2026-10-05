@@ -247,6 +247,28 @@ async def test_check_rejects_wrong_secret(client, mcp_secret):
     assert resp.status_code == 401
 
 
+async def test_deleting_a_user_revokes_their_keys_for_good(client, mcp_secret):
+    """A new account with the same username must not inherit the old keys."""
+    password = "Unrelated-Strong-Passphrase-42"  # noqa: S105
+    await client.post("/api/v1/users/", json={"username": "carol", "role": "editor", "password": password})
+    created = (
+        await client.post(f"{_KEYS_URL}/admin/keys", json={"username": "carol", "name": "MCP"})
+    ).json()
+
+    await client.delete("/api/v1/users/carol")
+    await client.post("/api/v1/users/", json={"username": "carol", "role": "admin", "password": password})
+
+    resp = await client.post(
+        f"{_KEYS_URL}/admin/verify",
+        json={"token": created["full_token"]},
+        headers={"Authorization": f"Bearer {_service_jwt(mcp_secret)}"},
+    )
+    assert resp.status_code == 401
+    assert (await _check(client, created["id"])).status_code == 401
+    keys = (await client.get(f"{_KEYS_URL}/admin/all-keys")).json()
+    assert next(k for k in keys if k["id"] == created["id"])["is_active"] is False
+
+
 # ---------------------------------------------------------------------------
 # MCP actor authentication path on a normal (read) endpoint
 # ---------------------------------------------------------------------------

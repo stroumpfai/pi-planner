@@ -27,6 +27,20 @@ class Settings(BaseSettings):
     # Absolute ceiling on one consent: refresh rotation can't stretch a grant past
     # this, after which the user must paste an API key again (90 days).
     oauth_grant_max_age: int = 7776000
+    # Where an authorization code may be sent. A client registering with any other
+    # https host is refused: anyone can register, so this is what stops a client
+    # named "Claude" from collecting codes on an attacker's server. Each entry
+    # also matches its subdomains; loopback http and app-specific schemes
+    # (cursor://, vscode://) are always allowed. "*" turns the check off.
+    oauth_allowed_redirect_hosts: str = "claude.ai,claude.com,chatgpt.com,openai.com"
+    # Registration is open to anyone, so the store needs a ceiling. At the cap,
+    # registrations that never got a token are dropped to make room.
+    oauth_max_clients: int = 500
+
+    def allowed_redirect_hosts(self) -> list[str] | None:
+        """The allowlist, lower-cased; None when the check is off."""
+        hosts = [h.strip().lower() for h in self.oauth_allowed_redirect_hosts.split(",") if h.strip()]
+        return None if "*" in hosts else hosts
 
     @field_validator("oauth_base_url")
     @classmethod

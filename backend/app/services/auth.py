@@ -1,5 +1,6 @@
 import secrets
 from datetime import datetime, timedelta, timezone
+from functools import cache
 from pathlib import Path
 from uuid import uuid4
 
@@ -7,7 +8,7 @@ from argon2 import PasswordHasher
 from argon2.exceptions import InvalidHashError, VerifyMismatchError
 from fastapi import HTTPException
 from itsdangerous import BadSignature, URLSafeTimedSerializer
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -84,9 +85,21 @@ def unsign_session_token(token: str) -> str | None:
 
 async def authenticate(db: AsyncSession, username: str, password: str) -> User | None:
     user = await users.get(db, username)
-    if user and verify_password(password, user.password_hash):
+    if user is None:
+        # Pay for a hash check anyway, so a wrong username takes as long as a
+        # wrong password and response timing can't tell which usernames exist.
+        verify_password(password, _dummy_hash())
+        return None
+    if verify_password(password, user.password_hash):
         return user
     return None
+
+
+@cache
+def _dummy_hash() -> str:
+    """A hash with the real parameters, of a password nobody can know. Built on
+    first use rather than at import, which every test and script would pay for."""
+    return _ph.hash(secrets.token_urlsafe(32))
 
 
 async def create_session(db: AsyncSession, username: str, remember_me: bool) -> str:
@@ -220,6 +233,20 @@ async def _mark_used(db: AsyncSession, api_key: APIKey) -> tuple[str, str]:
 
 def _utcnow_naive() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+async def revoke_user_api_keys(db: AsyncSession, username: str) -> None:
+    """Deactivate every key *username* holds, for when the account goes.
+
+    Without this the rows outlive the user, and creating a new account with the
+    same username would bring the old keys back to life as that account.
+    """
+    await db.execute(
+        update(APIKey)
+        .where(APIKey.username == username, APIKey.is_active == True)  # noqa: E712
+        .values(is_active=False)
+    )
+    await db.commit()
 
 
 async def revoke_api_key(db: AsyncSession, key_id: str) -> bool:

@@ -10,7 +10,12 @@ from app.models.user import Role, User
 from app.schemas import PasswordReset, UserCreate, UserResponse, UserUpdate
 from app.services import users as users_service
 from app.services.activity import log_activity
-from app.services.auth import assert_password_policy, hash_password, invalidate_all_sessions
+from app.services.auth import (
+    assert_password_policy,
+    hash_password,
+    invalidate_all_sessions,
+    revoke_user_api_keys,
+)
 
 router = APIRouter(prefix="/api/v1/users", tags=["users"])
 
@@ -119,6 +124,7 @@ async def delete_user(
             detail={"error": "LAST_ADMIN", "message": _LAST_ADMIN_MSG},
         )
     await invalidate_all_sessions(db, username)
+    await revoke_user_api_keys(db, username)
     await users_service.delete(db, username)
     await log_activity(
         db,

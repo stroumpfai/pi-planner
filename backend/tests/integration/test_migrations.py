@@ -240,3 +240,27 @@ def test_existing_assignments_still_count_the_whole_team_after_upgrade(tmp_path)
                 "INSERT INTO team_projects (system_id, team_id, project_id, created_at, modified_at)"
                 f" VALUES ('a2', 't1', 'p1', '{_NOW}', '{_NOW}')"
             )
+
+
+def test_upgrade_revokes_keys_left_behind_by_deleted_users(tmp_path):
+    """Deleting a user used to leave their keys active, ready for a new account
+    with the same username to inherit."""
+    db_path = tmp_path / "orphan_keys.sqlite"
+    _alembic("a5b6c7d8e9f0", db_path)  # head before the clean-up
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(
+            "INSERT INTO users (username, password_hash, role, created_at)"
+            f" VALUES ('alice', '$argon2id$x', 'admin', '{_NOW}')"
+        )
+        for key_id, username in (("kid_alice", "alice"), ("kid_gone", "bob")):
+            conn.execute(
+                "INSERT INTO api_keys (id, username, key_hash, name, created_at, is_active)"
+                f" VALUES ('{key_id}', '{username}', 'h', 'MCP', '{_NOW}', 1)"
+            )
+
+    _alembic("head", db_path)
+
+    with sqlite3.connect(db_path) as conn:
+        active = dict(conn.execute("SELECT id, is_active FROM api_keys"))
+    assert active == {"kid_alice": 1, "kid_gone": 0}

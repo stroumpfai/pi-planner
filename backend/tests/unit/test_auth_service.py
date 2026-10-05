@@ -94,6 +94,25 @@ async def test_authenticate_unknown_user_returns_none(db):
     assert result is None
 
 
+@pytest.mark.asyncio
+async def test_authenticate_unknown_user_still_checks_a_hash(db, monkeypatch):
+    """A wrong username must cost the same argon2 check as a wrong password, or
+    response timing tells an attacker which usernames exist."""
+    import app.services.auth as auth_module
+
+    checked: list[str] = []
+    real_verify = auth_module.verify_password
+
+    def spy(password: str, hashed: str) -> bool:
+        checked.append(hashed)
+        return real_verify(password, hashed)
+
+    monkeypatch.setattr(auth_module, "verify_password", spy)
+    assert await authenticate(db, "nobody", _SECRET) is None
+    assert len(checked) == 1
+    assert checked[0].startswith("$argon2id$")
+
+
 # ── create_session / get_user_from_session_id ─────────────────────────────────
 
 @pytest.mark.asyncio

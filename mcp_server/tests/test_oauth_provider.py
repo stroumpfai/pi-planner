@@ -1037,3 +1037,139 @@ async def test_multi_auth_invalid_token_rejected_by_both(tmp_path, mock_backend)
 
     result = await multi.verify_token("totally_bogus_token")
     assert result is None
+
+
+# ---------------------------------------------------------------------------
+# Open registration: redirect allowlist, client cap, rate limit, consent framing
+# (audit finding #5)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    "uri, allowed",
+    [
+        ("https://claude.ai/api/mcp/auth_callback", True),
+        ("https://www.claude.com/callback", True),  # subdomain of an allowed host
+        ("https://chatgpt.com/connector_platform_oauth_redirect", True),
+        ("http://localhost:33418/callback", True),  # loopback: a local client
+        ("http://127.0.0.1:6274/oauth/callback", True),
+        ("cursor://anysphere.cursor-retrieval/oauth/callback", True),  # app on the user's machine
+        ("https://evil.example/callback", False),
+        ("https://claude.ai.evil.example/callback", False),  # suffix trick
+        ("https://notclaude.ai/callback", False),
+        ("http://claude.ai/callback", False),  # remote must be https
+    ],
+)
+def test_redirect_uri_allowlist(uri, allowed):
+    from mcp_server.oauth_provider import _redirect_uri_allowed
+
+    assert _redirect_uri_allowed(uri) is allowed
+
+
+def test_redirect_uri_allowlist_can_be_turned_off(monkeypatch):
+    from mcp_server.config import settings
+    from mcp_server.oauth_provider import _redirect_uri_allowed
+
+    monkeypatch.setattr(settings, "oauth_allowed_redirect_hosts", "*")
+    assert _redirect_uri_allowed("https://evil.example/callback")
+
+
+async def test_register_rejects_redirect_to_unlisted_host(tmp_path):
+    from mcp.server.auth.provider import RegistrationError
+
+    provider = _make_provider(tmp_path)
+    client = OAuthClientInformationFull(
+        client_id="phish", client_name="Claude", redirect_uris=[AnyUrl("https://evil.example/cb")]
+    )
+
+    with pytest.raises(RegistrationError) as exc_info:
+        await provider.register_client(client)
+    assert exc_info.value.error == "invalid_redirect_uri"
+    assert await provider.get_client("phish") is None
+
+
+async def test_authorize_rejects_unlisted_redirect_of_a_client_stored_before_the_allowlist(tmp_path):
+    provider = _make_provider(tmp_path)
+    legacy = OAuthClientInformationFull(
+        client_id="legacy", client_name="Old", redirect_uris=[AnyUrl("https://evil.example/cb")]
+    )
+    await provider._store.save_client(legacy)  # bypasses register_client, like an old store file
+    params = AuthorizationParams(
+        state="s", scopes=["editor"], code_challenge="c",
+        redirect_uri=AnyUrl("https://evil.example/cb"), redirect_uri_provided_explicitly=True,
+    )
+
+    with pytest.raises(ValueError, match="not allowed"):
+        await provider.authorize(legacy, params)
+    assert provider._pending == {}
+
+
+async def test_register_at_cap_drops_old_unused_registrations(tmp_path, monkeypatch):
+    from mcp_server.config import settings
+
+    monkeypatch.setattr(settings, "oauth_max_clients", 2)
+    provider = _make_provider(tmp_path)
+    long_ago = int(time.time()) - 2 * 86400
+    for client_id in ("abandoned", "in-use"):
+        c = _make_client(client_id)
+        c.client_id_issued_at = long_ago
+        await provider._store.save_client(c)
+    await provider._store.save_token(
+        AccessToken(token="at_in_use", client_id="in-use", scopes=["editor"],
+                    claims={"key_id": "kid_abc"}, expires_at=int(time.time()) + 3600)
+    )
+
+    await provider.register_client(_make_client("newcomer"))
+
+    assert await provider.get_client("abandoned") is None
+    assert await provider.get_client("in-use") is not None
+    assert await provider.get_client("newcomer") is not None
+
+
+async def test_register_at_cap_keeps_recent_registrations_and_refuses(tmp_path, monkeypatch):
+    """A registration minutes old may be a user mid-consent; it isn't pruned."""
+    from mcp.server.auth.provider import RegistrationError
+    from mcp_server.config import settings
+
+    monkeypatch.setattr(settings, "oauth_max_clients", 1)
+    provider = _make_provider(tmp_path)
+    fresh = _make_client("fresh")
+    fresh.client_id_issued_at = int(time.time())
+    await provider._store.save_client(fresh)
+
+    with pytest.raises(RegistrationError) as exc_info:
+        await provider.register_client(_make_client("one-too-many"))
+    assert exc_info.value.error == "invalid_client_metadata"
+    assert await provider.get_client("fresh") is not None
+
+
+async def test_register_endpoint_rate_limited_per_ip(tmp_path):
+    from starlette.applications import Starlette
+    from mcp_server.oauth_provider import _REGISTRATION_LIMIT
+
+    provider = _make_provider(tmp_path)
+    app = Starlette(routes=provider.get_routes())
+    body = {"redirect_uris": [_REDIRECT_URI], "client_name": "Claude", "token_endpoint_auth_method": "none"}
+
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=_BASE_URL) as http:
+        statuses = [(await http.post("/register", json=body)).status_code for _ in range(_REGISTRATION_LIMIT + 1)]
+
+    assert statuses[:_REGISTRATION_LIMIT] == [201] * _REGISTRATION_LIMIT
+    assert statuses[-1] == 429
+    assert provider._store.client_count() == _REGISTRATION_LIMIT
+
+
+async def test_consent_page_cannot_be_framed_or_cached(provider_with_pending):
+    from starlette.applications import Starlette
+    from starlette.routing import Route
+
+    provider, nonce = provider_with_pending
+    app = Starlette(routes=[Route("/authorize/consent", provider._consent_handler, methods=["GET", "POST"])])
+
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as http:
+        r = await http.get(f"/authorize/consent?nonce={nonce}")
+
+    assert r.headers["x-frame-options"] == "DENY"
+    assert "frame-ancestors 'none'" in r.headers["content-security-policy"]
+    assert r.headers["cache-control"] == "no-store"
+    assert r.headers["referrer-policy"] == "no-referrer"

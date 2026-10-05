@@ -17,6 +17,7 @@ import secrets
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import urlparse
 
 from fastmcp.server.auth.auth import AccessToken, ClientRegistrationOptions, OAuthProvider
 from fastmcp.server.auth.cimd import CIMDFetchError, CIMDFetcher, CIMDValidationError
@@ -26,6 +27,7 @@ from mcp.server.auth.provider import (
     AuthorizationCode,
     AuthorizationParams,
     RefreshToken,
+    RegistrationError,
     TokenError,
     construct_redirect_uri,
 )
@@ -33,7 +35,7 @@ from mcp.server.auth.routes import cors_middleware
 from mcp.server.auth.settings import RevocationOptions
 from mcp.shared.auth import OAuthClientInformationFull, OAuthToken, ProtectedResourceMetadata
 from starlette.requests import Request
-from starlette.responses import HTMLResponse, RedirectResponse, Response
+from starlette.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from starlette.routing import Route
 from starlette.types import ASGIApp, Receive, Scope, Send
 
@@ -46,6 +48,7 @@ from mcp_server.auth import (
     record_auth_failure,
     verify_api_key,
 )
+from mcp_server.config import settings
 
 log = logging.getLogger(__name__)
 
@@ -62,6 +65,83 @@ _KEY_REVOKED = object()
 def _scopes_for_role(role: str) -> list[str]:
     # Admin tokens carry both scopes so required_scopes=["editor"] passes for admins.
     return ["admin", "editor"] if role == "admin" else ["editor"]
+
+
+_LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
+# Registrations kept at the client cap only if they were ever used, or are this young.
+_UNUSED_CLIENT_GRACE = 86400
+# Registrations accepted per client IP per window. Real clients register once
+# per connection; a burst is a script filling the store.
+_REGISTRATION_LIMIT = 10
+_REGISTRATION_WINDOW = 3600
+
+
+def _redirect_uri_allowed(uri: str) -> bool:
+    """May an authorization code be sent to *uri*? (settings.oauth_allowed_redirect_hosts)
+
+    Loopback http is a local client (Claude Code, the MCP inspector), and a custom
+    scheme opens an app on the user's own machine; neither delivers the code to
+    a remote attacker. Remote http(s) must be an allowlisted host or a subdomain.
+    """
+    allowed = settings.allowed_redirect_hosts()
+    if allowed is None:
+        return True
+    parsed = urlparse(uri)
+    scheme = parsed.scheme.lower()
+    host = (parsed.hostname or "").lower()
+    if scheme not in ("http", "https"):
+        return bool(scheme)
+    if host in _LOOPBACK_HOSTS:
+        return True
+    if scheme != "https":
+        return False
+    return any(host == h or host.endswith(f".{h}") for h in allowed)
+
+
+class _RegistrationRateLimit:
+    """ASGI wrapper around /register: at most _REGISTRATION_LIMIT POSTs per client
+    IP per _REGISTRATION_WINDOW. Registration needs no credentials, so without it
+    one address could grow the token store (rewritten on every write) at will."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self._app = app
+        self._seen: dict[str, list[float]] = {}
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] == "http" and scope["method"] == "POST":
+            ip = client_ip(Request(scope))
+            now = time.monotonic()
+            # Prune every bucket, so addresses that stop registering don't linger.
+            self._seen = {
+                k: kept for k, v in self._seen.items()
+                if (kept := [t for t in v if now - t < _REGISTRATION_WINDOW])
+            }
+            recent = self._seen.setdefault(ip, [])
+            if len(recent) >= _REGISTRATION_LIMIT:
+                log.warning("oauth_dcr_rate_limited ip=%s", ip)
+                response = JSONResponse(
+                    {
+                        "error": "invalid_client_metadata",
+                        "error_description": "Too many registrations from this address. Try again later.",
+                    },
+                    status_code=429,
+                    headers={"Retry-After": str(_REGISTRATION_WINDOW)},
+                )
+                await response(scope, receive, send)
+                return
+            recent.append(now)
+        await self._app(scope, receive, send)
+
+
+# The consent page takes an API key: no framing (clickjacking), no caching, and
+# no Referer carrying the nonce to wherever a link leads.
+_CONSENT_HEADERS = {
+    "X-Frame-Options": "DENY",
+    "Content-Security-Policy": "frame-ancestors 'none'",
+    "Cache-Control": "no-store",
+    "Referrer-Policy": "no-referrer",
+    "X-Content-Type-Options": "nosniff",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -391,6 +471,25 @@ class TokenStore:
             self._clients[client.client_id] = client.model_dump(mode="json")
             self._write()
 
+    def client_count(self) -> int:
+        return len(self._clients)
+
+    async def prune_unused_clients(self, older_than: float) -> int:
+        """Drop registrations made before *older_than* (epoch seconds) that hold
+        no access token, refresh token or auth code. Returns how many went."""
+        async with self._lock:
+            in_use = {v.get("client_id") for v in (*self._tokens.values(), *self._refresh_tokens.values())}
+            in_use |= {v.get("client_id") for v in self._auth_codes.values()}
+            unused = [
+                client_id for client_id, entry in self._clients.items()
+                if client_id not in in_use and (entry.get("client_id_issued_at") or 0) < older_than
+            ]
+            for client_id in unused:
+                del self._clients[client_id]
+            if unused:
+                self._write()
+            return len(unused)
+
     def get_client(self, client_id: str) -> OAuthClientInformationFull | None:
         entry = self._clients.get(client_id)
         if not entry:
@@ -530,7 +629,15 @@ class PiPlannerOAuthProvider(OAuthProvider):
 
     async def register_client(self, client_info: OAuthClientInformationFull) -> None:
         if client_info.client_id is None:
-            raise ValueError("client_id is required for registration")
+            raise RegistrationError("invalid_client_metadata", "client_id is required for registration")
+
+        for redirect_uri in client_info.redirect_uris or []:
+            if not _redirect_uri_allowed(str(redirect_uri)):
+                log.warning("oauth_dcr_rejected reason=redirect_host uri=%s", redirect_uri)
+                raise RegistrationError(
+                    "invalid_redirect_uri",
+                    f"Redirect URI {str(redirect_uri)!r} is not allowed by this server.",
+                )
 
         # For URL-formatted client IDs submitted via DCR, validate redirect_uris
         # against the CIMD document before storing (Finding 4).
@@ -538,15 +645,30 @@ class PiPlannerOAuthProvider(OAuthProvider):
             try:
                 cimd_doc = await self._cimd_fetcher.fetch(client_info.client_id)
             except (CIMDFetchError, CIMDValidationError) as exc:
-                raise ValueError(
-                    f"CIMD document validation failed for {client_info.client_id!r}: {exc}"
+                raise RegistrationError(
+                    "invalid_client_metadata",
+                    f"CIMD document validation failed for {client_info.client_id!r}: {exc}",
                 ) from exc
 
             for redirect_uri in client_info.redirect_uris or []:
                 if not self._cimd_fetcher.validate_redirect_uri(cimd_doc, str(redirect_uri)):
-                    raise ValueError(
-                        f"Redirect URI {redirect_uri!r} is not permitted by the CIMD document"
+                    raise RegistrationError(
+                        "invalid_redirect_uri",
+                        f"Redirect URI {redirect_uri!r} is not permitted by the CIMD document",
                     )
+
+        if self._store.client_count() >= settings.oauth_max_clients:
+            # Make room from registrations nobody ever finished authorizing. Only
+            # at the cap: a client whose grant merely expired keeps its id, so it
+            # can authorize again without being removed and re-added.
+            pruned = await self._store.prune_unused_clients(time.time() - _UNUSED_CLIENT_GRACE)
+            log.info("oauth_dcr_pruned_unused_clients removed=%d", pruned)
+            if self._store.client_count() >= settings.oauth_max_clients:
+                log.warning("oauth_dcr_rejected reason=client_cap cap=%d", settings.oauth_max_clients)
+                raise RegistrationError(
+                    "invalid_client_metadata",
+                    "This server has reached its limit of registered clients. Try again later.",
+                )
 
         self._ensure_scope(client_info)
         await self._store.save_client(client_info)
@@ -562,6 +684,11 @@ class PiPlannerOAuthProvider(OAuthProvider):
     ) -> None:
         """Raise ValueError if redirect_uri is not permitted for this client (Finding 8)."""
         client_id = client.client_id or ""
+        # Checked here too, not just at registration: CIMD clients never register,
+        # and a client stored before the allowlist existed must meet it as well.
+        if not _redirect_uri_allowed(redirect_uri_str):
+            log.warning("oauth_authorize_redirect_uri_not_allowed client=%.8s uri=%s", client_id, redirect_uri_str)
+            raise ValueError(f"redirect_uri {redirect_uri_str!r} is not allowed by this server")
         if self._cimd_fetcher.is_cimd_client_id(client_id):
             try:
                 cimd_doc = await self._cimd_fetcher.fetch(client_id)
@@ -841,6 +968,13 @@ class PiPlannerOAuthProvider(OAuthProvider):
             for r in routes
         ]
 
+        routes = [
+            Route(r.path, endpoint=_RegistrationRateLimit(r.endpoint), methods=r.methods)
+            if isinstance(r, Route) and r.path == "/register"
+            else r
+            for r in routes
+        ]
+
         routes.append(Route("/authorize/consent", self._consent_handler, methods=["GET", "POST"]))
 
         # FastMCP registers /.well-known/oauth-protected-resource/mcp (RFC 8414
@@ -866,8 +1000,11 @@ class PiPlannerOAuthProvider(OAuthProvider):
 
     async def _consent_handler(self, request: Request) -> Response:
         if request.method == "GET":
-            return await self._consent_get(request)
-        return await self._consent_post(request)
+            response = await self._consent_get(request)
+        else:
+            response = await self._consent_post(request)
+        response.headers.update(_CONSENT_HEADERS)
+        return response
 
     async def _consent_get(self, request: Request) -> Response:
         nonce = request.query_params.get("nonce", "")
