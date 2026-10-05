@@ -26,6 +26,7 @@ from mcp.server.auth.routes import build_metadata
 from mcp.server.auth.provider import (
     AuthorizationCode,
     AuthorizationParams,
+    AuthorizeError,
     RefreshToken,
     RegistrationError,
     TokenError,
@@ -688,7 +689,15 @@ class PiPlannerOAuthProvider(OAuthProvider):
         # and a client stored before the allowlist existed must meet it as well.
         if not _redirect_uri_allowed(redirect_uri_str):
             log.warning("oauth_authorize_redirect_uri_not_allowed client=%.8s uri=%s", client_id, redirect_uri_str)
-            raise ValueError(f"redirect_uri {redirect_uri_str!r} is not allowed by this server")
+            # AuthorizeError, not ValueError: the SDK turns it into a proper
+            # unauthorized_client answer carrying this reason (a ValueError would
+            # surface as a generic server_error plus a logged traceback). It still
+            # goes back to the client's redirect_uri, but with no code in it.
+            raise AuthorizeError(
+                "unauthorized_client",
+                f"redirect_uri {redirect_uri_str!r} is not allowed by this server "
+                "(OAUTH_ALLOWED_REDIRECT_HOSTS)",
+            )
         if self._cimd_fetcher.is_cimd_client_id(client_id):
             try:
                 cimd_doc = await self._cimd_fetcher.fetch(client_id)

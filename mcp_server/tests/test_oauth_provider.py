@@ -1099,8 +1099,38 @@ async def test_authorize_rejects_unlisted_redirect_of_a_client_stored_before_the
         redirect_uri=AnyUrl("https://evil.example/cb"), redirect_uri_provided_explicitly=True,
     )
 
-    with pytest.raises(ValueError, match="not allowed"):
+    from mcp.server.auth.provider import AuthorizeError
+
+    with pytest.raises(AuthorizeError) as exc_info:
         await provider.authorize(legacy, params)
+    assert exc_info.value.error == "unauthorized_client"
+    assert "OAUTH_ALLOWED_REDIRECT_HOSTS" in exc_info.value.error_description
+    assert provider._pending == {}
+
+
+async def test_authorize_endpoint_answers_unlisted_redirect_without_a_code(tmp_path):
+    """End to end through the SDK handler: the browser is sent back with the
+    reason and no code, and nothing is left pending."""
+    from starlette.applications import Starlette
+
+    provider = _make_provider(tmp_path)
+    legacy = OAuthClientInformationFull(
+        client_id="legacy", client_name="Old", redirect_uris=[AnyUrl("https://evil.example/cb")],
+        token_endpoint_auth_method="none",
+    )
+    await provider._store.save_client(legacy)
+    app = Starlette(routes=provider.get_routes())
+
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=_BASE_URL) as http:
+        r = await http.get("/authorize", params={
+            "response_type": "code", "client_id": "legacy", "redirect_uri": "https://evil.example/cb",
+            "code_challenge": "c" * 43, "code_challenge_method": "S256", "state": "st",
+        })
+
+    assert r.status_code == 302
+    location = r.headers["location"]
+    assert "error=unauthorized_client" in location
+    assert "code=" not in location
     assert provider._pending == {}
 
 

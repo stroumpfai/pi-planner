@@ -74,13 +74,127 @@ If you get a 404 or an empty response, OAuth is not enabled. Check:
 
 ---
 
+## Allowed redirect hosts (`OAUTH_ALLOWED_REDIRECT_HOSTS`)
+
+*For operators.* Since commit `94b261d` (after mcp-server 1.8.0), the MCP server only sends OAuth
+authorization codes to hosts it trusts. A web-based client whose host isn't on the list can't
+connect until you add it.
+
+### What it means
+
+At the end of the OAuth flow, the server sends the browser back to the client's
+**redirect URI** with an authorization code, which the client exchanges for a token. Whoever
+receives that code gets the user's access.
+
+Any client can register itself with the server, choose any name, and give any redirect URI.
+Without a restriction, an attacker could register a client called "Claude" whose redirect
+URI is their own server, then send a user the authorize link. If the user pasted their API key
+on the consent page, the code, and with it editor or admin access, would go to the attacker.
+`OAUTH_ALLOWED_REDIRECT_HOSTS` limits where codes can go to clients you actually use.
+
+### The rule
+
+A redirect URI is **allowed** when it is:
+
+| Kind | Example | Why it's safe |
+|---|---|---|
+| `https` to a listed host, or a subdomain of one | `https://claude.ai/api/mcp/auth_callback` | You chose to trust that host |
+| `http` or `https` to loopback, any port | `http://127.0.0.1:6274/oauth/callback` | A local client (MCP inspector, desktop tools). The code never leaves the user's machine |
+| An app scheme | `cursor://…`, `vscode://…` | Opens an app on the user's own machine |
+
+Everything else is **refused**, including plain `http` to any remote host.
+
+The setting lives in `mcp_server/.env`: a comma-separated list of host names, with no scheme,
+port or path. Each entry also matches its subdomains, so `example.com` covers
+`app.example.com`; it does not match look-alikes such as `example.com.evil.net`.
+
+```bash
+# Default
+OAUTH_ALLOWED_REDIRECT_HOSTS=claude.ai,claude.com,chatgpt.com,openai.com
+# Turn the check off (not recommended: re-opens the phishing route above)
+OAUTH_ALLOWED_REDIRECT_HOSTS=*
+```
+
+### The effects
+
+| Who | What happens |
+|---|---|
+| **Claude** (web, Desktop, mobile) **and ChatGPT** | Nothing. Claude's hosted apps redirect to `https://claude.ai/api/mcp/auth_callback`; Anthropic says this may move to `claude.com`, which is also listed. ChatGPT uses `https://chatgpt.com/connector_platform_oauth_redirect` or `https://chatgpt.com/connector/oauth/{id}`, depending on the server. All are on the default list |
+| **Claude Code**, and other clients using an API key as a Bearer token | Nothing; they don't use OAuth |
+| **Local and desktop clients** redirecting to loopback or an app scheme | Nothing |
+| **A new web client on another host** | Registration is refused with HTTP 400 `invalid_redirect_uri`. The user never sees the consent page; the client shows its own "couldn't connect" message, which may or may not include the reason |
+| **A web client on another host that connected before the upgrade** | Its current connection **keeps working**, because the check runs only when authorizing, not on each request. It breaks at its next authorization: when the grant reaches `OAUTH_GRANT_MAX_AGE` (90 days), when its API key is revoked or cycled, or when the user reconnects. The browser is then sent back to the client with `error=unauthorized_client` and no code, and the consent page never appears |
+
+The delayed break in the last row is the one to watch for: a client can fail weeks after the
+upgrade, with nothing else having changed.
+
+### How to spot it
+
+**1. In the logs.** Both refusals are logged at `WARNING`, which the default `LOG_LEVEL` shows.
+The line includes the redirect URI, so it tells you which host to add:
+
+```bash
+docker compose logs mcp-server | grep -E "oauth_dcr_rejected reason=redirect_host|oauth_authorize_redirect_uri_not_allowed"
+```
+
+```text
+oauth_dcr_rejected reason=redirect_host uri=https://app.example.net/oauth/callback
+oauth_authorize_redirect_uri_not_allowed client=zzz999yy uri=https://app.example.net/oauth/callback
+```
+
+**2. Before it bites: audit the clients already registered.** This lists every stored client
+that the current setting would refuse. Run it after upgrading, and again after you change the
+setting:
+
+```bash
+docker compose exec -T mcp-server python - <<'EOF'
+import json
+from mcp_server.config import settings
+from mcp_server.oauth_provider import _redirect_uri_allowed
+
+clients = json.load(open(settings.oauth_token_storage)).get("clients", {})
+for client_id, c in clients.items():
+    blocked = [u for u in c.get("redirect_uris") or [] if not _redirect_uri_allowed(u)]
+    if blocked:
+        print(f"{c.get('client_name') or '(unnamed)'}  id={client_id[:12]}  blocked={blocked}")
+print(f"checked {len(clients)} registered clients")
+EOF
+```
+
+Any line other than the final count is a client that will fail at its next authorization.
+Clients that identify themselves by a URL instead of registering aren't stored, so they don't
+appear here; they show up only in the logs.
+
+**3. From user reports.** "The MCP connection worked yesterday, and now reconnecting does
+nothing or shows an error, and I never get the API key page." This is the pattern for a
+pre-upgrade client reaching its next authorization.
+
+### Fixing it
+
+1. Check the host is genuinely the client you mean to use, not a look-alike. An unknown host
+   that shows up only in rejections may be a phishing attempt the allowlist just stopped.
+2. Add it to the list in `mcp_server/.env`, keeping the defaults:
+   ```bash
+   OAUTH_ALLOWED_REDIRECT_HOSTS=claude.ai,claude.com,chatgpt.com,openai.com,app.example.net
+   ```
+3. Recreate the container so it reads the new value. `docker compose restart` is not enough,
+   because the setting comes from the compose `env_file`:
+   ```bash
+   docker compose up -d mcp-server
+   ```
+4. Run the audit snippet again (it should print only the count), and ask the user to
+   reconnect. No re-registration is needed; the client's existing registration starts working
+   again.
+
+---
+
 ## Troubleshooting
 
 | Symptom | Likely cause |
 |---|---|
 | No authorization popup appears | OAuth not enabled — check `OAUTH_BASE_URL` in `mcp_server/.env` and restart |
 | No popup when reconnecting a client that worked before | The client cached a registration the server no longer has (e.g. after the OAuth token store was reset). In the client, **remove and re-add** the server so it re-registers. Operators: ensure `OAUTH_TOKEN_STORAGE` points at a persistent volume (the compose file uses `/data/oauth_tokens.json`). |
-| Connecting fails with `invalid_redirect_uri`, or the authorize step errors with "not allowed by this server" | The client sends authorization codes to a host that isn't in `OAUTH_ALLOWED_REDIRECT_HOSTS`. Operators: add that host in `mcp_server/.env` and restart |
+| Connecting fails with `invalid_redirect_uri`, or a client that worked before now comes back with `error=unauthorized_client` and never shows the consent page | The client's redirect host isn't in `OAUTH_ALLOWED_REDIRECT_HOSTS`. See [Allowed redirect hosts](#allowed-redirect-hosts-oauth_allowed_redirect_hosts) |
 | Connecting fails with HTTP 429 from `/register` | More than 10 client registrations from one address within an hour — wait, or check for a client stuck re-registering in a loop |
 | Consent page shows "Invalid API key" | Wrong key, or key was deleted/expired |
 | Consent page shows "Too many failed attempts" | Rate-limited after repeated invalid key submissions from your IP — wait about a minute and try again |

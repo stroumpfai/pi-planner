@@ -140,7 +140,7 @@ Configure the MCP server by editing `mcp_server/.env` (copy from `mcp_server/.en
 | `FASTMCP_LOG_LEVEL` | `INFO` | Log level for FastMCP/uvicorn framework logs. Set to `warning` to suppress `INFO: Started server...` noise. |
 | `OAUTH_BASE_URL` | *(empty)* | Public URL of the MCP server — enables OAuth 2.1 for Claude.ai / ChatGPT. Leave empty for Claude Code (direct API key auth). |
 | `OAUTH_GRANT_MAX_AGE` | `7776000` (90 days) | Longest an OAuth connection lasts, in seconds, however often it refreshes. After that the user pastes an API key again |
-| `OAUTH_ALLOWED_REDIRECT_HOSTS` | `claude.ai,claude.com,chatgpt.com,openai.com` | Hosts (and their subdomains) an OAuth client may have authorization codes sent to over https. Loopback http and app schemes such as `cursor://` are always allowed. Add a host to connect another web client; `*` turns the check off |
+| `OAUTH_ALLOWED_REDIRECT_HOSTS` | `claude.ai,claude.com,chatgpt.com,openai.com` | Hosts (and their subdomains) an OAuth client may have authorization codes sent to over https. Loopback http and app schemes such as `cursor://` are always allowed. Add a host to connect another web client; `*` turns the check off. Effects and how to spot them: [howto-mcp-client.md](howto-mcp-client.md#allowed-redirect-hosts-oauth_allowed_redirect_hosts) |
 | `OAUTH_MAX_CLIENTS` | `500` | Most OAuth client registrations kept. At the cap, registrations older than a day that never got a token are dropped; if none qualify, new registrations are refused |
 
 To rebuild after a code change:
