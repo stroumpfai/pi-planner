@@ -192,6 +192,11 @@ express — the team-level share (§6.3) is untouched.
 There is **no absence category** — per the draft, an absence is an absence. `label` is text
 for the human reading the row, and is never interpreted by the capacity maths.
 
+> **Public holidays have moved.** They now live in shared holiday calendars that each team
+> enables (`spec/public-holidays.md`, ADR 0008), which supersedes the "whole mechanism for
+> public and national holidays" paragraph below. Absences themselves are unchanged and still
+> have no category.
+
 #### The schedule rule — three kinds, shared with meetings
 
 The same rule shape describes when an absence applies and when a meeting occurs, so absences
