@@ -302,7 +302,9 @@ async def list_teams(ctx: Context) -> dict:
     normal_day_hours (the divisor turning hours into person-days), member_count,
     project_ids (the projects this team serves), project_shares, member_loads
     (each counting member's summed share across the projects that count them —
-    over 100 means that person is over-allocated) and timestamps.
+    over 100 means that person is over-allocated; also in days_per_week against
+    contracted_days), project_share_days for shares entered in days, and
+    timestamps.
     Teams are not planning items: there is no user-facing id beside system_id.
     """
     return await call_backend("GET", "/api/v1/teams")
@@ -501,7 +503,9 @@ async def get_team_capacity(
     in that project's own effort unit, and — for `factor` projects — the integer a
     push would write. A project row with all_members=false counts only the members
     whose system_id is in its member_ids (match them against the member rows): its
-    PD is theirs × share_pct, not the team's. Reading this changes nothing:
+    PD is theirs × the share, not the team's. A share is share_pct, or share_days
+    (days a week of each member's own contract) when set; member_shares lists
+    members with a share of their own. Reading this changes nothing:
     capacity reaches a project only through an explicit push.
     """
     params = {}
@@ -576,6 +580,7 @@ async def preview_team_capacity(
         "project_name": preview["project_name"],
         "effort_unit": preview["effort_unit"],
         "share_pct": preview["share_pct"],
+        "share_days": preview.get("share_days"),
         "all_members": preview.get("all_members", True),
         "member_names": preview.get("member_names", []),
         "available_source": preview["available_source"],
@@ -629,7 +634,7 @@ async def get_team_achievement(
       whatever their State. What the plan said.
     - `achieved`: points whose `completed_on` falls in the column's dates. What
       happened. `achieved_items` lists the stories and bugs behind each cell.
-    - `pd_given`: PD of the members the project counts × share_pct / 100.
+    - `pd_given`: PD of the members the project counts, each × their share.
     - `velocity`: achieved ÷ pd_given, in units per PD — the `units_per_pd`
       factor, measured rather than typed.
     Team row: `achieved_pd` (Σ achieved ÷ units_per_pd), `available_pd` (the

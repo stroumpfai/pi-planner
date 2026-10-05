@@ -1,10 +1,12 @@
 import { useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { MemberScopeField } from '@/components/MemberScopeField'
+import { ShareField } from '@/components/ShareField'
 import { useUpdateAssignment } from '@/hooks/useTeamProjects'
 import { useProjectVelocity } from '@/hooks/useTeamAchievement'
 import { assignmentErrorCode } from '@/services/teamProjects'
-import type { TeamAssignment } from '@/types'
+import type { MemberShare, TeamAssignment } from '@/types'
+import { shareFields, type ShareUnit } from '@/utils/shares'
 
 interface Props {
   readonly open: boolean
@@ -17,6 +19,12 @@ interface Props {
 const DEFAULT_SPRINTS = 3
 const SPRINT_CHOICES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const
 
+/** Member shares in a comparable shape: by member, nulls dropped. */
+const normalise = (shares: readonly MemberShare[]) =>
+  [...shares]
+    .sort((a, b) => a.member_id.localeCompare(b.member_id))
+    .map((s) => [s.member_id, s.share_pct ?? null, s.share_days ?? null])
+
 /** Two decimals, without trailing noise: 1.4166… → "1.42", 2 → "2". */
 const roundFactor = (value: number) => String(Math.round(value * 100) / 100)
 
@@ -27,7 +35,9 @@ const CHANGED_MESSAGE =
 export function EditAssignmentModal({ open, teamId, assignment, onClose }: Props) {
   const update = useUpdateAssignment(teamId)
 
-  const [sharePct, setSharePct] = useState(String(assignment.share_pct))
+  const [shareUnit, setShareUnit] = useState<ShareUnit>(assignment.share_days != null ? 'days' : 'pct')
+  const [shareValue, setShareValue] = useState(String(assignment.share_days ?? assignment.share_pct))
+  const [memberShares, setMemberShares] = useState<MemberShare[]>(assignment.member_shares ?? [])
   const [allMembers, setAllMembers] = useState<boolean>(assignment.all_members ?? true)
   const [memberIds, setMemberIds] = useState<string[]>(assignment.member_ids ?? [])
   const [source, setSource] = useState<'manual' | 'factor'>(
@@ -52,6 +62,8 @@ export function EditAssignmentModal({ open, teamId, assignment, onClose }: Props
     allMembers !== (assignment.all_members ?? true) ||
     (!allMembers &&
       (memberIds.length !== initialIds.length || memberIds.some((id, i) => id !== initialIds[i])))
+  const sharesChanged =
+    JSON.stringify(normalise(memberShares)) !== JSON.stringify(normalise(assignment.member_shares ?? []))
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -62,11 +74,12 @@ export function EditAssignmentModal({ open, teamId, assignment, onClose }: Props
         // The tag of the row this form was opened on, not a fresh one (§4.2).
         etag: assignment.etag ?? '',
         body: {
-          share_pct: Number(sharePct),
+          ...shareFields(shareUnit, shareValue),
           available_source: source,
           units_per_pd: Number(unitsPerPd),
           // The scope only when it moved, so a share edit stays a share edit.
           ...(scopeChanged ? { all_members: allMembers, member_ids: allMembers ? [] : memberIds } : {}),
+          ...(sharesChanged ? { member_shares: memberShares } : {}),
         },
       })
       onClose()
@@ -97,25 +110,17 @@ export function EditAssignmentModal({ open, teamId, assignment, onClose }: Props
               allMembers={allMembers}
               memberIds={memberIds}
               onChange={(all, ids) => { setAllMembers(all); setMemberIds(ids) }}
+              memberShares={memberShares}
+              onSharesChange={setMemberShares}
             />
 
-            <div>
-              <label htmlFor="edit-share" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                {allMembers ? 'Share of the team' : 'Share of these members'}
-              </label>
-              <div className="mt-1 flex items-center gap-2">
-                <input
-                  id="edit-share"
-                  name="share_pct"
-                  type="number"
-                  step="any"
-                  value={sharePct}
-                  onChange={(e) => setSharePct(e.target.value)}
-                  className="block w-24 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                />
-                <span className="text-sm text-gray-500 dark:text-gray-400">%</span>
-              </div>
-            </div>
+            <ShareField
+              id="edit-share"
+              label={allMembers ? 'Share of the team' : 'Share of these members'}
+              unit={shareUnit}
+              value={shareValue}
+              onChange={(unit, value) => { setShareUnit(unit); setShareValue(value) }}
+            />
 
             <fieldset>
               <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">Available</legend>

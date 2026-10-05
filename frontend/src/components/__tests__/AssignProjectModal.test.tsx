@@ -131,7 +131,31 @@ describe('AssignProjectModal', () => {
     )
   })
 
-  it('assigns the project when the API accepts it', async () => {
+  it('takes the share in days a week, and a member share of their own', async () => {
+    mutateAsync.mockResolvedValue({})
+    render(<AssignProjectModal {...defaultProps} />, { wrapper: makeWrapper() })
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: /project/i }), 'p-1')
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Share of the team unit' }), 'days')
+    await userEvent.clear(screen.getByLabelText('Share of the team'))
+    await userEvent.type(screen.getByLabelText('Share of the team'), '1')
+    await userEvent.click(screen.getByRole('button', { name: 'Give some members a different share' }))
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: "Anna's share unit" }), 'days')
+    await userEvent.type(screen.getByLabelText("Anna's share"), '2.5')
+    // Someone tracked for absences only has no share to give.
+    expect(screen.queryByLabelText("Pia's share")).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /^assign project$/i }))
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled())
+    const body = mutateAsync.mock.calls[0][0]
+    expect(body).toMatchObject({
+      share_days: 1,
+      member_shares: [{ member_id: 'm-1', share_days: 2.5 }],
+    })
+    expect(body).not.toHaveProperty('share_pct')
+  })
+
+    it('assigns the project when the API accepts it', async () => {
     mutateAsync.mockResolvedValue({})
     const onClose = vi.fn()
     render(<AssignProjectModal {...defaultProps} onClose={onClose} />, { wrapper: makeWrapper() })

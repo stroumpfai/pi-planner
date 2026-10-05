@@ -7,11 +7,13 @@ from app.services.team_capacity import (
     HALVES,
     Member,
     PatternVersion,
+    Share,
     compute_member_capacity,
     compute_team_capacity,
     pattern_version_from_row,
     resolve_version,
     round_half_up,
+    shared_person_days,
 )
 
 # §5.5's sprint: Mon 6 Apr – Fri 17 Apr 2026, ten working days.
@@ -427,3 +429,72 @@ def test_the_team_total_carries_holidays_through():
     )
     assert team.person_days == pytest.approx(18.0)
     assert sum(m.holiday_half_days for m in team.members) == 4
+
+
+# ── shares in days (§6.3.2, ADR 0010) ────────────────────────────────────────
+#
+# §5.5's fortnight again: a full-timer at 8 h, focus 1.0, is 80 h = 10 PD.
+
+
+def _shared(m: Member, share: Share, **lookups) -> float:
+    capacity = compute_member_capacity(m, 8.0, SPRINT_START, SPRINT_END, **lookups)
+    return shared_person_days(m, capacity, share, 8.0)
+
+
+def test_a_contract_counts_its_days_a_week_in_half_days():
+    assert pattern("mon-fri").contracted_days == 5.0
+    assert pattern("mon-thu,fri_am").contracted_days == 4.5
+    assert pattern("").contracted_days == 0.0
+
+
+def test_two_days_a_week_is_two_fifths_of_a_full_timer():
+    assert _shared(member("a", pattern("mon-fri")), Share(days=2)) == pytest.approx(4.0)
+
+
+def test_two_days_a_week_is_half_of_a_four_day_contract():
+    # Mon–Thu: 8 days in the fortnight = 8 PD, and 2 of 4 days is half of it.
+    assert _shared(member("a", pattern("mon-thu")), Share(days=2)) == pytest.approx(4.0)
+
+
+def test_a_percentage_share_weighs_every_version_alike():
+    assert _shared(member("a", pattern("mon-fri")), Share(pct=40)) == pytest.approx(4.0)
+
+
+def test_a_contract_change_mid_sprint_reweighs_each_side():
+    """Full-time the first week, Mon–Thu from 13 Apr: 2 days is 2/5, then 2/4."""
+    m = member(
+        "a",
+        pattern("mon-fri", effective_from=date(2000, 1, 1)),
+        pattern("mon-thu", effective_from=date(2026, 4, 13)),
+    )
+    # Week one 40 h × 0.4 = 16 h; week two 32 h × 0.5 = 16 h; 32 h ÷ 8 = 4 PD.
+    assert _shared(m, Share(days=2)) == pytest.approx(4.0)
+
+
+def test_an_absence_costs_a_days_share_in_proportion():
+    """Absence hits every project alike — a proportion, not a reserved amount."""
+    def monday_morning(member_id, day, half):
+        return day == SPRINT_START and half == "am"
+
+    # 80 h − 4 h = 76 h, × 2/5 = 30.4 h = 3.8 PD.
+    m = member("a", pattern("mon-fri"))
+    assert _shared(m, Share(days=2), absent=monday_morning) == pytest.approx(3.8)
+
+
+def test_days_past_the_contract_take_the_whole_member_and_no_more():
+    assert _shared(member("a", pattern("mon-fri")), Share(days=6)) == pytest.approx(10.0)
+
+
+def test_a_days_share_of_a_member_with_no_contracted_days_is_nothing():
+    assert _shared(member("a", pattern("")), Share(days=2)) == 0.0
+
+
+def test_net_hours_by_version_add_up_to_net_hours():
+    m = member(
+        "a",
+        pattern("mon-fri", focus=0.8, effective_from=date(2000, 1, 1)),
+        pattern("mon-thu", focus=0.9, effective_from=date(2026, 4, 13)),
+    )
+    capacity = compute_member_capacity(m, 8.0, SPRINT_START, SPRINT_END)
+    assert sum(capacity.net_hours_by_version.values()) == pytest.approx(capacity.net_hours)
+    assert set(capacity.net_hours_by_version) == {date(2000, 1, 1), date(2026, 4, 13)}

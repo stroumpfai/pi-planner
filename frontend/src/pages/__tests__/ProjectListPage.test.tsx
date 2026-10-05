@@ -369,8 +369,8 @@ describe('ProjectListPage — Teams section', () => {
         project_ids: ['p-1', 'p-2'],
         project_shares: { 'p-1': 70, 'p-2': 60 },
         member_loads: [
-          { member_id: 'm-1', name: 'Anna', share_pct: 130 },
-          { member_id: 'm-2', name: 'Bruno', share_pct: 60 },
+          { member_id: 'm-1', name: 'Anna', share_pct: 130, days_per_week: 6.5, contracted_days: 5 },
+          { member_id: 'm-2', name: 'Bruno', share_pct: 60, days_per_week: 3, contracted_days: 5 },
         ],
       }),
     ])
@@ -386,8 +386,8 @@ describe('ProjectListPage — Teams section', () => {
         project_ids: ['p-1', 'p-2'],
         project_shares: { 'p-1': 100, 'p-2': 100 },
         member_loads: [
-          { member_id: 'm-1', name: 'Anna', share_pct: 100 },
-          { member_id: 'm-2', name: 'Bruno', share_pct: 100 },
+          { member_id: 'm-1', name: 'Anna', share_pct: 100, days_per_week: 5, contracted_days: 5 },
+          { member_id: 'm-2', name: 'Bruno', share_pct: 100, days_per_week: 5, contracted_days: 5 },
         ],
       }),
     ])

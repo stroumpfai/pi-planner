@@ -51,7 +51,9 @@ from app.services.assignment_scope import (
     Scope,
     check_scope,
     forget_assignments,
+    load_scope,
     load_scopes,
+    member_shares_response,
     set_scope,
 )
 from app.services.concurrency import IfMatch, check_if_match, etag_for, set_etag
@@ -90,10 +92,12 @@ def _response(
         project_name=project.name,
         effort_unit=project.effort_unit,
         share_pct=assignment.share_pct,
+        share_days=assignment.share_days,
         available_source=assignment.available_source,
         units_per_pd=assignment.units_per_pd,
         all_members=scope.all_members,
         member_ids=[m for m in member_order if m in scope.member_ids],
+        member_shares=member_shares_response(scope, member_order),
         is_anchor=is_anchor,
         created_at=assignment.created_at,
         modified_at=assignment.modified_at,
@@ -233,18 +237,19 @@ async def assign_project(
             },
         )
 
-    await check_scope(db, team_id, body.all_members, body.member_ids)
+    await check_scope(db, team_id, body.all_members, body.member_ids, body.member_shares)
     assignment = TeamProject(
         team_id=team_id,
         project_id=body.project_id,
         share_pct=body.share_pct,
+        share_days=body.share_days,
         available_source=body.available_source,
         units_per_pd=body.units_per_pd,
     )
     db.add(assignment)
     try:
         await db.flush()
-        await set_scope(db, assignment, body.all_members, body.member_ids)
+        await set_scope(db, assignment, body.all_members, body.member_ids, body.member_shares)
         await db.commit()
     except IntegrityError:
         # The unique index, in case two assignments raced past the check above.
@@ -281,20 +286,35 @@ async def update_assignment(
         if_match, assignment.modified_at, await _one_response(db, team_id, project_id)
     )
 
-    rescoped = body.all_members is not None or body.member_ids is not None
-    # member_ids alone means "only these"; all_members alone means everyone.
-    all_members = bool(body.all_members)
+    # The scope and the member shares are replaced as a whole, but each half only
+    # when given: a PATCH of member_shares alone keeps who is counted, and one of
+    # the scope alone keeps everyone's own share.
+    scope_given = body.all_members is not None or body.member_ids is not None
+    rescoped = scope_given or body.member_shares is not None
     if rescoped:
-        await check_scope(db, team_id, all_members, body.member_ids or [])
+        current = await load_scope(db, assignment)
+        # member_ids alone means "only these"; all_members alone means everyone.
+        all_members = bool(body.all_members) if scope_given else current.all_members
+        member_ids = (body.member_ids or []) if scope_given else sorted(current.member_ids)
+        member_shares = (
+            body.member_shares
+            if body.member_shares is not None
+            else member_shares_response(current, sorted(current.overrides))
+        )
+        await check_scope(db, team_id, all_members, member_ids, member_shares)
 
+    # One unit at a time: setting either replaces the other (§6.3.2).
     if body.share_pct is not None:
         assignment.share_pct = body.share_pct
+        assignment.share_days = None
+    if body.share_days is not None:
+        assignment.share_days = body.share_days
     if body.available_source is not None:
         assignment.available_source = body.available_source
     if body.units_per_pd is not None:
         assignment.units_per_pd = body.units_per_pd
     if rescoped:
-        await set_scope(db, assignment, all_members, body.member_ids or [])
+        await set_scope(db, assignment, all_members, member_ids, member_shares)
     assignment.modified_at = datetime.now(timezone.utc)
 
     await db.commit()

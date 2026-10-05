@@ -37,7 +37,7 @@ the list of teams that exist, never created implicitly (the ADR-0003 rule).
 from typing import Annotated
 
 from fastmcp import Context, FastMCP
-from pydantic import Field
+from pydantic import BaseModel, Field, model_validator
 
 from mcp_server.backend import MCPBackendError, call_backend, call_backend_raw
 from mcp_server.lock import edit_lock
@@ -611,6 +611,45 @@ _SCOPE_ALL = (
     "true to count the whole team again (wins over member_names). Only needed to "
     "undo an earlier member_names."
 )
+_SHARE_DAYS = (
+    "The share as days a week instead of a percentage: each counted member gives "
+    "this many of their own contracted days — 2 is 40% of a full-timer and 50% of a "
+    "4-day contract. Half-day steps, at most 7. Not together with share_pct."
+)
+_MEMBER_SHARES = (
+    "Members whose share of this project differs from the assignment's, e.g. "
+    "[{\"name\": \"Anna\", \"share_days\": 2}, {\"name\": \"Bruno\", \"share_pct\": 40}]. "
+    "Each takes share_pct or share_days, not both. A member given a share counts for "
+    "the project even when member_names leaves them out."
+)
+
+
+class MemberShareInput(BaseModel):
+    """One member's own share of a project, addressed by name (ADR 0010)."""
+
+    name: str = Field(..., min_length=1, max_length=100)
+    share_pct: int | None = Field(None, ge=1, le=100)
+    share_days: float | None = Field(None, gt=0, le=7, multiple_of=0.5)
+
+    @model_validator(mode="after")
+    def _exactly_one(self) -> "MemberShareInput":
+        if (self.share_pct is None) == (self.share_days is None):
+            raise ValueError(
+                f"Give {self.name!r} a share_pct or a share_days — exactly one of them."
+            )
+        return self
+
+
+async def _member_shares_body(team_id: str, shares: list[MemberShareInput]) -> list[dict]:
+    """Resolve each name to an id; an unknown name raises before anything is sent."""
+    return [
+        {
+            "member_id": await resolve_member_id(team_id, share.name),
+            "share_pct": share.share_pct,
+            "share_days": share.share_days,
+        }
+        for share in shares
+    ]
 
 
 async def _assignment_of(team_id: str, project_id: str) -> dict:
@@ -666,6 +705,12 @@ async def assign_project(
     member_names: Annotated[
         list[str] | None, Field(default=None, min_length=1, max_length=50, description=_SCOPE_NAMES)
     ] = None,
+    share_days: Annotated[
+        float | None, Field(default=None, gt=0, le=7, multiple_of=0.5, description=_SHARE_DAYS)
+    ] = None,
+    member_shares: Annotated[
+        list[MemberShareInput] | None, Field(default=None, max_length=50, description=_MEMBER_SHARES)
+    ] = None,
 ) -> dict:
     """
     Assign a team to a project.
@@ -688,6 +733,11 @@ async def assign_project(
     projects with member_names=[everyone else] and their shares. Unknown names
     are refused — no tool creates a person implicitly.
 
+    A share can be days a week instead of a percentage (share_days), and one
+    member can have a share of their own (member_shares) — "Anna, 2 days a week
+    on X". Days are a fraction of that member's own contract, and absences reduce
+    them in proportion, like any share.
+
     available_source defaults to 'manual', which changes nothing about the
     project: Available stays whatever a human typed. 'factor' makes it derivable,
     but still writes nothing until someone pushes.
@@ -701,9 +751,15 @@ async def assign_project(
         body["available_source"] = available_source
     if units_per_pd is not None:
         body["units_per_pd"] = units_per_pd
+    if share_days is not None:
+        if share_pct is not None:
+            raise ValueError("Give the share as share_pct or as share_days, not both.")
+        body["share_days"] = share_days
     if member_names is not None:
         body["all_members"] = False
         body["member_ids"] = [await resolve_member_id(team_id, name) for name in member_names]
+    if member_shares:
+        body["member_shares"] = await _member_shares_body(team_id, member_shares)
     return await call_backend("POST", f"/api/v1/teams/{team_id}/projects", json=body)
 
 
@@ -726,10 +782,21 @@ async def update_assignment(
         list[str] | None, Field(default=None, min_length=1, max_length=50, description=_SCOPE_NAMES)
     ] = None,
     all_members: Annotated[bool | None, Field(default=None, description=_SCOPE_ALL)] = None,
+    share_days: Annotated[
+        float | None, Field(default=None, gt=0, le=7, multiple_of=0.5, description=_SHARE_DAYS)
+    ] = None,
+    member_shares: Annotated[
+        list[MemberShareInput] | None,
+        Field(
+            default=None,
+            max_length=50,
+            description=_MEMBER_SHARES + " Replaces every member's own share; [] clears them.",
+        ),
+    ] = None,
 ) -> dict:
     """
     Change a project's share, conversion factor, how its Available is produced,
-    or whose capacity counts for it.
+    whose capacity counts for it, or a member's own share of it.
 
     Only supply what you want to change. Switching to 'factor' makes Available
     derivable from the team; it does not write it — a push does, and the preview
@@ -738,6 +805,9 @@ async def update_assignment(
     Switching back to 'manual' leaves every sprint exactly as it stands.
     member_names replaces the set of members counted for this project (it is
     not added to); all_members=true counts the whole team again.
+    share_pct and share_days replace each other: setting one clears the other.
+    member_shares replaces every member's own share and leaves who is counted
+    alone; leave it out to keep them.
 
     Concurrency works as in update_team: the assignment is read and written inside
     one call, quoting the ETag from that read, and a STALE failure is retried once
@@ -761,6 +831,12 @@ async def update_assignment(
     elif member_names is not None:
         body["all_members"] = False
         body["member_ids"] = [await resolve_member_id(team_id, name) for name in member_names]
+    if share_days is not None:
+        if share_pct is not None:
+            raise ValueError("Give the share as share_pct or as share_days, not both.")
+        body["share_days"] = share_days
+    if member_shares is not None:
+        body["member_shares"] = await _member_shares_body(team_id, member_shares)
 
     async def attempt() -> dict:
         assignment = await _assignment_of(team_id, project_id)

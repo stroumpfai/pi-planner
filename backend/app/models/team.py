@@ -345,6 +345,10 @@ class TeamProject(Base):
     # overcommitted, and refusing to represent that hides what the tool exists to
     # reveal (teams.md §6.3).
     share_pct: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("100"), default=100)
+    # The same share entered in days a week: each counted member gives this many
+    # of their own contracted days (§6.3.2, ADR 0010). When set it wins, and
+    # share_pct is kept but not read.
+    share_days: Mapped[float | None] = mapped_column(Float)
     available_source: Mapped[str] = mapped_column(
         Text, nullable=False, server_default="manual", default="manual"
     )
@@ -374,9 +378,11 @@ class TeamProject(Base):
 
 
 class TeamProjectMember(Base):
-    """One member whose capacity counts for one project assignment (ADR 0009).
+    """One member listed on a project assignment (ADR 0009, ADR 0010).
 
-    Read only when the assignment's ``all_members`` is off. A pure join, like
+    On a scoped assignment (``all_members`` off) the rows are the members it
+    counts, each with an optional share of their own. On one counting the whole
+    team, a row only carries a member's own share. A pure join, like
     ``MeetingAttendee``: the scope is edited through the assignment, which carries
     the concurrency token for both. SQLite runs without ``PRAGMA foreign_keys``, so
     the cascades below are documentation; ``services/assignment_scope.py`` deletes
@@ -391,6 +397,12 @@ class TeamProjectMember(Base):
     member_id: Mapped[str] = mapped_column(
         Text, ForeignKey("team_members.system_id", ondelete="CASCADE"), primary_key=True
     )
+    # This member's own share of the project, overriding the assignment's — a
+    # percentage or days a week, at most one; both null means the assignment's
+    # share applies (ADR 0010). On an assignment counting the whole team a row
+    # exists only to carry an override.
+    share_pct: Mapped[int | None] = mapped_column(Integer)
+    share_days: Mapped[float | None] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(default=_utcnow)
 
     __table_args__ = (

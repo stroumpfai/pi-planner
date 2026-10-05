@@ -15,6 +15,7 @@ import { ConfirmDialog } from '@/components/ConfirmDialog'
 import { SnapshotsModal } from '@/components/SnapshotsModal'
 import type { Project, Team } from '@/types'
 import { overAllocated } from '@/utils/memberLoads'
+import { formatShare } from '@/utils/shares'
 
 interface ExportButtonProps {
   /** e.g. `/api/v1/projects/{id}/export` or `/api/v1/teams/{id}/export`. */
@@ -265,12 +266,14 @@ function ServedProjects({ team, nameOf }: ServedProjectsProps) {
       {served.map((projectId) => (
         <p key={projectId} className="truncate text-gray-600 dark:text-gray-300">
           {nameOf(projectId)}{' '}
-          <span className="text-gray-400 dark:text-gray-500">{shares[projectId] ?? 100}%</span>
+          <span className="text-gray-400 dark:text-gray-500">
+            {formatShare(shares[projectId], team.project_share_days?.[projectId])}
+          </span>
         </p>
       ))}
       {over.length > 0 && (
         <p className="text-amber-600 dark:text-amber-400">
-          over-allocated: {over.map((load) => `${load.name} ${load.share_pct}%`).join(', ')}
+          over-allocated: {over.map((load) => `${load.name} ${Math.round(load.share_pct)}%`).join(', ')}
         </p>
       )}
     </div>
@@ -425,7 +428,10 @@ export function ProjectListPage() {
                                   on this project; the share is what it actually gets. */}
                               <span className="text-gray-400 dark:text-gray-500">
                                 {' · '}
-                                {team.project_shares?.[project.system_id] ?? 100}%
+                                {formatShare(
+                                  team.project_shares?.[project.system_id],
+                                  team.project_share_days?.[project.system_id],
+                                )}
                               </span>
                             </p>
                             <p className="mt-0.5">

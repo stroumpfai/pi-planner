@@ -4,6 +4,7 @@ import { useApplyPush, usePushPreviews, usePushTeam } from '@/hooks/useTeamPush'
 import { pushErrorCode, pushErrorMessage, pushLockHolder } from '@/services/teamPush'
 import { fmtDate, fmtDateTime } from '@/utils/dates'
 import type { ProjectPushResult, PushPreview, PushSprintRow, TeamAssignment } from '@/types'
+import { formatShare } from '@/utils/shares'
 
 interface Props {
   readonly open: boolean
@@ -151,7 +152,7 @@ export function PushProjectsModal({ open, teamId, teamName, assignments, onClose
                           checked={!excluded.includes(row.project_id)}
                           onChange={() => toggle(row.project_id)}
                         />
-                        {row.project_name} ({row.share_pct}%)
+                        {row.project_name} ({formatShare(row.share_pct, row.share_days)})
                       </label>
                     ))}
                   </fieldset>

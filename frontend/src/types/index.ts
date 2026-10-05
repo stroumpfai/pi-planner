@@ -8,6 +8,7 @@ export type ProjectUpdate = components['schemas']['ProjectUpdate']
 
 export type Team = components['schemas']['TeamResponse']
 export type MemberLoad = components['schemas']['MemberLoad']
+export type MemberShare = components['schemas']['MemberShare']
 export type TeamCreate = components['schemas']['TeamCreate']
 export type TeamUpdate = components['schemas']['TeamUpdate']
 

@@ -12,6 +12,7 @@ import { assignmentErrorCode } from '@/services/teamProjects'
 import { useAuthStore } from '@/stores/authStore'
 import type { TeamAssignment } from '@/types'
 import { groupLoads, overAllocated } from '@/utils/memberLoads'
+import { describeCounted, formatLoad, formatShare } from '@/utils/shares'
 
 interface Props {
   readonly teamId: string
@@ -61,11 +62,14 @@ export function TeamProjectsView({ teamId, teamName }: Props) {
   const loadGroups = groupLoads(loads)
   const over = overAllocated(loads)
   const nameOf = new Map((members ?? []).map((m) => [m.system_id, m.name]))
-  const countedLabel = (row: TeamAssignment) => {
-    if (row.all_members ?? true) return 'whole team'
-    const names = (row.member_ids ?? []).map((id) => nameOf.get(id) ?? '…')
-    return names.length > 0 ? names.join(', ') : 'nobody — no capacity'
-  }
+  const countedLabel = (row: TeamAssignment) =>
+    describeCounted(
+      row.all_members ?? true,
+      row.member_ids ?? [],
+      row.member_shares ?? [],
+      (id) => nameOf.get(id) ?? '…',
+    ) ?? 'whole team'
+
 
   const confirmUnassign = async () => {
     if (!unassigning) return
@@ -123,7 +127,7 @@ export function TeamProjectsView({ teamId, teamName }: Props) {
           role="status"
           className="text-xs text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 rounded-lg px-3 py-2"
         >
-          ⚠ Over-allocated: {over.map((load) => `${load.name} ${load.share_pct}%`).join(', ')}. You
+          ⚠ Over-allocated: {over.map((load) => `${load.name} ${formatLoad(load)}`).join(', ')}. You
           can still save; the numbers will be optimistic.
         </p>
       )}
@@ -150,7 +154,7 @@ export function TeamProjectsView({ teamId, teamName }: Props) {
               <div className="flex-1 min-w-0 max-w-[32rem]">
                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                   {row.project_name}{' '}
-                  <span className="text-gray-500 dark:text-gray-400 font-normal">{row.share_pct}%</span>
+                  <span className="text-gray-500 dark:text-gray-400 font-normal">{formatShare(row.share_pct, row.share_days)}</span>
                   {row.is_anchor && (
                     <span
                       className="ml-2 px-2 py-0.5 text-[10px] rounded-full bg-band shadow-soft-inset text-gray-500 dark:text-gray-400"

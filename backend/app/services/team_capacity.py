@@ -64,6 +64,15 @@ class PatternVersion:
     def owes(self, day: date, half: Half) -> bool:
         return (day.weekday(), half) in self.worked
 
+    @property
+    def contracted_days(self) -> float:
+        """Days a week this contract owes: Mon–Thu plus a Friday morning is 4.5.
+
+        What a share entered in days is a fraction of — "2 days a week" is 2 of
+        the member's own days, so 50% on a 4-day contract (teams.md §6.3.2).
+        """
+        return len(self.worked) / 2
+
 
 @dataclass(frozen=True)
 class Member:
@@ -151,6 +160,11 @@ class MemberCapacity:
     hours_after_meetings: float = 0.0
     net_hours: float = 0.0          # after focus
     person_days: float = 0.0
+    # net_hours split by the pattern version that produced them, keyed by its
+    # effective_from. A share entered in days weighs a member by their contract
+    # (§6.3.2), and the contract is the only thing that varies the weight, so
+    # this is all a project needs — no second pass over the half-days.
+    net_hours_by_version: dict[date, float] = field(default_factory=dict)
     # Surviving half-days counted in days, so a worked morning is 0.5. Presence and
     # capacity answer different questions: a member present 9 days contributes 6.3
     # PD when their day is 6 h and two of those days are halves (§5.5).
@@ -298,6 +312,8 @@ def compute_member_capacity(
             net = (slot_hours - charged.get(half, 0.0)) * version.focus
             result.hours_after_meetings += slot_hours - charged.get(half, 0.0)
             result.net_hours += net
+            by_version = result.net_hours_by_version
+            by_version[version.effective_from] = by_version.get(version.effective_from, 0.0) + net
 
     result.person_days = result.net_hours / normal_day_hours
     return result
@@ -333,6 +349,52 @@ def compute_team_capacity(
             result.net_hours += capacity.net_hours
     result.person_days = result.net_hours / normal_day_hours
     return result
+
+
+# ── shares ───────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class Share:
+    """What part of a member a project gets: a percentage, or days a week.
+
+    Exactly one is set. Days are stored as days, never converted on save: the
+    fraction is taken against the contract in force on each half-day, so a
+    contract change mid-sprint is exact, and a booking of "2 days" stays two days
+    when the contract changes underneath it (teams.md §6.3.2, ADR 0010).
+    """
+
+    pct: int | None = None
+    days: float | None = None
+
+    def weight(self, version: PatternVersion) -> float:
+        """The fraction of this version's net hours the share takes.
+
+        A days share is capped at the whole contract: one project cannot take
+        more of a person than they work. Booking past it is still reported — as
+        that member's load over 100% — rather than refused (§6.3.3).
+        """
+        if self.days is not None:
+            contracted = version.contracted_days
+            return 0.0 if contracted <= 0 else min(1.0, self.days / contracted)
+        return (self.pct if self.pct is not None else 100) / 100
+
+
+def shared_person_days(
+    member: Member, capacity: MemberCapacity, share: Share, normal_day_hours: float
+) -> float:
+    """The PD a project gets from one member under *share*.
+
+    Applied per pattern version, because a days share weighs each version by its
+    own contracted days. A percentage weighs every version alike and reduces to
+    ``person_days × pct / 100``.
+    """
+    versions = {version.effective_from: version for version in member.versions}
+    hours = sum(
+        net * share.weight(versions[effective_from])
+        for effective_from, net in capacity.net_hours_by_version.items()
+    )
+    return hours / normal_day_hours
 
 
 def round_half_up(value: float) -> int:

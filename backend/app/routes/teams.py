@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.database import get_session
 from app.middleware.deps import get_current_user, require_editor_or_above
@@ -55,8 +56,8 @@ class _Summary:
     """What a team row carries beyond the team itself."""
 
     member_count: int = 0
-    # (project_id, share_pct), anchor first.
-    assignments: list[tuple[str, int]] = field(default_factory=list)
+    # (project_id, share_pct, share_days), anchor first.
+    assignments: list[tuple[str, int, float | None]] = field(default_factory=list)
     member_loads: list[MemberLoad] = field(default_factory=list)
 
 
@@ -74,6 +75,8 @@ async def _summaries(db: AsyncSession, team_ids: list[str]) -> dict[str, _Summar
         await db.execute(
             select(TeamMember)
             .where(TeamMember.team_id.in_(team_ids))
+            # A load in days converts against each member's current contract.
+            .options(selectinload(TeamMember.pattern_versions))
             .order_by(TeamMember.order_index.asc(), TeamMember.created_at.asc())
         )
     ).scalars().all()
@@ -100,7 +103,9 @@ async def _summaries(db: AsyncSession, team_ids: list[str]) -> dict[str, _Summar
         team_members = members.get(team_id, [])
         team_assignments = assignments.get(team_id, [])
         summary.member_count = len(team_members)
-        summary.assignments = [(a.project_id, a.share_pct) for a in team_assignments]
+        summary.assignments = [
+            (a.project_id, a.share_pct, a.share_days) for a in team_assignments
+        ]
         summary.member_loads = member_loads(team_members, team_assignments, scopes, today)
     return summaries
 
@@ -109,8 +114,11 @@ def _response(team: Team, summary: _Summary) -> TeamResponse:
     return TeamResponse.model_validate(team).model_copy(
         update={
             "member_count": summary.member_count,
-            "project_ids": [project_id for project_id, _ in summary.assignments],
-            "project_shares": {project_id: share for project_id, share in summary.assignments},
+            "project_ids": [project_id for project_id, _, _ in summary.assignments],
+            "project_shares": {project_id: pct for project_id, pct, _ in summary.assignments},
+            "project_share_days": {
+                project_id: days for project_id, _, days in summary.assignments if days is not None
+            },
             "member_loads": summary.member_loads,
         }
     )

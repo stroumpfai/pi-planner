@@ -72,7 +72,14 @@ function respondWith(
 ) {
   const total = assignments.reduce((sum, a) => sum + a.share_pct, 0)
   const memberLoads =
-    loads ?? MEMBERS.map((m) => ({ member_id: m.system_id, name: m.name, share_pct: total }))
+    loads ??
+    MEMBERS.map((m) => ({
+      member_id: m.system_id,
+      name: m.name,
+      share_pct: total,
+      days_per_week: (total / 100) * 5,
+      contracted_days: 5,
+    }))
   mockApi.get.mockImplementation((url: string) => {
     if (url.startsWith('/team-capacity/status')) {
       return Promise.resolve({ data: statuses, headers: {} })
@@ -131,8 +138,8 @@ describe('TeamProjectsView', () => {
       [],
       [],
       [
-        { member_id: 'm-1', name: 'Anna', share_pct: 100 },
-        { member_id: 'm-2', name: 'Bruno', share_pct: 60 },
+        { member_id: 'm-1', name: 'Anna', share_pct: 100, days_per_week: 5, contracted_days: 5 },
+        { member_id: 'm-2', name: 'Bruno', share_pct: 60, days_per_week: 3, contracted_days: 5 },
       ],
     )
     render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })
@@ -156,7 +163,7 @@ describe('TeamProjectsView', () => {
     render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })
 
     expect(await screen.findByRole('status')).toHaveTextContent(
-      '⚠ Over-allocated: Anna 130%, Bruno 130%. You can still save; the numbers will be optimistic.',
+      '⚠ Over-allocated: Anna 130% · 6.5 of 5 d/wk, Bruno 130% · 6.5 of 5 d/wk. You can still save; the numbers will be optimistic.',
     )
     // Two assignments plus the total row: warned, and not one of them blocked.
     expect(screen.getAllByRole('listitem')).toHaveLength(3)
@@ -171,7 +178,20 @@ describe('TeamProjectsView', () => {
     expect(screen.queryByRole('status')).not.toBeInTheDocument()
   })
 
-  it('assigns a project, and says the first one sets the calendar', async () => {
+  it('shows a share in days and the members with one of their own', async () => {
+    respondWith([
+      assignment({
+        share_days: 1,
+        member_shares: [{ member_id: 'm-1', share_days: 2, share_pct: null }],
+      }),
+    ])
+    render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })
+
+    expect(await screen.findByText('1 d/wk')).toBeInTheDocument()
+    expect(await screen.findByText('counts whole team · Anna 2 d/wk')).toBeInTheDocument()
+  })
+
+    it('assigns a project, and says the first one sets the calendar', async () => {
     respondWith([], [project('p-1', 'ISK Portal'), project('p-2', 'Data Exchange')])
     mockApi.post.mockResolvedValue({ data: assignment(), headers: {} })
     render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })
@@ -191,6 +211,7 @@ describe('TeamProjectsView', () => {
       units_per_pd: 1,
       all_members: true,
       member_ids: [],
+      member_shares: [],
     })
   })
 

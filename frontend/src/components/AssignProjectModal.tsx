@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
 import { MemberScopeField } from '@/components/MemberScopeField'
+import { ShareField } from '@/components/ShareField'
 import { useProjects } from '@/hooks/useProjects'
 import { useAssignProject } from '@/hooks/useTeamProjects'
 import { assignmentErrorCode, sprintConflicts, type SprintConflict } from '@/services/teamProjects'
 import { errorDetail } from '@/services/api'
-import type { TeamAssignment } from '@/types'
+import type { MemberShare, TeamAssignment } from '@/types'
+import { shareFields, type ShareUnit } from '@/utils/shares'
 
 interface Props {
   readonly open: boolean
@@ -33,7 +35,9 @@ export function AssignProjectModal({ open, teamId, assigned, onClose }: Props) {
   const assign = useAssignProject(teamId)
 
   const [projectId, setProjectId] = useState('')
-  const [sharePct, setSharePct] = useState('100')
+  const [shareUnit, setShareUnit] = useState<ShareUnit>('pct')
+  const [shareValue, setShareValue] = useState('100')
+  const [memberShares, setMemberShares] = useState<MemberShare[]>([])
   const [allMembers, setAllMembers] = useState<boolean>(true)
   const [memberIds, setMemberIds] = useState<string[]>([])
   const [source, setSource] = useState<'manual' | 'factor'>('manual')
@@ -53,7 +57,9 @@ export function AssignProjectModal({ open, teamId, assigned, onClose }: Props) {
 
   const close = () => {
     setProjectId('')
-    setSharePct('100')
+    setShareUnit('pct')
+    setShareValue('100')
+    setMemberShares([])
     setAllMembers(true)
     setMemberIds([])
     setSource('manual')
@@ -74,11 +80,12 @@ export function AssignProjectModal({ open, teamId, assigned, onClose }: Props) {
     try {
       await assign.mutateAsync({
         project_id: projectId,
-        share_pct: Number(sharePct),
+        ...shareFields(shareUnit, shareValue),
         available_source: source,
         units_per_pd: Number(unitsPerPd),
         all_members: allMembers,
         member_ids: allMembers ? [] : memberIds,
+        member_shares: memberShares,
       })
       close()
     } catch (err) {
@@ -139,25 +146,17 @@ export function AssignProjectModal({ open, teamId, assigned, onClose }: Props) {
               allMembers={allMembers}
               memberIds={memberIds}
               onChange={(all, ids) => { setAllMembers(all); setMemberIds(ids) }}
+              memberShares={memberShares}
+              onSharesChange={setMemberShares}
             />
 
-            <div>
-              <label htmlFor="assign-share" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                {allMembers ? 'Share of the team' : 'Share of these members'}
-              </label>
-              <div className="mt-1 flex items-center gap-2">
-                <input
-                  id="assign-share"
-                  name="share_pct"
-                  type="number"
-                  step="any"
-                  value={sharePct}
-                  onChange={(e) => setSharePct(e.target.value)}
-                  className="block w-24 rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm"
-                />
-                <span className="text-sm text-gray-500 dark:text-gray-400">%</span>
-              </div>
-            </div>
+            <ShareField
+              id="assign-share"
+              label={allMembers ? 'Share of the team' : 'Share of these members'}
+              unit={shareUnit}
+              value={shareValue}
+              onChange={(unit, value) => { setShareUnit(unit); setShareValue(value) }}
+            />
 
             <fieldset>
               <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">Available</legend>

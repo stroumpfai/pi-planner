@@ -23,6 +23,10 @@ doc explains the implementation; it does not replace the spec.
   ([ADR 0009](adr/0009-an-assignment-can-count-only-some-members.md)), and
   over-allocation is judged per member: the sum of the shares of the projects
   that count them.
+- A share can be **days a week** — on the assignment, or one member's own:
+  "Anna, 2 days a week". Days are a fraction of that member's contract (2 days
+  is 40% of a full-timer, 50% of a 4-day contract), so absences reduce them in
+  proportion ([ADR 0010](adr/0010-shares-in-days-are-a-proportion-of-the-contract.md)).
 - This is a **different feature** from the amber/red bar on the PI board
   (`CapacityBar`), which compares story points *used* against a sprint's Available
   *budget*. The two connect only through the push: team capacity computes

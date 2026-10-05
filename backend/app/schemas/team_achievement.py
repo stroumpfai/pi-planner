@@ -35,6 +35,7 @@ class ProjectAchievementRow(BaseModel):
     name: str
     effort_unit: str
     share_pct: int
+    share_days: float | None = None
     available_source: str
     units_per_pd: float
     # False for a `manual` assignment: its units_per_pd is a default nobody set, so
@@ -45,7 +46,7 @@ class ProjectAchievementRow(BaseModel):
     committed: list[float | None]
     # Points whose completed_on falls inside the column's dates (§4.5).
     achieved: list[float | None]
-    # team PD × share_pct / 100 — the same figure ProjectCapacityRow carries.
+    # The share-adjusted PD — the same figure ProjectCapacityRow carries.
     pd_given: list[float | None]
     # achieved ÷ pd_given, in effort_unit per PD. Null where pd_given is 0 or null.
     velocity: list[float | None]

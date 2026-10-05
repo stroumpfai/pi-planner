@@ -17,9 +17,12 @@ export interface LoadGroup {
 export function groupLoads(loads: readonly MemberLoad[]): LoadGroup[] {
   const byShare = new Map<number, string[]>()
   for (const load of loads) {
-    const names = byShare.get(load.share_pct) ?? []
+    // Whole percent: a load in days on a 4.5-day contract is 44.4…%, and two
+    // members that close belong in one group.
+    const pct = Math.round(load.share_pct)
+    const names = byShare.get(pct) ?? []
     names.push(load.name)
-    byShare.set(load.share_pct, names)
+    byShare.set(pct, names)
   }
   return [...byShare.entries()]
     .sort(([a], [b]) => b - a)

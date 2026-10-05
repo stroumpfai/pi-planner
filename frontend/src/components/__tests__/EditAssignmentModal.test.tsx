@@ -118,7 +118,31 @@ describe('EditAssignmentModal', () => {
     })
   })
 
-  it('saves the typed factor', async () => {
+  it('opens a share entered in days in days, with each member share in place', async () => {
+    mutateAsync.mockResolvedValue({})
+    renderModal({
+      assignment: {
+        ...assignment,
+        share_days: 2,
+        member_shares: [{ member_id: 'm-2', share_pct: 40, share_days: null }],
+      } as TeamAssignment,
+    })
+
+    expect(screen.getByLabelText('Share of the team')).toHaveValue(2)
+    expect(screen.getByRole('combobox', { name: 'Share of the team unit' })).toHaveValue('days')
+    expect(screen.getByLabelText("Bruno's share")).toHaveValue(40)
+
+    // Clearing Bruno's own share sends the change; nothing else about the scope.
+    await userEvent.clear(screen.getByLabelText("Bruno's share"))
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled())
+    const { body } = mutateAsync.mock.calls[0][0]
+    expect(body).toMatchObject({ share_days: 2, member_shares: [] })
+    expect(body).not.toHaveProperty('all_members')
+  })
+
+    it('saves the typed factor', async () => {
     renderModal()
     await screen.findByRole('group', { name: /measured velocity/i })
     await userEvent.clear(factorInput())

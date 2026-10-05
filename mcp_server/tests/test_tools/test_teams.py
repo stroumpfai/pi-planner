@@ -20,6 +20,7 @@ from mcp_server.tools.read import (
 )
 from mcp_server.tools.teams import (
     add_pattern_version,
+    MemberShareInput,
     assign_project,
     create_member,
     create_team,
@@ -943,6 +944,56 @@ async def test_update_assignment_all_members_wins_over_names(
         member_names=["Nobody"], all_members=True, ctx=mock_ctx,
     )
     assert _last_call_body(mock_backend, "PATCH") == {"all_members": True}
+
+
+async def test_assign_project_sends_a_share_in_days_and_member_shares_by_id(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    _list_members_mock(mock_backend)
+    mock_backend.post(f"/api/v1/teams/{TEAM_ID}/projects").mock(
+        return_value=httpx.Response(201, json=ASSIGNMENT)
+    )
+    await assign_project(
+        team_id=TEAM_ID, project_id=PROJECT_ID, share_days=2,
+        member_shares=[MemberShareInput(name="Aïcha Ben Salah", share_pct=100)],
+        ctx=mock_ctx,
+    )
+    assert _last_call_body(mock_backend, "POST") == {
+        "project_id": PROJECT_ID,
+        "share_days": 2,
+        "member_shares": [{"member_id": MEMBER_ID, "share_pct": 100, "share_days": None}],
+    }
+
+
+async def test_assign_project_refuses_a_share_in_both_units(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    with pytest.raises(ValueError, match="not both"):
+        await assign_project(
+            team_id=TEAM_ID, project_id=PROJECT_ID, share_pct=40, share_days=2, ctx=mock_ctx,
+        )
+
+
+def test_a_member_share_takes_exactly_one_unit():
+    with pytest.raises(ValueError, match="exactly one"):
+        MemberShareInput(name="Anna")
+    with pytest.raises(ValueError, match="exactly one"):
+        MemberShareInput(name="Anna", share_pct=40, share_days=2)
+
+
+async def test_update_assignment_can_clear_every_member_share(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    mock_backend.get(f"/api/v1/teams/{TEAM_ID}/projects").mock(
+        return_value=httpx.Response(200, json=[ASSIGNMENT])
+    )
+    mock_backend.patch(f"/api/v1/teams/{TEAM_ID}/projects/{PROJECT_ID}").mock(
+        return_value=httpx.Response(200, json=ASSIGNMENT)
+    )
+    await update_assignment(
+        team_id=TEAM_ID, project_id=PROJECT_ID, member_shares=[], ctx=mock_ctx,
+    )
+    assert _last_call_body(mock_backend, "PATCH") == {"member_shares": []}
 
 
 async def test_update_assignment_rejects_a_project_the_team_does_not_serve(

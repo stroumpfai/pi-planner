@@ -14064,15 +14064,25 @@
             "title": "Name"
           },
           "share_pct": {
-            "type": "integer",
+            "type": "number",
             "title": "Share Pct"
+          },
+          "days_per_week": {
+            "type": "number",
+            "title": "Days Per Week"
+          },
+          "contracted_days": {
+            "type": "number",
+            "title": "Contracted Days"
           }
         },
         "type": "object",
         "required": [
           "member_id",
           "name",
-          "share_pct"
+          "share_pct",
+          "days_per_week",
+          "contracted_days"
         ],
         "title": "MemberLoad"
       },
@@ -14221,6 +14231,47 @@
         ],
         "title": "MemberResponse",
         "description": "A member as every team view reads them.\n\n``effective_version`` is the version in force on the requested ``as_of`` date,\nwhich is what makes one endpoint serve both views: Members shows today's\nhours and focus read-only, and Working days shows the same fields for any date\nthe picker names (\u00a77.2, \u00a77.3)."
+      },
+      "MemberShare": {
+        "properties": {
+          "member_id": {
+            "type": "string",
+            "title": "Member Id"
+          },
+          "share_pct": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Pct"
+          },
+          "share_days": {
+            "anyOf": [
+              {
+                "type": "number",
+                "multipleOf": 0.5,
+                "maximum": 7.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Days"
+          }
+        },
+        "type": "object",
+        "required": [
+          "member_id"
+        ],
+        "title": "MemberShare",
+        "description": "One member's own share of a project, overriding the assignment's (ADR 0010).\n\nExactly one of a percentage or days a week."
       },
       "MemberUpdate": {
         "properties": {
@@ -15754,6 +15805,17 @@
             "type": "integer",
             "title": "Share Pct"
           },
+          "share_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Days"
+          },
           "available_source": {
             "type": "string",
             "title": "Available Source"
@@ -15891,6 +15953,17 @@
             "type": "integer",
             "title": "Share Pct"
           },
+          "share_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Days"
+          },
           "available_source": {
             "type": "string",
             "title": "Available Source"
@@ -15910,6 +15983,14 @@
             },
             "type": "array",
             "title": "Member Ids",
+            "default": []
+          },
+          "member_shares": {
+            "items": {
+              "$ref": "#/components/schemas/MemberShare"
+            },
+            "type": "array",
+            "title": "Member Shares",
             "default": []
           },
           "person_days": {
@@ -16142,6 +16223,17 @@
           "share_pct": {
             "type": "integer",
             "title": "Share Pct"
+          },
+          "share_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Days"
           },
           "available_source": {
             "type": "string",
@@ -16554,6 +16646,17 @@
           "share_pct": {
             "type": "integer",
             "title": "Share Pct"
+          },
+          "share_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Days"
           },
           "all_members": {
             "type": "boolean",
@@ -17639,6 +17742,14 @@
             "title": "Project Shares",
             "default": {}
           },
+          "project_share_days": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Project Share Days",
+            "default": {}
+          },
           "member_loads": {
             "items": {
               "$ref": "#/components/schemas/MemberLoad"
@@ -17691,6 +17802,20 @@
             "title": "Share Pct",
             "default": 100
           },
+          "share_days": {
+            "anyOf": [
+              {
+                "type": "number",
+                "multipleOf": 0.5,
+                "maximum": 7.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Days"
+          },
           "available_source": {
             "type": "string",
             "enum": [
@@ -17718,6 +17843,14 @@
             "type": "array",
             "maxItems": 50,
             "title": "Member Ids"
+          },
+          "member_shares": {
+            "items": {
+              "$ref": "#/components/schemas/MemberShare"
+            },
+            "type": "array",
+            "maxItems": 50,
+            "title": "Member Shares"
           }
         },
         "type": "object",
@@ -17752,6 +17885,17 @@
             "type": "integer",
             "title": "Share Pct"
           },
+          "share_days": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Days"
+          },
           "available_source": {
             "type": "string",
             "title": "Available Source"
@@ -17771,6 +17915,14 @@
             },
             "type": "array",
             "title": "Member Ids",
+            "default": []
+          },
+          "member_shares": {
+            "items": {
+              "$ref": "#/components/schemas/MemberShare"
+            },
+            "type": "array",
+            "title": "Member Shares",
             "default": []
           },
           "is_anchor": {
@@ -17825,6 +17977,20 @@
             ],
             "title": "Share Pct"
           },
+          "share_days": {
+            "anyOf": [
+              {
+                "type": "number",
+                "multipleOf": 0.5,
+                "maximum": 7.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Days"
+          },
           "available_source": {
             "anyOf": [
               {
@@ -17877,6 +18043,21 @@
               }
             ],
             "title": "Member Ids"
+          },
+          "member_shares": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/MemberShare"
+                },
+                "type": "array",
+                "maxItems": 50
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Shares"
           }
         },
         "type": "object",
@@ -17965,6 +18146,14 @@
             },
             "type": "object",
             "title": "Project Shares",
+            "default": {}
+          },
+          "project_share_days": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "title": "Project Share Days",
             "default": {}
           },
           "member_loads": {

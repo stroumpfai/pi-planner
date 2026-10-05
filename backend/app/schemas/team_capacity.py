@@ -25,6 +25,8 @@ from datetime import date
 
 from pydantic import BaseModel
 
+from app.schemas.team import MemberShare
+
 
 class CapacityBreakdown(BaseModel):
     """One member's capacity in one sprint, as the §5.4 steps produced it.
@@ -93,14 +95,19 @@ class ProjectCapacityRow(BaseModel):
     name: str
     effort_unit: str
     share_pct: int
+    # The share in days a week, when it was entered that way (§6.3.2).
+    share_days: float | None = None
     available_source: str
     units_per_pd: float
     # Whose capacity reaches this project: everyone, or only ``member_ids``
     # (§6.3, ADR 0009).
     all_members: bool = True
     member_ids: list[str] = []
-    # Share-adjusted PD per sprint — the PD of the counting members in scope
-    # × share_pct / 100. With the whole team in scope, that is team PD × share.
+    # Members with a share of their own (ADR 0010).
+    member_shares: list[MemberShare] = []
+    # Share-adjusted PD per sprint — each counting member in scope weighted by
+    # their own share, or the assignment's (§6.3.2). With the whole team in
+    # scope at a percentage, that is team PD × share.
     person_days: list[float | None]
     # …× units_per_pd, unrounded.
     units: list[float | None]

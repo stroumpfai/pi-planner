@@ -264,3 +264,30 @@ def test_upgrade_revokes_keys_left_behind_by_deleted_users(tmp_path):
     with sqlite3.connect(db_path) as conn:
         active = dict(conn.execute("SELECT id, is_active FROM api_keys"))
     assert active == {"kid_alice": 1, "kid_gone": 0}
+
+
+def test_existing_shares_stay_percentages_after_upgrade(tmp_path):
+    """Days arrive empty everywhere, so every share keeps its percentage (ADR 0010)."""
+    db_path = tmp_path / "days.sqlite"
+    _alembic("b6c7d8e9f0a1", db_path)  # head before shares in days
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(_insert_team("t1", "Platform"))
+        conn.execute(
+            "INSERT INTO projects (system_id, name, effort_unit, created_at, modified_at)"
+            f" VALUES ('p1', 'Portal', 'pts', '{_NOW}', '{_NOW}')"
+        )
+        conn.execute(
+            "INSERT INTO team_projects"
+            " (system_id, team_id, project_id, share_pct, created_at, modified_at)"
+            f" VALUES ('a1', 't1', 'p1', 70, '{_NOW}', '{_NOW}')"
+        )
+
+    _alembic("head", db_path)
+
+    with sqlite3.connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT share_pct, share_days FROM team_projects WHERE system_id = 'a1'"
+        ).fetchone()
+        assert row == (70, None)
+    assert {"share_pct", "share_days"} <= set(_columns(db_path, "team_project_members"))

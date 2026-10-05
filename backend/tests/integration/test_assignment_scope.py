@@ -309,3 +309,185 @@ async def test_deleting_a_project_removes_its_assignment(client, db, split):
     assert left.scalars().all() == []
     team = (await client.get(f"{_TEAMS}/{team_id}")).json()
     assert split["billing"]["system_id"] not in team["project_ids"]
+
+
+# ── Shares in days, and per member (§6.3.2, ADR 0010) ─────────────────────────
+#
+# Every member of the `split` fixture is a full-timer: 10 PD per fortnight, 5
+# contracted days a week, so a day a week is 2 PD.
+
+async def test_a_share_in_days_gives_each_counted_member_that_many_days(client, split):
+    team_id = split["team"]["system_id"]
+    resp = await _patch(client, team_id, split["portal"]["system_id"], share_days=2)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["share_days"] == 2
+
+    # Anna and Bruno, 2 of their 5 days each: 2 × 4 PD.
+    assert (await _project_pd(client, team_id))["Portal"] == pytest.approx(8.0)
+
+
+async def test_a_percentage_replaces_a_share_in_days(client, split):
+    team_id = split["team"]["system_id"]
+    await _patch(client, team_id, split["portal"]["system_id"], share_days=2)
+
+    resp = await _patch(client, team_id, split["portal"]["system_id"], share_pct=50)
+
+    assert resp.json()["share_days"] is None
+    assert (await _project_pd(client, team_id))["Portal"] == pytest.approx(10.0)
+
+
+async def test_a_share_cannot_be_given_in_both_units(client, split):
+    project = await _project(client, "Lake")
+    resp = await client.post(
+        _projects_url(split["team"]["system_id"]),
+        json={"project_id": project["system_id"], "share_pct": 40, "share_days": 2},
+    )
+    assert resp.status_code == 422
+
+
+@pytest.mark.parametrize("days", [0, 2.3, 7.5])
+async def test_days_come_in_half_day_steps_up_to_a_week(client, split, days):
+    resp = await _patch(
+        client, split["team"]["system_id"], split["portal"]["system_id"], share_days=days
+    )
+    assert resp.status_code == 422
+
+
+async def test_a_member_share_overrides_the_assignments(client, split):
+    team_id = split["team"]["system_id"]
+    carla = split["ids"]["Carla"]
+    resp = await _patch(
+        client, team_id, split["billing"]["system_id"],
+        member_shares=[{"member_id": carla, "share_days": 2}],
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["member_shares"] == [
+        {"member_id": carla, "share_pct": None, "share_days": 2.0}
+    ]
+    # The scope survives a PATCH of the shares alone.
+    assert resp.json()["member_ids"] == [carla, split["ids"]["Dario"]]
+
+    # Carla 2 days = 4 PD; Dario at the assignment's 60% = 6 PD.
+    assert (await _project_pd(client, team_id))["Billing"] == pytest.approx(10.0)
+
+
+async def test_a_member_share_counts_that_member_on_a_scoped_assignment(client, split):
+    team_id = split["team"]["system_id"]
+    resp = await _patch(
+        client, team_id, split["billing"]["system_id"],
+        member_shares=[{"member_id": split["ids"]["Anna"], "share_days": 1}],
+    )
+    assert resp.status_code == 200, resp.text
+    assert split["ids"]["Anna"] in resp.json()["member_ids"]
+
+    # Carla and Dario at 60% = 12 PD, plus Anna's day a week = 2 PD.
+    assert (await _project_pd(client, team_id))["Billing"] == pytest.approx(14.0)
+
+
+async def test_a_member_share_on_a_whole_team_assignment_lists_no_scope(client):
+    team = (await client.post(_TEAMS, json={"name": "Data"})).json()
+    anna = await _member(client, team["system_id"], "Anna")
+    await _member(client, team["system_id"], "Bruno")
+    project = await _project(client, "Lake")
+    await _date_first_sprint(client, project["system_id"])
+
+    assignment = await _assign(
+        client, team["system_id"], project["system_id"], share_pct=50,
+        member_shares=[{"member_id": anna["system_id"], "share_pct": 100}],
+    )
+
+    assert assignment["all_members"] is True
+    assert assignment["member_ids"] == []
+    # Anna whole = 10 PD, Bruno at 50% = 5 PD.
+    assert (await _project_pd(client, team["system_id"]))["Lake"] == pytest.approx(15.0)
+
+
+@pytest.mark.parametrize(
+    "share",
+    [{}, {"share_pct": 40, "share_days": 2}],
+    ids=["neither", "both"],
+)
+async def test_a_member_share_is_one_unit_exactly(client, split, share):
+    resp = await _patch(
+        client, split["team"]["system_id"], split["billing"]["system_id"],
+        member_shares=[{"member_id": split["ids"]["Carla"], **share}],
+    )
+    assert resp.status_code == 422
+
+
+async def test_a_member_can_have_only_one_share_per_project(client, split):
+    carla = split["ids"]["Carla"]
+    resp = await _patch(
+        client, split["team"]["system_id"], split["billing"]["system_id"],
+        member_shares=[
+            {"member_id": carla, "share_days": 2},
+            {"member_id": carla, "share_pct": 10},
+        ],
+    )
+    assert resp.status_code == 422
+    assert resp.json()["detail"]["error"] == "DUPLICATE_MEMBER_SHARE"
+
+
+async def test_the_load_adds_days_and_percentages_on_the_members_contract(client, split):
+    team_id = split["team"]["system_id"]
+    # Anna: the Portal at 100% (5 days) and a day on Billing — 6 of 5 days.
+    await _patch(
+        client, team_id, split["billing"]["system_id"],
+        member_shares=[{"member_id": split["ids"]["Anna"], "share_days": 1}],
+    )
+
+    loads = {
+        load["name"]: load
+        for load in (await client.get(f"{_TEAMS}/{team_id}")).json()["member_loads"]
+    }
+
+    assert loads["Anna"]["share_pct"] == pytest.approx(120.0)
+    assert loads["Anna"]["days_per_week"] == pytest.approx(6.0)
+    assert loads["Anna"]["contracted_days"] == 5.0
+    assert loads["Carla"]["share_pct"] == pytest.approx(100.0)
+
+
+async def test_two_days_on_a_four_day_contract_is_half_the_load(client):
+    team = (await client.post(_TEAMS, json={"name": "Data"})).json()
+    resp = await client.post(
+        f"{_TEAMS}/{team['system_id']}/members",
+        json={
+            "name": "Elif",
+            "pattern": {"effective_from": "2026-01-01", "fri_am": False, "fri_pm": False},
+        },
+    )
+    assert resp.status_code == 201, resp.text
+    project = await _project(client, "Lake")
+    await _assign(client, team["system_id"], project["system_id"], share_days=2)
+
+    load = (await client.get(f"{_TEAMS}/{team['system_id']}")).json()["member_loads"][0]
+
+    assert load["contracted_days"] == 4.0
+    assert load["share_pct"] == pytest.approx(50.0)
+
+
+async def test_the_team_list_carries_shares_in_days(client, split):
+    team_id = split["team"]["system_id"]
+    await _patch(client, team_id, split["portal"]["system_id"], share_days=2)
+
+    team = (await client.get(f"{_TEAMS}/{team_id}")).json()
+
+    assert team["project_share_days"] == {split["portal"]["system_id"]: 2.0}
+
+
+async def test_the_push_proposes_a_figure_built_from_days(client, split):
+    portal_id = split["portal"]["system_id"]
+    resp = await _patch(
+        client, split["team"]["system_id"], portal_id,
+        share_days=2, available_source="factor", units_per_pd=1.5,
+    )
+    assert resp.status_code == 200, resp.text
+
+    preview = (await client.get(f"/api/v1/projects/{portal_id}/team-capacity/preview")).json()
+
+    assert preview["share_days"] == 2
+    dated = [row for row in preview["sprints"] if row["start_date"]]
+    # Anna and Bruno: 20 PD unweighted, 8 PD at 2 of 5 days, × 1.5 = 12 pts.
+    assert dated[0]["team_person_days"] == pytest.approx(20.0)
+    assert dated[0]["share_adjusted_person_days"] == pytest.approx(8.0)
+    assert dated[0]["proposed_available"] == 12

@@ -40,7 +40,13 @@ from app.schemas.team_push import (
     PushSprintRow,
 )
 from app.services.absences import build_lookup, load_absences
-from app.services.assignment_scope import EVERYONE, Scope, load_scope
+from app.services.assignment_scope import (
+    EVERYONE,
+    Scope,
+    is_uniform_pct,
+    load_scope,
+    project_person_days,
+)
 from app.services.holidays import holiday_lookup
 from app.services.meetings import build_lookup as build_meeting_lookup
 from app.services.meetings import load_meetings
@@ -182,6 +188,7 @@ async def compute_rows(
         on_holiday = await holiday_lookup(db, context.team.system_id, span_start, span_end)
 
     share = context.assignment.share_pct / 100
+    uniform = is_uniform_pct(context.assignment, context.scope)
     rows: list[PushSprintRow] = []
     for sprint, pi in sprints:
         number = (sprint.sprint_index if sprint.sprint_index is not None else 0) + 1
@@ -202,7 +209,20 @@ async def compute_rows(
                 holiday=on_holiday,
             )
             team_pd = capacity.person_days
-            share_pd = team_pd * share
+            # A varying or day-based share weighs each member on their own
+            # contract (ADR 0010); a uniform percentage keeps the arithmetic it
+            # always had.
+            share_pd = (
+                team_pd * share
+                if uniform
+                else project_person_days(
+                    context.assignment,
+                    context.scope,
+                    members,
+                    {c.member_id: c for c in capacity.members},
+                    context.team.normal_day_hours,
+                )
+            )
             units = share_pd * context.assignment.units_per_pd
             proposed = round_half_up(units)
         rows.append(
@@ -257,6 +277,7 @@ def build_preview(
         team_id=context.team.system_id,
         team_name=context.team.name,
         share_pct=context.assignment.share_pct,
+        share_days=context.assignment.share_days,
         all_members=context.scope.all_members,
         member_names=member_names or [],
         available_source=context.assignment.available_source,
@@ -394,6 +415,7 @@ async def status_for(db: AsyncSession, project_id: str | None = None) -> list[Pr
                 team_id=team.system_id,
                 team_name=team.name,
                 share_pct=assignment.share_pct,
+                share_days=assignment.share_days,
                 available_source=assignment.available_source,
                 stale_sprints=len(changed(rows)),
                 last_pushed_at=max(pushed) if pushed else None,

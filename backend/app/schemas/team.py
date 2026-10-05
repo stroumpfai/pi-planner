@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
@@ -28,7 +28,12 @@ class TeamUpdate(BaseModel):
 class MemberLoad(BaseModel):
     member_id: str
     name: str
-    share_pct: int
+    # Σ of the member's share in every project that counts them, as a percentage
+    # of their current contract — shares in days converted against it (§6.3.3).
+    share_pct: float
+    # The same load in days a week, and the days the current contract owes.
+    days_per_week: float
+    contracted_days: float
 
 
 class TeamResponse(BaseModel):
@@ -52,6 +57,9 @@ class TeamResponse(BaseModel):
     # on the project row, and a second request per team to learn one integer
     # would be a request per row on the landing page (§7.1).
     project_shares: dict[str, int] = {}
+    # For projects whose share is entered in days a week, that figure — it wins
+    # over the percentage above (§6.3.2).
+    project_share_days: dict[str, float] = {}
     # Σ share_pct over the projects each counting member's capacity reaches —
     # what "over-allocated" means once an assignment can count only some members
     # (§6.3, ADR 0009). Current members who count towards capacity, in display order.
@@ -310,12 +318,37 @@ MAX_PROJECTS_PER_TEAM = 20
 AvailableSource = Literal["manual", "factor"]
 
 
+#: A share in days a week: half-day steps, as patterns and absences are entered,
+#: and never more than a week (§6.3.2).
+ShareDays = Annotated[float, Field(gt=0, le=7, multiple_of=0.5)]
+
+
+class MemberShare(BaseModel):
+    """One member's own share of a project, overriding the assignment's (ADR 0010).
+
+    Exactly one of a percentage or days a week.
+    """
+
+    member_id: str
+    share_pct: int | None = Field(None, ge=1, le=100)
+    share_days: ShareDays | None = None
+
+    @model_validator(mode="after")
+    def _exactly_one(self) -> "MemberShare":
+        if (self.share_pct is None) == (self.share_days is None):
+            raise ValueError("Give a member's share as a percentage or as days a week — one of them")
+        return self
+
+
 class TeamProjectCreate(BaseModel):
     project_id: str
     # 1–100. Shares summing over 100% warn but never block: teams really are
     # overcommitted, and refusing to represent that hides what the tool exists to
     # reveal (§6.3).
     share_pct: int = Field(100, ge=1, le=100)
+    # The share in days a week instead: each counted member gives this many of
+    # their own days (§6.3.2). Not with share_pct as well.
+    share_days: ShareDays | None = None
     available_source: AvailableSource = "manual"
     # Always the user's, validated for nothing beyond > 0. effort_unit is free
     # text, so the app cannot tell points from hours and does not try (§6.4).
@@ -324,16 +357,35 @@ class TeamProjectCreate(BaseModel):
     # (§6.3, ADR 0009). Listing members with ``all_members`` on is refused.
     all_members: bool = True
     member_ids: list[str] = Field(default_factory=list, max_length=MAX_MEMBERS_PER_TEAM)
+    # Members with a share of their own (ADR 0010). On a scoped assignment they
+    # are counted whether or not member_ids lists them.
+    member_shares: list[MemberShare] = Field(default_factory=list, max_length=MAX_MEMBERS_PER_TEAM)
+
+    @model_validator(mode="after")
+    def _one_unit(self) -> "TeamProjectCreate":
+        if self.share_days is not None and "share_pct" in self.model_fields_set:
+            raise ValueError("Give the share as a percentage or as days a week, not both")
+        return self
 
 
 class TeamProjectUpdate(BaseModel):
+    # Setting either unit replaces the other: a share_pct clears share_days.
     share_pct: int | None = Field(None, ge=1, le=100)
+    share_days: ShareDays | None = None
     available_source: AvailableSource | None = None
     units_per_pd: float | None = Field(None, gt=0)
     # Omit both to leave the scope alone. ``member_ids`` alone means "only these";
     # ``all_members: true`` alone means everyone again.
     all_members: bool | None = None
     member_ids: list[str] | None = Field(None, max_length=MAX_MEMBERS_PER_TEAM)
+    # Replaces every member's own share when given; [] clears them all.
+    member_shares: list[MemberShare] | None = Field(None, max_length=MAX_MEMBERS_PER_TEAM)
+
+    @model_validator(mode="after")
+    def _one_unit(self) -> "TeamProjectUpdate":
+        if self.share_pct is not None and self.share_days is not None:
+            raise ValueError("Give the share as a percentage or as days a week, not both")
+        return self
 
 
 class TeamProjectResponse(BaseModel):
@@ -347,12 +399,15 @@ class TeamProjectResponse(BaseModel):
     # interpreted (§6.4).
     effort_unit: str
     share_pct: int
+    share_days: float | None = None
     available_source: str
     units_per_pd: float
     all_members: bool = True
     # The members counted when ``all_members`` is off, in the team's display order.
     # Empty and scoped means nobody counts: the project gets 0 PD.
     member_ids: list[str] = []
+    # Members with a share of their own, in display order (ADR 0010).
+    member_shares: list[MemberShare] = []
     # The earliest assignment is the team's anchor: its sprint calendar is the one
     # the team's own views count in (§6.8).
     is_anchor: bool = False

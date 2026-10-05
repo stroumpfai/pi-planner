@@ -103,6 +103,35 @@ describe('Team capacity', () => {
       .and('contain', '10.0 PD')
   })
 
+    it('takes a share in days a week, and a member share of their own (ADR 0010)', () => {
+    cy.request('GET', '/api/v1/teams').then((teams) => {
+      cy.request('POST', `/api/v1/teams/${teams.body[0].system_id}/members`, {
+        name: 'Bruno Keller',
+        pattern: { effective_from: '2026-01-01' },
+      })
+    })
+    cy.reload()
+    cy.openTeam('Platform')
+
+    capacityTab('Projects').click()
+    cy.contains('button', /^\+ Assign project$/).click()
+    capacityDialog().find('select[name="project_id"]').select('ISK Portal')
+    capacityDialog().find('select[aria-label="Share of the team unit"]').select('days')
+    capacityDialog().find('#assign-share').clear().type('2')
+    capacityDialog().contains('button', 'Give some members a different share').click()
+    // Marta is the first member listed; her own share is a percentage.
+    capacityDialog().find('input[id^="member-share-"]').first().type('100')
+    capacityDialog().contains('button', /^Assign project$/).click()
+
+    cy.contains('li', 'ISK Portal')
+      .should('contain', '2 d/wk')
+      .and('contain', 'whole team · Marta Lindqvist 100%')
+
+    capacityTab('Capacity').click()
+    // Marta whole = 10 PD; Bruno 2 of his 5 days = 4 PD.
+    cy.contains('tr', 'ISK Portal').should('contain', '14.0 PD')
+  })
+
     it('expands a cell into the chain that produced the number', () => {
     cy.request('GET', '/api/v1/teams').then((teams) => {
       cy.request('GET', '/api/v1/projects/').then((projects) => {

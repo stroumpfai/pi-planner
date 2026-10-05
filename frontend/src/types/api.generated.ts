@@ -2399,6 +2399,10 @@ export interface components {
       name: string;
       /** Share Pct */
       share_pct: number;
+      /** Days Per Week */
+      days_per_week: number;
+      /** Contracted Days */
+      contracted_days: number;
     };
     /** MemberReorder */
     MemberReorder: {
@@ -2464,6 +2468,20 @@ export interface components {
        * @default 0
        */
       meeting_count?: number;
+    };
+    /**
+     * MemberShare
+     * @description One member's own share of a project, overriding the assignment's (ADR 0010).
+     *
+     * Exactly one of a percentage or days a week.
+     */
+    MemberShare: {
+      /** Member Id */
+      member_id: string;
+      /** Share Pct */
+      share_pct?: number | null;
+      /** Share Days */
+      share_days?: number | null;
     };
     /**
      * MemberUpdate
@@ -3008,6 +3026,8 @@ export interface components {
       effort_unit: string;
       /** Share Pct */
       share_pct: number;
+      /** Share Days */
+      share_days?: number | null;
       /** Available Source */
       available_source: string;
       /** Units Per Pd */
@@ -3044,6 +3064,8 @@ export interface components {
       effort_unit: string;
       /** Share Pct */
       share_pct: number;
+      /** Share Days */
+      share_days?: number | null;
       /** Available Source */
       available_source: string;
       /** Units Per Pd */
@@ -3058,6 +3080,11 @@ export interface components {
        * @default []
        */
       member_ids?: string[];
+      /**
+       * Member Shares
+       * @default []
+       */
+      member_shares?: components["schemas"]["MemberShare"][];
       /** Person Days */
       person_days: (number | null)[];
       /** Units */
@@ -3129,6 +3156,8 @@ export interface components {
       team_name: string;
       /** Share Pct */
       share_pct: number;
+      /** Share Days */
+      share_days?: number | null;
       /** Available Source */
       available_source: string;
       /** Stale Sprints */
@@ -3278,6 +3307,8 @@ export interface components {
       team_name: string;
       /** Share Pct */
       share_pct: number;
+      /** Share Days */
+      share_days?: number | null;
       /**
        * All Members
        * @default true
@@ -3682,6 +3713,13 @@ export interface components {
         [key: string]: number;
       };
       /**
+       * Project Share Days
+       * @default {}
+       */
+      project_share_days?: {
+        [key: string]: number;
+      };
+      /**
        * Member Loads
        * @default []
        */
@@ -3711,6 +3749,8 @@ export interface components {
        * @default 100
        */
       share_pct?: number;
+      /** Share Days */
+      share_days?: number | null;
       /**
        * Available Source
        * @default manual
@@ -3729,6 +3769,8 @@ export interface components {
       all_members?: boolean;
       /** Member Ids */
       member_ids?: string[];
+      /** Member Shares */
+      member_shares?: components["schemas"]["MemberShare"][];
     };
     /**
      * TeamProjectResponse
@@ -3747,6 +3789,8 @@ export interface components {
       effort_unit: string;
       /** Share Pct */
       share_pct: number;
+      /** Share Days */
+      share_days?: number | null;
       /** Available Source */
       available_source: string;
       /** Units Per Pd */
@@ -3761,6 +3805,11 @@ export interface components {
        * @default []
        */
       member_ids?: string[];
+      /**
+       * Member Shares
+       * @default []
+       */
+      member_shares?: components["schemas"]["MemberShare"][];
       /**
        * Is Anchor
        * @default false
@@ -3786,6 +3835,8 @@ export interface components {
     TeamProjectUpdate: {
       /** Share Pct */
       share_pct?: number | null;
+      /** Share Days */
+      share_days?: number | null;
       /** Available Source */
       available_source?: ("manual" | "factor") | null;
       /** Units Per Pd */
@@ -3794,6 +3845,8 @@ export interface components {
       all_members?: boolean | null;
       /** Member Ids */
       member_ids?: string[] | null;
+      /** Member Shares */
+      member_shares?: components["schemas"]["MemberShare"][] | null;
     };
     /** TeamPushResponse */
     TeamPushResponse: {
@@ -3840,6 +3893,13 @@ export interface components {
        * @default {}
        */
       project_shares?: {
+        [key: string]: number;
+      };
+      /**
+       * Project Share Days
+       * @default {}
+       */
+      project_share_days?: {
         [key: string]: number;
       };
       /**

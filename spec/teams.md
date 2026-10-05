@@ -608,7 +608,7 @@ permanently — this is not a migration that can be finished.
 Each project assignment carries **`share_pct`, an integer 1–100**. The team's capacity for
 that project is `team_PD(s) × share_pct / 100`.
 
-#### Counting only some members
+#### 6.3.1 Counting only some members
 
 An assignment counts **the whole team** by default. It can instead count **only listed
 members** (`all_members = false` plus a `team_project_members` join), and the share then
@@ -636,11 +636,49 @@ it into two teams would have cost (ADR 0009).
 - Only members of the team can be listed: anyone else is a 422 naming them, never a silent
   drop.
 
-#### Over-allocation is per member
+#### 6.3.2 Shares in days a week, and per member
 
-A member's **load** is the sum of `share_pct` over every assignment that counts them. If
-any current, counting member's load is **more than 100%**, show an amber over-allocation
-warning naming them, on the team and on the Projects tab — **warn, do not block**. Teams
+People are booked in days as often as in percentages: "Anna, 2 days a week on X". A share
+can therefore be entered **as days a week** instead of a percentage, at two levels:
+
+- **On the assignment** (`share_days`): each counted member gives that many of **their
+  own** days. Setting either unit replaces the other.
+- **On one member** (`team_project_members.share_pct` or `share_days`, at most one): that
+  member's own share of the project, overriding the assignment's. Members without one take
+  the assignment's. A member given a share counts for the project, even on a scoped
+  assignment whose list leaves them out — giving someone a share is saying they work on it.
+
+**Days are a proportion of the member's own contract**, not a reserved amount:
+
+`weight(m, half-day) = share_days ÷ contracted_days(version in force that half-day)`
+
+where `contracted_days` is the half-days the pattern owes, ÷ 2 (Mon–Thu plus a Friday
+morning is 4.5). So 2 days is 40% of a full-timer and 50% of a 4-day contract.
+
+`project_PD(s) = Σ over counted members, Σ over their half-days: slot_net × weight / normal_day_hours`
+
+- **Absences cost a days share in proportion**, like any share. A day off takes 2/5 of a
+  day from a 2-day booking on a 5-day contract, wherever it falls — a booking is not tied
+  to weekdays, and is not guaranteed whatever the absences.
+- **Days are stored as days**, never converted on save, and the weight is taken per
+  pattern version: a contract change mid-sprint weighs each side by its own contract, and
+  the booking stays "2 days" across it.
+- **Half-day steps, 0.5 to 7.** A days share above the member's contract takes their whole
+  capacity and no more — one project cannot take more of a person than they work — and
+  shows as a load over 100% (§6.3.3). A member with no contracted days gives nothing.
+- **Not dated**, like the scope (§6.3.1): changing a share restates the views' history;
+  Available waits for a push.
+- A uniform percentage on every counted member keeps the arithmetic it always had
+  (`counted PD × share`), so existing assignments do not move by a float's last digit.
+
+#### 6.3.3 Over-allocation is per member
+
+A member's **load** is the sum of their share over every assignment that counts them,
+with days converted against the contract in force **today** — Anna on X for 2 days and on
+Y at 60% is 2 + 3 = 5 of her 5 days, 100%. The API returns it as `member_loads`, in
+percent and in days a week against `contracted_days`. If any current, counting member's
+load is **more than 100%**, show an amber over-allocation warning naming them, on the team
+and on the Projects tab — **warn, do not block**. Teams
 really are overcommitted, and a planner that refuses to represent the situation it exists to
 reveal is worse than one that colours it amber. Under 100% is normal (slack, unassigned work)
 and is not flagged.
@@ -1280,6 +1318,9 @@ REST.
 | Overlapping absences | Counted once |
 | Sprints overlapping each other in one PI | Capacity counted in both; alignment check flags it |
 | A member's load (Σ `share_pct` of the assignments counting them) > 100 | Amber warning naming them, on the team and its Projects tab; never blocked |
+| Days share above the member's contract | Takes their whole capacity and no more; load shows over 100% (§6.3.2) |
+| Days share on a member with no contracted days | Gives nothing; load shows over 100% |
+| Contract change mid-sprint under a days share | Each side weighed by its own contract; the booking stays in days |
 | Last listed member of a scoped assignment deleted | Assignment stays scoped to nobody and reads 0 PD; never reverts to the whole team (§6.3) |
 | Served project deleted | Its assignment and scope go with it; the team's viewers hear `team:project:unassigned` |
 | Push while another user holds the project lock | 409 with `locked_by` / `expires_at`; project stays stale, nothing partially written |
@@ -1310,6 +1351,7 @@ No open questions remain. The ones that shaped this document, and how they were 
 |----------|----------|-------|
 | Team capacity vs. the board's capacity number | Sprint keeps the project's effort unit; `capacity` renamed **Available**; team PD translates into it | §6.2, §6.4 |
 | Splitting a team across projects | **Team-level `share_pct`** per project assignment | §6.3 |
+| Booking someone "2 days a week" | A share can be **days a week**, on the assignment or per member; a proportion of the member's own contract, weighed per pattern version (ADR 0010) | §6.3.2 |
 | Some members working on one project only | An assignment **counts the whole team or only listed members**; the share applies to them; over-allocation is per member (ADR 0009) | §6.3 |
 | Meetings vs. focus double-counting | Meetings subtract **before** focus | §5.4 |
 | Edit-lock scope for cross-project teams | No lock change — team routes fall outside it by construction; one explicit push meets the existing lock | §4.1 |
