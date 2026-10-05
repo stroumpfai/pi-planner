@@ -201,29 +201,38 @@ async def _landing_swimline(db: AsyncSession, pi: PI, preferred_name: str | None
     return lane
 
 
-async def _unplace_feature_stories(db: AsyncSession, feature: Feature) -> int:
-    """Drop every group of ``feature``; returns how many stories leave a sprint.
+class _Unplaced(NamedTuple):
+    stories: int
+    """How many stories left a sprint."""
+    named_groups: list[str]
+    """The names of the named groups deleted, so the review can say so."""
+
+
+async def _unplace_feature_stories(db: AsyncSession, feature: Feature) -> _Unplaced:
+    """Drop every group of ``feature``, named ones included.
 
     Mirrors moving a feature to the backlog. A sprint index names a column of one
     PI, so carrying groups into another PI would put stories in whichever sprint
-    happens to share the number.
+    happens to share the number. Named groups go too — the one place an import
+    deletes something a planner made (ADR 0007) — so their names are returned for
+    the review to show before anyone confirms.
     """
-    group_ids = list((await db.execute(
-        select(Group.system_id).where(Group.feature_system_id == feature.system_id)
+    groups = list((await db.execute(
+        select(Group).where(Group.feature_system_id == feature.system_id)
     )).scalars().all())
-    if not group_ids:
-        return 0
+    if not groups:
+        return _Unplaced(0, [])
+    group_ids = [g.system_id for g in groups]
     moved = int((await db.execute(
         select(func.count()).select_from(PBI).where(PBI.group_id.in_(group_ids))
     )).scalar_one())
     await db.execute(
         update(PBI).where(PBI.group_id.in_(group_ids)).values(group_id=None, swimlane_id=None)
     )
-    for gid in group_ids:
-        group = await db.get(Group, gid)
-        if group is not None:
-            await db.delete(group)
-    return moved
+    named = sorted(g.name for g in groups if not g.is_implicit and g.name)
+    for group in groups:
+        await db.delete(group)
+    return _Unplaced(moved, named)
 
 
 async def place_feature(db: AsyncSession, feature: Feature, target: IterationTarget) -> Outcome:
@@ -245,7 +254,7 @@ async def place_feature(db: AsyncSession, feature: Feature, target: IterationTar
         return _skipped(f"stays in {current_pi.name}, which is closed")
 
     preferred: str | None = None
-    unplaced = 0
+    unplaced = _Unplaced(0, [])
     if current_pi is not None:
         current_lane = await db.get(Swimline, feature.swimlane_id) if feature.swimlane_id else None
         preferred = current_lane.name if current_lane else None
@@ -258,10 +267,13 @@ async def place_feature(db: AsyncSession, feature: Feature, target: IterationTar
 
     where = f"{pi.name} · {lane.name}"
     detail = f"{current_pi.name} → {where}" if current_pi is not None else f"→ {where}"
-    if unplaced:
-        detail += (
-            f"; {unplaced} {'story leaves its sprint' if unplaced == 1 else 'stories leave their sprints'}"
-        )
+    if unplaced.stories:
+        n = unplaced.stories
+        detail += f"; {n} {'story leaves its sprint' if n == 1 else 'stories leave their sprints'}"
+    if unplaced.named_groups:
+        names = ", ".join(f'"{name}"' for name in unplaced.named_groups)
+        noun = "group" if len(unplaced.named_groups) == 1 else "groups"
+        detail += f"; named {noun} {names} removed"
     return _placed(detail)
 
 

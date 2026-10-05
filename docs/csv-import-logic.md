@@ -276,7 +276,7 @@ in ADO land together in one import.
 |---|---|
 | In the backlog | Placed in `P`, in the lane **Needs Swimlane** |
 | Already in `P` | Nothing changes — it keeps the lane you gave it |
-| In another PI | Moved to `P`: into the lane with the **same name** if `P` has one (teams usually recur PI after PI), else **Needs Swimlane**. Its stories leave their sprints, because *Sprint 2* of one PI is not *Sprint 2* of another; stories that are in the file are placed again by their own path |
+| In another PI | Moved to `P`: into the lane with the **same name** if `P` has one (teams usually recur PI after PI), else **Needs Swimlane**. Its stories leave their sprints and **all its groups are removed, named ones included**, because *Sprint 2* of one PI is not *Sprint 2* of another; stories that are in the file are placed again by their own path. The review names every named group the move removes |
 | Split across PIs | Nothing changes if one of its parts is already in `P`; otherwise left alone and reported. A split is a board decision the CSV can't express |
 
 A feature row whose path names a *sprint* is placed in that sprint's PI — features
@@ -295,7 +295,7 @@ PI, and never moves the feature.
 | Path names a sprint; the story is placed directly in another sprint | Moved to that sprint |
 | Path names the sprint it is already in | Nothing changes |
 | Path names the PI only; the story is placed directly in a sprint | Taken out of the sprint (ADO moved it back to the PI) |
-| The story is in a **named group** | Left alone, whatever the path says. A group is a planning decision; the review names the group and its sprint |
+| The story is in a **named group** | Left alone, whatever the path says. A group is a planning decision; the review names the group and its sprint. (The exception is its feature moving to another PI — §4) |
 
 "Placed directly" is a story dragged onto a sprint on its own, not as part of a group
 you named.
@@ -306,7 +306,8 @@ you named.
 - move anything into or out of a **closed** PI — closed PIs stay read-only;
 - move an item to the backlog;
 - choose a real swimlane — ADO has nothing that maps to one;
-- change a named group, or a feature split across PIs.
+- change a named group, or a feature split across PIs — except that a feature moved to
+  another PI loses its groups, named ones included (§4).
 
 ### 7. The Needs Swimlane lane
 

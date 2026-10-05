@@ -26,8 +26,9 @@ are unique across all PIs and sprints of a project, so a cell can never match tw
 - **A story follows its feature, never the reverse.** A story is placed only within its
   feature's PI. Features are placed first, so a feature and its stories that moved together
   in ADO land together in one import.
-- **Named groups are left alone.** Only stories placed directly in a sprint (implicit groups)
-  are moved; a story in a group a planner named is reported, not pulled out.
+- **Named groups are left alone** when a *story's* path changes. Only stories placed directly
+  in a sprint (implicit groups) are moved; a story in a group a planner named is reported, not
+  pulled out. A *feature* moving to another PI is the one exception (see below).
 - **Split features are not moved.** A continuation is a board decision the CSV cannot express.
 - **Closed PIs stay read-only**, as they are in the API.
 - **No PI is created.**
@@ -38,8 +39,11 @@ ADO has nothing that maps to a planner swimlane, and the board cannot hold a fea
 one. A feature newly placed in a PI therefore lands in that PI's **Needs Swimlane** lane,
 created on demand and found by name, like the "Unassigned" placeholder feature. A feature
 moving between PIs keeps its lane when the target PI has one of the same name. A sprint index
-means nothing in another PI, so a cross-PI move drops the feature's groups; stories in the
-file re-place themselves by their own path.
+means nothing in another PI, so a cross-PI move drops the feature's groups — **named groups
+included** — and stories in the file re-place themselves by their own path. This is the one
+place an import deletes something a planner made, so the review names every named group the
+move removes before the import is confirmed. Skipping such features instead, or carrying the
+groups across without a sprint, were considered and left for later.
 
 ## Consequences
 

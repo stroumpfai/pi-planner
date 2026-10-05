@@ -394,6 +394,32 @@ async def test_story_in_a_named_group_is_left_alone(client, pid):
         assert await _sprint_of(client, await _pbi(client, pid, 201)) == 0
 
 
+@pytest.mark.asyncio
+async def test_cross_pi_move_removes_named_groups_and_says_so(client, pid):
+    # The one exception to "named groups are left alone" (ADR 0007): a sprint
+    # index means nothing in another PI, so the feature's groups go with the move.
+    pi8 = await _make_pi(client, pid, "PI 08", PI8)
+    await _make_pi(client, pid, "PI 09", PI9)
+    await _import(client, pid, [
+        _row(2, "feature", "Auth", user_id=101, iteration=PI8),
+        _row(3, "story", "Login", user_id=201, parent_id=101),
+    ])
+    feature = await _feature(client, pid, 101)
+    pbi = await _pbi(client, pid, 201)
+    lane_id = (await _lanes(client, pi8))["Needs Swimlane"]
+    group = (await client.post(f"/api/v1/swimlines/{lane_id}/groups", json={
+        "name": "Release 1", "feature_system_id": feature["system_id"],
+        "pbi_ids": [pbi["system_id"]], "sprint_index": 0,
+    })).json()
+
+    data = await _import(client, pid, [_row(2, "feature", "Auth", user_id=101, iteration=PI9)])
+    details = {c["user_id"]: c["detail"] for c in data["plan"] if c["action"] == "placed"}
+    assert details[101] == (
+        'PI 08 → PI 09 · Needs Swimlane; 1 story leaves its sprint; named group "Release 1" removed'
+    )
+    assert (await client.get(f"/api/v1/groups/{group['system_id']}")).status_code == 404
+
+
 # ── Mapping ───────────────────────────────────────────────────────────────────
 
 @pytest.mark.asyncio
