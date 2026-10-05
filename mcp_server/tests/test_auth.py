@@ -328,3 +328,21 @@ async def test_check_api_key_id_backend_500_raises(mock_backend):
     mock_backend.post("/api/v1/api-keys/admin/check").mock(return_value=httpx.Response(503))
     with pytest.raises(BackendAuthUnavailable):
         await check_api_key_id("kid_abc")
+
+
+async def test_check_api_key_id_404_means_backend_too_old_not_revoked(mock_backend):
+    """An app without /admin/check answers 404. Calling that "revoked" would make
+    the OAuth provider delete every grant, so it counts as an outage."""
+    mock_backend.post("/api/v1/api-keys/admin/check").mock(return_value=httpx.Response(404))
+    with pytest.raises(BackendAuthUnavailable, match="older app"):
+        await check_api_key_id("kid_abc")
+
+
+async def test_verify_api_key_404_is_unavailable_and_not_a_failure(mock_backend):
+    """A 404 on /admin/verify is a wrong BACKEND_URL, not a bad key: it must not
+    count towards the caller's auth-failure rate limit."""
+    _failed_auth.pop("unknown", None)  # no HTTP request in a test, so the IP is "unknown"
+    mock_backend.post("/api/v1/api-keys/admin/verify").mock(return_value=httpx.Response(404))
+    provider = APIKeyAuthProvider()
+    assert await provider.verify_token("kid_abc.secret") is None
+    assert "unknown" not in _failed_auth

@@ -174,6 +174,13 @@ async def _ask_backend(path: str, body: dict[str, str]) -> tuple[str, str, str] 
     if r.status_code >= 500:
         raise BackendAuthUnavailable(f"backend returned {r.status_code}")
 
+    # Neither endpoint answers 404 for a bad key (that is a 401), so a 404 means
+    # the route itself is missing: an app older than this MCP server, or a wrong
+    # BACKEND_URL. Calling that "invalid" would make the OAuth provider treat every
+    # key as revoked and delete every grant, so it counts as unavailable instead.
+    if r.status_code == 404:
+        raise BackendAuthUnavailable(f"backend has no {path} (older app, or wrong BACKEND_URL?)")
+
     # 401/403/etc. — the key is genuinely invalid.
     return None
 

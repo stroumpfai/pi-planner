@@ -713,6 +713,23 @@ async def test_load_access_token_fails_open_when_backend_down(tmp_path, key_stil
     assert provider._store.get_refresh_token(refresh) is not None
 
 
+async def test_grants_survive_an_app_older_than_the_mcp_server(tmp_path, key_still_active, mock_backend):
+    """Deploying the MCP server before the app: /admin/check doesn't exist yet and
+    answers 404. Every grant must survive that, not be dropped as revoked."""
+    from mcp_server.auth import check_api_key_id
+
+    key_still_active.side_effect = check_api_key_id  # the real one, against the mocked backend
+    mock_backend.post("/api/v1/api-keys/admin/check").mock(return_value=httpx.Response(404))
+    provider = _make_provider(tmp_path)
+    access, refresh_value = await _seed_grant(provider, "kid_abc", "a")
+
+    assert await provider.load_access_token(access) is not None
+    response = await provider.exchange_refresh_token(
+        _make_client(), provider._store.get_refresh_token(refresh_value), ["admin", "editor"]
+    )
+    assert response.access_token
+
+
 async def test_exchange_refresh_token_rejects_revoked_key(tmp_path, key_still_active):
     from mcp.server.auth.provider import TokenError
 
