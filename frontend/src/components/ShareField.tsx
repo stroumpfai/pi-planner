@@ -42,7 +42,7 @@ export function ShareField({ id, label, unit, value, onChange, placeholder, comp
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange(unit, e.target.value)}
-          className={`block ${compact ? 'w-16 py-0.5 text-xs' : 'w-24 sm:text-sm'} rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500`}
+          className={`block ${compact ? 'w-20 px-2 py-0.5 text-xs' : 'w-24 sm:text-sm'} rounded-md border-gray-300 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100 shadow-sm focus:border-blue-500 focus:ring-blue-500`}
         />
         <select
           aria-label={`${label} unit`}
