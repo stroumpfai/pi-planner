@@ -10819,6 +10819,15 @@
             ],
             "title": "Match"
           },
+          "repeats": {
+            "type": "string",
+            "enum": [
+              "single",
+              "weekly",
+              "yearly"
+            ],
+            "title": "Repeats"
+          },
           "selected_by_default": {
             "type": "boolean",
             "title": "Selected By Default"
@@ -10869,11 +10878,12 @@
           "rule_summary",
           "member_id",
           "match",
+          "repeats",
           "selected_by_default",
           "action"
         ],
         "title": "AbsenceImportCandidate",
-        "description": "One row the file would write \u2014 for one member, or for nobody yet.\n\nIn team mode an event nobody matched still comes back, with no member and\nno action, so the preview can offer a member dropdown rather than dropping\nit. It keeps its default tick: a ticked row with no member blocks the\nimport until someone is picked or the row is unticked, so nothing is lost\nsilently. An event naming several members is one candidate per member."
+        "description": "One row the file would write \u2014 for one member, or for nobody yet.\n\nIn team mode an event nobody matched still comes back, with no member and\nno action, so the preview can offer a member dropdown rather than dropping\nit. It starts unticked: a long team file is mostly other people's events,\nand the preview hides these behind a filter until someone wants to assign\none. An event naming several members is one candidate per member."
       },
       "AbsenceOccurrence": {
         "properties": {

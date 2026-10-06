@@ -96,6 +96,8 @@ def _candidate(
     how: ImportMatch,
     member_id: str | None,
     row: Absence | None,
+    *,
+    selected: bool | None = None,
 ) -> AbsenceImportCandidate:
     return AbsenceImportCandidate(
         source_uid=event.source_uid,
@@ -104,7 +106,8 @@ def _candidate(
         rule_summary=_summary(event),
         member_id=member_id,
         match=how,
-        selected_by_default=event.selected_by_default,
+        repeats=event.repeats,
+        selected_by_default=event.selected_by_default if selected is None else selected,
         hint=event.hint,
         action=action_for(row, event) if member_id is not None else None,
         previous=response_for(row) if row is not None else None,
@@ -163,9 +166,9 @@ async def plan_import(
             matched, how = match_members(event, named)
         involved.update(matched)
         if not matched:
-            # Offered with its tick but no member: the dialog will not import a
-            # ticked row until one is picked, and MCP refuses it unassigned.
-            plan.candidates.append(_candidate(event, how, None, None))
+            # Someone else's event, most likely: offered for a member to be
+            # picked, but unticked, so a long team file never blocks on them.
+            plan.candidates.append(_candidate(event, how, None, None, selected=False))
             continue
         for matched_id in matched:
             row = plan.existing.get((matched_id, event.source_uid))

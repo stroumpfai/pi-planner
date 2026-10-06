@@ -28,6 +28,7 @@ const candidate = (over: Partial<AbsenceImportCandidate> = {}): AbsenceImportCan
   rule_summary: '2026-11-02 – 2026-11-06, from am to pm',
   member_id: 'm-anna',
   match: 'picked',
+  repeats: 'single',
   selected_by_default: true,
   hint: null,
   action: 'create',
@@ -100,9 +101,15 @@ function lastCall() {
   return { url, form, params: config.params }
 }
 
+const many = (n: number, over: (i: number) => Partial<AbsenceImportCandidate> = () => ({})) =>
+  Array.from({ length: n }, (_, i) =>
+    candidate({ source_uid: `e${i}@x`, title: `Event ${i}`, rule: { ...rule, start_date: `2026-11-${String(i + 1).padStart(2, '0')}` }, ...over(i) }),
+  )
+
 describe('AbsenceIcsImportDialog', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    localStorage.clear()
   })
 
   it('previews for the picked member and lists events, removals and skips', async () => {
@@ -149,25 +156,34 @@ describe('AbsenceIcsImportDialog', () => {
     expect(invalidate).not.toHaveBeenCalled()
   })
 
-  it('blocks the import until an unmatched ticked event has a member', async () => {
+  it('hides unmatched events behind a chip, and needs a member once one is ticked', async () => {
     const { user } = setup(preview({
-      candidates: [candidate({ source_uid: 'c@x', title: 'Someone away', member_id: null, match: 'none', action: null })],
+      candidates: [
+        candidate(),
+        candidate({ source_uid: 'c@x', title: 'Someone away', member_id: null, match: 'none', action: null, selected_by_default: false }),
+      ],
       removals: [],
     }))
-    await user.click(screen.getByRole('radio', { name: /match events to members by name/i }))
+    await user.click(screen.getByRole('radio', { name: /a shared team calendar/i }))
     const section = await previewFile(user)
     expect(lastCall().params.member_id).toBeUndefined()
+    expect(within(section).queryByText('Someone away')).not.toBeInTheDocument()
 
+    await user.click(within(section).getByRole('button', { name: 'Unmatched (1)' }))
+    await user.click(within(section).getByRole('checkbox', { name: /import someone away/i }))
     const importButton = screen.getByRole('button', { name: /^import$/i })
     expect(importButton).toBeDisabled()
-    expect(within(section).getByText(/choose a member for the ticked event/i)).toBeInTheDocument()
+    expect(screen.getByText(/choose a member for the ticked event/i)).toBeInTheDocument()
 
     await user.selectOptions(within(section).getByRole('combobox', { name: /member for someone away/i }), 'm-ben')
     expect(importButton).toBeEnabled()
     await user.click(importButton)
 
     await waitFor(() => expect(lastCall().params.dry_run).toBe(false))
-    expect(JSON.parse(lastCall().form.get('selections') as string)).toEqual([{ source_uid: 'c@x', member_id: 'm-ben' }])
+    expect(JSON.parse(lastCall().form.get('selections') as string)).toEqual([
+      { source_uid: 'week@x', member_id: 'm-anna' },
+      { source_uid: 'c@x', member_id: 'm-ben' },
+    ])
   })
 
   it('shows an update with the rule it replaces, and tucks unchanged rows away', async () => {
@@ -179,9 +195,9 @@ describe('AbsenceIcsImportDialog', () => {
       removals: [],
     }))
     const section = await previewFile(user)
-    expect(within(section).getByText('update')).toBeInTheDocument()
+    expect(within(section).getByText('Update')).toBeInTheDocument()
     expect(within(section).getByText('2026-10-26 – 2026-10-30, from am to pm')).toBeInTheDocument()
-    expect(within(section).getByText('1 unchanged')).toBeInTheDocument()
+    expect(within(section).getByRole('button', { name: 'Unchanged (1)' })).toBeInTheDocument()
     // Only the update is a write; the unchanged row costs nothing.
     expect(screen.getByText(/1 to write · 0 to remove/)).toBeInTheDocument()
   })
@@ -198,4 +214,114 @@ describe('AbsenceIcsImportDialog', () => {
     await user.click(screen.getByRole('button', { name: /^preview$/i }))
     expect(await screen.findByRole('alert')).toHaveTextContent('This is not a readable iCalendar file')
   })
+
+  it('deselects exactly the rows a search shows, and keeps the hidden ticks', async () => {
+    const rows = [...many(3), ...many(2, (i) => ({ source_uid: `b${i}@x`, title: `Birthday ${i}` }))]
+    const { user } = setup(preview({ candidates: rows, removals: [] }))
+    const section = await previewFile(user)
+
+    await user.type(within(section).getByRole('searchbox', { name: /search events/i }), 'birthday')
+    expect(within(section).getAllByRole('checkbox', { name: /^import /i })).toHaveLength(2)
+    await user.click(within(section).getByRole('button', { name: 'Deselect 2 shown' }))
+
+    // The three hidden events stay ticked, and the footer says the filter hides them.
+    expect(screen.getByText(/3 to write \(3 hidden by filters\)/)).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /^import$/i }))
+    await waitFor(() => expect(lastCall().params.dry_run).toBe(false))
+    expect(JSON.parse(lastCall().form.get('selections') as string).map((r: { source_uid: string }) => r.source_uid))
+      .toEqual(['e0@x', 'e1@x', 'e2@x'])
+  })
+
+  it('shows a mixed header tick, and the header tick acts on the shown rows only', async () => {
+    const { user } = setup(preview({ candidates: many(3, (i) => ({ selected_by_default: i === 0 })), removals: [] }))
+    const section = await previewFile(user)
+    const header = within(section).getByRole('checkbox', { name: /tick every shown event/i }) as HTMLInputElement
+    expect(header.indeterminate).toBe(true)
+
+    await user.click(header)
+    expect(within(section).getAllByRole('checkbox', { name: /^import /i }).every((b) => (b as HTMLInputElement).checked)).toBe(true)
+    expect(header.indeterminate).toBe(false)
+  })
+
+  it('filters by kind and by date', async () => {
+    const rows = [
+      ...many(2),
+      candidate({ source_uid: 'y@x', title: 'Birthday Anna', repeats: 'yearly', selected_by_default: false, rule: { ...rule, start_date: '2027-03-15', end_date: '2027-03-15' } }),
+    ]
+    const { user } = setup(preview({ candidates: rows, removals: [] }))
+    const section = await previewFile(user)
+
+    await user.click(within(section).getByRole('button', { name: 'Yearly (1)' }))
+    expect(within(section).getAllByRole('checkbox', { name: /^import /i })).toHaveLength(1)
+    await user.click(within(section).getByRole('button', { name: /clear filters/i }))
+
+    await user.type(within(section).getByLabelText('Show to'), '2026-12-31')
+    expect(within(section).queryByText('Birthday Anna')).not.toBeInTheDocument()
+    expect(within(section).getByText('Event 0')).toBeInTheDocument()
+  })
+
+  it('hides and unticks titles holding an exclude word, and remembers the words', async () => {
+    const rows = [...many(1), candidate({ source_uid: 'b@x', title: "Ben's birthday party" })]
+    const { user } = setup(preview({ candidates: rows, removals: [] }))
+    const section = await previewFile(user)
+
+    await user.type(screen.getByRole('textbox', { name: /hide titles containing/i }), 'Birthday')
+    expect(within(section).queryByText("Ben's birthday party")).not.toBeInTheDocument()
+    expect(screen.getByText(/1 events hidden and unticked/)).toBeInTheDocument()
+    expect(screen.getByText(/^1 to write/)).toBeInTheDocument()
+    expect(localStorage.getItem('absence-ics-exclude-words')).toBe('Birthday')
+  })
+
+  it('applies remembered exclude words to the next preview', async () => {
+    localStorage.setItem('absence-ics-exclude-words', 'birthday')
+    const rows = [...many(1), candidate({ source_uid: 'b@x', title: 'Birthday Ben' })]
+    const { user } = setup(preview({ candidates: rows, removals: [] }))
+    await previewFile(user)
+
+    expect(screen.getByRole('textbox', { name: /hide titles containing/i })).toHaveValue('birthday')
+    await user.click(screen.getByRole('button', { name: /^import$/i }))
+    await waitFor(() => expect(lastCall().params.dry_run).toBe(false))
+    expect(JSON.parse(lastCall().form.get('selections') as string)).toEqual([{ source_uid: 'e0@x', member_id: 'm-anna' }])
+  })
+
+  it('still opens when the browser refuses storage', async () => {
+    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
+      throw new Error('blocked')
+    })
+    const { user } = setup()
+    await previewFile(user)
+    expect(screen.getByRole('textbox', { name: /hide titles containing/i })).toHaveValue('')
+    getItem.mockRestore()
+  })
+
+  it('shows where a search hit is hiding, and the unmatched chip narrows to it', async () => {
+    const rows = [
+      candidate(),
+      candidate({ source_uid: 'c@x', title: 'Someone away', member_id: null, match: 'none', action: null, selected_by_default: false }),
+    ]
+    const { user } = setup(preview({ candidates: rows, removals: [] }))
+    await user.click(screen.getByRole('radio', { name: /a shared team calendar/i }))
+    const section = await previewFile(user)
+
+    await user.type(within(section).getByRole('searchbox', { name: /search events/i }), 'someone')
+    expect(within(section).getByText('No event matches these filters.')).toBeInTheDocument()
+    expect(within(section).getByRole('button', { name: 'Matched (0)' })).toBeInTheDocument()
+    await user.click(within(section).getByRole('button', { name: 'Unmatched (1)' }))
+
+    expect(within(section).getByText('Someone away')).toBeInTheDocument()
+    expect(within(section).queryByText('Vacation')).not.toBeInTheDocument()
+  })
+
+  it('keeps an unticked row on the Ticked only list, so a slip can be undone', async () => {
+    const { user } = setup(preview({ candidates: many(2), removals: [] }))
+    const section = await previewFile(user)
+
+    await user.click(within(section).getByRole('button', { name: 'Ticked only' }))
+    const first = within(section).getByRole('checkbox', { name: /import event 0/i })
+    await user.click(first)
+    expect(first).not.toBeChecked()
+    await user.click(within(section).getByRole('checkbox', { name: /import event 0/i }))
+    expect(within(section).getByRole('checkbox', { name: /import event 0/i })).toBeChecked()
+  })
 })
+

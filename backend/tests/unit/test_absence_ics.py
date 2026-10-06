@@ -50,6 +50,7 @@ def test_an_all_day_event_is_a_range_ending_the_day_before_its_exclusive_dtend()
     assert (event.rule.start_half, event.rule.end_half) == ("am", "pm")
     assert event.rule.label == "Vacation"
     assert event.selected_by_default is True
+    assert event.repeats == "single"
 
 
 def test_a_timed_afternoon_is_a_half_day_range():
@@ -105,6 +106,7 @@ def test_a_weekly_afternoon_becomes_one_weekly_rule():
     event = _only(_ics(_event("w1", "Part-time", "DTSTART:20261104T130000", "DTEND:20261104T170000",
                               "RRULE:FREQ=WEEKLY;BYDAY=WE;UNTIL=20270630T000000Z")))
     assert event.rule.kind == "weekly"
+    assert event.repeats == "weekly"
     assert (event.rule.weekday, event.rule.halves) == (2, ["pm"])
     assert (event.rule.start_date, event.rule.end_date) == (date(2026, 11, 4), date(2027, 6, 30))
 
@@ -174,6 +176,10 @@ def test_a_yearly_rule_becomes_one_range_per_year_with_the_year_in_its_uid():
     assert [(e.source_uid, e.rule.start_date) for e in parsed.events] == [
         ("y1#2026", date(2026, 3, 15)), ("y1#2027", date(2027, 3, 15)),
     ]
+    # All-day, but yearly: a birthday far more often than leave, so offered unticked.
+    assert {(e.repeats, e.selected_by_default, e.hint) for e in parsed.events} == {
+        ("yearly", False, "repeats yearly — a birthday or anniversary?"),
+    }
     # Yearly rows do not stretch the span: a birthday from 2020 must not open the window there.
     assert parsed.span is None
 

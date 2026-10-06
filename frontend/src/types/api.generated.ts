@@ -1022,9 +1022,9 @@ export interface components {
      *
      * In team mode an event nobody matched still comes back, with no member and
      * no action, so the preview can offer a member dropdown rather than dropping
-     * it. It keeps its default tick: a ticked row with no member blocks the
-     * import until someone is picked or the row is unticked, so nothing is lost
-     * silently. An event naming several members is one candidate per member.
+     * it. It starts unticked: a long team file is mostly other people's events,
+     * and the preview hides these behind a filter until someone wants to assign
+     * one. An event naming several members is one candidate per member.
      */
     AbsenceImportCandidate: {
       /** Source Uid */
@@ -1041,6 +1041,11 @@ export interface components {
        * @enum {string}
        */
       match: "picked" | "attendee" | "title" | "none";
+      /**
+       * Repeats
+       * @enum {string}
+       */
+      repeats: "single" | "weekly" | "yearly";
       /** Selected By Default */
       selected_by_default: boolean;
       /** Hint */

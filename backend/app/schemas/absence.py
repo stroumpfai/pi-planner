@@ -225,6 +225,7 @@ class BulkAbsenceResult(BaseModel):
 
 ImportMatch = Literal["picked", "attendee", "title", "none"]
 ImportAction = Literal["create", "update", "unchanged"]
+ImportRepeats = Literal["single", "weekly", "yearly"]
 
 
 class AbsenceImportCandidate(BaseModel):
@@ -232,9 +233,9 @@ class AbsenceImportCandidate(BaseModel):
 
     In team mode an event nobody matched still comes back, with no member and
     no action, so the preview can offer a member dropdown rather than dropping
-    it. It keeps its default tick: a ticked row with no member blocks the
-    import until someone is picked or the row is unticked, so nothing is lost
-    silently. An event naming several members is one candidate per member.
+    it. It starts unticked: a long team file is mostly other people's events,
+    and the preview hides these behind a filter until someone wants to assign
+    one. An event naming several members is one candidate per member.
     """
 
     source_uid: str
@@ -244,8 +245,12 @@ class AbsenceImportCandidate(BaseModel):
     rule_summary: str
     member_id: str | None
     match: ImportMatch
-    # Whole days and Outlook "out of office" are ticked; other timed events
-    # look like meetings and are offered unticked.
+    # How the event repeats in the file: a weekly rule stays one rule, a yearly
+    # one became a row per year. The preview filters on it.
+    repeats: ImportRepeats
+    # Whole days and Outlook "out of office" are ticked. Other timed events look
+    # like meetings, yearly ones like birthdays, and an event nobody matched is
+    # someone else's: all three are offered unticked.
     selected_by_default: bool
     hint: str | None = None
     # None while no member is chosen: the action depends on whose row it is.

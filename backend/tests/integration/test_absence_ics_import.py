@@ -116,6 +116,7 @@ async def test_a_preview_writes_nothing_and_lists_what_it_would(client, team, an
     assert by_uid["week@x"]["rule_summary"] == "2026-11-02 – 2026-11-06, from am to pm"
     assert by_uid["meet@x"]["selected_by_default"] is False
     assert by_uid["fri@x"]["rule"]["kind"] == "interval"
+    assert (by_uid["week@x"]["repeats"], by_uid["fri@x"]["repeats"]) == ("single", "weekly")
     # The default ticks: the week and the Fridays, not the meeting.
     assert (body["created"], body["updated"], body["deleted"]) == (2, 0, 0)
     # The window is the file's span, handed back for the apply to send again.
@@ -298,8 +299,8 @@ async def test_a_team_file_matches_attendees_and_titles(client, team, anna, ben)
     assert (by_uid["a@x"]["member_id"], by_uid["a@x"]["match"]) == (anna["system_id"], "attendee")
     assert (by_uid["b@x"]["member_id"], by_uid["b@x"]["match"]) == (ben["system_id"], "title")
     assert (by_uid["c@x"]["member_id"], by_uid["c@x"]["action"]) == (None, None)
-    # Still ticked: the user has to pick someone or untick it.
-    assert by_uid["c@x"]["selected_by_default"] is True
+    # Someone else's, most likely: offered for assigning, but unticked.
+    assert by_uid["c@x"]["selected_by_default"] is False
 
     # The unresolved event is given to Ben by hand.
     result = await _apply(client, tid, content, form={"selections": [
@@ -310,6 +311,17 @@ async def test_a_team_file_matches_attendees_and_titles(client, team, anna, ben)
     assert result["created"] == 3
     owners = {r["source_uid"]: r["member_id"] for r in await _absences(client, tid)}
     assert owners == {"a@x": anna["system_id"], "b@x": ben["system_id"], "c@x": ben["system_id"]}
+
+
+async def test_a_yearly_event_is_offered_unticked_and_left_out_by_default(client, team, anna):
+    tid = team["system_id"]
+    birthday = _day("bday@x", "Birthday", "20200315", "RRULE:FREQ=YEARLY")
+    body = await _preview(client, tid, _ics(_WEEK, birthday), member_id=anna["system_id"])
+    yearly = [c for c in body["candidates"] if c["repeats"] == "yearly"]
+    assert yearly and not any(c["selected_by_default"] for c in yearly)
+
+    await _apply(client, tid, _ics(_WEEK, birthday), member_id=anna["system_id"])
+    assert [r["source_uid"] for r in await _absences(client, tid)] == ["week@x"]
 
 
 async def test_an_apply_without_choices_leaves_unresolved_events_out(client, team, anna):

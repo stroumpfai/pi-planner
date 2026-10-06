@@ -1235,11 +1235,11 @@ async def _ics_choices(
 ) -> list[dict]:
     """The rows an apply writes, from a preview and the agent's choices.
 
-    An event the preview could not match to anyone has no member to write it
-    for, and dropping it silently would lose someone's leave. So every one that
-    is still included must be given a member through ``assign`` or left out with
-    ``exclude_uids`` — and all of them are reported together, as the bulk tools
-    do with unknown names (§8.2.7).
+    An event the preview could not match to anyone starts unticked — in a team
+    file it is mostly someone else's. Once included (``include_uids``) it has no
+    member to write it for, so it must be given one through ``assign``; every
+    such event is reported together, as the bulk tools do with unknown names
+    (§8.2.7).
     """
     excluded = set(exclude_uids or [])
     included = set(include_uids) if include_uids is not None else None
@@ -1321,10 +1321,12 @@ async def import_absence_ics(
     touched. Removals are limited to the window and to the members this import
     involves.
 
-    By default the import takes all-day and out-of-office events and leaves other
-    timed events (likely meetings) out. Every included event that matched no
-    member must be given one with `assign` or left out with `exclude_uids`. All of
-    them are reported together, and nothing is written until they are.
+    By default the import takes all-day and out-of-office events that matched a
+    member. It leaves out other timed events (likely meetings), yearly events
+    (likely birthdays) and events that matched nobody (likely someone else's).
+    To import one of those, name it in `include_uids`; an event that matched
+    nobody also needs `assign`. Included events without a member are all
+    reported together, and nothing is written until each has one.
     """
     params: dict = {"dry_run": "true"}
     if member_name is not None:

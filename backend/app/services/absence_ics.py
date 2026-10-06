@@ -31,7 +31,7 @@ from typing import Any, Literal
 from icalendar import Event
 from pydantic import ValidationError
 
-from app.schemas.absence import Half, ScheduleFields
+from app.schemas.absence import Half, ImportRepeats, ScheduleFields
 from app.schemas.common import IcsSkipped
 from app.services import ics
 
@@ -42,6 +42,7 @@ MAX_EVENTS = 2000
 _DAY_CODES = ("MO", "TU", "WE", "TH", "FR", "SA", "SU")
 _WEEKLY_RULE_PARTS = {"FREQ", "BYDAY", "INTERVAL", "COUNT", "UNTIL", "WKST"}
 _OOF = "OOF"
+_YEARLY_HINT = "repeats yearly — a birthday or anniversary?"
 
 
 class TooManyEvents(ValueError):
@@ -61,6 +62,9 @@ class AbsenceEvent:
     people: list[str] = field(default_factory=list)
     selected_by_default: bool = True
     hint: str | None = None
+    # How the event repeats in the file, which the preview filters on: a
+    # weekly rule stays one rule, a yearly one became a row per year.
+    repeats: ImportRepeats = "single"
 
 
 @dataclass
@@ -193,15 +197,21 @@ class _Origin:
     hint: str | None
 
 
-def _add(parsed: ParsedAbsenceIcs, origin: _Origin, source_uid: str, **rule: Any) -> bool:
+def _add(
+    parsed: ParsedAbsenceIcs, origin: _Origin, source_uid: str, repeats: ImportRepeats, **rule: Any
+) -> bool:
     try:
         fields = ScheduleFields(**rule)
     except ValidationError as err:
         _skip(parsed, origin.title, str(err.errors()[0]["msg"]))
         return False
+    # Leave is rarely yearly; birthdays and anniversaries always are. Offered,
+    # never assumed: a yearly row starts unticked whatever else it looks like.
+    yearly = repeats == "yearly"
     parsed.events.append(AbsenceEvent(
         source_uid=source_uid, title=origin.title, rule=fields, people=origin.people,
-        selected_by_default=origin.selected, hint=origin.hint,
+        selected_by_default=origin.selected and not yearly,
+        hint=_YEARLY_HINT if yearly else origin.hint, repeats=repeats,
     ))
     return True
 
@@ -255,7 +265,7 @@ def parse_absence_ics(content: bytes, *, years: range | None = None) -> ParsedAb
 
         parts = ics.rule_parts(event)
         if parts is None:
-            if _add(parsed, origin, uid, kind="range", label=label or None, start_date=start,
+            if _add(parsed, origin, uid, "single", kind="range", label=label or None, start_date=start,
                     end_date=last, start_half=start_half, end_half=end_half):
                 _widen(parsed, start, last)
             continue
@@ -275,7 +285,7 @@ def parse_absence_ics(content: bytes, *, years: range | None = None) -> ParsedAb
             for occurrence in expanded:
                 if occurrence in excluded:
                     continue
-                _add(parsed, origin, f"{uid}#{occurrence.year}", kind="range", label=label or None,
+                _add(parsed, origin, f"{uid}#{occurrence.year}", "yearly", kind="range", label=label or None,
                      start_date=occurrence, end_date=occurrence + length,
                      start_half=start_half, end_half=end_half)
             continue
@@ -299,7 +309,7 @@ def parse_absence_ics(content: bytes, *, years: range | None = None) -> ParsedAb
             source_uid = f"{uid}#{_DAY_CODES[weekday]}" if several else uid
             if end is not None and end < anchor:
                 continue  # an UNTIL before this weekday's first occurrence: it never happens
-            if _add(parsed, origin, source_uid, kind="weekly" if interval == 1 else "interval",
+            if _add(parsed, origin, source_uid, "weekly", kind="weekly" if interval == 1 else "interval",
                     label=label or None, start_date=anchor, end_date=end, weekday=weekday,
                     halves=_halves_of_day(start_half, end_half),
                     interval_weeks=interval if interval > 1 else None):

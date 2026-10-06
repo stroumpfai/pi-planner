@@ -22,11 +22,13 @@ ICS = "BEGIN:VCALENDAR\r\nEND:VCALENDAR\r\n"
 MEMBERS = [{"system_id": ANNA_ID, "name": "Anna Keller"}, {"system_id": BEN_ID, "name": "Ben Ott"}]
 
 
-def _candidate(uid: str, member_id: str | None, *, selected: bool = True, title: str = "Vacation") -> dict:
+def _candidate(uid: str, member_id: str | None, *, selected: bool | None = None, title: str = "Vacation") -> dict:
+    # As the backend does: an event nobody matched starts unticked.
     return {
         "source_uid": uid, "title": title, "rule_summary": "2026-11-02, both halves",
-        "member_id": member_id, "match": "picked" if member_id else "none",
-        "selected_by_default": selected, "action": "create" if member_id else None,
+        "member_id": member_id, "match": "picked" if member_id else "none", "repeats": "single",
+        "selected_by_default": (member_id is not None) if selected is None else selected,
+        "action": "create" if member_id else None,
     }
 
 
@@ -41,10 +43,13 @@ PREVIEW = {
 }
 
 
-def _mock(mock_backend, preview: dict = PREVIEW):
-    mock_backend.get(path__startswith=f"/api/v1/teams/{TEAM_ID}/members").mock(
-        return_value=httpx.Response(200, json=MEMBERS)
-    )
+def _mock(mock_backend, preview: dict = PREVIEW, *, members: bool = True):
+    # The fixture fails a test that leaves a route uncalled, so the member list
+    # is only mocked where a name is resolved.
+    if members:
+        mock_backend.get(path__startswith=f"/api/v1/teams/{TEAM_ID}/members").mock(
+            return_value=httpx.Response(200, json=MEMBERS)
+        )
 
     def respond(request: httpx.Request) -> httpx.Response:
         if request.url.params["dry_run"] == "true":
@@ -103,7 +108,14 @@ async def test_include_exclude_and_keep_removed_shape_the_apply(mock_backend, mo
     assert _form_field(request, "removals") == []
 
 
-async def test_every_unowned_event_is_refused_together_and_nothing_is_written(
+async def test_unowned_events_are_left_out_by_default(mock_backend, mock_ctx, patch_get_http_request):
+    preview = {**PREVIEW, "candidates": [_candidate("week@x", ANNA_ID), _candidate("a@x", None)]}
+    route = _mock(mock_backend, preview, members=False)
+    await import_absence_ics(team_id=TEAM_ID, ics_content=ICS, dry_run=False, ctx=mock_ctx)
+    assert _form_field(_apply_request(route), "selections") == [{"source_uid": "week@x", "member_id": ANNA_ID}]
+
+
+async def test_every_included_unowned_event_is_refused_together_and_nothing_is_written(
     mock_backend, mock_ctx, patch_get_http_request
 ):
     preview = {**PREVIEW, "candidates": [
@@ -111,7 +123,9 @@ async def test_every_unowned_event_is_refused_together_and_nothing_is_written(
     ]}
     route = _mock(mock_backend, preview)
     with pytest.raises(ValueError) as err:
-        await import_absence_ics(team_id=TEAM_ID, ics_content=ICS, dry_run=False, ctx=mock_ctx)
+        await import_absence_ics(
+            team_id=TEAM_ID, ics_content=ICS, dry_run=False, include_uids=["a@x", "b@x"], ctx=mock_ctx,
+        )
 
     message = str(err.value)
     assert "Somebody away" in message and "Offsite" in message

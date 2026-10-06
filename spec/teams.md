@@ -991,15 +991,22 @@ the holiday import (`spec/public-holidays.md` §7.1), and it shares that importe
 dates, halves and yearly rules (`app/services/ics.py`). Editors only, and like every team write,
 it takes no edit lock (§4.1).
 
-**Whose file.** The dialog asks whether the file is *one member's*, picked from a list, or the
-*team's*. In team mode each event is matched to members:
+**Whose file.** The dialog asks *Whose calendar is this?*: *one person's*, picked from a list,
+or *a shared team calendar*. This decides who the rows belong to, not which rows are shown,
+and is kept apart from the filters on purpose. A personal export rarely names its owner
+("Vacation", "Dentist") but does name colleagues, as meeting attendees; matching it by name
+would leave its owner's leave unmatched, hand invitations to colleagues, and, since removals
+look only at members the import involves, stop proposing removals for its owner. In team mode
+each event is matched to members:
 
 1. by `ATTENDEE` / `ORGANIZER` common name, compared ignoring case and in either word order. An
    event naming several members is one absence each, as the multi-member create is (§3.4);
 2. otherwise by a member's **full** name written as whole words in the title ("Vacation – Anna
    Keller", "Keller Anna"). A name inside a longer matched name doesn't count, and a first name
    alone never matches;
-3. otherwise the event is listed with no member, and a member is picked in the preview.
+3. otherwise the event is listed with no member, **unticked** and hidden until the *Unmatched*
+   or *All* filter is chosen. A long team file is mostly other people's events; one that is wanted is shown,
+   ticked and given a member in the preview.
 
 **What an event becomes.**
 
@@ -1012,10 +1019,28 @@ it takes no edit lock (§4.1).
 | `STATUS:CANCELLED`, a task, an event with no `UID` | Skipped, with the reason |
 | `SUMMARY` | The `label`, cut to 100 characters |
 
-**Which events.** A personal calendar holds meetings as well as leave. Whole-day events and
-those Outlook marks *out of office* (`X-MICROSOFT-CDO-BUSYSTATUS` or `-INTENDEDSTATUS` = `OOF`)
-start ticked; any other timed event is listed unticked, marked *looks like a meeting*. A ticked
-event with no member blocks the import until a member is picked or the event is unticked.
+**Which events.** A calendar holds meetings and birthdays as well as leave. Whole-day events
+and those Outlook marks *out of office* (`X-MICROSOFT-CDO-BUSYSTATUS` or `-INTENDEDSTATUS` =
+`OOF`) start ticked. Three kinds start unticked, each with a hint: other timed events (*looks
+like a meeting*), yearly events (*a birthday or anniversary?*), and events that matched no
+member. A ticked event with no member blocks the import until a member is picked or the event
+is unticked. MCP applies the same defaults.
+
+**A long file.** The preview is one date-sorted list with a fixed toolbar and footer:
+
+- a search over event title and member name, and filter chips: *Matched / Unmatched / All*
+  (default *Matched*), *New / Update / Unchanged*, *Single / Weekly / Yearly*, *Ticked only*
+  and, in team mode, one member. Every chip narrows, and its count is what pressing it would
+  show under the other filters, so a search hit among the unmatched rows shows on that chip.
+  *Ticked only* keeps the rows ticked when it was pressed, so unticking one there doesn't
+  make it vanish;
+- a *From / To* date filter. It only narrows the list: the server still reads the whole file,
+  and the removal window is set separately;
+- **exclude words** ("Hide titles containing…", e.g. `birthday, Geburtstag`): matching rows
+  are hidden and unticked. The words are remembered in the browser only;
+- **Select / Deselect N shown**, which acts on the rows the filters show and nothing else;
+- a footer counting what is ticked, how much of it the filters hide, and what will be
+  removed, so a hidden tick is never sent by surprise.
 
 **Re-import updates, never duplicates** (ADR 0011). Every imported absence keeps its event's
 `UID` in `source_uid`, suffixed `#MO` / `#2027` when one event became several rows. Importing
