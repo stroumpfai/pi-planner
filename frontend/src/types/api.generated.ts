@@ -520,6 +520,24 @@ export interface paths {
      */
     post: operations["bulk_absences_api_v1_teams__team_id__absences_bulk_post"];
   };
+  "/api/v1/teams/{team_id}/absences/import/ics": {
+    /**
+     * Import Absence Ics
+     * @description Import absences from a calendar file — preview by default (§7.4.1).
+     *
+     * **Stateless.** The preview and the apply are the same request: the apply
+     * sends the file again with the rows the user ticked, and the server re-reads
+     * it and checks every choice against it. Nothing is held in between.
+     *
+     * **An upsert on the event's UID** (ADR 0011). A moved event updates the row
+     * it created; an identical one writes nothing; an event gone from the file is
+     * proposed for removal, inside the window and for members this import
+     * involves only. Hand-entered absences are never touched.
+     *
+     * No `require_edit_lock` and no `If-Match`, as for the bulk path (§4.1).
+     */
+    post: operations["import_absence_ics_api_v1_teams__team_id__absences_import_ics_post"];
+  };
   "/api/v1/teams/{team_id}/meetings": {
     /**
      * List Meetings
@@ -944,6 +962,94 @@ export interface components {
       member_ids: string[];
     };
     /**
+     * AbsenceIcsImportResult
+     * @description What an import would do (a preview) or did.
+     *
+     * The counts of a preview describe the default ticks; the dialog recounts
+     * from what the user actually ticks.
+     */
+    AbsenceIcsImportResult: {
+      /** Dry Run */
+      dry_run: boolean;
+      /** Window From */
+      window_from: string | null;
+      /** Window To */
+      window_to: string | null;
+      /**
+       * Candidates
+       * @default []
+       */
+      candidates?: components["schemas"]["AbsenceImportCandidate"][];
+      /**
+       * Removals
+       * @default []
+       */
+      removals?: components["schemas"]["AbsenceResponse"][];
+      /**
+       * Skipped
+       * @default []
+       */
+      skipped?: components["schemas"]["IcsSkipped"][];
+      /**
+       * Truncated Labels
+       * @default 0
+       */
+      truncated_labels?: number;
+      /**
+       * Created
+       * @default 0
+       */
+      created?: number;
+      /**
+       * Updated
+       * @default 0
+       */
+      updated?: number;
+      /**
+       * Unchanged
+       * @default 0
+       */
+      unchanged?: number;
+      /**
+       * Deleted
+       * @default 0
+       */
+      deleted?: number;
+    };
+    /**
+     * AbsenceImportCandidate
+     * @description One row the file would write — for one member, or for nobody yet.
+     *
+     * In team mode an event nobody matched still comes back, with no member and
+     * no action, so the preview can offer a member dropdown rather than dropping
+     * it. It keeps its default tick: a ticked row with no member blocks the
+     * import until someone is picked or the row is unticked, so nothing is lost
+     * silently. An event naming several members is one candidate per member.
+     */
+    AbsenceImportCandidate: {
+      /** Source Uid */
+      source_uid: string;
+      /** Title */
+      title: string;
+      rule: components["schemas"]["ScheduleFields"];
+      /** Rule Summary */
+      rule_summary: string;
+      /** Member Id */
+      member_id: string | null;
+      /**
+       * Match
+       * @enum {string}
+       */
+      match: "picked" | "attendee" | "title" | "none";
+      /** Selected By Default */
+      selected_by_default: boolean;
+      /** Hint */
+      hint?: string | null;
+      /** Action */
+      action: ("create" | "update" | "unchanged") | null;
+      previous?: components["schemas"]["AbsenceResponse"] | null;
+    };
+    /**
      * AbsenceOccurrence
      * @description One day this absence touches, and which halves of it.
      *
@@ -998,6 +1104,8 @@ export interface components {
        * @default []
        */
       occurrences?: components["schemas"]["AbsenceOccurrence"][];
+      /** Source Uid */
+      source_uid?: string | null;
       /**
        * Created At
        * Format: date-time
@@ -1100,6 +1208,24 @@ export interface components {
      * @enum {string}
      */
     ActorType: "human" | "mcp_bot";
+    /** Body_import_absence_ics_api_v1_teams__team_id__absences_import_ics_post */
+    Body_import_absence_ics_api_v1_teams__team_id__absences_import_ics_post: {
+      /**
+       * File
+       * @description An iCalendar (.ics) file
+       */
+      file: string;
+      /**
+       * Selections
+       * @description JSON [{"source_uid", "member_id"}]: the rows to write. Omitted: the default ticks.
+       */
+      selections?: string | null;
+      /**
+       * Removals
+       * @description JSON [system_id]: proposed removals to delete. Omitted: all of them.
+       */
+      removals?: string | null;
+    };
     /** Body_import_ics_api_v1_holiday_calendars__calendar_id__import_ics_post */
     Body_import_ics_api_v1_holiday_calendars__calendar_id__import_ics_post: {
       /**
@@ -2203,7 +2329,13 @@ export interface components {
       /** Entries */
       entries: components["schemas"]["HolidayEntryFields"][];
     };
-    /** IcsSkipped */
+    /**
+     * IcsSkipped
+     * @description A calendar-file event an import did not read, and why — shown in the preview.
+     *
+     * Shared by the holiday and absence importers (public-holidays.md §7.1,
+     * teams.md §7.4.1), which skip for different reasons but report alike.
+     */
     IcsSkipped: {
       /** Summary */
       summary: string;
@@ -3388,6 +3520,50 @@ export interface components {
      * @enum {string}
      */
     Role: "admin" | "editor" | "reader";
+    /**
+     * ScheduleFields
+     * @description The schedule rule shared by absences and meetings (§3.4).
+     *
+     * Every kind uses `start_date`, and it means something different in each: the
+     * first day of a `range`, and the **anchor** of a recurrence — the date that
+     * decides which alternate weeks are hit. Nothing here is validated against the
+     * other kinds' fields being absent; they are simply ignored, so switching kind
+     * in a form need not clear them.
+     */
+    ScheduleFields: {
+      /**
+       * Kind
+       * @enum {string}
+       */
+      kind: "range" | "weekly" | "interval";
+      /** Label */
+      label?: string | null;
+      /**
+       * Start Date
+       * Format: date
+       */
+      start_date: string;
+      /** End Date */
+      end_date?: string | null;
+      /**
+       * Start Half
+       * @default am
+       * @enum {string}
+       */
+      start_half?: "am" | "pm";
+      /**
+       * End Half
+       * @default pm
+       * @enum {string}
+       */
+      end_half?: "am" | "pm";
+      /** Weekday */
+      weekday?: number | null;
+      /** Halves */
+      halves?: (("am" | "pm")[]) | null;
+      /** Interval Weeks */
+      interval_weeks?: number | null;
+    };
     /** SnapshotCreate */
     SnapshotCreate: {
       /** Name */
@@ -7095,6 +7271,59 @@ export interface operations {
       200: {
         content: {
           "application/json": components["schemas"]["BulkAbsenceResult"];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        content: {
+          "application/json": components["schemas"]["HTTPValidationError"];
+        };
+      };
+    };
+  };
+  /**
+   * Import Absence Ics
+   * @description Import absences from a calendar file — preview by default (§7.4.1).
+   *
+   * **Stateless.** The preview and the apply are the same request: the apply
+   * sends the file again with the rows the user ticked, and the server re-reads
+   * it and checks every choice against it. Nothing is held in between.
+   *
+   * **An upsert on the event's UID** (ADR 0011). A moved event updates the row
+   * it created; an identical one writes nothing; an event gone from the file is
+   * proposed for removal, inside the window and for members this import
+   * involves only. Hand-entered absences are never touched.
+   *
+   * No `require_edit_lock` and no `If-Match`, as for the bulk path (§4.1).
+   */
+  import_absence_ics_api_v1_teams__team_id__absences_import_ics_post: {
+    parameters: {
+      query?: {
+        dry_run?: boolean;
+        /** @description The member a personal file belongs to; omit to match events by name */
+        member_id?: string | null;
+        /** @description First day an imported absence may be removed from; defaults to the file's span */
+        window_from?: string | null;
+        /** @description Last day of that window */
+        window_to?: string | null;
+      };
+      path: {
+        team_id: string;
+      };
+      cookie?: {
+        pi_session?: string | null;
+      };
+    };
+    requestBody: {
+      content: {
+        "multipart/form-data": components["schemas"]["Body_import_absence_ics_api_v1_teams__team_id__absences_import_ics_post"];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      200: {
+        content: {
+          "application/json": components["schemas"]["AbsenceIcsImportResult"];
         };
       };
       /** @description Validation Error */

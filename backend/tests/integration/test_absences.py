@@ -254,6 +254,11 @@ async def test_a_reader_cannot_write(reader_client, client, team, marta):
     assert (await reader_client.get(_url(team["system_id"]))).status_code == 200
 
 
+async def test_a_hand_entered_absence_has_no_source_uid(client, team, marta):
+    [row] = await _absence(client, team["system_id"], [marta["system_id"]], start_date="2026-12-24")
+    assert row["source_uid"] is None
+
+
 async def test_a_write_broadcasts_on_the_team_channel(client, team, marta):
     queue = broadcaster._subscribe(team_channel(team["system_id"]))
     await _absence(client, team["system_id"], [marta["system_id"]], start_date="2026-12-25")

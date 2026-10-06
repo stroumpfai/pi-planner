@@ -109,6 +109,10 @@ def _raise_for_error(r: httpx.Response) -> None:
         )
     if r.status_code == 403:
         raise MCPBackendError(403, "FORBIDDEN", "Your role does not permit this action.")
+    if r.status_code == 413:
+        detail = r.json().get("detail") if r.content else None
+        message = detail.get("message") if isinstance(detail, dict) else None
+        raise MCPBackendError(413, "TOO_LARGE", message or "The upload is too large.")
     if r.status_code == 422:
         raise MCPBackendError(
             422, "VALIDATION_ERROR", f"Invalid input: {r.json().get('detail')}"

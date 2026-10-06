@@ -118,6 +118,7 @@ EXPECTED_TEAMS_TOOLS = {
     "delete_absence",
     "bulk_create_absences",
     "preview_bulk_absences",
+    "import_absence_ics",
     "create_meeting",
     "update_meeting",
     "delete_meeting",

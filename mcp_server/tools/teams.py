@@ -34,6 +34,7 @@ resolution. If this is ever revisited, an unknown team name must be rejected wit
 the list of teams that exist, never created implicitly (the ADR-0003 rule).
 """
 
+import json
 from typing import Annotated
 
 from fastmcp import Context, FastMCP
@@ -1221,6 +1222,136 @@ async def preview_bulk_absences(
         "POST",
         f"/api/v1/teams/{team_id}/absences/bulk",
         json=_bulk_body(window_from, window_to, entries, dry_run=True),
+    )
+
+
+async def _ics_choices(
+    team_id: str,
+    preview: dict,
+    *,
+    include_uids: list[str] | None,
+    exclude_uids: list[str] | None,
+    assign: dict[str, str] | None,
+) -> list[dict]:
+    """The rows an apply writes, from a preview and the agent's choices.
+
+    An event the preview could not match to anyone has no member to write it
+    for, and dropping it silently would lose someone's leave. So every one that
+    is still included must be given a member through ``assign`` or left out with
+    ``exclude_uids`` — and all of them are reported together, as the bulk tools
+    do with unknown names (§8.2.7).
+    """
+    excluded = set(exclude_uids or [])
+    included = set(include_uids) if include_uids is not None else None
+    assigned = {uid: await resolve_member_id(team_id, name) for uid, name in (assign or {}).items()}
+
+    chosen: dict[tuple[str, str], dict] = {}
+    unassigned: list[str] = []
+    for candidate in preview.get("candidates", []):
+        uid = candidate["source_uid"]
+        if uid in excluded:
+            continue
+        wanted = uid in assigned or (
+            uid in included if included is not None else candidate["selected_by_default"]
+        )
+        if not wanted:
+            continue
+        member_id = assigned.get(uid) or candidate.get("member_id")
+        if member_id is None:
+            unassigned.append(f"{candidate['title']!r} (uid {uid}, {candidate['rule_summary']})")
+            continue
+        chosen[(uid, member_id)] = {"source_uid": uid, "member_id": member_id}
+    if unassigned:
+        names = ", ".join(repr(m["name"]) for m in await _members_of(team_id))
+        raise ValueError(
+            "These events match no member: " + "; ".join(unassigned)
+            + f". Give each one a member with assign={{uid: name}}, or leave it out with "
+            f"exclude_uids. Members: {names}."
+        )
+    return list(chosen.values())
+
+
+@teams_mcp.tool()
+async def import_absence_ics(
+    team_id: Annotated[str, Field(pattern=_UUID_RE, description="Team system_id (UUID) — from list_teams")],
+    ics_content: Annotated[str, Field(description="The full text of an iCalendar (.ics) file")],
+    ctx: Context,
+    member_name: Annotated[
+        str | None,
+        Field(default=None, description=(
+            "The member a personal calendar belongs to. Omit for a team file: each event "
+            "is then matched to members by attendee name, or by a full name in its title."
+        )),
+    ] = None,
+    dry_run: Annotated[bool, Field(default=True, description="Preview without writing (default)")] = True,
+    window_from: Annotated[
+        str | None,
+        Field(default=None, description="First day imported absences may be removed from (YYYY-MM-DD). Default: the file's span."),
+    ] = None,
+    window_to: Annotated[str | None, Field(default=None, description="Last day of that window (YYYY-MM-DD)")] = None,
+    include_uids: Annotated[
+        list[str] | None,
+        Field(default=None, description="Import exactly these event uids. Default: all-day and out-of-office events."),
+    ] = None,
+    exclude_uids: Annotated[
+        list[str] | None, Field(default=None, description="Leave these event uids out, whatever else says")
+    ] = None,
+    assign: Annotated[
+        dict[str, str] | None,
+        Field(default=None, description="{uid: member name}: who an event belongs to, overriding the match"),
+    ] = None,
+    keep_removed: Annotated[
+        bool,
+        Field(default=False, description="Keep previously imported absences whose event is gone from the file"),
+    ] = False,
+) -> dict:
+    """
+    Import absences from an .ics file (an Outlook or Google calendar export).
+
+    Run with dry_run=true (the default) first and show the preview. Each candidate
+    has a source_uid, the rule it becomes (rule_summary), the member it matched
+    (match: picked | attendee | title | none) and an action (create | update |
+    unchanged). Removals are absences imported earlier whose event has gone from
+    the file. Skipped events are listed with the reason. A weekly event with
+    skipped dates, a changed single occurrence, or a daily/monthly rule cannot be
+    stored as an absence.
+
+    **Re-import updates; it doesn't duplicate.** Rows remember their event's UID,
+    so a moved vacation updates its row. Absences entered by hand are never
+    touched. Removals are limited to the window and to the members this import
+    involves.
+
+    By default the import takes all-day and out-of-office events and leaves other
+    timed events (likely meetings) out. Every included event that matched no
+    member must be given one with `assign` or left out with `exclude_uids`. All of
+    them are reported together, and nothing is written until they are.
+    """
+    params: dict = {"dry_run": "true"}
+    if member_name is not None:
+        params["member_id"] = await resolve_member_id(team_id, member_name)
+    if window_from is not None:
+        params["window_from"] = window_from
+    if window_to is not None:
+        params["window_to"] = window_to
+    url = f"/api/v1/teams/{team_id}/absences/import/ics"
+    files = {"file": ("absences.ics", ics_content.encode(), "text/calendar")}
+
+    preview = await call_backend("POST", url, params=params, files=files)
+    if dry_run:
+        return preview
+
+    selections = await _ics_choices(
+        team_id, preview, include_uids=include_uids, exclude_uids=exclude_uids, assign=assign,
+    )
+    removals = [] if keep_removed else [row["system_id"] for row in preview.get("removals", [])]
+    # The preview's window, sent back so the apply reads the file exactly as the
+    # preview did — the same yearly expansion, the same removals.
+    params = {**params, "dry_run": "false"}
+    if preview.get("window_from"):
+        params["window_from"], params["window_to"] = preview["window_from"], preview["window_to"]
+    return await call_backend(
+        "POST", url, params=params, files=files,
+        data={"selections": json.dumps(selections), "removals": json.dumps(removals)},
     )
 
 

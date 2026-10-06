@@ -22,7 +22,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.schemas.common import UtcDatetime
+from app.schemas.common import IcsSkipped, UtcDatetime
 
 # spec/teams.md §9. Multi-year plans are expected: annual leave is routinely
 # entered twelve months out, so the ceiling is per member and generous.
@@ -154,6 +154,9 @@ class AbsenceResponse(BaseModel):
     # Empty when the row falls entirely outside the window that was read; the
     # rule is still returned, because the minimap needs to know it exists.
     occurrences: list[AbsenceOccurrence] = []
+    # The .ics event UID this row was imported from; null when entered by hand.
+    # A re-import of the same file updates the row (§7.4.1, ADR 0011).
+    source_uid: str | None = None
     created_at: UtcDatetime
     modified_at: UtcDatetime
     # The tag a PATCH or DELETE must quote in If-Match. In the body, not a
@@ -216,6 +219,69 @@ class BulkAbsenceResult(BaseModel):
     # Nothing is written when this is non-empty, dry run or not.
     unresolved_names: list[str] = []
     absences: list[AbsenceResponse] = []
+
+
+# ── .ics import (§7.4.1) ─────────────────────────────────────────────────────
+
+ImportMatch = Literal["picked", "attendee", "title", "none"]
+ImportAction = Literal["create", "update", "unchanged"]
+
+
+class AbsenceImportCandidate(BaseModel):
+    """One row the file would write — for one member, or for nobody yet.
+
+    In team mode an event nobody matched still comes back, with no member and
+    no action, so the preview can offer a member dropdown rather than dropping
+    it. It keeps its default tick: a ticked row with no member blocks the
+    import until someone is picked or the row is unticked, so nothing is lost
+    silently. An event naming several members is one candidate per member.
+    """
+
+    source_uid: str
+    title: str
+    rule: ScheduleFields
+    # The rule in words — the same sentence the Absences view shows (§3.4).
+    rule_summary: str
+    member_id: str | None
+    match: ImportMatch
+    # Whole days and Outlook "out of office" are ticked; other timed events
+    # look like meetings and are offered unticked.
+    selected_by_default: bool
+    hint: str | None = None
+    # None while no member is chosen: the action depends on whose row it is.
+    action: ImportAction | None
+    # The stored row an update would overwrite, so the preview can show both.
+    previous: AbsenceResponse | None = None
+
+
+class AbsenceImportSelection(BaseModel):
+    """A ticked row, with the member the user settled on."""
+
+    source_uid: str
+    member_id: str
+
+
+class AbsenceIcsImportResult(BaseModel):
+    """What an import would do (a preview) or did.
+
+    The counts of a preview describe the default ticks; the dialog recounts
+    from what the user actually ticks.
+    """
+
+    dry_run: bool
+    # The span removals are looked for in, and yearly rules expanded over.
+    # Null when the file holds nothing dated, in which case nothing is removed.
+    window_from: date | None
+    window_to: date | None
+    candidates: list[AbsenceImportCandidate] = []
+    # Imported rows whose event is gone from the file — ticked by default.
+    removals: list[AbsenceResponse] = []
+    skipped: list[IcsSkipped] = []
+    truncated_labels: int = 0
+    created: int = 0
+    updated: int = 0
+    unchanged: int = 0
+    deleted: int = 0
 
 
 def default_window(today: date) -> tuple[date, date]:

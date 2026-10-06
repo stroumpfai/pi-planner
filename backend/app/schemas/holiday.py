@@ -10,7 +10,7 @@ from datetime import date
 from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.schemas.absence import Half
-from app.schemas.common import UtcDatetime
+from app.schemas.common import IcsSkipped, UtcDatetime
 
 # Sanity limits in the style of teams.md §9 (public-holidays.md §3.7).
 MAX_CALENDARS = 200
@@ -202,11 +202,6 @@ class EntriesCreatedResult(BaseModel):
 
 
 # ── .ics import (§7.1) ───────────────────────────────────────────────────────
-
-
-class IcsSkipped(BaseModel):
-    summary: str
-    reason: str
 
 
 class IcsImportResult(BaseModel):

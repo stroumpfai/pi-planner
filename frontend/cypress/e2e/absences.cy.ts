@@ -171,6 +171,48 @@ describe('Absences', () => {
     cy.contains('every 2nd Friday am').should('be.visible')
   })
 
+  it('imports a calendar file, then updates it from a newer export', () => {
+    showSeptember()
+    cy.contains('button', /^Import \.ics$/).click()
+    absenceDialog().find('input[aria-label="Calendar file"]').selectFile('cypress/fixtures/absences-marta.ics')
+    // One member's file, and the first member is the one picked.
+    absenceDialog().find('select[aria-label="Member"] option:selected').should('have.text', 'Marta Lindqvist')
+    absenceDialog().contains('button', /^Preview$/).click()
+
+    // A timed meeting is offered unticked; a moved occurrence cannot be stored
+    // as an absence, and says so (§3.4 — no per-occurrence exceptions).
+    absenceDialog().find('input[aria-label^="Import Sprint review"]').should('not.be.checked')
+    absenceDialog().find('input[aria-label^="Import Vacation"]').should('be.checked')
+    absenceDialog().should('contain', 'Wednesday afternoon moved').and('contain', 'changed occurrence')
+    absenceDialog().contains('button', /^Import$/).click()
+    cy.get('[role="dialog"]').should('not.exist')
+
+    // The week is a range, the Wednesdays stay a recurring rule.
+    cell('Marta Lindqvist', '2026-09-14', 'am').should('have.class', 'bg-blue-500')
+    cell('Marta Lindqvist', '2026-09-09', 'pm').should('have.class', 'bg-blue-400')
+    cell('Marta Lindqvist', '2026-09-09', 'am').should('not.have.class', 'bg-blue-400')
+
+    // The Wednesday afternoon falls in the 7–11 September sprint.
+    teamTab('Capacity').click({ force: true })
+    cy.get('button[aria-label*="Marta Lindqvist, PI 7.1"]').should('contain', '4.5 PD')
+
+    // A newer export: the vacation moved a week, the Wednesdays are gone.
+    showSeptember()
+    cy.contains('button', /^Import \.ics$/).click()
+    absenceDialog().find('input[aria-label="Calendar file"]').selectFile('cypress/fixtures/absences-marta-v2.ics')
+    absenceDialog().contains('button', /^Preview$/).click()
+    absenceDialog().find('[aria-label="Import preview"]').should('contain', 'update')
+    absenceDialog().find('input[aria-label^="Remove Wednesday afternoons"]').should('be.checked')
+    absenceDialog().contains('button', /^Import$/).click()
+    cy.get('[role="dialog"]').should('not.exist')
+
+    cell('Marta Lindqvist', '2026-09-14', 'am').should('not.have.class', 'bg-blue-500')
+    cell('Marta Lindqvist', '2026-09-21', 'am').should('have.class', 'bg-blue-500')
+    cell('Marta Lindqvist', '2026-09-09', 'pm').should('not.have.class', 'bg-blue-400')
+    teamTab('Capacity').click({ force: true })
+    cy.get('button[aria-label*="Marta Lindqvist, PI 7.1"]').should('contain', '5.0 PD')
+  })
+
   it('shows the grid to a reader with no way to change it', () => {
     // A name of this spec's own: `cy.resetDb()` clears planning data but not
     // accounts, so a username shared with another spec fails on whichever runs
@@ -188,6 +230,7 @@ describe('Absences', () => {
 
     cy.get('[role="grid"][aria-label="Absences by member and half-day"]').should('exist')
     cy.contains('button', /^\+ Add absence$/).should('not.exist')
+    cy.contains('button', /^Import \.ics$/).should('not.exist')
     cy.contains('Read-only').should('be.visible')
   })
 })

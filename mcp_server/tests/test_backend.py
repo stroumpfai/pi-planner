@@ -94,6 +94,19 @@ async def test_403_raises_forbidden(mock_backend, mock_ctx, patch_get_http_reque
     assert err.code == "FORBIDDEN"
 
 
+async def test_413_raises_too_large_with_the_backend_message(mock_backend, mock_ctx, patch_get_http_request):
+    mock_backend.post("/api/v1/teams/t1/absences/import/ics").mock(
+        return_value=httpx.Response(413, json={"detail": {
+            "error": "ICS_TOO_LARGE", "message": "A calendar file may be at most 2 MB.",
+        }})
+    )
+    with pytest.raises(MCPBackendError) as exc_info:
+        await call_backend("POST", "/api/v1/teams/t1/absences/import/ics")
+    err = exc_info.value
+    assert (err.status, err.code) == (413, "TOO_LARGE")
+    assert "2 MB" in err.message
+
+
 async def test_422_raises_validation_error(mock_backend, mock_ctx, patch_get_http_request):
     mock_backend.post("/api/v1/projects/").mock(
         return_value=httpx.Response(422, json={"detail": [{"msg": "field required"}]})

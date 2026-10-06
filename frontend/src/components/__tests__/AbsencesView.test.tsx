@@ -279,7 +279,19 @@ describe('AbsencesView', () => {
 
     await screen.findByRole('grid', { name: /absences by member/i })
     expect(screen.queryByRole('button', { name: /add absence/i })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /import \.ics/i })).not.toBeInTheDocument()
     expect(screen.getByText(/read-only/i)).toBeInTheDocument()
+  })
+
+  it('opens the calendar-file import from beside the add button', async () => {
+    const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime })
+    render(<AbsencesView teamId="t-1" />, { wrapper: wrapper() })
+
+    await user.click(await screen.findByRole('button', { name: /^import \.ics$/i }))
+    const dialog = await screen.findByRole('dialog', { name: /import absences from \.ics/i })
+    // Every member is offered, in the grid's own order.
+    const options = within(within(dialog).getByRole('combobox', { name: /^member$/i })).getAllByRole('option')
+    expect(options.map((o) => o.textContent)).toEqual(['Marta Lindqvist', 'Rui Domingues'])
   })
 
   it('puts the clicked minimap month first in the calendar', async () => {
