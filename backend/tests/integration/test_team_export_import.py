@@ -380,3 +380,26 @@ async def test_reader_cannot_import_team(reader_client):
         _TEAMS + "/import", files=[_upload(_make_export_payload("Should Fail"))]
     )
     assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_an_imported_absence_keeps_its_source_uid_through_export_and_import(client: AsyncClient):
+    """A restored team still recognises its .ics events on the next import (ADR 0011)."""
+    old_member_id = "old-member-uuid"
+    payload = _make_export_payload(
+        "Calendar Round Trip",
+        members=[{"system_id": old_member_id, "name": "Marta", "pattern_versions": [{"effective_from": "2026-01-01"}]}],
+        absences=[
+            {"member_id": old_member_id, "kind": "range", "start_date": "2026-03-01", "source_uid": "evt@outlook"},
+            # A hand-edited file repeating the key: only the first keeps it.
+            {"member_id": old_member_id, "kind": "range", "start_date": "2026-03-02", "source_uid": "evt@outlook"},
+            # An older export, written before the field existed.
+            {"member_id": old_member_id, "kind": "range", "start_date": "2026-03-03"},
+        ],
+    )
+    resp = await client.post(_TEAMS + "/import", files=[_upload(payload)])
+    assert resp.status_code == 201, resp.text
+
+    export = (await client.get(f"{_TEAMS}/{resp.json()['system_id']}/export")).json()
+    uids = {a["start_date"]: a["source_uid"] for a in export["team"]["absences"]}
+    assert uids == {"2026-03-01": "evt@outlook", "2026-03-02": None, "2026-03-03": None}

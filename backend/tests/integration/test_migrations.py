@@ -291,3 +291,32 @@ def test_existing_shares_stay_percentages_after_upgrade(tmp_path):
         ).fetchone()
         assert row == (70, None)
     assert {"share_pct", "share_days"} <= set(_columns(db_path, "team_project_members"))
+
+
+def test_upgrade_adds_absence_source_uid_unique_per_member_when_set(tmp_path):
+    """Existing absences stay hand-entered; imported ones are unique per member (ADR 0011)."""
+    db_path = tmp_path / "source_uid.sqlite"
+    _alembic("430b3b64dbd7", db_path)  # head before imported absences
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(_insert_team("t1", "Platform"))
+        conn.execute(_insert_member("m1", "t1", "Anna", 0))
+        conn.execute(
+            "INSERT INTO absences (system_id, team_id, member_id, kind, start_date, created_at, modified_at)"
+            f" VALUES ('a1', 't1', 'm1', 'range', '2026-11-02', '{_NOW}', '{_NOW}')"
+        )
+
+    _alembic("head", db_path)
+
+    assert _columns(db_path, "absences")["source_uid"] is True
+    insert = (
+        "INSERT INTO absences (system_id, team_id, member_id, kind, start_date, source_uid,"
+        " created_at, modified_at) VALUES ('{id}', 't1', 'm1', 'range', '2026-11-03', {uid},"
+        f" '{_NOW}', '{_NOW}')"
+    )
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT source_uid FROM absences WHERE system_id = 'a1'").fetchone() == (None,)
+        conn.execute(insert.format(id="a2", uid="NULL"))  # two hand-entered rows never collide
+        conn.execute(insert.format(id="a3", uid="'evt@outlook'"))
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(insert.format(id="a4", uid="'evt@outlook'"))

@@ -196,6 +196,9 @@ for the human reading the row, and is never interpreted by the capacity maths.
 > enables (`spec/public-holidays.md`, ADR 0008), which supersedes the "whole mechanism for
 > public and national holidays" paragraph below. Absences themselves are unchanged and still
 > have no category.
+>
+> **Absences can be imported from a calendar file** (§7.4.1). An imported absence also carries
+> `source_uid`, the event it came from (ADR 0011); one entered by hand has none.
 
 #### The schedule rule — three kinds, shared with meetings
 
@@ -980,6 +983,85 @@ Member multi-select in the left column applies one entry to several or all membe
 with everyone selected, this is how public and national holidays are entered, and individual
 rows can be corrected afterwards for whoever works that day.
 
+#### 7.4.1 Importing a calendar file
+
+People already keep their leave in Outlook or Google. **Import .ics**, beside **+ Add
+absence**, reads a calendar export into absences. It is the same preview-then-apply shape as
+the holiday import (`spec/public-holidays.md` §7.1), and it shares that importer's reading of
+dates, halves and yearly rules (`app/services/ics.py`). Editors only, and like every team write,
+it takes no edit lock (§4.1).
+
+**Whose file.** The dialog asks *Whose calendar is this?*: *one person's*, picked from a list,
+or *a shared team calendar*. This decides who the rows belong to, not which rows are shown,
+and is kept apart from the filters on purpose. A personal export rarely names its owner
+("Vacation", "Dentist") but does name colleagues, as meeting attendees; matching it by name
+would leave its owner's leave unmatched, hand invitations to colleagues, and, since removals
+look only at members the import involves, stop proposing removals for its owner. In team mode
+each event is matched to members:
+
+1. by `ATTENDEE` / `ORGANIZER` common name, compared ignoring case and in either word order. An
+   event naming several members is one absence each, as the multi-member create is (§3.4);
+2. otherwise by a member's **full** name written as whole words in the title ("Vacation – Anna
+   Keller", "Keller Anna"). A name inside a longer matched name doesn't count, and a first name
+   alone never matches;
+3. otherwise the event is listed with no member, **unticked** and hidden until the *Unmatched*
+   or *All* filter is chosen. A long team file is mostly other people's events; one that is wanted is shown,
+   ticked and given a member in the preview.
+
+**What an event becomes.**
+
+| In the file | Becomes |
+|---|---|
+| A single event, all-day or timed | A `range`, with halves read as for holidays (before noon opens in the morning, ending at or before noon closes in it; `X-PIPLANNER-*-HALF` wins) |
+| `FREQ=WEEKLY`, one day long | A `weekly` rule, or `interval` for `INTERVAL` 2–52. Each `BYDAY` weekday is its own rule. The anchor is that weekday in `DTSTART`'s week (moved on one interval if already past), so the fortnight matches what Outlook draws. `UNTIL` is the end date; `COUNT` becomes the date of the last occurrence |
+| `FREQ=YEARLY` (the holiday subset) | Expanded into one `range` per year of the window |
+| A weekly event with `EXDATE`, a `RECURRENCE-ID`, `RDATE`, `DAILY` / `MONTHLY`, a weekly event longer than a day | **Skipped, with the reason.** There are no per-occurrence exceptions (§3.4), so a series with holes can't be stored faithfully; the gap is entered by hand |
+| `STATUS:CANCELLED`, a task, an event with no `UID` | Skipped, with the reason |
+| `SUMMARY` | The `label`, cut to 100 characters |
+
+**Which events.** A calendar holds meetings and birthdays as well as leave. Whole-day events
+and those Outlook marks *out of office* (`X-MICROSOFT-CDO-BUSYSTATUS` or `-INTENDEDSTATUS` =
+`OOF`) start ticked. Three kinds start unticked, each with a hint: other timed events (*looks
+like a meeting*), yearly events (*a birthday or anniversary?*), and events that matched no
+member. A ticked event with no member blocks the import until a member is picked or the event
+is unticked. MCP applies the same defaults.
+
+**A long file.** The preview is one date-sorted list with a fixed toolbar and footer:
+
+- a search over event title and member name, and filter chips: *Matched / Unmatched / All*
+  (default *Matched*), *New / Update / Unchanged*, *Single / Weekly / Yearly*, *Ticked only*
+  and, in team mode, one member. Every chip narrows, and its count is what pressing it would
+  show under the other filters, so a search hit among the unmatched rows shows on that chip.
+  *Ticked only* keeps the rows ticked when it was pressed, so unticking one there doesn't
+  make it vanish;
+- a *From / To* date filter. It only narrows the list: the server still reads the whole file,
+  and the removal window is set separately;
+- **exclude words** ("Hide titles containing…", e.g. `birthday, Geburtstag`): matching rows
+  are hidden and unticked. The words are remembered in the browser only;
+- **Select / Deselect N shown**, which acts on the rows the filters show and nothing else;
+- a footer counting what is ticked, how much of it the filters hide, and what will be
+  removed, so a hidden tick is never sent by surprise.
+
+**Re-import updates, never duplicates** (ADR 0011). Every imported absence keeps its event's
+`UID` in `source_uid`, suffixed `#MO` / `#2027` when one event became several rows. Importing
+an updated export compares each event with the row it created for that member:
+
+- **new**: no row yet;
+- **update**: the rule or the label changed. The preview shows the rule it replaces;
+- **unchanged**: written nothing, and shown collapsed.
+
+An imported absence whose event has **gone** from the file is proposed for removal, ticked by
+default. Removal is fenced twice: only rows anchored inside the import **window** (by default
+the file's span, editable in the preview), and only for **members this import involves**.
+Absences entered by hand carry no `source_uid` and are never touched. A hand edit to an imported
+absence is overwritten by the next import of its event, and the preview shows that as an update.
+
+**Stateless.** The preview stores nothing. The apply sends the file again with the ticked rows
+and removals; the server re-reads it and refuses a row naming an event the file doesn't hold
+(`422 UNKNOWN_EVENT`) or a removal it wouldn't propose (`409 IMPORT_STALE`). Limits: 2 MB
+(`413 ICS_TOO_LARGE`, also applied to the holiday import), 2,000 events, and the per-member cap
+of §9 counted net of removals.
+
 ### 7.5 Meetings view — an attendance matrix, not a timeline
 
 **Rows are members; columns are meetings.** Each cell says whether that member attends that
@@ -1074,6 +1156,7 @@ the empty months would claim the table is somewhere it is not.
 | `PATCH/DELETE` | `/api/v1/teams/{team_id}/members/{member_id}/working-days/{version_id}` | editor |
 | `GET/POST` | `/api/v1/teams/{team_id}/absences` | read / editor |
 | `PATCH/DELETE` | `/api/v1/teams/{team_id}/absences/{absence_id}` | editor |
+| `POST` | `/api/v1/teams/{team_id}/absences/import/ics` | editor — preview by default, `dry_run=false` applies (§7.4.1) |
 | `GET/POST` | `/api/v1/teams/{team_id}/meetings` | read / editor |
 | `PATCH/DELETE` | `/api/v1/teams/{team_id}/meetings/{meeting_id}` | editor |
 | `GET` | `/api/v1/teams/{team_id}/capacity?from=&to=` | read |
@@ -1202,6 +1285,11 @@ reach the app by an LLM reading that page and calling these tools. **No CSV impo
 specified for teams**, and none should be: the source is a hand-maintained wiki table whose
 shape drifts, which is what a model reads well and a parser does not.
 
+**A calendar file is the exception** (§7.4.1). An `.ics` export is machine-written to a
+standard, so the drifting-shape argument doesn't apply to it, and it is where people's leave
+already is. It keeps this section's rules: a preview before any write, idempotent re-import
+(by event UID, not by window replacement), and every event without a member reported at once.
+
 That makes these tools a **bulk data path**, not an occasional convenience, and four things
 follow that ordinary write tools do not need:
 
@@ -1232,9 +1320,11 @@ withholding `delete_member`, and it argues for the preview above rather than aga
 |--------|-------|
 | `read.py` | `list_teams`, `get_team`, `list_members`, `list_absences`, `list_meetings`, `get_team_capacity`, `preview_team_capacity` |
 | `teams.py` | `create_team`, `update_team`, `create_member`, `update_member`, `add_pattern_version`, `create_absence`, `update_absence`, `delete_absence`, `create_meeting`, `update_meeting`, `delete_meeting`, `assign_project`, `update_assignment`, `push_team_capacity` |
-| `teams.py` (bulk) | `bulk_create_absences`, `bulk_create_meetings`, `preview_bulk_absences` |
+| `teams.py` (bulk) | `bulk_create_absences`, `bulk_create_meetings`, `preview_bulk_absences`, `import_absence_ics` |
 
-`delete_absence` and `delete_meeting` are the **only** destructive tools. Removing a team, a
+`delete_absence` and `delete_meeting` are the **only** destructive tools, besides the bulk
+paths' own replacements: `bulk_create_absences` replaces a window, and `import_absence_ics`
+removes imported absences whose event has left the file unless told `keep_removed`. Removing a team, a
 member, a pattern version or a project assignment is a human act, through the UI or the REST
 API — which keep every operation in §8.1.
 
@@ -1354,6 +1444,7 @@ No open questions remain. The ones that shaped this document, and how they were 
 | Booking someone "2 days a week" | A share can be **days a week**, on the assignment or per member; a proportion of the member's own contract, weighed per pattern version (ADR 0010) | §6.3.2 |
 | Some members working on one project only | An assignment **counts the whole team or only listed members**; the share applies to them; over-allocation is per member (ADR 0009) | §6.3 |
 | Meetings vs. focus double-counting | Meetings subtract **before** focus | §5.4 |
+| Absences from Outlook / Google | **`.ics` import**, for one member or a team file matched by name; re-import upserts on the event UID and never touches hand-entered rows (ADR 0011) | §7.4.1 |
 | Edit-lock scope for cross-project teams | No lock change — team routes fall outside it by construction; one explicit push meets the existing lock | §4.1 |
 | Team-data concurrency | **`If-Match` from the start**, `412` on mismatch — not last-write-wins, not a team lock | §4.2 |
 | Available as float or integer | **Whole number**, rounded once at the push boundary, half-up | §6.2, §6.4 |
@@ -1395,5 +1486,6 @@ No open questions remain. The ones that shaped this document, and how they were 
 | Linking members to application users | Deliberate non-goal (§3.2) |
 | Absence categories / approval workflow | Draft says no categorisation |
 | Per-member PBI assignment | Capacity is a team-level number in this design |
-| Holiday calendar import (iCal, public API) | External integration |
+| Subscribing to a calendar URL (holidays or absences) | Needs outbound HTTP and a scheduler. File import covers it (`public-holidays.md` §7.1, §7.4.1) |
+| `.ics` export of absences | Labels are personal (the PI Team report never prints them); exporting them is its own decision |
 | CSV import of team data | **Deliberately rejected** — the source is a wiki page read by an LLM through MCP (§8.2.7) |

@@ -85,3 +85,13 @@ _Avoid_: Lease, mutex, checkout
 **Snapshot**:
 A stored copy of a project's full state at a point in time, restorable in place.
 _Avoid_: Backup, version, revision
+
+## Team capacity
+
+**Absence**:
+A member not being there for half-days they would otherwise work, stored as one schedule rule (a range, weekly or every N weeks). It has no category; its label is for people only. Public holidays are not absences; they live in shared holiday calendars.
+_Avoid_: Leave, time off, vacation (as model terms)
+
+**Imported absence**:
+An absence read from an `.ics` calendar file, which keeps the event's UID as its `source_uid`. Importing the same calendar again updates it rather than adding a copy. An absence entered by hand has no `source_uid` and an import never touches it.
+_Avoid_: Synced absence, linked absence

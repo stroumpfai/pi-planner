@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { AbsenceDialog, type AbsenceDraft } from '@/components/AbsenceDialog'
 import { AbsenceGrid, AbsenceLegend } from '@/components/AbsenceGrid'
+import { AbsenceIcsImportDialog } from '@/components/AbsenceIcsImportDialog'
 import { AbsenceMinimap } from '@/components/AbsenceMinimap'
 import { CapacityMembersSummary } from '@/components/CapacityMembersSummary'
 import { ConfirmDialog } from '@/components/ConfirmDialog'
@@ -100,6 +101,7 @@ export function AbsencesView({ teamId }: Props) {
   const remove = useDeleteAbsence(teamId)
   const [holidayDay, setHolidayDay] = useState<{ memberId: string; entryIds: string[]; date: string } | null>(null)
   const [cleanupOpen, setCleanupOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
 
   const [draft, setDraft] = useState<AbsenceDraft | null>(null)
   const [editing, setEditing] = useState<Absence | null>(null)
@@ -193,6 +195,15 @@ export function AbsencesView({ teamId }: Props) {
             className="px-3 py-1.5 text-xs rounded-lg bg-canvas shadow-soft-sm text-blue-600 hover:shadow-soft-hover"
           >
             + Add absence
+          </button>
+        )}
+        {canEdit && rows.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setImportOpen(true)}
+            className="px-3 py-1.5 text-xs rounded-lg bg-canvas shadow-soft-sm text-blue-600 hover:shadow-soft-hover"
+          >
+            Import .ics
           </button>
         )}
         <p className="ml-auto text-xs text-gray-400 dark:text-gray-500">
@@ -328,6 +339,7 @@ export function AbsencesView({ teamId }: Props) {
       />
 
       <HolidayCleanupDialog teamId={teamId} open={cleanupOpen} onClose={() => setCleanupOpen(false)} />
+      <AbsenceIcsImportDialog open={importOpen} teamId={teamId} members={rows} onClose={() => setImportOpen(false)} />
 
       <ConfirmDialog
         open={confirming}

@@ -18,7 +18,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.team import Absence
-from app.schemas.absence import AbsenceOccurrence, AbsenceResponse
+from app.schemas.absence import AbsenceOccurrence, AbsenceResponse, ScheduleFields
 from app.services.concurrency import etag_for
 from app.services.occurrences import ScheduleRule, describe, half_days
 from app.services.team_capacity import HALVES, AbsenceLookup, Half
@@ -99,10 +99,33 @@ def response_for(
         interval_weeks=row.interval_weeks,
         summary=describe(rule_from_row(row)),
         occurrences=occurrences,
+        source_uid=row.source_uid,
         created_at=row.created_at,
         modified_at=row.modified_at,
         etag=etag_for(row.modified_at),
     )
+
+
+def fields_of(row: Absence) -> ScheduleFields:
+    """A stored absence as the rule a create or a patch would write."""
+    current = response_for(row).model_dump()
+    return ScheduleFields.model_validate({field: current.get(field) for field in ScheduleFields.model_fields})
+
+
+def rule_key(fields: ScheduleFields) -> tuple[object, ...]:
+    """What makes two rules the same absence, with the fields a kind ignores left out.
+
+    A form keeps a weekly rule's halves when it switches to `range` (§3.4), so a
+    plain field-by-field comparison would call two identical ranges different.
+    """
+    if fields.kind == "range":
+        return (
+            fields.kind, fields.label, fields.start_date, fields.end_date or fields.start_date,
+            fields.start_half, fields.end_half,
+        )
+    halves = tuple(half for half in HALVES if half in (fields.halves or ()))
+    weeks = fields.interval_weeks if fields.kind == "interval" else None
+    return (fields.kind, fields.label, fields.start_date, fields.end_date, fields.weekday, halves, weeks)
 
 
 async def load_absences(db: AsyncSession, team_id: str) -> list[Absence]:

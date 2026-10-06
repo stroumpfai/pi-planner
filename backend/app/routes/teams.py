@@ -395,11 +395,21 @@ def _add_members(
 def _add_absences(
     db: AsyncSession, team_data: dict[str, Any], new_team_id: str, member_id_map: dict[str, str]
 ) -> None:
+    seen_uids: set[tuple[str, str]] = set()
     for absence in team_data.get("absences", []):
+        member_id = _remapped_member_id(member_id_map, absence.get("member_id"))
+        # The import key is unique per member. A hand-edited file repeating one
+        # keeps it on the first row only, and the rest become hand-entered.
+        source_uid = absence.get("source_uid") or None
+        if source_uid is not None:
+            if (member_id, source_uid) in seen_uids:
+                source_uid = None
+            else:
+                seen_uids.add((member_id, source_uid))
         db.add(Absence(
             system_id=str(uuid4()),
             team_id=new_team_id,
-            member_id=_remapped_member_id(member_id_map, absence.get("member_id")),
+            member_id=member_id,
             label=absence.get("label"),
             kind=absence["kind"],
             start_date=date.fromisoformat(absence["start_date"]),
@@ -409,6 +419,7 @@ def _add_absences(
             weekday=absence.get("weekday"),
             halves=absence.get("halves"),
             interval_weeks=absence.get("interval_weeks"),
+            source_uid=source_uid,
         ))
 
 

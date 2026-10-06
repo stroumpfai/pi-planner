@@ -447,6 +447,18 @@ async def test_ics_import_refuses_an_unreadable_file(client):
     assert resp.json()["detail"]["error"] == "INVALID_ICS"
 
 
+async def test_ics_import_refuses_a_file_over_the_size_cap(client):
+    from app.services.ics import MAX_ICS_BYTES
+
+    calendar = await _calendar(client)
+    resp = await client.post(
+        f"{_CALENDARS}/{calendar['system_id']}/import/ics",
+        files={"file": ("x.ics", b"x" * (MAX_ICS_BYTES + 1), "text/calendar")},
+    )
+    assert resp.status_code == 413
+    assert resp.json()["detail"]["error"] == "ICS_TOO_LARGE"
+
+
 async def test_ics_export_is_a_calendar_download(client, reader_client):
     calendar = await _calendar(client, "Switzerland")
     await _entry(client, calendar["system_id"], "Easter Monday", EASTER_MONDAY)

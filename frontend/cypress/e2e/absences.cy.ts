@@ -171,6 +171,100 @@ describe('Absences', () => {
     cy.contains('every 2nd Friday am').should('be.visible')
   })
 
+  it('imports a calendar file, then updates it from a newer export', () => {
+    showSeptember()
+    cy.contains('button', /^Import \.ics$/).click()
+    absenceDialog().find('input[aria-label="Calendar file"]').selectFile('cypress/fixtures/absences-marta.ics')
+    // One member's file, and the first member is the one picked.
+    absenceDialog().find('select[aria-label="Member"] option:selected').should('have.text', 'Marta Lindqvist')
+    absenceDialog().contains('button', /^Preview$/).click()
+
+    // A timed meeting is offered unticked; a moved occurrence cannot be stored
+    // as an absence, and says so (§3.4 — no per-occurrence exceptions).
+    absenceDialog().find('input[aria-label^="Import Sprint review"]').should('not.be.checked')
+    absenceDialog().find('input[aria-label^="Import Vacation"]').should('be.checked')
+    absenceDialog().should('contain', 'Wednesday afternoon moved').and('contain', 'changed occurrence')
+    absenceDialog().contains('button', /^Import$/).click()
+    cy.get('[role="dialog"]').should('not.exist')
+
+    // The week is a range, the Wednesdays stay a recurring rule.
+    cell('Marta Lindqvist', '2026-09-14', 'am').should('have.class', 'bg-blue-500')
+    cell('Marta Lindqvist', '2026-09-09', 'pm').should('have.class', 'bg-blue-400')
+    cell('Marta Lindqvist', '2026-09-09', 'am').should('not.have.class', 'bg-blue-400')
+
+    // The Wednesday afternoon falls in the 7–11 September sprint.
+    teamTab('Capacity').click({ force: true })
+    cy.get('button[aria-label*="Marta Lindqvist, PI 7.1"]').should('contain', '4.5 PD')
+
+    // A newer export: the vacation moved a week, the Wednesdays are gone.
+    showSeptember()
+    cy.contains('button', /^Import \.ics$/).click()
+    absenceDialog().find('input[aria-label="Calendar file"]').selectFile('cypress/fixtures/absences-marta-v2.ics')
+    absenceDialog().contains('button', /^Preview$/).click()
+    absenceDialog().find('[aria-label="Import preview"]').should('contain', 'Update')
+    absenceDialog().find('input[aria-label^="Remove Wednesday afternoons"]').should('be.checked')
+    absenceDialog().contains('button', /^Import$/).click()
+    cy.get('[role="dialog"]').should('not.exist')
+
+    cell('Marta Lindqvist', '2026-09-14', 'am').should('not.have.class', 'bg-blue-500')
+    cell('Marta Lindqvist', '2026-09-21', 'am').should('have.class', 'bg-blue-500')
+    cell('Marta Lindqvist', '2026-09-09', 'pm').should('not.have.class', 'bg-blue-400')
+    teamTab('Capacity').click({ force: true })
+    cy.get('button[aria-label*="Marta Lindqvist, PI 7.1"]').should('contain', '5.0 PD')
+  })
+
+  it('narrows a long team file to the leave that matters before importing it', () => {
+    showSeptember()
+    cy.contains('button', /^Import \.ics$/).click()
+    absenceDialog().find('input[aria-label="Calendar file"]').selectFile('cypress/fixtures/absences-team.ics')
+    absenceDialog().contains('label', 'A shared team calendar').click()
+    absenceDialog().contains('button', /^Preview$/).click()
+
+    const preview = () => absenceDialog().find('[aria-label="Import preview"]')
+    // Someone else's event is hidden until asked for; the yearly birthday and the
+    // meeting are listed, but unticked.
+    preview().should('not.contain', 'Someone else away')
+    preview().find('input[aria-label^="Import Birthday Rui Domingues"]').first().should('not.be.checked')
+    preview().find('input[aria-label^="Import PI planning"]').should('not.be.checked')
+
+    // One word hides every birthday, the one-off cake included, and unticks it.
+    absenceDialog().find('input[aria-label="Hide titles containing"]').type('birthday')
+    preview().should('not.contain', 'Birthday cake')
+
+    // The unmatched event is somebody's after all: show it, tick it, give it to Rui.
+    preview().contains('button', /^Unmatched \(1\)$/).click()
+    preview().find('input[aria-label="Import Someone else away"]').check()
+    absenceDialog().contains('button', /^Import$/).should('be.disabled')
+    preview().find('select[aria-label="Member for Someone else away"]').select('Rui Domingues')
+    absenceDialog().should('contain', '3 to write')
+    absenceDialog().contains('button', /^Import$/).click()
+    cy.get('[role="dialog"]').should('not.exist')
+
+    cell('Marta Lindqvist', '2026-09-14', 'am').should('have.class', 'bg-blue-500')
+    cell('Rui Domingues', '2026-09-16', 'am').should('have.class', 'bg-blue-500')
+    cell('Rui Domingues', '2026-09-21', 'am').should('have.class', 'bg-blue-500')
+    cell('Marta Lindqvist', '2026-09-17', 'am').should('not.have.class', 'bg-blue-500')
+    cell('Rui Domingues', '2026-09-18', 'am').should('not.have.class', 'bg-blue-500')
+  })
+
+  it('keeps the file settings clear of the import footer', () => {
+    // A layout assertion only a real browser can make: the footer must sit below
+    // the last setting, never over it, before and after a preview.
+    showSeptember()
+    cy.contains('button', /^Import \.ics$/).click()
+    const clearOfFooter = () =>
+      absenceDialog().contains('label', 'A shared team calendar').then(($label) => {
+        absenceDialog().contains('button', /^Cancel$/).parent().then(($footer) => {
+          expect($label[0].getBoundingClientRect().bottom).to.be.at.most($footer[0].getBoundingClientRect().top)
+        })
+      })
+    clearOfFooter()
+    absenceDialog().find('input[aria-label="Calendar file"]').selectFile('cypress/fixtures/absences-marta.ics')
+    absenceDialog().contains('button', /^Preview$/).click()
+    absenceDialog().find('[aria-label="Import preview"]').should('exist')
+    clearOfFooter()
+  })
+
   it('shows the grid to a reader with no way to change it', () => {
     // A name of this spec's own: `cy.resetDb()` clears planning data but not
     // accounts, so a username shared with another spec fails on whichever runs
@@ -188,6 +282,7 @@ describe('Absences', () => {
 
     cy.get('[role="grid"][aria-label="Absences by member and half-day"]').should('exist')
     cy.contains('button', /^\+ Add absence$/).should('not.exist')
+    cy.contains('button', /^Import \.ics$/).should('not.exist')
     cy.contains('Read-only').should('be.visible')
   })
 })

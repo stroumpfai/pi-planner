@@ -235,6 +235,10 @@ class Absence(Base):
     weekday: Mapped[int | None] = mapped_column(Integer)
     halves: Mapped[str | None] = mapped_column(Text)
     interval_weeks: Mapped[int | None] = mapped_column(Integer)
+    # The UID of the .ics event this row was imported from; NULL when entered by
+    # hand. A re-import upserts on (member_id, source_uid) and never touches a
+    # NULL row (teams.md §7.4.1, ADR 0011).
+    source_uid: Mapped[str | None] = mapped_column(Text)
 
     created_at: Mapped[datetime] = mapped_column(default=_utcnow)
     modified_at: Mapped[datetime] = mapped_column(default=_utcnow, onupdate=_utcnow)
@@ -246,6 +250,10 @@ class Absence(Base):
         Index("idx_absences_team", "team_id"),
         Index("idx_absences_member", "member_id"),
         Index("idx_absences_member_dates", "member_id", "start_date"),
+        Index(
+            "ux_absences_member_source_uid", "member_id", "source_uid",
+            unique=True, sqlite_where=text("source_uid IS NOT NULL"),
+        ),
     )
 
 

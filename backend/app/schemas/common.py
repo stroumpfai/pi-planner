@@ -45,3 +45,14 @@ class ApiError(BaseModel):
     error: str
     message: str
     details: dict[str, Any] | None = None
+
+
+class IcsSkipped(BaseModel):
+    """A calendar-file event an import did not read, and why — shown in the preview.
+
+    Shared by the holiday and absence importers (public-holidays.md §7.1,
+    teams.md §7.4.1), which skip for different reasons but report alike.
+    """
+
+    summary: str
+    reason: str

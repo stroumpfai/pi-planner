@@ -84,6 +84,18 @@ export type CopyYearPreview = components['schemas']['CopyYearPreview']
 export type CopyYearProposal = components['schemas']['CopyYearProposal']
 export type EntriesCreatedResult = components['schemas']['EntriesCreatedResult']
 export type IcsImportResult = components['schemas']['IcsImportResult']
+export type IcsSkipped = components['schemas']['IcsSkipped']
+export type AbsenceIcsImportResult = components['schemas']['AbsenceIcsImportResult']
+export type AbsenceImportCandidate = components['schemas']['AbsenceImportCandidate']
+/**
+ * A ticked row of an `.ics` import. It travels as JSON inside a multipart form
+ * field, so the OpenAPI document has no schema for it — this mirrors the
+ * backend's `AbsenceImportSelection`.
+ */
+export interface AbsenceImportSelection {
+  source_uid: string
+  member_id: string
+}
 /** What a team sees of its enabled calendars in a window, exceptions included. */
 export type TeamHolidays = components['schemas']['TeamHolidaysResponse']
 export type TeamHolidayEntry = components['schemas']['TeamHolidayEntry']

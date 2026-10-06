@@ -23,8 +23,8 @@ a mismatch is **412 with the current row in the body** so the client can offer
 from datetime import date, datetime, timezone
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from pydantic import ValidationError
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Response, UploadFile, status
+from pydantic import TypeAdapter, ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -35,6 +35,8 @@ from app.models.user import User
 from app.schemas.absence import (
     MAX_ABSENCES_PER_MEMBER,
     AbsenceCreate,
+    AbsenceIcsImportResult,
+    AbsenceImportSelection,
     AbsenceResponse,
     AbsenceUpdate,
     BulkAbsenceRequest,
@@ -42,9 +44,12 @@ from app.schemas.absence import (
     ScheduleFields,
     default_window,
 )
+from app.services.absence_ics import TooManyEvents
+from app.services.absence_import import ImportPlan, MemberNotOnTeam, action_for, plan_import
 from app.services.absences import format_halves, response_for
 from app.services.concurrency import IfMatch, check_if_match, set_etag
 from app.services.events import broadcaster, team_channel
+from app.services.ics_upload import read_ics_upload
 
 router = APIRouter(prefix="/api/v1/teams/{team_id}/absences", tags=["team-absences"])
 
@@ -377,3 +382,197 @@ async def bulk_absences(
         deleted=len(doomed),
         absences=[response_for(row, body.window_from, body.window_to) for row in written],
     )
+
+
+# ── .ics import (§7.4.1) ─────────────────────────────────────────────────────
+
+_SELECTIONS = TypeAdapter(list[AbsenceImportSelection])
+_REMOVALS = TypeAdapter(list[str])
+
+
+def _unprocessable(code: str, message: str, **extra: object) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+        detail={"error": code, "message": message, **extra},
+    )
+
+
+def _import_window(window_from: date | None, window_to: date | None) -> tuple[date, date] | None:
+    if window_from is None and window_to is None:
+        return None
+    if window_from is None or window_to is None:
+        raise _unprocessable("INVALID_WINDOW", "Give both window_from and window_to, or neither.")
+    if window_to < window_from:
+        raise _unprocessable("INVALID_WINDOW", "window_to cannot fall before window_from")
+    return window_from, window_to
+
+
+def _default_selections(plan: ImportPlan) -> list[AbsenceImportSelection]:
+    return [
+        AbsenceImportSelection(source_uid=c.source_uid, member_id=c.member_id)
+        for c in plan.candidates
+        if c.member_id is not None and c.selected_by_default
+    ]
+
+
+def _result(plan: ImportPlan, *, dry_run: bool) -> AbsenceIcsImportResult:
+    return AbsenceIcsImportResult(
+        dry_run=dry_run,
+        window_from=plan.window[0] if plan.window else None,
+        window_to=plan.window[1] if plan.window else None,
+        skipped=plan.parsed.skipped,
+        truncated_labels=plan.parsed.truncated_labels,
+    )
+
+
+@router.post("/import/ics")
+async def import_absence_ics(
+    team_id: str,
+    db: Annotated[AsyncSession, Depends(get_session)],
+    _: Annotated[User, Depends(require_editor_or_above)],
+    file: Annotated[UploadFile, File(description="An iCalendar (.ics) file")],
+    dry_run: bool = True,
+    member_id: Annotated[
+        str | None, Query(description="The member a personal file belongs to; omit to match events by name")
+    ] = None,
+    window_from: Annotated[
+        date | None, Query(description="First day an imported absence may be removed from; defaults to the file's span")
+    ] = None,
+    window_to: Annotated[date | None, Query(description="Last day of that window")] = None,
+    selections: Annotated[
+        str | None,
+        Form(description='JSON [{"source_uid", "member_id"}]: the rows to write. Omitted: the default ticks.'),
+    ] = None,
+    removals: Annotated[
+        str | None,
+        Form(description="JSON [system_id]: proposed removals to delete. Omitted: all of them."),
+    ] = None,
+) -> AbsenceIcsImportResult:
+    """Import absences from a calendar file — preview by default (§7.4.1).
+
+    **Stateless.** The preview and the apply are the same request: the apply
+    sends the file again with the rows the user ticked, and the server re-reads
+    it and checks every choice against it. Nothing is held in between.
+
+    **An upsert on the event's UID** (ADR 0011). A moved event updates the row
+    it created; an identical one writes nothing; an event gone from the file is
+    proposed for removal, inside the window and for members this import
+    involves only. Hand-entered absences are never touched.
+
+    No `require_edit_lock` and no `If-Match`, as for the bulk path (§4.1).
+    """
+    await _team_or_404(db, team_id)
+    content = await read_ics_upload(file)
+    window = _import_window(window_from, window_to)
+    try:
+        chosen = _SELECTIONS.validate_json(selections) if selections is not None else None
+        removal_ids = _REMOVALS.validate_json(removals) if removals is not None else None
+    except ValidationError as err:
+        raise _unprocessable("INVALID_SELECTION", str(err.errors()[0]["msg"]))
+
+    also_involved = {item.member_id for item in chosen} if chosen else set()
+    try:
+        plan = await plan_import(
+            db, team_id, content, member_id=member_id, window=window, also_involved=also_involved,
+        )
+    except TooManyEvents as err:
+        raise _unprocessable("TOO_MANY_EVENTS", str(err))
+    except ValueError as err:
+        raise _unprocessable("INVALID_ICS", str(err))
+    except MemberNotOnTeam as err:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={"error": "MEMBER_NOT_FOUND", "message": str(err), "member_ids": err.member_ids},
+        )
+
+    result = _result(plan, dry_run=dry_run)
+    if dry_run:
+        result.candidates = plan.candidates
+        result.removals = [response_for(row) for row in plan.removals]
+        for candidate in plan.candidates:
+            if candidate.member_id is None or not candidate.selected_by_default:
+                continue
+            if candidate.action == "create":
+                result.created += 1
+            elif candidate.action == "update":
+                result.updated += 1
+            else:
+                result.unchanged += 1
+        result.deleted = len(plan.removals)
+        return result
+
+    # ── apply ──
+    picked = list(
+        {(item.source_uid, item.member_id): item for item in (chosen or _default_selections(plan))}.values()
+    )
+    members = await _members_of(db, team_id)
+    strangers = sorted({item.member_id for item in picked if item.member_id not in members})
+    if strangers:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail={
+                "error": "MEMBER_NOT_FOUND",
+                "message": "Some of those members are not on this team.",
+                "member_ids": strangers,
+            },
+        )
+    events = plan.events_by_uid
+    unknown = sorted({item.source_uid for item in picked if item.source_uid not in events})
+    if unknown:
+        raise _unprocessable(
+            "UNKNOWN_EVENT", "Some selected events are not in this file.", source_uids=unknown,
+        )
+    proposed = {row.system_id: row for row in plan.removals}
+    doomed_ids = list(dict.fromkeys(removal_ids if removal_ids is not None else proposed))
+    stale = [system_id for system_id in doomed_ids if system_id not in proposed]
+    if stale:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "error": "IMPORT_STALE",
+                "message": "The absences have changed since the preview. Preview the file again.",
+                "system_ids": stale,
+            },
+        )
+    doomed = [proposed[system_id] for system_id in doomed_ids]
+
+    creates: list[AbsenceImportSelection] = []
+    updates: list[tuple[Absence, AbsenceImportSelection]] = []
+    for item in picked:
+        row = plan.existing.get((item.member_id, item.source_uid))
+        action = action_for(row, events[item.source_uid])
+        if row is None:
+            creates.append(item)
+        elif action == "update":
+            updates.append((row, item))
+        else:
+            result.unchanged += 1
+
+    net: dict[str, int] = {}
+    for item in creates:
+        net[item.member_id] = net.get(item.member_id, 0) + 1
+    for row in doomed:
+        net[row.member_id] = net.get(row.member_id, 0) - 1
+    for guarded_id, adding in net.items():
+        if adding > 0:
+            await _guard_count(db, guarded_id, adding)
+
+    for row in doomed:
+        await db.delete(row)
+    for row, item in updates:
+        _apply_rule(row, events[item.source_uid].rule)
+        row.modified_at = _now()
+    for item in creates:
+        row = Absence(team_id=team_id, member_id=item.member_id, source_uid=item.source_uid)
+        _apply_rule(row, events[item.source_uid].rule)
+        db.add(row)
+    await db.commit()
+
+    result.created, result.updated, result.deleted = len(creates), len(updates), len(doomed)
+    if creates or updates or doomed:
+        await broadcaster.broadcast(
+            team_channel(team_id),
+            "team:absence:bulk",
+            {"created": result.created, "updated": result.updated, "deleted": result.deleted},
+        )
+    return result

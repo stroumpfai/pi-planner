@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { absenceErrorCode, absencesApi } from '@/services/absences'
+import { absenceErrorCode, absencesApi, type AbsenceIcsImportOptions } from '@/services/absences'
 import type { AbsenceCreate, AbsenceUpdate } from '@/types'
 
 /**
@@ -83,5 +83,22 @@ export const useDeleteAbsence = (teamId: string) => {
     mutationFn: ({ absenceId, etag }: { absenceId: string; etag: string }) =>
       absencesApi.delete(teamId, absenceId, etag),
     ...refreshOnSettled(qc, teamId),
+  })
+}
+
+/**
+ * Preview or apply an `.ics` import (teams.md §7.4.1).
+ *
+ * One mutation for both, because they are one request: only an apply writes,
+ * so only an apply refreshes the absences and the capacity built on them.
+ */
+export const useImportAbsenceIcs = (teamId: string) => {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ file, options }: { file: File; options: AbsenceIcsImportOptions }) =>
+      absencesApi.importIcs(teamId, file, options),
+    onSuccess: (result) => {
+      if (!result.dry_run) invalidate(qc, teamId)
+    },
   })
 }

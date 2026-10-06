@@ -55,6 +55,7 @@ from app.services.holidays import (
     notify_calendar_changed,
     teams_using,
 )
+from app.services.ics_upload import read_ics_upload
 
 router = APIRouter(prefix="/api/v1/holiday-calendars", tags=["holiday-calendars"])
 
@@ -513,7 +514,7 @@ async def import_ics(
     path's job (§7.3). The preview is the same request with ``dry_run``.
     """
     await _calendar_or_404(db, calendar_id)
-    content = await file.read()
+    content = await read_ics_upload(file)
     try:
         parsed = parse_ics(content, from_year=from_year, to_year=to_year)
     except ValueError as err:

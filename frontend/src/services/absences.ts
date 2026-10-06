@@ -1,5 +1,11 @@
 import { api, errorDetail, type ApiErrorDetail } from './api'
-import type { Absence, AbsenceCreate, AbsenceUpdate } from '@/types'
+import type {
+  Absence,
+  AbsenceCreate,
+  AbsenceIcsImportResult,
+  AbsenceImportSelection,
+  AbsenceUpdate,
+} from '@/types'
 
 /**
  * When members are not there (teams.md §3.4, §7.4).
@@ -33,6 +39,11 @@ export type AbsenceErrorCode =
   | 'MEMBER_NOT_FOUND'
   | 'STALE'
   | 'IF_MATCH_REQUIRED'
+  | 'INVALID_ICS'
+  | 'ICS_TOO_LARGE'
+  | 'TOO_MANY_EVENTS'
+  | 'IMPORT_STALE'
+  | 'UNKNOWN_EVENT'
 
 export function absenceErrorCode(err: unknown): AbsenceErrorCode | null {
   const detail = errorDetail(err)
@@ -42,6 +53,11 @@ export function absenceErrorCode(err: unknown): AbsenceErrorCode | null {
     case 'MEMBER_NOT_FOUND':
     case 'STALE':
     case 'IF_MATCH_REQUIRED':
+    case 'INVALID_ICS':
+    case 'ICS_TOO_LARGE':
+    case 'TOO_MANY_EVENTS':
+    case 'IMPORT_STALE':
+    case 'UNKNOWN_EVENT':
       return detail.error
     default:
       return null
@@ -57,6 +73,18 @@ export function staleAbsence(err: unknown): Absence | null {
 const ifMatch = (etag: string) => ({ headers: { 'If-Match': etag } })
 
 const window = (from: string, to: string) => ({ params: { from, to } })
+
+export interface AbsenceIcsImportOptions {
+  readonly dryRun: boolean
+  /** The member a personal file belongs to; omit to match events by name. */
+  readonly memberId?: string
+  readonly windowFrom?: string
+  readonly windowTo?: string
+  /** Apply only: the ticked rows, each with the member the user settled on. */
+  readonly selections?: readonly AbsenceImportSelection[]
+  /** Apply only: the proposed removals the user kept ticked. */
+  readonly removals?: readonly string[]
+}
 
 export const absencesApi = {
   /**
@@ -91,4 +119,28 @@ export const absencesApi = {
 
   delete: (teamId: string, absenceId: string, etag: string) =>
     api.delete(`${absencesUrl(teamId)}/${absenceId}`, ifMatch(etag)),
+
+  /**
+   * Preview or apply an `.ics` import (teams.md §7.4.1).
+   *
+   * Stateless: the apply sends the file again with what the user ticked, and
+   * the server re-reads it and checks each choice against it.
+   */
+  importIcs: (teamId: string, file: File, options: AbsenceIcsImportOptions) => {
+    const form = new FormData()
+    form.append('file', file)
+    if (options.selections) form.append('selections', JSON.stringify(options.selections))
+    if (options.removals) form.append('removals', JSON.stringify(options.removals))
+    return api
+      .post<AbsenceIcsImportResult>(`${absencesUrl(teamId)}/import/ics`, form, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        params: {
+          dry_run: options.dryRun,
+          member_id: options.memberId,
+          window_from: options.windowFrom,
+          window_to: options.windowTo,
+        },
+      })
+      .then((r) => r.data)
+  },
 }

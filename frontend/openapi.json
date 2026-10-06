@@ -7110,6 +7110,141 @@
         }
       }
     },
+    "/api/v1/teams/{team_id}/absences/import/ics": {
+      "post": {
+        "tags": [
+          "team-absences"
+        ],
+        "summary": "Import Absence Ics",
+        "description": "Import absences from a calendar file \u2014 preview by default (\u00a77.4.1).\n\n**Stateless.** The preview and the apply are the same request: the apply\nsends the file again with the rows the user ticked, and the server re-reads\nit and checks every choice against it. Nothing is held in between.\n\n**An upsert on the event's UID** (ADR 0011). A moved event updates the row\nit created; an identical one writes nothing; an event gone from the file is\nproposed for removal, inside the window and for members this import\ninvolves only. Hand-entered absences are never touched.\n\nNo `require_edit_lock` and no `If-Match`, as for the bulk path (\u00a74.1).",
+        "operationId": "import_absence_ics_api_v1_teams__team_id__absences_import_ics_post",
+        "parameters": [
+          {
+            "name": "team_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Team Id"
+            }
+          },
+          {
+            "name": "dry_run",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Dry Run"
+            }
+          },
+          {
+            "name": "member_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "The member a personal file belongs to; omit to match events by name",
+              "title": "Member Id"
+            },
+            "description": "The member a personal file belongs to; omit to match events by name"
+          },
+          {
+            "name": "window_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "First day an imported absence may be removed from; defaults to the file's span",
+              "title": "Window From"
+            },
+            "description": "First day an imported absence may be removed from; defaults to the file's span"
+          },
+          {
+            "name": "window_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Last day of that window",
+              "title": "Window To"
+            },
+            "description": "Last day of that window"
+          },
+          {
+            "name": "pi_session",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Pi Session"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_absence_ics_api_v1_teams__team_id__absences_import_ics_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AbsenceIcsImportResult"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/teams/{team_id}/meetings": {
       "get": {
         "tags": [
@@ -10557,6 +10692,199 @@
         "title": "AbsenceCreate",
         "description": "One rule, applied to one or more members.\n\nThe multi-select is an input convenience, not a shared object: the result is\none record each. Editing \"everyone's Christmas\" for the one person who is\nworking that day must not force a delete and recreate (\u00a73.4)."
       },
+      "AbsenceIcsImportResult": {
+        "properties": {
+          "dry_run": {
+            "type": "boolean",
+            "title": "Dry Run"
+          },
+          "window_from": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window From"
+          },
+          "window_to": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Window To"
+          },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/AbsenceImportCandidate"
+            },
+            "type": "array",
+            "title": "Candidates",
+            "default": []
+          },
+          "removals": {
+            "items": {
+              "$ref": "#/components/schemas/AbsenceResponse"
+            },
+            "type": "array",
+            "title": "Removals",
+            "default": []
+          },
+          "skipped": {
+            "items": {
+              "$ref": "#/components/schemas/IcsSkipped"
+            },
+            "type": "array",
+            "title": "Skipped",
+            "default": []
+          },
+          "truncated_labels": {
+            "type": "integer",
+            "title": "Truncated Labels",
+            "default": 0
+          },
+          "created": {
+            "type": "integer",
+            "title": "Created",
+            "default": 0
+          },
+          "updated": {
+            "type": "integer",
+            "title": "Updated",
+            "default": 0
+          },
+          "unchanged": {
+            "type": "integer",
+            "title": "Unchanged",
+            "default": 0
+          },
+          "deleted": {
+            "type": "integer",
+            "title": "Deleted",
+            "default": 0
+          }
+        },
+        "type": "object",
+        "required": [
+          "dry_run",
+          "window_from",
+          "window_to"
+        ],
+        "title": "AbsenceIcsImportResult",
+        "description": "What an import would do (a preview) or did.\n\nThe counts of a preview describe the default ticks; the dialog recounts\nfrom what the user actually ticks."
+      },
+      "AbsenceImportCandidate": {
+        "properties": {
+          "source_uid": {
+            "type": "string",
+            "title": "Source Uid"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "rule": {
+            "$ref": "#/components/schemas/ScheduleFields"
+          },
+          "rule_summary": {
+            "type": "string",
+            "title": "Rule Summary"
+          },
+          "member_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Member Id"
+          },
+          "match": {
+            "type": "string",
+            "enum": [
+              "picked",
+              "attendee",
+              "title",
+              "none"
+            ],
+            "title": "Match"
+          },
+          "repeats": {
+            "type": "string",
+            "enum": [
+              "single",
+              "weekly",
+              "yearly"
+            ],
+            "title": "Repeats"
+          },
+          "selected_by_default": {
+            "type": "boolean",
+            "title": "Selected By Default"
+          },
+          "hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hint"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "create",
+                  "update",
+                  "unchanged"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Action"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AbsenceResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_uid",
+          "title",
+          "rule",
+          "rule_summary",
+          "member_id",
+          "match",
+          "repeats",
+          "selected_by_default",
+          "action"
+        ],
+        "title": "AbsenceImportCandidate",
+        "description": "One row the file would write \u2014 for one member, or for nobody yet.\n\nIn team mode an event nobody matched still comes back, with no member and\nno action, so the preview can offer a member dropdown rather than dropping\nit. It starts unticked: a long team file is mostly other people's events,\nand the preview hides these behind a filter until someone wants to assign\none. An event naming several members is one candidate per member."
+      },
       "AbsenceOccurrence": {
         "properties": {
           "date": {
@@ -10690,6 +11018,17 @@
             "type": "array",
             "title": "Occurrences",
             "default": []
+          },
+          "source_uid": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Uid"
           },
           "created_at": {
             "type": "string",
@@ -11023,6 +11362,45 @@
           "mcp_bot"
         ],
         "title": "ActorType"
+      },
+      "Body_import_absence_ics_api_v1_teams__team_id__absences_import_ics_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "An iCalendar (.ics) file"
+          },
+          "selections": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Selections",
+            "description": "JSON [{\"source_uid\", \"member_id\"}]: the rows to write. Omitted: the default ticks."
+          },
+          "removals": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Removals",
+            "description": "JSON [system_id]: proposed removals to delete. Omitted: all of them."
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_absence_ics_api_v1_teams__team_id__absences_import_ics_post"
       },
       "Body_import_ics_api_v1_holiday_calendars__calendar_id__import_ics_post": {
         "properties": {
@@ -13550,7 +13928,8 @@
           "summary",
           "reason"
         ],
-        "title": "IcsSkipped"
+        "title": "IcsSkipped",
+        "description": "A calendar-file event an import did not read, and why \u2014 shown in the preview.\n\nShared by the holiday and absence importers (public-holidays.md \u00a77.1,\nteams.md \u00a77.4.1), which skip for different reasons but report alike."
       },
       "LoginRequest": {
         "properties": {
@@ -16913,6 +17292,117 @@
           "reader"
         ],
         "title": "Role"
+      },
+      "ScheduleFields": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "range",
+              "weekly",
+              "interval"
+            ],
+            "title": "Kind"
+          },
+          "label": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "start_date": {
+            "type": "string",
+            "format": "date",
+            "title": "Start Date"
+          },
+          "end_date": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End Date"
+          },
+          "start_half": {
+            "type": "string",
+            "enum": [
+              "am",
+              "pm"
+            ],
+            "title": "Start Half",
+            "default": "am"
+          },
+          "end_half": {
+            "type": "string",
+            "enum": [
+              "am",
+              "pm"
+            ],
+            "title": "End Half",
+            "default": "pm"
+          },
+          "weekday": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 6.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekday"
+          },
+          "halves": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "am",
+                    "pm"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Halves"
+          },
+          "interval_weeks": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 52.0,
+                "minimum": 2.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Weeks"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "start_date"
+        ],
+        "title": "ScheduleFields",
+        "description": "The schedule rule shared by absences and meetings (\u00a73.4).\n\nEvery kind uses `start_date`, and it means something different in each: the\nfirst day of a `range`, and the **anchor** of a recurrence \u2014 the date that\ndecides which alternate weeks are hit. Nothing here is validated against the\nother kinds' fields being absent; they are simply ignored, so switching kind\nin a form need not clear them."
       },
       "SnapshotCreate": {
         "properties": {

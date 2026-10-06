@@ -92,6 +92,9 @@ async def serialize_team(db: AsyncSession, team: Team) -> dict[str, Any]:
             "weekday": a.weekday,
             "halves": a.halves,
             "interval_weeks": a.interval_weeks,
+            # Optional, and absent from older exports: a restored team still
+            # upserts on its next .ics import (ADR 0011).
+            "source_uid": a.source_uid,
             "created_at": a.created_at.isoformat(),
             "modified_at": a.modified_at.isoformat(),
         }
