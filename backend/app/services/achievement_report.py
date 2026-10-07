@@ -231,6 +231,7 @@ async def build_achievement_report(
                 effort_unit=capacity.effort_unit,
                 share_pct=capacity.share_pct,
                 share_days=capacity.share_days,
+                remaining=capacity.remaining,
                 available_source=capacity.available_source,
                 units_per_pd=capacity.units_per_pd,
                 in_pd_total=in_pd_total,

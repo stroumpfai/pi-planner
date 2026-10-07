@@ -430,7 +430,7 @@ function ProjectRow({ project, indices, counted }: ProjectRowProps) {
       <th scope="row" className="px-4 py-2 text-left">
         <span className="block text-xs font-medium text-gray-700 dark:text-gray-200">{project.name}</span>
         <span className="block text-[11px] text-gray-400 dark:text-gray-500">
-          {formatShare(project.share_pct, project.share_days)}
+          {formatShare(project.share_pct, project.share_days, project.remaining)}
           {counted !== null && ` of ${counted}`} ·{' '}
           {derived ? `${project.units_per_pd} ${project.effort_unit}/PD` : 'manual'}
         </span>

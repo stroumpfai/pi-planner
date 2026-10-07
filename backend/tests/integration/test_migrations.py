@@ -320,3 +320,37 @@ def test_upgrade_adds_absence_source_uid_unique_per_member_when_set(tmp_path):
         conn.execute(insert.format(id="a3", uid="'evt@outlook'"))
         with pytest.raises(sqlite3.IntegrityError):
             conn.execute(insert.format(id="a4", uid="'evt@outlook'"))
+
+
+def test_upgrade_adds_share_remaining_off_and_one_per_team(tmp_path):
+    """Every existing assignment keeps its share; a team takes one remainder (ADR 0012)."""
+    db_path = tmp_path / "remaining.sqlite"
+    _alembic("6f20013e7f2d", db_path)  # head before the remaining capacity
+
+    with sqlite3.connect(db_path) as conn:
+        conn.execute(_insert_team("t1", "Platform"))
+        for pid, name in (("p1", "Portal"), ("p2", "Billing"), ("p3", "Search")):
+            conn.execute(
+                "INSERT INTO projects (system_id, name, effort_unit, created_at, modified_at)"
+                f" VALUES ('{pid}', '{name}', 'pts', '{_NOW}', '{_NOW}')"
+            )
+        conn.execute(
+            "INSERT INTO team_projects"
+            " (system_id, team_id, project_id, share_pct, created_at, modified_at)"
+            f" VALUES ('a1', 't1', 'p1', 70, '{_NOW}', '{_NOW}')"
+        )
+
+    _alembic("head", db_path)
+
+    insert = (
+        "INSERT INTO team_projects (system_id, team_id, project_id, share_pct, share_remaining,"
+        " created_at, modified_at) VALUES ('{id}', 't1', '{pid}', 100, 1,"
+        f" '{_NOW}', '{_NOW}')"
+    )
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute(
+            "SELECT share_pct, share_remaining FROM team_projects WHERE system_id = 'a1'"
+        ).fetchone() == (70, 0)
+        conn.execute(insert.format(id="a2", pid="p2"))
+        with pytest.raises(sqlite3.IntegrityError):
+            conn.execute(insert.format(id="a3", pid="p3"))

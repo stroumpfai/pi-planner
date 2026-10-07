@@ -11,8 +11,16 @@ export type ShareUnit = 'pct' | 'days'
 export const fmtDays = (days: number): string =>
   Number.isInteger(days) ? String(days) : String(Math.round(days * 10) / 10)
 
-/** "70%" or "2 d/wk", whichever the share was entered as. */
-export function formatShare(pct: number | null | undefined, days: number | null | undefined): string {
+/**
+ * "70%" or "2 d/wk", whichever the share was entered as — or "remaining" for
+ * the project taking what the others leave (§6.3.4), whose share is not read.
+ */
+export function formatShare(
+  pct: number | null | undefined,
+  days: number | null | undefined,
+  remaining?: boolean,
+): string {
+  if (remaining) return 'remaining'
   if (days != null) return `${fmtDays(days)} d/wk`
   return `${pct ?? 100}%`
 }

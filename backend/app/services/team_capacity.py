@@ -356,24 +356,32 @@ def compute_team_capacity(
 
 @dataclass(frozen=True)
 class Share:
-    """What part of a member a project gets: a percentage, or days a week.
+    """What part of a member a project gets: a percentage, days a week, or the rest.
 
     Exactly one is set. Days are stored as days, never converted on save: the
     fraction is taken against the contract in force on each half-day, so a
     contract change mid-sprint is exact, and a booking of "2 days" stays two days
     when the contract changes underneath it (teams.md §6.3.2, ADR 0010).
+
+    ``remaining_of`` is the member's shares in the team's *other* projects: this
+    share is whatever they leave (§6.3.4, ADR 0012). Those are never remainders
+    themselves — a team has one remaining project — so this never recurses twice.
     """
 
     pct: int | None = None
     days: float | None = None
+    remaining_of: tuple[Share, ...] | None = None
 
     def weight(self, version: PatternVersion) -> float:
         """The fraction of this version's net hours the share takes.
 
         A days share is capped at the whole contract: one project cannot take
         more of a person than they work. Booking past it is still reported — as
-        that member's load over 100% — rather than refused (§6.3.3).
+        that member's load over 100% — rather than refused (§6.3.3). A remainder
+        is what the other shares leave in this version, and never below nothing.
         """
+        if self.remaining_of is not None:
+            return max(0.0, 1.0 - sum(other.weight(version) for other in self.remaining_of))
         if self.days is not None:
             contracted = version.contracted_days
             return 0.0 if contracted <= 0 else min(1.0, self.days / contracted)

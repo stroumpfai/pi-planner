@@ -15,6 +15,11 @@ percentage or **days a week** — "Anna, 2 days a week on X" — and days are a
 fraction of the member's own contract, taken per pattern version by the engine
 (:func:`app.services.team_capacity.shared_person_days`).
 
+One project per team can instead take **the remaining capacity**
+(``share_remaining``, §6.3.4, ADR 0012): from every member, whatever the team's
+other assignments leave. Its scope carries those other assignments, so the
+remainder is worked out from the same shares everything else reads.
+
 Every consumer asks through :func:`share_for` — the Capacity view's project rows,
 the push and its preview, staleness, and the per-member load that drives the
 over-allocation warning — so they cannot disagree about whose PD a project gets.
@@ -23,6 +28,8 @@ SQLite runs here without ``PRAGMA foreign_keys``, so the join rows have to be
 deleted by hand wherever a member or an assignment goes: :func:`forget_members`
 and :func:`forget_assignments` are those two places.
 """
+
+from __future__ import annotations
 
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -51,11 +58,15 @@ class Scope:
     ``member_ids`` is every listed member of a scoped assignment — the ones it
     counts. On one counting everyone it is empty, and members appear only in
     ``overrides``.
+
+    ``remaining_from`` is set only on the team's remaining project: the team's
+    other assignments with their scopes, whose shares the remainder is left by.
     """
 
     all_members: bool
     member_ids: frozenset[str]
     overrides: Mapping[str, Share] = field(default_factory=dict)
+    remaining_from: tuple[tuple[TeamProject, Scope], ...] | None = None
 
     def counts_for(self, member_id: str) -> bool:
         return self.all_members or member_id in self.member_ids
@@ -75,6 +86,14 @@ def share_for(assignment: TeamProject, scope: Scope, member_id: str) -> Share | 
     """What part of *member_id* the project gets, or None when it does not count them."""
     if not scope.counts_for(member_id):
         return None
+    if scope.remaining_from is not None:
+        return Share(
+            remaining_of=tuple(
+                share
+                for other, other_scope in scope.remaining_from
+                if (share := share_for(other, other_scope, member_id)) is not None
+            )
+        )
     return scope.overrides.get(member_id) or assignment_share(assignment)
 
 
@@ -85,7 +104,11 @@ def is_uniform_pct(assignment: TeamProject, scope: Scope) -> bool:
     there was before shares could vary — kept as the path for that case so its
     numbers do not move by a float's last digit.
     """
-    return assignment.share_days is None and not scope.overrides
+    return (
+        assignment.share_days is None
+        and not scope.overrides
+        and scope.remaining_from is None
+    )
 
 
 def project_person_days(
@@ -115,8 +138,50 @@ def project_person_days(
 async def load_scopes(
     db: AsyncSession, assignments: Iterable[TeamProject]
 ) -> dict[str, Scope]:
-    """Each assignment's scope, keyed by its ``system_id``, in one query."""
+    """Each assignment's scope, keyed by its ``system_id``.
+
+    A remaining project's scope needs every other assignment of its team, so
+    those are read too when the caller did not pass them — the push and
+    staleness ask about one project at a time.
+    """
     rows = list(assignments)
+    scopes = await _listed_scopes(db, rows)
+    remaining = [a for a in rows if a.share_remaining]
+    if not remaining:
+        return scopes
+
+    passed = {a.system_id for a in rows}
+    missing = list(
+        (
+            await db.execute(
+                select(TeamProject).where(
+                    TeamProject.team_id.in_({a.team_id for a in remaining}),
+                    TeamProject.system_id.notin_(passed),
+                )
+            )
+        ).scalars().all()
+    )
+    sibling_scopes = {**scopes, **await _listed_scopes(db, missing)}
+    by_team: dict[str, list[TeamProject]] = {}
+    for other in [*rows, *missing]:
+        if not other.share_remaining:
+            by_team.setdefault(other.team_id, []).append(other)
+    for assignment in remaining:
+        scopes[assignment.system_id] = Scope(
+            all_members=True,
+            member_ids=frozenset(),
+            remaining_from=tuple(
+                (other, sibling_scopes[other.system_id])
+                for other in sorted(
+                    by_team.get(assignment.team_id, []), key=lambda a: a.system_id
+                )
+            ),
+        )
+    return scopes
+
+
+async def _listed_scopes(db: AsyncSession, rows: Sequence[TeamProject]) -> dict[str, Scope]:
+    """The scopes as stored: listed members and their own shares, in one query."""
     listed: dict[str, set[str]] = {a.system_id: set() for a in rows}
     overrides: dict[str, dict[str, Share]] = {a.system_id: {} for a in rows}
     if rows:
@@ -284,7 +349,9 @@ def member_loads(
 
     This is what "over-allocated" means once a share can be per member and in
     days (§6.3.3): Anna on X for 2 days and on Y at 60% is 2 + 3 = 5 of her 5
-    days, 100%. Days convert against the contract in force *today*, so the load
+    days, 100%. A remaining project takes what the others leave, so it brings
+    a load up to 100% and never past it; ``remaining_days`` is that leftover,
+    reported whether or not a project takes it. Days convert against the contract in force *today*, so the load
     describes the week being planned now. Only members whose capacity is spent
     anywhere are listed — not those tracked for absences only (§3.2), and not
     those whose membership has already ended. ``pattern_versions`` must be loaded.
@@ -297,6 +364,12 @@ def member_loads(
             continue
         contracted = contracted_days_on(member, today)
         days = _booked_days(member.system_id, contracted, assignments, scopes)
+        fixed = _booked_days(
+            member.system_id,
+            contracted,
+            [a for a in assignments if not a.share_remaining],
+            scopes,
+        )
         loads.append(
             MemberLoad(
                 member_id=member.system_id,
@@ -304,6 +377,7 @@ def member_loads(
                 share_pct=round(_load_pct(days, contracted), 1),
                 days_per_week=round(days, 2),
                 contracted_days=contracted,
+                remaining_days=round(max(0.0, contracted - fixed), 2),
             )
         )
     return loads
@@ -319,10 +393,18 @@ def _booked_days(
     days = 0.0
     for assignment in assignments:
         share = share_for(assignment, scopes[assignment.system_id], member_id)
-        if share is None:
-            continue
-        days += share.days if share.days is not None else contracted * (share.pct or 0) / 100
+        if share is not None:
+            days += _share_days(share, contracted)
     return days
+
+
+def _share_days(share: Share, contracted: float) -> float:
+    """A share in days a week against *contracted*; a remainder never below nothing."""
+    if share.remaining_of is not None:
+        return max(0.0, contracted - sum(_share_days(o, contracted) for o in share.remaining_of))
+    if share.days is not None:
+        return share.days
+    return contracted * (share.pct or 0) / 100
 
 
 def _load_pct(days: float, contracted: float) -> float:

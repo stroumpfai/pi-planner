@@ -2540,6 +2540,11 @@ export interface components {
       days_per_week: number;
       /** Contracted Days */
       contracted_days: number;
+      /**
+       * Remaining Days
+       * @default 0
+       */
+      remaining_days?: number;
     };
     /** MemberReorder */
     MemberReorder: {
@@ -3165,6 +3170,11 @@ export interface components {
       share_pct: number;
       /** Share Days */
       share_days?: number | null;
+      /**
+       * Remaining
+       * @default false
+       */
+      remaining?: boolean;
       /** Available Source */
       available_source: string;
       /** Units Per Pd */
@@ -3203,6 +3213,11 @@ export interface components {
       share_pct: number;
       /** Share Days */
       share_days?: number | null;
+      /**
+       * Remaining
+       * @default false
+       */
+      remaining?: boolean;
       /** Available Source */
       available_source: string;
       /** Units Per Pd */
@@ -3295,6 +3310,11 @@ export interface components {
       share_pct: number;
       /** Share Days */
       share_days?: number | null;
+      /**
+       * Remaining
+       * @default false
+       */
+      remaining?: boolean;
       /** Available Source */
       available_source: string;
       /** Stale Sprints */
@@ -3446,6 +3466,11 @@ export interface components {
       share_pct: number;
       /** Share Days */
       share_days?: number | null;
+      /**
+       * Remaining
+       * @default false
+       */
+      remaining?: boolean;
       /**
        * All Members
        * @default true
@@ -3900,6 +3925,8 @@ export interface components {
       project_share_days?: {
         [key: string]: number;
       };
+      /** Remaining Project Id */
+      remaining_project_id?: string | null;
       /**
        * Member Loads
        * @default []
@@ -3952,6 +3979,11 @@ export interface components {
       member_ids?: string[];
       /** Member Shares */
       member_shares?: components["schemas"]["MemberShare"][];
+      /**
+       * Remaining
+       * @default false
+       */
+      remaining?: boolean;
     };
     /**
      * TeamProjectResponse
@@ -3992,6 +4024,11 @@ export interface components {
        */
       member_shares?: components["schemas"]["MemberShare"][];
       /**
+       * Remaining
+       * @default false
+       */
+      remaining?: boolean;
+      /**
        * Is Anchor
        * @default false
        */
@@ -4028,6 +4065,8 @@ export interface components {
       member_ids?: string[] | null;
       /** Member Shares */
       member_shares?: components["schemas"]["MemberShare"][] | null;
+      /** Remaining */
+      remaining?: boolean | null;
     };
     /** TeamPushResponse */
     TeamPushResponse: {
@@ -4083,6 +4122,8 @@ export interface components {
       project_share_days?: {
         [key: string]: number;
       };
+      /** Remaining Project Id */
+      remaining_project_id?: string | null;
       /**
        * Member Loads
        * @default []

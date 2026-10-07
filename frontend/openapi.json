@@ -14453,6 +14453,11 @@
           "contracted_days": {
             "type": "number",
             "title": "Contracted Days"
+          },
+          "remaining_days": {
+            "type": "number",
+            "title": "Remaining Days",
+            "default": 0.0
           }
         },
         "type": "object",
@@ -16195,6 +16200,11 @@
             ],
             "title": "Share Days"
           },
+          "remaining": {
+            "type": "boolean",
+            "title": "Remaining",
+            "default": false
+          },
           "available_source": {
             "type": "string",
             "title": "Available Source"
@@ -16342,6 +16352,11 @@
               }
             ],
             "title": "Share Days"
+          },
+          "remaining": {
+            "type": "boolean",
+            "title": "Remaining",
+            "default": false
           },
           "available_source": {
             "type": "string",
@@ -16613,6 +16628,11 @@
               }
             ],
             "title": "Share Days"
+          },
+          "remaining": {
+            "type": "boolean",
+            "title": "Remaining",
+            "default": false
           },
           "available_source": {
             "type": "string",
@@ -17036,6 +17056,11 @@
               }
             ],
             "title": "Share Days"
+          },
+          "remaining": {
+            "type": "boolean",
+            "title": "Remaining",
+            "default": false
           },
           "all_members": {
             "type": "boolean",
@@ -18240,6 +18265,17 @@
             "title": "Project Share Days",
             "default": {}
           },
+          "remaining_project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Project Id"
+          },
           "member_loads": {
             "items": {
               "$ref": "#/components/schemas/MemberLoad"
@@ -18341,6 +18377,11 @@
             "type": "array",
             "maxItems": 50,
             "title": "Member Shares"
+          },
+          "remaining": {
+            "type": "boolean",
+            "title": "Remaining",
+            "default": false
           }
         },
         "type": "object",
@@ -18414,6 +18455,11 @@
             "type": "array",
             "title": "Member Shares",
             "default": []
+          },
+          "remaining": {
+            "type": "boolean",
+            "title": "Remaining",
+            "default": false
           },
           "is_anchor": {
             "type": "boolean",
@@ -18548,6 +18594,17 @@
               }
             ],
             "title": "Member Shares"
+          },
+          "remaining": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining"
           }
         },
         "type": "object",
@@ -18645,6 +18702,17 @@
             "type": "object",
             "title": "Project Share Days",
             "default": {}
+          },
+          "remaining_project_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remaining Project Id"
           },
           "member_loads": {
             "items": {

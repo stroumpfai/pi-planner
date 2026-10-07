@@ -12,7 +12,7 @@ import { assignmentErrorCode } from '@/services/teamProjects'
 import { useAuthStore } from '@/stores/authStore'
 import type { TeamAssignment } from '@/types'
 import { groupLoads, overAllocated } from '@/utils/memberLoads'
-import { describeCounted, formatLoad, formatShare } from '@/utils/shares'
+import { describeCounted, fmtDays, formatLoad, formatShare } from '@/utils/shares'
 
 interface Props {
   readonly teamId: string
@@ -69,7 +69,13 @@ export function TeamProjectsView({ teamId, teamName }: Props) {
       row.member_shares ?? [],
       (id) => nameOf.get(id) ?? '…',
     ) ?? 'whole team'
-
+  // What the remaining project takes today: each member's leftover after the
+  // other projects, which is exactly `remaining_days` once one project takes it.
+  const leftovers = loads.filter((load) => (load.remaining_days ?? 0) > 0)
+  const leftoverTotal = leftovers.reduce((sum, load) => sum + (load.remaining_days ?? 0), 0)
+  const leftoverSplit = leftovers
+    .map((load) => `${load.name} ${fmtDays(load.remaining_days ?? 0)} of ${fmtDays(load.contracted_days)} d/wk`)
+    .join(', ')
 
   const confirmUnassign = async () => {
     if (!unassigning) return
@@ -154,7 +160,7 @@ export function TeamProjectsView({ teamId, teamName }: Props) {
               <div className="flex-1 min-w-0 max-w-[32rem]">
                 <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
                   {row.project_name}{' '}
-                  <span className="text-gray-500 dark:text-gray-400 font-normal">{formatShare(row.share_pct, row.share_days)}</span>
+                  <span className="text-gray-500 dark:text-gray-400 font-normal">{formatShare(row.share_pct, row.share_days, row.remaining)}</span>
                   {row.is_anchor && (
                     <span
                       className="ml-2 px-2 py-0.5 text-[10px] rounded-full bg-band shadow-soft-inset text-gray-500 dark:text-gray-400"
@@ -164,9 +170,18 @@ export function TeamProjectsView({ teamId, teamName }: Props) {
                     </span>
                   )}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                  counts {countedLabel(row)}
-                </p>
+                {row.remaining ? (
+                  <p
+                    className="text-xs text-gray-500 dark:text-gray-400 truncate"
+                    title={leftoverSplit || undefined}
+                  >
+                    what the other projects leave · ≈ {fmtDays(leftoverTotal)} d/wk today
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                    counts {countedLabel(row)}
+                  </p>
+                )}
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   conversion{' '}
                   {row.available_source === 'factor'
@@ -240,7 +255,13 @@ export function TeamProjectsView({ teamId, teamName }: Props) {
       )}
 
       {editing && (
-        <EditAssignmentModal open teamId={teamId} assignment={editing} onClose={() => setEditing(null)} />
+        <EditAssignmentModal
+          open
+          teamId={teamId}
+          assignment={editing}
+          assigned={rows}
+          onClose={() => setEditing(null)}
+        />
       )}
 
       {unassigning && (

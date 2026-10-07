@@ -498,3 +498,42 @@ def test_net_hours_by_version_add_up_to_net_hours():
     capacity = compute_member_capacity(m, 8.0, SPRINT_START, SPRINT_END)
     assert sum(capacity.net_hours_by_version.values()) == pytest.approx(capacity.net_hours)
     assert set(capacity.net_hours_by_version) == {date(2000, 1, 1), date(2026, 4, 13)}
+
+
+# ── the remaining capacity (§6.3.4, ADR 0012) ────────────────────────────────
+
+
+def test_the_remainder_is_what_the_other_shares_leave():
+    # 2 days and 20% of a full-timer leave 40% of 10 PD.
+    rest = Share(remaining_of=(Share(days=2), Share(pct=20)))
+    assert _shared(member("a", pattern("mon-fri")), rest) == pytest.approx(4.0)
+
+
+def test_a_remainder_left_by_nothing_is_the_whole_member():
+    assert _shared(member("a", pattern("mon-fri")), Share(remaining_of=())) == pytest.approx(10.0)
+
+
+def test_a_remainder_is_never_below_nothing():
+    rest = Share(remaining_of=(Share(pct=80), Share(days=2)))
+    assert _shared(member("a", pattern("mon-fri")), rest) == 0.0
+
+
+def test_a_contract_change_mid_sprint_moves_the_remainder_with_it():
+    """2 days leave 3/5 of the first week and 2/4 of the second."""
+    m = member(
+        "a",
+        pattern("mon-fri", effective_from=date(2000, 1, 1)),
+        pattern("mon-thu", effective_from=date(2026, 4, 13)),
+    )
+    # Week one 40 h × 0.6 = 24 h; week two 32 h × 0.5 = 16 h; 40 h ÷ 8 = 5 PD.
+    assert _shared(m, Share(remaining_of=(Share(days=2),))) == pytest.approx(5.0)
+
+
+def test_an_absence_costs_the_remainder_in_proportion():
+    def monday_morning(member_id, day, half):
+        return day == SPRINT_START and half == "am"
+
+    # 76 h × 3/5 = 45.6 h = 5.7 PD: the absence is shared, not taken from the rest.
+    m = member("a", pattern("mon-fri"))
+    rest = Share(remaining_of=(Share(days=2),))
+    assert _shared(m, rest, absent=monday_morning) == pytest.approx(5.7)

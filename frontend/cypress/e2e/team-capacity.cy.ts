@@ -25,7 +25,12 @@ function seedTeamAndProject(options: { hoursPerDay?: number; focus?: number } = 
       },
     })
   })
-  cy.request('POST', '/api/v1/projects/', { name: 'ISK Portal' }).then((projectRes) => {
+  seedProject('ISK Portal')
+}
+
+/** A project whose first sprint runs 6–17 Apr, so any two of them line up (§6.8). */
+function seedProject(name: string) {
+  cy.request('POST', '/api/v1/projects/', { name }).then((projectRes) => {
     cy.request('POST', `/api/v1/projects/${projectRes.body.system_id}/pis`, {
       name: 'Q2-2026',
       start_date: '2026-04-06',
@@ -89,7 +94,7 @@ describe('Team capacity', () => {
     capacityTab('Projects').click()
     cy.contains('button', /^\+ Assign project$/).click()
     capacityDialog().find('select[name="project_id"]').select('ISK Portal')
-    capacityDialog().contains('label', 'Only these members').click()
+    capacityDialog().contains('label', 'Specific members').click()
     capacityDialog().contains('label', 'Marta Lindqvist').click()
     capacityDialog().contains('button', /^Assign project$/).click()
 
@@ -103,7 +108,7 @@ describe('Team capacity', () => {
       .and('contain', '10.0 PD')
   })
 
-    it('takes a share in days a week, and a member share of their own (ADR 0010)', () => {
+  it('takes a share in days a week, and a member share of their own (ADR 0010)', () => {
     cy.request('GET', '/api/v1/teams').then((teams) => {
       cy.request('POST', `/api/v1/teams/${teams.body[0].system_id}/members`, {
         name: 'Bruno Keller',
@@ -117,7 +122,7 @@ describe('Team capacity', () => {
     cy.contains('button', /^\+ Assign project$/).click()
     capacityDialog().find('select[name="project_id"]').select('ISK Portal')
     capacityDialog().find('select[aria-label="Share of the team unit"]').select('days')
-    capacityDialog().find('#assign-share').clear().type('2')
+    capacityDialog().find('#allocation-team-share').clear().type('2')
     capacityDialog().contains('button', 'Give some members a different share').click()
     // Marta is the first member listed; her own share is a percentage.
     capacityDialog().find('input[id^="member-share-"]').first().type('100')
@@ -132,7 +137,52 @@ describe('Team capacity', () => {
     cy.contains('tr', 'ISK Portal').should('contain', '14.0 PD')
   })
 
-    it('expands a cell into the chain that produced the number', () => {
+  it('gives the remaining capacity to one project only (ADR 0012)', () => {
+    // The Portal has Marta to itself; Search takes whatever is left, which is Bruno.
+    seedProject('Search')
+    cy.request('GET', '/api/v1/teams').then((teams) => {
+      const teamId = teams.body[0].system_id
+      cy.request('POST', `/api/v1/teams/${teamId}/members`, {
+        name: 'Bruno Keller',
+        pattern: { effective_from: '2026-01-01' },
+      })
+      cy.request('GET', `/api/v1/teams/${teamId}/members`).then((members) => {
+        const marta = members.body.find((m: { name: string }) => m.name === 'Marta Lindqvist')
+        cy.request('GET', '/api/v1/projects/').then((projects) => {
+          const portal = projects.body.find((p: { name: string }) => p.name === 'ISK Portal')
+          cy.request('POST', `/api/v1/teams/${teamId}/projects`, {
+            project_id: portal.system_id,
+            all_members: false,
+            member_ids: [marta.system_id],
+          })
+        })
+      })
+    })
+    cy.reload()
+    cy.openTeam('Platform')
+
+    capacityTab('Projects').click()
+    cy.contains('button', /^\+ Assign project$/).click()
+    capacityDialog().find('select[name="project_id"]').select('Search')
+    capacityDialog().contains('label', 'Remaining capacity').click()
+    capacityDialog().should('contain', 'Bruno 5 of 5').and('contain', 'Marta is fully booked')
+    capacityDialog().contains('button', /^Assign project$/).click()
+
+    cy.contains('li', 'Search')
+      .should('contain', 'remaining')
+      .and('contain', 'what the other projects leave · ≈ 5 d/wk today')
+
+    // A second one is offered, but not available, and says why.
+    cy.contains('button', /^\+ Assign project$/).click()
+    capacityDialog().find('input[value="remaining"]').should('be.disabled')
+    capacityDialog().should('contain', 'Search already takes the remaining capacity')
+    capacityDialog().contains('button', /^Cancel$/).click()
+
+    capacityTab('Capacity').click()
+    cy.contains('tr', 'Search').should('contain', '10.0 PD')
+  })
+
+  it('expands a cell into the chain that produced the number', () => {
     cy.request('GET', '/api/v1/teams').then((teams) => {
       cy.request('GET', '/api/v1/projects/').then((projects) => {
         cy.request('POST', `/api/v1/teams/${teams.body[0].system_id}/projects`, {

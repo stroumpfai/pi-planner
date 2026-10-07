@@ -11,12 +11,16 @@ const capacityKey = (teamId: string, from?: string, to?: string) =>
  *
  * The share and the factor are inputs to the numbers the Capacity view shows, so
  * the two caches move together — and the home page's team row counts projects,
- * which is why the team list joins them.
+ * which is why the team list joins them. Staleness and the push preview move
+ * too, and not only for the project edited: the team's remaining project takes
+ * what every other one leaves (§6.3.4), so all of the team's projects are re-read.
  */
 function invalidate(qc: ReturnType<typeof useQueryClient>, teamId: string) {
   qc.invalidateQueries({ queryKey: assignmentsKey(teamId) })
   qc.invalidateQueries({ queryKey: ['teamCapacity', teamId] })
   qc.invalidateQueries({ queryKey: ['teams'] })
+  qc.invalidateQueries({ queryKey: ['teamCapacityStatus'] })
+  qc.invalidateQueries({ queryKey: ['teamCapacityPreview'] })
 }
 
 function refreshOnSettled(qc: ReturnType<typeof useQueryClient>, teamId: string) {

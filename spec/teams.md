@@ -615,7 +615,8 @@ that project is `team_PD(s) × share_pct / 100`.
 
 An assignment counts **the whole team** by default. It can instead count **only listed
 members** (`all_members = false` plus a `team_project_members` join), and the share then
-applies to their PD alone:
+applies to their PD alone. The dialog calls this choice **Resource allocation**, with
+*Whole team*, *Specific members* and *Remaining capacity* (§6.3.4):
 
 `project_PD(s) = Σ member_PD(m, s) over the listed members that count towards capacity × share_pct / 100`
 
@@ -674,6 +675,13 @@ morning is 4.5). So 2 days is 40% of a full-timer and 50% of a 4-day contract.
 - A uniform percentage on every counted member keeps the arithmetic it always had
   (`counted PD × share`), so existing assignments do not move by a float's last digit.
 
+In the dialog a share is typed in **one place per mode**: under *Whole team* the team's
+share (with an optional exception per member), under *Specific members* each ticked
+member's own share, starting at 100%. When every ticked member has the same share, the
+dialog stores it on the assignment with no member shares — the rows this section's
+uniform arithmetic reads — and otherwise stores 100% plus a share for each member who
+differs. The API keeps both levels for MCP and scripts.
+
 #### 6.3.3 Over-allocation is per member
 
 A member's **load** is the sum of their share over every assignment that counts them,
@@ -690,6 +698,38 @@ When every assignment counts the whole team, every member's load is the team's s
 summed — the same rule as before scopes existed. Once some count only some members, the
 team-wide sum is nobody's load (the example above sums to 200% with nobody over), so the
 warning reads the per-member figure the API returns as `member_loads`.
+
+Each load also carries **`remaining_days`**: what the member's projects leave of their
+current contract, not counting the team's remaining project (§6.3.4), and never below 0.
+
+#### 6.3.4 Remaining capacity
+
+One project per team can take **the remaining capacity** (`share_remaining`): from every
+member, whatever the team's other projects leave. The Portal has Anna and Bruno to itself,
+Billing books Carla for 2 days and Dario at 50%, and Search takes the rest — nothing of
+Anna and Bruno, 3 of Carla's 5 days and half of Dario (ADR 0012).
+
+`weight(m, half-day) = max(0, 1 − Σ weight of m's shares in the team's other projects)`
+
+- **Live, not a number typed once.** Changing another project's share moves the
+  remainder. Like every share it is undated (§6.3.1): the views restate their history,
+  and a derived Available reads stale until someone pushes (§6.6).
+- **One per team**, enforced by a partial unique index. A second is refused with
+  `409 REMAINING_TAKEN` naming the project that holds it. A remainder never depends on
+  another remainder, so the figure has no order and no cycles.
+- **The whole team only.** A remaining assignment counts everyone, has no member rows,
+  and its `share_pct`/`share_days` are not read. Sending a share or members with
+  `remaining: true` is a 422; giving a remaining project a share or a scope ends it.
+- Every weight is taken per pattern version (§6.3.2), so a contract change mid-sprint is
+  exact; absences cost the remainder in proportion, like any share. A member booked past
+  their contract elsewhere gives nothing and stays flagged over 100% by their other
+  shares; the remainder brings everyone else's load to exactly 100%.
+- **The dialog always lists the option**, and disables it with the reason when another
+  project holds it, when no member has anything left, or when no member counts towards
+  capacity. While enabled it shows each member's leftover in days a week. With no other
+  project assigned, the remainder is simply the whole team.
+- The Projects tab shows the row as `remaining` with today's total in days a week, and
+  the per-member split on hover.
 
 ### 6.4 Translating PD into the project's effort unit
 

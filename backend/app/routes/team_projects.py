@@ -93,6 +93,7 @@ def _response(
         effort_unit=project.effort_unit,
         share_pct=assignment.share_pct,
         share_days=assignment.share_days,
+        remaining=assignment.share_remaining,
         available_source=assignment.available_source,
         units_per_pd=assignment.units_per_pd,
         all_members=scope.all_members,
@@ -147,6 +148,39 @@ async def _assignment_or_404(db: AsyncSession, team_id: str, project_id: str) ->
             status_code=status.HTTP_404_NOT_FOUND, detail="This team does not serve that project"
         )
     return assignment
+
+
+async def _check_remaining_free(db: AsyncSession, team_id: str, project_id: str) -> None:
+    """Refuse a second remaining project in the team, naming the one that has it.
+
+    A remainder left by another remainder would depend on the order they are
+    worked out in, or need a rule for splitting the rest, so a team has one
+    (§6.3.4, ADR 0012). The partial unique index backs this up against a race.
+    """
+    holder = await db.scalar(
+        select(TeamProject).where(
+            TeamProject.team_id == team_id,
+            TeamProject.share_remaining.is_(True),
+            TeamProject.project_id != project_id,
+        )
+    )
+    if holder is not None:
+        raise _remaining_taken(await db.get(Project, holder.project_id))
+
+
+def _remaining_taken(holder: Project | None) -> HTTPException:
+    name = f"'{holder.name}'" if holder else "Another project"
+    return HTTPException(
+        status_code=status.HTTP_409_CONFLICT,
+        detail={
+            "error": "REMAINING_TAKEN",
+            "message": (
+                f"{name} already takes the remaining capacity. Only one project of a "
+                "team can — give it a share of its own first."
+            ),
+            "project_id": holder.system_id if holder else None,
+        },
+    )
 
 
 @router.get("/projects")
@@ -238,6 +272,8 @@ async def assign_project(
         )
 
     await check_scope(db, team_id, body.all_members, body.member_ids, body.member_shares)
+    if body.remaining:
+        await _check_remaining_free(db, team_id, body.project_id)
     assignment = TeamProject(
         team_id=team_id,
         project_id=body.project_id,
@@ -245,6 +281,7 @@ async def assign_project(
         share_days=body.share_days,
         available_source=body.available_source,
         units_per_pd=body.units_per_pd,
+        share_remaining=body.remaining,
     )
     db.add(assignment)
     try:
@@ -252,8 +289,10 @@ async def assign_project(
         await set_scope(db, assignment, body.all_members, body.member_ids, body.member_shares)
         await db.commit()
     except IntegrityError:
-        # The unique index, in case two assignments raced past the check above.
+        # A unique index, in case two assignments raced past the checks above.
         await db.rollback()
+        if body.remaining:
+            raise _remaining_taken(None)
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail={
@@ -302,6 +341,8 @@ async def update_assignment(
             else member_shares_response(current, sorted(current.overrides))
         )
         await check_scope(db, team_id, all_members, member_ids, member_shares)
+    if body.remaining:
+        await _check_remaining_free(db, team_id, project_id)
 
     # One unit at a time: setting either replaces the other (§6.3.2).
     if body.share_pct is not None:
@@ -315,9 +356,26 @@ async def update_assignment(
         assignment.units_per_pd = body.units_per_pd
     if rescoped:
         await set_scope(db, assignment, all_members, member_ids, member_shares)
+    # The remainder is the whole team's, so taking it drops any scope; giving the
+    # project a share or a scope of its own ends it (§6.3.4).
+    if body.remaining:
+        assignment.share_remaining = True
+        await set_scope(db, assignment, True, [], [])
+    elif (
+        body.remaining is False
+        or body.share_pct is not None
+        or body.share_days is not None
+        or rescoped
+    ):
+        assignment.share_remaining = False
     assignment.modified_at = datetime.now(timezone.utc)
 
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        # The one-remaining index, if another update raced past the check above.
+        await db.rollback()
+        raise _remaining_taken(None)
     await db.refresh(assignment)
 
     await broadcaster.broadcast(

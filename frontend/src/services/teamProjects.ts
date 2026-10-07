@@ -24,6 +24,7 @@ export type AssignmentErrorCode =
   | 'PROJECT_ALREADY_ASSIGNED'
   | 'PROJECT_LIMIT_REACHED'
   | 'SPRINT_DATES_MISALIGNED'
+  | 'REMAINING_TAKEN'
   | 'STALE'
   | 'IF_MATCH_REQUIRED'
 
@@ -33,6 +34,7 @@ export function assignmentErrorCode(err: unknown): AssignmentErrorCode | null {
     case 'PROJECT_ALREADY_ASSIGNED':
     case 'PROJECT_LIMIT_REACHED':
     case 'SPRINT_DATES_MISALIGNED':
+    case 'REMAINING_TAKEN':
     case 'STALE':
     case 'IF_MATCH_REQUIRED':
       return detail.error

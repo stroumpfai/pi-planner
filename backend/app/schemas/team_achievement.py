@@ -36,6 +36,8 @@ class ProjectAchievementRow(BaseModel):
     effort_unit: str
     share_pct: int
     share_days: float | None = None
+    # The team's remaining capacity, not a share (§6.3.4).
+    remaining: bool = False
     available_source: str
     units_per_pd: float
     # False for a `manual` assignment: its units_per_pd is a default nobody set, so

@@ -59,6 +59,7 @@ class _Summary:
     # (project_id, share_pct, share_days), anchor first.
     assignments: list[tuple[str, int, float | None]] = field(default_factory=list)
     member_loads: list[MemberLoad] = field(default_factory=list)
+    remaining_project_id: str | None = None
 
 
 async def _summaries(db: AsyncSession, team_ids: list[str]) -> dict[str, _Summary]:
@@ -106,6 +107,9 @@ async def _summaries(db: AsyncSession, team_ids: list[str]) -> dict[str, _Summar
         summary.assignments = [
             (a.project_id, a.share_pct, a.share_days) for a in team_assignments
         ]
+        summary.remaining_project_id = next(
+            (a.project_id for a in team_assignments if a.share_remaining), None
+        )
         summary.member_loads = member_loads(team_members, team_assignments, scopes, today)
     return summaries
 
@@ -119,6 +123,7 @@ def _response(team: Team, summary: _Summary) -> TeamResponse:
             "project_share_days": {
                 project_id: days for project_id, _, days in summary.assignments if days is not None
             },
+            "remaining_project_id": summary.remaining_project_id,
             "member_loads": summary.member_loads,
         }
     )
