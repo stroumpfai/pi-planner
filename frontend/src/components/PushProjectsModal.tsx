@@ -152,7 +152,7 @@ export function PushProjectsModal({ open, teamId, teamName, assignments, onClose
                           checked={!excluded.includes(row.project_id)}
                           onChange={() => toggle(row.project_id)}
                         />
-                        {row.project_name} ({formatShare(row.share_pct, row.share_days)})
+                        {row.project_name} ({formatShare(row.share_pct, row.share_days, row.remaining)})
                       </label>
                     ))}
                   </fieldset>

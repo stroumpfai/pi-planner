@@ -1,29 +1,32 @@
 import { useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { MemberScopeField } from '@/components/MemberScopeField'
-import { ShareField } from '@/components/ShareField'
+import { ResourceAllocationField } from '@/components/ResourceAllocationField'
+import { useTeamMembers } from '@/hooks/useTeamMembers'
 import { useUpdateAssignment } from '@/hooks/useTeamProjects'
+import { useTeams } from '@/hooks/useTeams'
 import { useProjectVelocity } from '@/hooks/useTeamAchievement'
+import { errorDetail } from '@/services/api'
 import { assignmentErrorCode } from '@/services/teamProjects'
-import type { MemberShare, TeamAssignment } from '@/types'
-import { shareFields, type ShareUnit } from '@/utils/shares'
+import type { TeamAssignment } from '@/types'
+import {
+  allocationFields,
+  allocationOf,
+  remainingOption,
+  type Allocation,
+} from '@/utils/allocation'
 
 interface Props {
   readonly open: boolean
   readonly teamId: string
   readonly assignment: TeamAssignment
+  /** Every project the team serves, for what the remaining capacity would take. */
+  readonly assigned: readonly TeamAssignment[]
   readonly onClose: () => void
 }
 
 /** How many closed sprints the suggestion measures, and the range it may be set to (§6.3). */
 const DEFAULT_SPRINTS = 3
 const SPRINT_CHOICES = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] as const
-
-/** Member shares in a comparable shape: by member, nulls dropped. */
-const normalise = (shares: readonly MemberShare[]) =>
-  [...shares]
-    .sort((a, b) => a.member_id.localeCompare(b.member_id))
-    .map((s) => [s.member_id, s.share_pct ?? null, s.share_days ?? null])
 
 /** Two decimals, without trailing noise: 1.4166… → "1.42", 2 → "2". */
 const roundFactor = (value: number) => String(Math.round(value * 100) / 100)
@@ -32,14 +35,12 @@ const CHANGED_MESSAGE =
   'This assignment changed while you had it open — the list has been refreshed. Check the current values and try again.'
 
 /** Change a project's share, its conversion, or where its Available comes from (§6.3, §6.4). */
-export function EditAssignmentModal({ open, teamId, assignment, onClose }: Props) {
+export function EditAssignmentModal({ open, teamId, assignment, assigned, onClose }: Props) {
   const update = useUpdateAssignment(teamId)
+  const { data: teams } = useTeams()
+  const { data: members } = useTeamMembers(teamId)
 
-  const [shareUnit, setShareUnit] = useState<ShareUnit>(assignment.share_days != null ? 'days' : 'pct')
-  const [shareValue, setShareValue] = useState(String(assignment.share_days ?? assignment.share_pct))
-  const [memberShares, setMemberShares] = useState<MemberShare[]>(assignment.member_shares ?? [])
-  const [allMembers, setAllMembers] = useState<boolean>(assignment.all_members ?? true)
-  const [memberIds, setMemberIds] = useState<string[]>(assignment.member_ids ?? [])
+  const [allocation, setAllocation] = useState<Allocation>(() => allocationOf(assignment))
   const [source, setSource] = useState<'manual' | 'factor'>(
     assignment.available_source === 'factor' ? 'factor' : 'manual',
   )
@@ -57,37 +58,42 @@ export function EditAssignmentModal({ open, teamId, assignment, onClose }: Props
   const measured = velocity.data
   const usedSprints = measured?.sprints.length ?? 0
 
-  const initialIds = assignment.member_ids ?? []
-  const scopeChanged =
-    allMembers !== (assignment.all_members ?? true) ||
-    (!allMembers &&
-      (memberIds.length !== initialIds.length || memberIds.some((id, i) => id !== initialIds[i])))
-  const sharesChanged =
-    JSON.stringify(normalise(memberShares)) !== JSON.stringify(normalise(assignment.member_shares ?? []))
+  const loads = teams?.find((t) => t.system_id === teamId)?.member_loads ?? []
+  const remaining = remainingOption(assigned, loads, assignment.project_id)
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
     setError(null)
+    const order = (members ?? []).map((m) => m.system_id)
+    const nameOf = (id: string) => members?.find((m) => m.system_id === id)?.name ?? 'a member'
+    const allocated = allocationFields(allocation, order, nameOf)
+    if (!allocated.ok) {
+      setError(allocated.error)
+      return
+    }
+    // The allocation only when it moved, so a conversion edit stays one.
+    const initial = allocationFields(allocationOf(assignment), order, nameOf)
+    const moved = !initial.ok || JSON.stringify(initial.fields) !== JSON.stringify(allocated.fields)
     try {
       await update.mutateAsync({
         projectId: assignment.project_id,
         // The tag of the row this form was opened on, not a fresh one (§4.2).
         etag: assignment.etag ?? '',
         body: {
-          ...shareFields(shareUnit, shareValue),
+          ...(moved ? allocated.fields : {}),
           available_source: source,
           units_per_pd: Number(unitsPerPd),
-          // The scope only when it moved, so a share edit stays a share edit.
-          ...(scopeChanged ? { all_members: allMembers, member_ids: allMembers ? [] : memberIds } : {}),
-          ...(sharesChanged ? { member_shares: memberShares } : {}),
         },
       })
       onClose()
     } catch (err) {
+      const code = assignmentErrorCode(err)
       setError(
-        assignmentErrorCode(err) === 'STALE'
+        code === 'STALE'
           ? CHANGED_MESSAGE
-          : 'Could not save the assignment — please try again.',
+          : code === 'REMAINING_TAKEN'
+            ? (errorDetail(err)?.message ?? 'Another project already takes the remaining capacity.')
+            : 'Could not save the assignment — please try again.',
       )
     }
   }
@@ -105,21 +111,11 @@ export function EditAssignmentModal({ open, teamId, assignment, onClose }: Props
           </Dialog.Title>
 
           <form onSubmit={onSubmit} className="mt-4 space-y-4">
-            <MemberScopeField
+            <ResourceAllocationField
               teamId={teamId}
-              allMembers={allMembers}
-              memberIds={memberIds}
-              onChange={(all, ids) => { setAllMembers(all); setMemberIds(ids) }}
-              memberShares={memberShares}
-              onSharesChange={setMemberShares}
-            />
-
-            <ShareField
-              id="edit-share"
-              label={allMembers ? 'Share of the team' : 'Share of these members'}
-              unit={shareUnit}
-              value={shareValue}
-              onChange={(unit, value) => { setShareUnit(unit); setShareValue(value) }}
+              value={allocation}
+              onChange={setAllocation}
+              remaining={remaining}
             />
 
             <fieldset>

@@ -298,7 +298,9 @@ function ProjectBlock({ project, sprints, indices, expanded, onToggle }: Project
         >
           {project.name}
           <span className="ml-3 text-xs font-normal text-gray-500 dark:text-gray-400">
-            share {formatShare(project.share_pct, project.share_days)}
+            {project.remaining
+              ? 'remaining capacity'
+              : `share ${formatShare(project.share_pct, project.share_days)}`}
             {!project.in_pd_total && ' · manual, not in the PD total'}
           </span>
         </th>

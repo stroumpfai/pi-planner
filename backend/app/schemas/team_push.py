@@ -63,6 +63,8 @@ class PushPreview(BaseModel):
     team_name: str
     share_pct: int
     share_days: float | None = None
+    # The team's remaining capacity, not a share (§6.3.4).
+    remaining: bool = False
     # Whose capacity the proposal is built from; ``member_names`` lists them, in
     # display order, when ``all_members`` is off (§6.3, ADR 0009).
     all_members: bool = True
@@ -113,6 +115,8 @@ class ProjectPushStatus(BaseModel):
     team_name: str
     share_pct: int
     share_days: float | None = None
+    # The team's remaining capacity, not a share (§6.3.4).
+    remaining: bool = False
     available_source: str
     stale_sprints: int
     # Null means never pushed, which is a different state from in sync and is

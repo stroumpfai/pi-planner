@@ -8,6 +8,19 @@ import { achievementApi } from '@/services/achievement'
 import type { ProjectVelocity, TeamAssignment } from '@/types'
 
 vi.mock('@/hooks/useTeamProjects')
+vi.mock('@/hooks/useTeams', () => ({
+  useTeams: () => ({
+    data: [
+      {
+        system_id: 't-1',
+        member_loads: [
+          { member_id: 'm-1', name: 'Anna', share_pct: 0, days_per_week: 0, contracted_days: 5, remaining_days: 5 },
+          { member_id: 'm-2', name: 'Bruno', share_pct: 0, days_per_week: 0, contracted_days: 5, remaining_days: 5 },
+        ],
+      },
+    ],
+  }),
+}))
 vi.mock('@/hooks/useTeamMembers', () => ({
   useTeamMembers: () => ({
     data: [
@@ -63,7 +76,14 @@ const measured = (overrides: Partial<ProjectVelocity> = {}): ProjectVelocity => 
 
 const renderModal = (props: Partial<React.ComponentProps<typeof EditAssignmentModal>> = {}) =>
   render(
-    <EditAssignmentModal open teamId="t-1" assignment={assignment} onClose={onClose} {...props} />,
+    <EditAssignmentModal
+      open
+      teamId="t-1"
+      assignment={assignment}
+      assigned={[assignment]}
+      onClose={onClose}
+      {...props}
+    />,
     { wrapper: makeWrapper() },
   )
 
@@ -89,7 +109,7 @@ describe('EditAssignmentModal', () => {
     expect(factorInput()).toHaveValue(1.5)
   })
 
-  it('leaves the scope out of a save that did not change it', async () => {
+  it('sends the whole allocation when the share changes', async () => {
     mutateAsync.mockResolvedValue({})
     renderModal()
 
@@ -98,16 +118,16 @@ describe('EditAssignmentModal', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled())
-    const { body } = mutateAsync.mock.calls[0][0]
-    expect(body).not.toHaveProperty('all_members')
-    expect(body).not.toHaveProperty('member_ids')
+    expect(mutateAsync.mock.calls[0][0].body).toMatchObject({
+      share_pct: 50, all_members: true, member_ids: [], member_shares: [],
+    })
   })
 
   it('sends the new scope when members are ticked', async () => {
     mutateAsync.mockResolvedValue({})
     renderModal()
 
-    await userEvent.click(screen.getByRole('radio', { name: 'Only these members' }))
+    await userEvent.click(screen.getByRole('radio', { name: 'Specific members' }))
     await userEvent.click(screen.getByRole('checkbox', { name: 'Bruno' }))
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
@@ -115,7 +135,63 @@ describe('EditAssignmentModal', () => {
     expect(mutateAsync.mock.calls[0][0].body).toMatchObject({
       all_members: false,
       member_ids: ['m-2'],
+      share_pct: 100,
     })
+  })
+
+  it('opens a scoped assignment with each member’s effective share in their field', async () => {
+    renderModal({
+      assignment: {
+        ...assignment,
+        all_members: false,
+        member_ids: ['m-1', 'm-2'],
+        member_shares: [{ member_id: 'm-2', share_pct: null, share_days: 2 }],
+      } as TeamAssignment,
+    })
+
+    expect(screen.getByRole('radio', { name: 'Specific members' })).toBeChecked()
+    expect(screen.getByLabelText("Anna's share")).toHaveValue(60)
+    expect(screen.getByLabelText("Bruno's share")).toHaveValue(2)
+    expect(screen.getByRole('combobox', { name: "Bruno's share unit" })).toHaveValue('days')
+    expect(screen.queryByLabelText('Share of the team')).not.toBeInTheDocument()
+  })
+
+  it('sends no allocation when a scoped one is saved unchanged', async () => {
+    renderModal({
+      assignment: { ...assignment, all_members: false, member_ids: ['m-1', 'm-2'] } as TeamAssignment,
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled())
+    expect(mutateAsync.mock.calls[0][0].body).toEqual({ available_source: 'factor', units_per_pd: 1.5 })
+  })
+
+  it('opens the remaining project on Remaining capacity, and can give it a share again', async () => {
+    const rest = { ...assignment, remaining: true } as TeamAssignment
+    renderModal({ assignment: rest, assigned: [rest] })
+
+    expect(screen.getByRole('radio', { name: 'Remaining capacity' })).toBeChecked()
+    expect(screen.getByRole('radio', { name: 'Remaining capacity' })).toBeEnabled()
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Whole team' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled())
+    expect(mutateAsync.mock.calls[0][0].body).toMatchObject({ share_pct: 100, all_members: true })
+  })
+
+  it('does not count the edited project’s own share against what is left', async () => {
+    // This project books everyone fully; counted against itself, nothing would be left.
+    const everyone = { ...assignment, share_pct: 100, all_members: true } as TeamAssignment
+    renderModal({ assignment: everyone, assigned: [everyone] })
+
+    await userEvent.click(screen.getByRole('radio', { name: 'Remaining capacity' }))
+    expect(screen.getByRole('status')).toHaveTextContent(/Today this is the whole team/)
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalled())
+    expect(mutateAsync.mock.calls[0][0].body).toMatchObject({ remaining: true })
   })
 
   it('opens a share entered in days in days, with each member share in place', async () => {
@@ -139,10 +215,9 @@ describe('EditAssignmentModal', () => {
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled())
     const { body } = mutateAsync.mock.calls[0][0]
     expect(body).toMatchObject({ share_days: 2, member_shares: [] })
-    expect(body).not.toHaveProperty('all_members')
   })
 
-    it('saves the typed factor', async () => {
+  it('saves the typed factor', async () => {
     renderModal()
     await screen.findByRole('group', { name: /measured velocity/i })
     await userEvent.clear(factorInput())
@@ -153,7 +228,7 @@ describe('EditAssignmentModal', () => {
     expect(mutateAsync).toHaveBeenCalledWith({
       projectId: 'p-1',
       etag: 'etag-1',
-      body: { share_pct: 60, available_source: 'factor', units_per_pd: 1.8 },
+      body: { available_source: 'factor', units_per_pd: 1.8 },
     })
     expect(onClose).toHaveBeenCalled()
   })
@@ -196,7 +271,7 @@ describe('EditAssignmentModal', () => {
       expect(mutateAsync).toHaveBeenCalledWith({
         projectId: 'p-1',
         etag: 'etag-1',
-        body: { share_pct: 60, available_source: 'factor', units_per_pd: 1.42 },
+        body: { available_source: 'factor', units_per_pd: 1.42 },
       })
     })
 

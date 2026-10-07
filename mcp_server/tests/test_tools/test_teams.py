@@ -996,6 +996,29 @@ async def test_update_assignment_can_clear_every_member_share(
     assert _last_call_body(mock_backend, "PATCH") == {"member_shares": []}
 
 
+async def test_assign_project_can_take_the_remaining_capacity(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    mock_backend.post(f"/api/v1/teams/{TEAM_ID}/projects").mock(
+        return_value=httpx.Response(201, json=ASSIGNMENT)
+    )
+    await assign_project(team_id=TEAM_ID, project_id=PROJECT_ID, remaining=True, ctx=mock_ctx)
+    assert _last_call_body(mock_backend, "POST") == {"project_id": PROJECT_ID, "remaining": True}
+
+
+async def test_update_assignment_can_end_the_remaining_capacity(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    mock_backend.get(f"/api/v1/teams/{TEAM_ID}/projects").mock(
+        return_value=httpx.Response(200, json=[ASSIGNMENT])
+    )
+    mock_backend.patch(f"/api/v1/teams/{TEAM_ID}/projects/{PROJECT_ID}").mock(
+        return_value=httpx.Response(200, json=ASSIGNMENT)
+    )
+    await update_assignment(team_id=TEAM_ID, project_id=PROJECT_ID, remaining=False, ctx=mock_ctx)
+    assert _last_call_body(mock_backend, "PATCH") == {"remaining": False}
+
+
 async def test_update_assignment_rejects_a_project_the_team_does_not_serve(
     mock_backend, mock_ctx, patch_get_http_request
 ):

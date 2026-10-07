@@ -303,8 +303,9 @@ async def list_teams(ctx: Context) -> dict:
     project_ids (the projects this team serves), project_shares, member_loads
     (each counting member's summed share across the projects that count them —
     over 100 means that person is over-allocated; also in days_per_week against
-    contracted_days), project_share_days for shares entered in days, and
-    timestamps.
+    contracted_days, with remaining_days = what the member's fixed shares leave),
+    project_share_days for shares entered in days, remaining_project_id (the
+    project taking whatever the others leave, if any), and timestamps.
     Teams are not planning items: there is no user-facing id beside system_id.
     """
     return await call_backend("GET", "/api/v1/teams")
@@ -505,7 +506,9 @@ async def get_team_capacity(
     whose system_id is in its member_ids (match them against the member rows): its
     PD is theirs × the share, not the team's. A share is share_pct, or share_days
     (days a week of each member's own contract) when set; member_shares lists
-    members with a share of their own. Reading this changes nothing:
+    members with a share of their own. A row with remaining=true takes what the
+    team's other projects leave of each member, and its share is not read.
+    Reading this changes nothing:
     capacity reaches a project only through an explicit push.
     """
     params = {}
@@ -581,6 +584,7 @@ async def preview_team_capacity(
         "effort_unit": preview["effort_unit"],
         "share_pct": preview["share_pct"],
         "share_days": preview.get("share_days"),
+        "remaining": preview.get("remaining", False),
         "all_members": preview.get("all_members", True),
         "member_names": preview.get("member_names", []),
         "available_source": preview["available_source"],

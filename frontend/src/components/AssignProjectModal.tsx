@@ -1,13 +1,19 @@
 import { useMemo, useState } from 'react'
 import * as Dialog from '@radix-ui/react-dialog'
-import { MemberScopeField } from '@/components/MemberScopeField'
-import { ShareField } from '@/components/ShareField'
+import { ResourceAllocationField } from '@/components/ResourceAllocationField'
 import { useProjects } from '@/hooks/useProjects'
+import { useTeamMembers } from '@/hooks/useTeamMembers'
 import { useAssignProject } from '@/hooks/useTeamProjects'
+import { useTeams } from '@/hooks/useTeams'
 import { assignmentErrorCode, sprintConflicts, type SprintConflict } from '@/services/teamProjects'
 import { errorDetail } from '@/services/api'
-import type { MemberShare, TeamAssignment } from '@/types'
-import { shareFields, type ShareUnit } from '@/utils/shares'
+import type { TeamAssignment } from '@/types'
+import {
+  NEW_ALLOCATION,
+  allocationFields,
+  remainingOption,
+  type Allocation,
+} from '@/utils/allocation'
 
 interface Props {
   readonly open: boolean
@@ -32,14 +38,12 @@ interface Props {
  */
 export function AssignProjectModal({ open, teamId, assigned, onClose }: Props) {
   const { data: projects } = useProjects()
+  const { data: teams } = useTeams()
+  const { data: members } = useTeamMembers(teamId)
   const assign = useAssignProject(teamId)
 
   const [projectId, setProjectId] = useState('')
-  const [shareUnit, setShareUnit] = useState<ShareUnit>('pct')
-  const [shareValue, setShareValue] = useState('100')
-  const [memberShares, setMemberShares] = useState<MemberShare[]>([])
-  const [allMembers, setAllMembers] = useState<boolean>(true)
-  const [memberIds, setMemberIds] = useState<string[]>([])
+  const [allocation, setAllocation] = useState<Allocation>(NEW_ALLOCATION)
   const [source, setSource] = useState<'manual' | 'factor'>('manual')
   const [unitsPerPd, setUnitsPerPd] = useState('1')
   const [error, setError] = useState<string | null>(null)
@@ -54,14 +58,12 @@ export function AssignProjectModal({ open, teamId, assigned, onClose }: Props) {
   }, [projects, assigned])
 
   const isFirst = assigned.length === 0
+  const loads = teams?.find((t) => t.system_id === teamId)?.member_loads ?? []
+  const remaining = remainingOption(assigned, loads)
 
   const close = () => {
     setProjectId('')
-    setShareUnit('pct')
-    setShareValue('100')
-    setMemberShares([])
-    setAllMembers(true)
-    setMemberIds([])
+    setAllocation(NEW_ALLOCATION)
     setSource('manual')
     setUnitsPerPd('1')
     setError(null)
@@ -77,15 +79,18 @@ export function AssignProjectModal({ open, teamId, assigned, onClose }: Props) {
       setError('Choose a project to assign.')
       return
     }
+    const nameOf = (id: string) => members?.find((m) => m.system_id === id)?.name ?? 'a member'
+    const allocated = allocationFields(allocation, (members ?? []).map((m) => m.system_id), nameOf)
+    if (!allocated.ok) {
+      setError(allocated.error)
+      return
+    }
     try {
       await assign.mutateAsync({
         project_id: projectId,
-        ...shareFields(shareUnit, shareValue),
+        ...allocated.fields,
         available_source: source,
         units_per_pd: Number(unitsPerPd),
-        all_members: allMembers,
-        member_ids: allMembers ? [] : memberIds,
-        member_shares: memberShares,
       })
       close()
     } catch (err) {
@@ -93,6 +98,7 @@ export function AssignProjectModal({ open, teamId, assigned, onClose }: Props) {
       if (
         code === 'PROJECT_ALREADY_ASSIGNED' ||
         code === 'PROJECT_LIMIT_REACHED' ||
+        code === 'REMAINING_TAKEN' ||
         code === 'SPRINT_DATES_MISALIGNED'
       ) {
         setError(errorDetail(err)?.message ?? 'That project cannot be assigned.')
@@ -141,21 +147,11 @@ export function AssignProjectModal({ open, teamId, assigned, onClose }: Props) {
               )}
             </div>
 
-            <MemberScopeField
+            <ResourceAllocationField
               teamId={teamId}
-              allMembers={allMembers}
-              memberIds={memberIds}
-              onChange={(all, ids) => { setAllMembers(all); setMemberIds(ids) }}
-              memberShares={memberShares}
-              onSharesChange={setMemberShares}
-            />
-
-            <ShareField
-              id="assign-share"
-              label={allMembers ? 'Share of the team' : 'Share of these members'}
-              unit={shareUnit}
-              value={shareValue}
-              onChange={(unit, value) => { setShareUnit(unit); setShareValue(value) }}
+              value={allocation}
+              onChange={setAllocation}
+              remaining={remaining}
             />
 
             <fieldset>

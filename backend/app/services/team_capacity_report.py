@@ -329,6 +329,7 @@ async def build_report(
                 effort_unit=project.effort_unit,
                 share_pct=assignment.share_pct,
                 share_days=assignment.share_days,
+                remaining=assignment.share_remaining,
                 available_source=assignment.available_source,
                 units_per_pd=assignment.units_per_pd,
                 all_members=scope.all_members,

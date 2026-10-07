@@ -34,6 +34,10 @@ class MemberLoad(BaseModel):
     # The same load in days a week, and the days the current contract owes.
     days_per_week: float
     contracted_days: float
+    # What the member's projects leave of their current contract, in days a week,
+    # not counting the team's remaining project — the part such a project takes
+    # or would take (§6.3.4). Never below 0.
+    remaining_days: float = 0.0
 
 
 class TeamResponse(BaseModel):
@@ -60,6 +64,9 @@ class TeamResponse(BaseModel):
     # For projects whose share is entered in days a week, that figure — it wins
     # over the percentage above (§6.3.2).
     project_share_days: dict[str, float] = {}
+    # The project taking the team's remaining capacity, if any: its share above
+    # is not read (§6.3.4, ADR 0012).
+    remaining_project_id: str | None = None
     # Σ share_pct over the projects each counting member's capacity reaches —
     # what "over-allocated" means once an assignment can count only some members
     # (§6.3, ADR 0009). Current members who count towards capacity, in display order.
@@ -360,11 +367,21 @@ class TeamProjectCreate(BaseModel):
     # Members with a share of their own (ADR 0010). On a scoped assignment they
     # are counted whether or not member_ids lists them.
     member_shares: list[MemberShare] = Field(default_factory=list, max_length=MAX_MEMBERS_PER_TEAM)
+    # Take whatever the team's other projects leave of each member (§6.3.4,
+    # ADR 0012). The whole team, so no share, member list or member shares with it.
+    remaining: bool = False
 
     @model_validator(mode="after")
     def _one_unit(self) -> "TeamProjectCreate":
         if self.share_days is not None and "share_pct" in self.model_fields_set:
             raise ValueError("Give the share as a percentage or as days a week, not both")
+        if self.remaining and (
+            {"share_pct", "share_days", "member_ids", "member_shares"} & self.model_fields_set
+            or not self.all_members
+        ):
+            raise ValueError(
+                "The remaining capacity is the whole team's: give no share or members with it"
+            )
         return self
 
 
@@ -380,11 +397,24 @@ class TeamProjectUpdate(BaseModel):
     member_ids: list[str] | None = Field(None, max_length=MAX_MEMBERS_PER_TEAM)
     # Replaces every member's own share when given; [] clears them all.
     member_shares: list[MemberShare] | None = Field(None, max_length=MAX_MEMBERS_PER_TEAM)
+    # true: take the remaining capacity (§6.3.4). false, or any share or scope
+    # given, turns it off again; the assignment then counts as stored.
+    remaining: bool | None = None
 
     @model_validator(mode="after")
     def _one_unit(self) -> "TeamProjectUpdate":
         if self.share_pct is not None and self.share_days is not None:
             raise ValueError("Give the share as a percentage or as days a week, not both")
+        if self.remaining and (
+            self.share_pct is not None
+            or self.share_days is not None
+            or self.member_ids is not None
+            or self.member_shares is not None
+            or self.all_members is False
+        ):
+            raise ValueError(
+                "The remaining capacity is the whole team's: give no share or members with it"
+            )
         return self
 
 
@@ -408,6 +438,9 @@ class TeamProjectResponse(BaseModel):
     member_ids: list[str] = []
     # Members with a share of their own, in display order (ADR 0010).
     member_shares: list[MemberShare] = []
+    # Takes what the team's other projects leave of each member; share_pct and
+    # share_days are then not read (§6.3.4).
+    remaining: bool = False
     # The earliest assignment is the team's anchor: its sprint calendar is the one
     # the team's own views count in (§6.8).
     is_anchor: bool = False

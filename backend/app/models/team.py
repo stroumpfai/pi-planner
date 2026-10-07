@@ -373,6 +373,12 @@ class TeamProject(Base):
     all_members: Mapped[bool] = mapped_column(
         Boolean, nullable=False, server_default=text("1"), default=True
     )
+    # This project takes whatever each member's other assignments leave of them
+    # (§6.3.4, ADR 0012). Always the whole team, with no member rows; share_pct
+    # and share_days are not read. At most one per team: the partial index below.
+    share_remaining: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, server_default=text("0"), default=False
+    )
     created_at: Mapped[datetime] = mapped_column(default=_utcnow)
     modified_at: Mapped[datetime] = mapped_column(default=_utcnow, onupdate=_utcnow)
 
@@ -382,6 +388,10 @@ class TeamProject(Base):
     __table_args__ = (
         Index("idx_team_projects_team", "team_id"),
         Index("uq_team_projects_project", "project_id", unique=True),
+        Index(
+            "uq_team_projects_one_remaining", "team_id",
+            unique=True, sqlite_where=text("share_remaining = 1"),
+        ),
     )
 
 

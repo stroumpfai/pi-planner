@@ -97,6 +97,8 @@ class ProjectCapacityRow(BaseModel):
     share_pct: int
     # The share in days a week, when it was entered that way (§6.3.2).
     share_days: float | None = None
+    # The team's remaining capacity, not a share (§6.3.4).
+    remaining: bool = False
     available_source: str
     units_per_pd: float
     # Whose capacity reaches this project: everyone, or only ``member_ids``

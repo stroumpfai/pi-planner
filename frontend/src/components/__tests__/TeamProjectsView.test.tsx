@@ -191,7 +191,27 @@ describe('TeamProjectsView', () => {
     expect(await screen.findByText('counts whole team · Anna 2 d/wk')).toBeInTheDocument()
   })
 
-    it('assigns a project, and says the first one sets the calendar', async () => {
+  it('shows the remaining project as what the others leave, with today’s total', async () => {
+    respondWith(
+      [
+        assignment({ all_members: false, member_ids: ['m-1'], share_pct: 100 }),
+        assignment({ system_id: 'a-2', project_id: 'p-2', project_name: 'Search', remaining: true, is_anchor: false }),
+      ],
+      [],
+      [],
+      [
+        { member_id: 'm-1', name: 'Anna', share_pct: 100, days_per_week: 5, contracted_days: 5, remaining_days: 0 },
+        { member_id: 'm-2', name: 'Bruno', share_pct: 100, days_per_week: 5, contracted_days: 5, remaining_days: 5 },
+      ],
+    )
+    render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })
+
+    expect(await screen.findByText('remaining')).toBeInTheDocument()
+    const line = await screen.findByText('what the other projects leave · ≈ 5 d/wk today')
+    expect(line).toHaveAttribute('title', 'Bruno 5 of 5 d/wk')
+  })
+
+  it('assigns a project, and says the first one sets the calendar', async () => {
     respondWith([], [project('p-1', 'ISK Portal'), project('p-2', 'Data Exchange')])
     mockApi.post.mockResolvedValue({ data: assignment(), headers: {} })
     render(<TeamProjectsView teamId="t-1" teamName="Platform" />, { wrapper: wrapper() })

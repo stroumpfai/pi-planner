@@ -267,7 +267,11 @@ function ServedProjects({ team, nameOf }: ServedProjectsProps) {
         <p key={projectId} className="truncate text-gray-600 dark:text-gray-300">
           {nameOf(projectId)}{' '}
           <span className="text-gray-400 dark:text-gray-500">
-            {formatShare(shares[projectId], team.project_share_days?.[projectId])}
+            {formatShare(
+              shares[projectId],
+              team.project_share_days?.[projectId],
+              team.remaining_project_id === projectId,
+            )}
           </span>
         </p>
       ))}
@@ -431,6 +435,7 @@ export function ProjectListPage() {
                                 {formatShare(
                                   team.project_shares?.[project.system_id],
                                   team.project_share_days?.[project.system_id],
+                                  team.remaining_project_id === project.system_id,
                                 )}
                               </span>
                             </p>

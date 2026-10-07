@@ -617,6 +617,13 @@ _SHARE_DAYS = (
     "this many of their own contracted days — 2 is 40% of a full-timer and 50% of a "
     "4-day contract. Half-day steps, at most 7. Not together with share_pct."
 )
+_REMAINING = (
+    "true: this project takes the team's remaining capacity — from every member, "
+    "whatever their other projects leave (a member booked 2 of 5 days elsewhere "
+    "gives 3). It follows the other projects as they change. One project per team; "
+    "a second is refused with REMAINING_TAKEN naming the first. Not together with "
+    "share_pct, share_days, member_names or member_shares."
+)
 _MEMBER_SHARES = (
     "Members whose share of this project differs from the assignment's, e.g. "
     "[{\"name\": \"Anna\", \"share_days\": 2}, {\"name\": \"Bruno\", \"share_pct\": 40}]. "
@@ -712,6 +719,7 @@ async def assign_project(
     member_shares: Annotated[
         list[MemberShareInput] | None, Field(default=None, max_length=50, description=_MEMBER_SHARES)
     ] = None,
+    remaining: Annotated[bool | None, Field(default=None, description=_REMAINING)] = None,
 ) -> dict:
     """
     Assign a team to a project.
@@ -739,6 +747,10 @@ async def assign_project(
     on X". Days are a fraction of that member's own contract, and absences reduce
     them in proportion, like any share.
 
+    remaining=true makes this the team's catch-all: it gets whatever each
+    member's other projects leave, and follows them as they change. A team has
+    one such project.
+
     available_source defaults to 'manual', which changes nothing about the
     project: Available stays whatever a human typed. 'factor' makes it derivable,
     but still writes nothing until someone pushes.
@@ -761,6 +773,8 @@ async def assign_project(
         body["member_ids"] = [await resolve_member_id(team_id, name) for name in member_names]
     if member_shares:
         body["member_shares"] = await _member_shares_body(team_id, member_shares)
+    if remaining:
+        body["remaining"] = True
     return await call_backend("POST", f"/api/v1/teams/{team_id}/projects", json=body)
 
 
@@ -794,6 +808,15 @@ async def update_assignment(
             description=_MEMBER_SHARES + " Replaces every member's own share; [] clears them.",
         ),
     ] = None,
+    remaining: Annotated[
+        bool | None,
+        Field(
+            default=None,
+            description=_REMAINING
+            + " false ends it, as does giving a share or members; the project then"
+            " counts the whole team at its stored share_pct.",
+        ),
+    ] = None,
 ) -> dict:
     """
     Change a project's share, conversion factor, how its Available is produced,
@@ -809,6 +832,8 @@ async def update_assignment(
     share_pct and share_days replace each other: setting one clears the other.
     member_shares replaces every member's own share and leaves who is counted
     alone; leave it out to keep them.
+    remaining=true makes it the team's catch-all project (see assign_project) and
+    drops any member list; a share or member_names ends that again.
 
     Concurrency works as in update_team: the assignment is read and written inside
     one call, quoting the ETag from that read, and a STALE failure is retried once
@@ -838,6 +863,8 @@ async def update_assignment(
         body["share_days"] = share_days
     if member_shares is not None:
         body["member_shares"] = await _member_shares_body(team_id, member_shares)
+    if remaining is not None:
+        body["remaining"] = remaining
 
     async def attempt() -> dict:
         assignment = await _assignment_of(team_id, project_id)
