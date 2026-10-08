@@ -35,7 +35,7 @@ testpaths = ["tests"]
 # new one (a deprecation from a dependency bump, an un-awaited coroutine)
 # fails here instead of scrolling past in the output.
 filterwarnings = ["error"]
-addopts = "--cov=mcp_server --cov-fail-under=80 --cov-report=term-missing"
+addopts = "--cov=mcp_server --cov-fail-under=95 --cov-report=term-missing"
 
 [tool.coverage.run]
 branch = true

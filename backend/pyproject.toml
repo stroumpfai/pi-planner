@@ -48,7 +48,7 @@ testpaths = ["tests"]
 # new one (a deprecation from a dependency bump, an un-awaited coroutine)
 # fails here instead of scrolling past in the output.
 filterwarnings = ["error"]
-addopts = "--cov=app --cov-fail-under=75"
+addopts = "--cov=app --cov-fail-under=93"
 
 [tool.coverage.run]
 core = "sysmon"

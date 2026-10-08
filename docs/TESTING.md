@@ -60,13 +60,23 @@ that a local venv papers over, and it still fires when someone uses `--no-verify
 
 | Layer | Location | Runner | Gate |
 |---|---|---|---|
-| Backend | `backend/tests/{unit,integration}` | `cd backend && pytest tests/` | 75% |
-| MCP server | `mcp_server/tests/` | `cd mcp_server && pytest tests/` | 80% |
-| Frontend unit | `frontend/src/**/__tests__/` | `npm run test` | 70% stmts / 65% branch |
+| Backend | `backend/tests/{unit,integration}` | `cd backend && pytest tests/` | 93% lines |
+| MCP server | `mcp_server/tests/` | `cd mcp_server && pytest tests/` | 95% lines + branches |
+| Frontend unit | `frontend/src/**/__tests__/` | `npm run test` | 94% stmts / 85% branch / 80% functions |
 | End-to-end | `frontend/cypress/e2e/` | `npm run e2e` | journeys, not % |
 
 Each gate is enforced by the runner itself, so a suite fails on its own if coverage
-regresses. They are floors, not targets — the actual numbers sit well above them.
+regresses. They are floors, not targets, set a few points under the actual figures
+so a real regression trips them: raise them as coverage rises, and never lower one
+to let a change through. (Until October 2026 they sat 20–30 points under, and the
+frontend's was never enforced at all — `check.sh` ran Vitest without `--coverage`.)
+
+A total in the high 90s can still hide one file at 50%, which is how the MCP
+activity log and most of the OAuth provider's rejection paths went untested. So
+the code that guards access also has **per-file floors**:
+`scripts/coverage-floors.py` for the two Python suites (run by `check.sh` right
+after each pytest step, from the `.coverage` data it wrote) and the per-file globs
+in `frontend/vite.config.ts`.
 
 Alongside them, `npm run typecheck` type-checks **every spec as well as `src`**.
 `npm run build` only checks `tsconfig.app.json`, which excludes `__tests__`, so

@@ -30,7 +30,20 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      thresholds: { statements: 70, branches: 65, functions: 70, lines: 70 },
+      // Floors a few points under today's figures — raise them as coverage
+      // rises. The globs hold the code every request passes through (the api
+      // interceptor, auth state, the edit lock, the password policy) to its own
+      // floor, so a gap there can't hide inside the total.
+      thresholds: {
+        statements: 94,
+        branches: 85,
+        functions: 80,
+        lines: 94,
+        'src/services/api.ts': { statements: 95, branches: 90, functions: 95, lines: 95 },
+        'src/stores/authStore.ts': { statements: 95, branches: 80, functions: 95, lines: 95 },
+        'src/hooks/useEditLock.ts': { statements: 95, branches: 90, functions: 95, lines: 95 },
+        'src/utils/passwordPolicy.ts': { statements: 95, branches: 90, functions: 95, lines: 95 },
+      },
     },
   },
 })

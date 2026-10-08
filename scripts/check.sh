@@ -70,8 +70,10 @@ fi
 
 # ── test suites ──────────────────────────────────────────────────────────────
 step "pytest backend    " bash -c 'cd backend && "$0" -m pytest tests/ -q' "$BACKEND_PY"
+step "  per-file floors " bash -c 'cd backend && "$0" ../scripts/coverage-floors.py backend' "$BACKEND_PY"
 step "pytest mcp_server " bash -c 'cd mcp_server && "$0" -m pytest tests/ -q' "$MCP_PY"
-step "vitest            " bash -c 'cd frontend && npx vitest run --silent'
+step "  per-file floors " bash -c 'cd mcp_server && "$0" ../scripts/coverage-floors.py mcp_server' "$MCP_PY"
+step "vitest            " bash -c 'cd frontend && npx vitest run --silent --coverage --coverage.reporter=text-summary'
 
 if [[ $WITH_E2E -eq 1 ]]; then
   step "cypress e2e       " scripts/e2e.sh

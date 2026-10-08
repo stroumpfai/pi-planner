@@ -129,10 +129,12 @@ Backend and MCP figures are lines + branches; the frontend figure is statements
 (its branch figure is in the Vitest output). The backend's daily gate in
 \`check.sh\` measures lines only, for speed — see \`backend/coverage-branch.ini\`.
 
-Coverage gates are enforced by the runners themselves: 75% for the backend
-(\`backend/pyproject.toml\`), 80% for the MCP server, and 70% statements / 65%
-branches for the frontend (\`frontend/vite.config.ts\`). A suite fails if it drops
-below its gate.
+Coverage gates are enforced by the runners themselves: 93% for the backend
+(\`backend/pyproject.toml\`), 95% for the MCP server, and 94% statements / 85%
+branches / 80% functions for the frontend (\`frontend/vite.config.ts\`). The
+access-guarding files also have their own per-file floors
+(\`scripts/coverage-floors.py\`, and the globs in \`vite.config.ts\`). A suite fails
+if it drops below its gate.
 
 ## What each layer covers
 
