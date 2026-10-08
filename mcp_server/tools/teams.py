@@ -1408,7 +1408,24 @@ async def import_absence_ics(
 _MEETING_KIND = (
     "'range' (a block of consecutive days — a one-off is a one-day range, and each "
     "day of a longer block costs the full duration), 'weekly' (the same slot every "
-    "week — a stand-up) or 'interval' (every N weeks — a fortnightly retro)"
+    "week — a stand-up), 'interval' (every N weeks) or 'sprint' (a named working day "
+    "of every sprint in the team's anchor calendar — planning on the first day, review "
+    "and retro on the last; prefer it to 'interval' for sprint ceremonies, because it "
+    "follows sprints of any length)"
+)
+_SPRINT_DAY = (
+    "'sprint' only: 'first' or 'last' — which edge of every sprint the meeting sits on. "
+    "Days are working days (Mon–Fri), so a sprint ending on a Sunday ends on the Friday."
+)
+_SPRINT_OFFSET = (
+    "'sprint' only: working days in from sprint_day, 0–9. 0 is the edge itself; "
+    "sprint_day='last', sprint_offset=1 is the day before the last day."
+)
+_SKIP_SPRINT_DAYS = (
+    "'weekly' / 'interval' only: 'none', 'first', 'last' or 'both' — drop occurrences "
+    "that land on a sprint's first day, last day, or either ('refinement every "
+    "Thursday, except at the sprint change'). Skipped days cost nothing and are listed "
+    "in the meeting's `skipped`; they follow the sprint calendar when it moves."
 )
 _HALF = (
     "The half-day an occurrence STARTS in: 'am' or 'pm'. A meeting is not confined "
@@ -1441,6 +1458,9 @@ def _meeting_body(
     interval_weeks: int | None,
     half: str | None,
     duration_minutes: int | None,
+    sprint_day: str | None = None,
+    sprint_offset: int | None = None,
+    skip_sprint_days: str | None = None,
 ) -> dict:
     """The meeting fields as the API takes them, with nothing invented."""
     body: dict = {}
@@ -1453,6 +1473,9 @@ def _meeting_body(
         ("interval_weeks", interval_weeks),
         ("half", half),
         ("duration_minutes", duration_minutes),
+        ("sprint_day", sprint_day),
+        ("sprint_offset", sprint_offset),
+        ("skip_sprint_days", skip_sprint_days),
     ):
         if value is not None:
             body[name] = value
@@ -1503,6 +1526,13 @@ async def create_meeting(
         ),
     ] = None,
     half: Annotated[str, Field(default="am", description=_HALF)] = "am",
+    sprint_day: Annotated[str | None, Field(default=None, description=_SPRINT_DAY)] = None,
+    sprint_offset: Annotated[
+        int | None, Field(default=None, ge=0, le=9, description=_SPRINT_OFFSET)
+    ] = None,
+    skip_sprint_days: Annotated[
+        str | None, Field(default=None, description=_SKIP_SPRINT_DAYS)
+    ] = None,
     member_names: Annotated[list[str], Field(max_length=50, description=_ATTENDEES)] = [],
     all_members: Annotated[bool, Field(default=False, description=_ALL_MEMBERS)] = False,
 ) -> dict:
@@ -1521,6 +1551,11 @@ async def create_meeting(
     is absent costs nothing at all. Do not also raise focus to account for
     meetings, or the time is paid for twice.
 
+    Sprint ceremonies belong on kind='sprint', and a regular meeting that gives way
+    to them on sprint-change days takes skip_sprint_days — then the day is charged
+    once, for the ceremony, rather than for both. Both read the team's anchor
+    project's sprint dates; a team with no project has no sprint days yet.
+
     Unknown attendee names are rejected with the list of members who exist; no
     tool creates a person implicitly (use create_member).
     Takes no edit lock and writes no sprint — capacity reaches a project only
@@ -1529,7 +1564,8 @@ async def create_meeting(
     an off-by-one week is invisible in the fields and obvious in the sentence.
     """
     body = _meeting_body(
-        title, kind, start_date, end_date, weekday, interval_weeks, half, duration_minutes
+        title, kind, start_date, end_date, weekday, interval_weeks, half, duration_minutes,
+        sprint_day, sprint_offset, skip_sprint_days,
     )
     body["member_ids"] = await resolve_members(team_id, member_names, all_members)
     return await call_backend("POST", f"/api/v1/teams/{team_id}/meetings", json=body)
@@ -1554,6 +1590,13 @@ async def update_meeting(
     ] = None,
     half: Annotated[str | None, Field(default=None, description=_HALF)] = None,
     duration_minutes: Annotated[int | None, Field(default=None, ge=5, le=480, description=_DURATION)] = None,
+    sprint_day: Annotated[str | None, Field(default=None, description=_SPRINT_DAY)] = None,
+    sprint_offset: Annotated[
+        int | None, Field(default=None, ge=0, le=9, description=_SPRINT_OFFSET)
+    ] = None,
+    skip_sprint_days: Annotated[
+        str | None, Field(default=None, description=_SKIP_SPRINT_DAYS)
+    ] = None,
     member_names: Annotated[
         list[str] | None,
         Field(
@@ -1572,7 +1615,8 @@ async def update_meeting(
 
     There is no "just this occurrence": recurring entries have no exception list,
     by design. To end a recurrence early, set end_date; to move it, change the
-    rule and accept that every occurrence moves.
+    rule and accept that every occurrence moves. The one rule-level skip is
+    skip_sprint_days, which drops the occurrences on sprint-change days.
 
     Attendance is edited here rather than through a tool of its own, because it
     belongs to the meeting and shares its concurrency token. Omit both
@@ -1587,7 +1631,8 @@ async def update_meeting(
     Returns the updated meeting with its new summary.
     """
     body = _meeting_body(
-        title, kind, start_date, end_date, weekday, interval_weeks, half, duration_minutes
+        title, kind, start_date, end_date, weekday, interval_weeks, half, duration_minutes,
+        sprint_day, sprint_offset, skip_sprint_days,
     )
     if all_members or member_names is not None:
         body["member_ids"] = await resolve_members(team_id, member_names or [], all_members)
@@ -1649,7 +1694,9 @@ async def delete_meeting(
 _MEETING_ENTRIES = (
     "One object per meeting definition. Each takes title, kind, start_date, "
     "duration_minutes and half, plus whatever that kind needs: end_date for a "
-    "'range'; weekday for 'weekly'; weekday and interval_weeks for 'interval'. "
+    "'range'; weekday for 'weekly'; weekday and interval_weeks for 'interval'; "
+    "sprint_day ('first' | 'last') and optionally sprint_offset for 'sprint'. A "
+    "weekly or interval entry may add skip_sprint_days ('first' | 'last' | 'both'). "
     "Attendance is member_names (a list of names as list_members reports them) or "
     "all_members: true."
 )

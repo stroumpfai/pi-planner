@@ -100,6 +100,62 @@ describe('MeetingDialog', () => {
     expect(body.interval_weeks).toBeNull()
   })
 
+  it('lets a weekly meeting give way to the sprint change', async () => {
+    const user = userEvent.setup()
+    renderDialog()
+
+    await user.type(screen.getByLabelText(/name/i), 'Refinement')
+    await user.click(screen.getByRole('tab', { name: 'Weekly' }))
+    await user.selectOptions(screen.getByLabelText(/weekday/i), '3')
+    await user.type(screen.getByLabelText(/runs from/i), '01.09.2026')
+    await user.selectOptions(screen.getByLabelText(/except on/i), 'first')
+    await user.tab()
+
+    expect(screen.getByTestId('meeting-summary')).toHaveTextContent("except a sprint's first day")
+    await user.click(screen.getByRole('button', { name: /save/i }))
+
+    await waitFor(() => expect(mockApi.post).toHaveBeenCalled())
+    expect(lastPost()[1]).toMatchObject({ kind: 'weekly', weekday: 3, skip_sprint_days: 'first' })
+  })
+
+  it('places a sprint meeting by its day of the sprint, with no weekday', async () => {
+    const user = userEvent.setup()
+    renderDialog()
+
+    await user.type(screen.getByLabelText(/name/i), 'Review')
+    await user.click(screen.getByRole('tab', { name: 'Sprint' }))
+    expect(screen.queryByLabelText(/weekday/i)).not.toBeInTheDocument()
+    await user.selectOptions(screen.getByLabelText(/day of sprint/i), 'last:1')
+    await user.type(screen.getByLabelText(/runs from/i), '01.09.2026')
+    await user.tab()
+
+    expect(screen.getByTestId('meeting-summary')).toHaveTextContent('2nd-last day of every sprint')
+    await user.click(screen.getByRole('button', { name: /save/i }))
+
+    await waitFor(() => expect(mockApi.post).toHaveBeenCalled())
+    expect(lastPost()[1]).toMatchObject({
+      kind: 'sprint',
+      sprint_day: 'last',
+      sprint_offset: 1,
+      weekday: null,
+      skip_sprint_days: 'none',
+    })
+  })
+
+  it('keeps an agent-set sprint day the picker does not list', () => {
+    renderDialog({
+      editing: {
+        system_id: 'mt-1', team_id: 't-1', title: 'Demo', kind: 'sprint',
+        start_date: '2026-09-01', end_date: null, weekday: null, interval_weeks: null,
+        sprint_day: 'first', sprint_offset: 7, skip_sprint_days: 'none',
+        half: 'pm', duration_minutes: 60, order_index: 0, member_ids: [],
+        created_at: '', modified_at: '', etag: '"x"',
+      } as Meeting,
+    })
+    expect(screen.getByLabelText(/day of sprint/i)).toHaveValue('first:7')
+    expect(screen.getByRole('option', { name: '8th day' })).toBeInTheDocument()
+  })
+
   it('previews the fortnight, because an off-by-one week is invisible in the rule', async () => {
     const user = userEvent.setup()
     renderDialog()

@@ -510,3 +510,102 @@ async def test_the_per_team_ceiling_is_enforced(client, team, marta, monkeypatch
     assert resp.status_code == 409
     assert resp.json()["detail"]["error"] == "MEETING_LIMIT_REACHED"
     assert MAX_MEETINGS_PER_TEAM == 100
+
+
+# ── Following the sprint calendar (ADR 0013) ─────────────────────────────────
+
+async def _team_with_two_sprints(client, team) -> None:
+    """Two two-week sprints, Thursday to Wednesday, on the team's anchor project."""
+    project = (await client.post("/api/v1/projects/", json={"name": "ISK"})).json()
+    pi = (
+        await client.post(
+            f"/api/v1/projects/{project['system_id']}/pis",
+            json={"name": "PI 7", "start_date": "2026-09-03"},
+        )
+    ).json()
+    sprints = sorted(
+        (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json(),
+        key=lambda s: s["sprint_index"],
+    )
+    for sprint, (start, end) in zip(
+        sprints, [("2026-09-03", "2026-09-16"), ("2026-09-17", "2026-09-30")]
+    ):
+        resp = await client.patch(
+            f"/api/v1/sprints/{sprint['system_id']}", json={"start_date": start, "end_date": end}
+        )
+        assert resp.status_code == 200, resp.text
+    await client.post(
+        f"{_TEAMS}/{team['system_id']}/projects", json={"project_id": project["system_id"]}
+    )
+
+
+async def test_refinement_gives_way_to_the_sprint_change(client, team, marta):
+    """Every Thursday except a sprint's first day: listed as skipped, never charged."""
+    await _team_with_two_sprints(client, team)
+    row = await _meeting(
+        client, team["system_id"], [marta["system_id"]],
+        title="Refinement", kind="weekly", start_date="2026-09-01", weekday=3,
+        duration_minutes=60, skip_sprint_days="first",
+    )
+    listed = (
+        await client.get(_url(team["system_id"]), params={"from": "2026-09-01", "to": "2026-09-30"})
+    ).json()[0]
+    assert listed["occurrences"] == ["2026-09-10", "2026-09-24"]
+    assert listed["skipped"] == ["2026-09-03", "2026-09-17"]
+    assert row["summary"] == "every Thursday am, except a sprint's first day, from 2026-09-01, ongoing"
+
+
+async def test_sprint_meetings_and_skips_reach_the_capacity_figure(client, team, marta):
+    await _team_with_two_sprints(client, team)
+    await _meeting(
+        client, team["system_id"], [marta["system_id"]],
+        title="Refinement", kind="weekly", start_date="2026-09-01", weekday=3,
+        duration_minutes=60, skip_sprint_days="first",
+    )
+    planning = await _meeting(
+        client, team["system_id"], [marta["system_id"]],
+        title="Planning", kind="sprint", start_date="2026-09-01", sprint_day="first",
+        duration_minutes=120,
+    )
+    assert planning["occurrences"] == ["2026-09-03", "2026-09-17"]
+
+    cells = (await _capacity(client, team["system_id"]))["members"][0]["cells"]
+    # Sprint 1: planning on the 3rd (2 h) and refinement on the 10th only (1 h) —
+    # the 3rd is charged for planning alone, not planning plus refinement.
+    dated = [c for c in cells if c is not None]
+    assert dated[0]["meeting_hours"] == pytest.approx(3.0)
+    assert dated[1]["meeting_hours"] == pytest.approx(3.0)
+
+
+async def test_a_sprint_meeting_needs_its_edge(client, team):
+    resp = await client.post(
+        _url(team["system_id"]),
+        json={"title": "Review", "kind": "sprint", "start_date": "2026-09-01",
+              "half": "pm", "duration_minutes": 60, "member_ids": []},
+    )
+    assert resp.status_code == 422
+
+
+async def test_switching_kind_drops_the_fields_the_new_kind_does_not_read(client, team):
+    row = await _meeting(
+        client, team["system_id"], [],
+        kind="weekly", start_date="2026-09-01", weekday=3, skip_sprint_days="both",
+    )
+    resp = await client.patch(
+        f"{_url(team['system_id'])}/{row['system_id']}",
+        json={"kind": "sprint", "sprint_day": "last"},
+        headers=_if_match(row["etag"]),
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["skip_sprint_days"] == "none"
+    assert body["sprint_day"] == "last"
+    assert body["sprint_offset"] == 0
+    assert body["summary"].startswith("last day of every sprint")
+
+
+async def test_without_a_project_a_sprint_meeting_has_no_occurrences(client, team):
+    row = await _meeting(
+        client, team["system_id"], [], kind="sprint", start_date="2026-09-01", sprint_day="first",
+    )
+    assert row["occurrences"] == []

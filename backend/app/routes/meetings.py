@@ -16,7 +16,10 @@ different cells of the same column still collide, which is correct: they are
 editing one row.
 
 **A recurring meeting has no per-occurrence exceptions.** `PATCH` and `DELETE`
-act on the series, always — the rule absences already follow (§3.4).
+act on the series, always — the rule absences already follow (§3.4). Skipping a
+sprint's first or last day is a rule, not an exception: the skipped dates are
+derived from the anchor calendar on every read (ADR 0013), which is why every
+expanding response here loads that calendar first.
 
 **No `require_edit_lock`.** These paths carry no `project_id` and are outside the
 single-writer lock by construction (§4.1); concurrency is `If-Match` per row, and
@@ -49,7 +52,8 @@ from app.schemas.meeting import (
 )
 from app.services.concurrency import IfMatch, check_if_match, set_etag
 from app.services.events import broadcaster, team_channel
-from app.services.meetings import response_for
+from app.services.meetings import load_sprint_calendar, response_for
+from app.services.sprint_days import NO_CALENDAR
 
 router = APIRouter(prefix="/api/v1/teams/{team_id}/meetings", tags=["team-meetings"])
 
@@ -130,6 +134,16 @@ def _apply_rule(row: Meeting, fields: MeetingFields) -> None:
     row.end_date = fields.end_date
     row.weekday = fields.weekday
     row.interval_weeks = fields.interval_weeks
+    # The sprint fields are stored only for the kind that reads them, so a meeting
+    # switched from `sprint` back to `weekly` cannot carry a stale edge, and a
+    # `range` cannot carry a skip it would never apply — nor print it in its
+    # summary.
+    is_sprint = fields.kind == "sprint"
+    row.sprint_day = fields.sprint_day if is_sprint else None
+    row.sprint_offset = (fields.sprint_offset or 0) if is_sprint else None
+    row.skip_sprint_days = (
+        fields.skip_sprint_days if fields.kind in ("weekly", "interval") else "none"
+    )
     row.half = fields.half
     row.duration_minutes = fields.duration_minutes
 
@@ -199,6 +213,7 @@ async def list_meetings(
     """
     await _team_or_404(db, team_id)
     start, end = _window(window_from, window_to)
+    calendar = await load_sprint_calendar(db, team_id)
 
     result = await db.execute(
         select(Meeting)
@@ -206,7 +221,7 @@ async def list_meetings(
         .options(selectinload(Meeting.attendees))
         .order_by(Meeting.order_index.asc(), Meeting.created_at.asc())
     )
-    return [response_for(row, start, end) for row in result.scalars().all()]
+    return [response_for(row, calendar, start, end) for row in result.scalars().all()]
 
 
 @router.post("", status_code=status.HTTP_201_CREATED)
@@ -241,7 +256,7 @@ async def create_meeting(
         team_channel(team_id), "team:meeting:created", {"system_id": row.system_id}
     )
     start, end = _window(window_from, window_to)
-    return response_for(row, start, end)
+    return response_for(row, await load_sprint_calendar(db, team_id), start, end)
 
 
 @router.post("/reorder")
@@ -277,8 +292,9 @@ async def reorder_meetings(
         team_channel(team_id), "team:meeting:reordered", {"team_id": team_id}
     )
     start, end = _window(window_from, window_to)
+    calendar = await load_sprint_calendar(db, team_id)
     return [
-        response_for(row, start, end)
+        response_for(row, calendar, start, end)
         for row in sorted(by_id.values(), key=lambda r: (r.order_index, r.created_at))
     ]
 
@@ -304,9 +320,10 @@ async def update_meeting(
     """
     row = await _meeting_or_404(db, team_id, meeting_id)
     start, end = _window(window_from, window_to)
-    check_if_match(if_match, row.modified_at, response_for(row, start, end))
+    calendar = await load_sprint_calendar(db, team_id)
+    check_if_match(if_match, row.modified_at, response_for(row, calendar, start, end))
 
-    current = response_for(row).model_dump()
+    current = response_for(row, NO_CALENDAR).model_dump()
     patch = body.model_dump(exclude_unset=True)
     try:
         merged = MeetingFields.model_validate(
@@ -334,7 +351,7 @@ async def update_meeting(
         team_channel(team_id), "team:meeting:updated", {"system_id": meeting_id}
     )
     set_etag(response, row.modified_at)
-    return response_for(row, start, end)
+    return response_for(row, calendar, start, end)
 
 
 @router.delete("/{meeting_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -347,7 +364,7 @@ async def delete_meeting(
 ) -> None:
     """Delete the meeting and its attendance — permanently, as everywhere (§10)."""
     row = await _meeting_or_404(db, team_id, meeting_id)
-    check_if_match(if_match, row.modified_at, response_for(row))
+    check_if_match(if_match, row.modified_at, response_for(row, NO_CALENDAR))
 
     await db.delete(row)
     await db.commit()
@@ -455,6 +472,7 @@ async def bulk_meetings(
     await db.commit()
     for row in written:
         await db.refresh(row, ["attendees"])
+    calendar = await load_sprint_calendar(db, team_id)
 
     await broadcaster.broadcast(
         team_channel(team_id),
@@ -467,5 +485,5 @@ async def bulk_meetings(
         window_to=body.window_to,
         created=len(written),
         deleted=len(doomed),
-        meetings=[response_for(row, body.window_from, body.window_to) for row in written],
+        meetings=[response_for(row, calendar, body.window_from, body.window_to) for row in written],
     )

@@ -35,6 +35,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 
 from app.schemas.common import UtcDatetime
+from app.services.sprint_days import MAX_SPRINT_OFFSET
 
 # spec/teams.md §9. A *definition* count, not an occurrence count: a daily
 # stand-up over a year is one weekly rule per weekday, not 250 rows (§3.5).
@@ -48,7 +49,11 @@ MAX_DURATION_MINUTES = 480
 DURATION_STEP_MINUTES = 5
 
 Half = Literal["am", "pm"]
-Kind = Literal["range", "weekly", "interval"]
+# `sprint` is meetings-only: an absence has no use for the sprint calendar, and
+# its own `Kind` stays the three shapes `occurrences.py` generates (ADR 0013).
+Kind = Literal["range", "weekly", "interval", "sprint"]
+SprintEdge = Literal["first", "last"]
+SkipSprintDays = Literal["none", "first", "last", "both"]
 
 
 class MeetingFields(BaseModel):
@@ -69,6 +74,14 @@ class MeetingFields(BaseModel):
     end_date: date | None = None
     weekday: int | None = Field(None, ge=0, le=6)
     interval_weeks: int | None = Field(None, ge=2, le=52)
+    # `sprint` only: which edge of every sprint, and how many working days in
+    # from it — ("last", 0) is the last working day, ("first", 1) the second.
+    sprint_day: SprintEdge | None = None
+    sprint_offset: int | None = Field(None, ge=0, le=MAX_SPRINT_OFFSET)
+    # `weekly` / `interval` only: drop the occurrences landing on a sprint's
+    # first day, last day, or both. Not an exception list — the skipped dates
+    # follow the sprint calendar whenever it moves (ADR 0013).
+    skip_sprint_days: SkipSprintDays = "none"
     # Where an occurrence *starts*. It is not confined there: a meeting longer
     # than its half spills into the rest of the same day (§3.5).
     half: Half = "am"
@@ -96,6 +109,10 @@ def _validate_rule(fields: "MeetingFields") -> "MeetingFields":
     if fields.end_date is not None and fields.end_date < fields.start_date:
         raise ValueError("end_date cannot fall before start_date")
     if fields.kind == "range":
+        return fields
+    if fields.kind == "sprint":
+        if fields.sprint_day is None:
+            raise ValueError("a sprint rule needs sprint_day ('first' or 'last')")
         return fields
     if fields.weekday is None:
         raise ValueError(f"a {fields.kind} rule needs a weekday (0 = Monday … 6 = Sunday)")
@@ -129,6 +146,9 @@ class MeetingUpdate(BaseModel):
     end_date: date | None = None
     weekday: int | None = Field(None, ge=0, le=6)
     interval_weeks: int | None = Field(None, ge=2, le=52)
+    sprint_day: SprintEdge | None = None
+    sprint_offset: int | None = Field(None, ge=0, le=MAX_SPRINT_OFFSET)
+    skip_sprint_days: SkipSprintDays | None = None
     half: Half | None = None
     duration_minutes: int | None = Field(
         None, ge=MIN_DURATION_MINUTES, le=MAX_DURATION_MINUTES, multiple_of=DURATION_STEP_MINUTES
@@ -151,6 +171,9 @@ class MeetingResponse(BaseModel):
     end_date: date | None
     weekday: int | None
     interval_weeks: int | None
+    sprint_day: str | None = None
+    sprint_offset: int | None = None
+    skip_sprint_days: str = "none"
     half: str
     duration_minutes: int
     order_index: int
@@ -164,6 +187,10 @@ class MeetingResponse(BaseModel):
     # falls entirely outside it. The rule still comes back — a meeting out of the
     # selected sprint keeps its column and simply contributes nothing (§7.5).
     occurrences: list[date] = []
+    # Occurrences inside the window that `skip_sprint_days` dropped, so a reader
+    # can see the rule bite — "skips 2026-10-15, the sprint change" — rather than
+    # count Thursdays and wonder where one went.
+    skipped: list[date] = []
     created_at: UtcDatetime
     modified_at: UtcDatetime
     # The tag a PATCH or DELETE must quote in If-Match. In the body, not a header:

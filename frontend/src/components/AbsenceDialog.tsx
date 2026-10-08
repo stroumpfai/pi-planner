@@ -8,6 +8,7 @@ import {
   Field,
   FAR_FUTURE_YEARS,
   KindTabs,
+  SCHEDULE_KINDS,
   inputClass,
   isFarFuture,
 } from '@/components/scheduleForm'
@@ -306,6 +307,7 @@ export function AbsenceDialog({
 
               <KindTabs
                 label="Absence kind"
+                kinds={SCHEDULE_KINDS}
                 value={kind}
                 onChange={setKind}
                 hints={KIND_HINTS}

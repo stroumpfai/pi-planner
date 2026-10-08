@@ -442,6 +442,11 @@ def _add_meetings(
             end_date=_opt_date(meeting.get("end_date")),
             weekday=meeting.get("weekday"),
             interval_weeks=meeting.get("interval_weeks"),
+            # Absent from exports written before ADR 0013 — read as the
+            # week-only rule those meetings were.
+            sprint_day=meeting.get("sprint_day"),
+            sprint_offset=meeting.get("sprint_offset"),
+            skip_sprint_days=meeting.get("skip_sprint_days") or "none",
             half=meeting["half"],
             duration_minutes=meeting["duration_minutes"],
             order_index=meeting.get("order_index", order_index),
