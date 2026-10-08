@@ -1220,3 +1220,322 @@ async def test_consent_page_cannot_be_framed_or_cached(provider_with_pending):
     assert "frame-ancestors 'none'" in r.headers["content-security-policy"]
     assert r.headers["cache-control"] == "no-store"
     assert r.headers["referrer-policy"] == "no-referrer"
+
+
+# ---------------------------------------------------------------------------
+# Rejection paths: redirect_uri validation, CIMD failures, consent refusals
+# ---------------------------------------------------------------------------
+
+_CIMD_CLIENT_ID = "https://claude.ai/.well-known/oauth-client"
+
+
+def _consent_app(provider: PiPlannerOAuthProvider):
+    from starlette.applications import Starlette
+    from starlette.routing import Route
+
+    return Starlette(routes=[Route("/authorize/consent", provider._consent_handler, methods=["GET", "POST"])])
+
+
+async def _post_consent(provider: PiPlannerOAuthProvider, data: dict) -> httpx.Response:
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=_consent_app(provider)), base_url="http://test", follow_redirects=False
+    ) as http:
+        return await http.post("/authorize/consent", data=data)
+
+
+def _cimd(provider: PiPlannerOAuthProvider, *, fetch: AsyncMock, redirect_ok: bool = True):
+    """Make *provider* treat its client id as a CIMD URL, fetched by *fetch*."""
+    from contextlib import ExitStack
+
+    stack = ExitStack()
+    stack.enter_context(patch.object(provider._cimd_fetcher, "is_cimd_client_id", return_value=True))
+    stack.enter_context(patch.object(provider._cimd_fetcher, "fetch", fetch))
+    stack.enter_context(patch.object(provider._cimd_fetcher, "validate_redirect_uri", return_value=redirect_ok))
+    return stack
+
+
+async def test_authorize_rejects_allowed_host_redirect_the_client_never_registered(tmp_path):
+    """An allowlisted host is not enough: the URI must be one this client registered."""
+    provider = _make_provider(tmp_path)
+    client = _make_client()
+    await provider.register_client(client)
+    params = _make_params()
+    params.redirect_uri = AnyUrl("https://claude.ai/somewhere-else")
+
+    with pytest.raises(ValueError, match="not registered for this client"):
+        await provider.authorize(client, params)
+    assert provider._pending == {}
+
+
+async def test_authorize_accepts_registered_redirect_with_trailing_slash(tmp_path):
+    provider = _make_provider(tmp_path)
+    client = _make_client()
+    await provider.register_client(client)
+    params = _make_params()
+    params.redirect_uri = AnyUrl(_REDIRECT_URI + "/")
+
+    assert "nonce=" in await provider.authorize(client, params)
+
+
+async def test_authorize_drops_expired_pending_sessions(tmp_path):
+    from mcp_server.oauth_provider import _PendingAuth
+
+    provider = _make_provider(tmp_path)
+    client = _make_client()
+    await provider.register_client(client)
+    provider._pending["stale"] = _PendingAuth(client=client, params=_make_params(), expires_at=time.time() - 1)
+
+    await provider.authorize(client, _make_params())
+
+    assert "stale" not in provider._pending
+    assert len(provider._pending) == 1
+
+
+async def test_authorize_rejects_cimd_client_whose_document_cannot_be_fetched(tmp_path):
+    from fastmcp.server.auth.cimd import CIMDFetchError
+
+    provider = _make_provider(tmp_path)
+    client = _make_client(_CIMD_CLIENT_ID)
+
+    with _cimd(provider, fetch=AsyncMock(side_effect=CIMDFetchError("timeout"))):
+        with pytest.raises(ValueError, match="CIMD validation failed"):
+            await provider.authorize(client, _make_params())
+    assert provider._pending == {}
+
+
+async def test_authorize_rejects_redirect_the_cimd_document_does_not_list(tmp_path):
+    provider = _make_provider(tmp_path)
+    client = _make_client(_CIMD_CLIENT_ID)
+
+    with _cimd(provider, fetch=AsyncMock(return_value=object()), redirect_ok=False):
+        with pytest.raises(ValueError, match="not permitted by CIMD document"):
+            await provider.authorize(client, _make_params())
+    assert provider._pending == {}
+
+
+async def test_register_rejects_cimd_client_whose_document_fails_validation(tmp_path):
+    from fastmcp.server.auth.cimd import CIMDValidationError
+    from mcp.server.auth.provider import RegistrationError
+
+    provider = _make_provider(tmp_path)
+
+    with _cimd(provider, fetch=AsyncMock(side_effect=CIMDValidationError("bad doc"))):
+        with pytest.raises(RegistrationError) as exc_info:
+            await provider.register_client(_make_client(_CIMD_CLIENT_ID))
+    assert exc_info.value.error == "invalid_client_metadata"
+    assert provider._store.client_count() == 0
+
+
+async def test_register_rejects_redirect_the_cimd_document_does_not_list(tmp_path):
+    from mcp.server.auth.provider import RegistrationError
+
+    provider = _make_provider(tmp_path)
+
+    with _cimd(provider, fetch=AsyncMock(return_value=object()), redirect_ok=False):
+        with pytest.raises(RegistrationError) as exc_info:
+            await provider.register_client(_make_client(_CIMD_CLIENT_ID))
+    assert exc_info.value.error == "invalid_redirect_uri"
+    assert provider._store.client_count() == 0
+
+
+async def test_register_requires_a_client_id(tmp_path):
+    from mcp.server.auth.provider import RegistrationError
+
+    provider = _make_provider(tmp_path)
+    client = _make_client()
+    client.client_id = None
+
+    with pytest.raises(RegistrationError):
+        await provider.register_client(client)
+
+
+async def test_get_client_returns_none_when_cimd_fetch_fails(tmp_path):
+    from fastmcp.server.auth.cimd import CIMDFetchError
+
+    provider = _make_provider(tmp_path)
+
+    with _cimd(provider, fetch=AsyncMock(side_effect=CIMDFetchError("404"))):
+        assert await provider.get_client(_CIMD_CLIENT_ID) is None
+
+
+async def test_load_authorization_code_refuses_another_clients_code(tmp_path):
+    provider = _make_provider(tmp_path)
+    code = AuthorizationCode(
+        code="code_x", scopes=["editor"], expires_at=time.time() + 60, client_id="claude-app",
+        code_challenge="c", redirect_uri=AnyUrl(_REDIRECT_URI), redirect_uri_provided_explicitly=True,
+    )
+    await provider._store.save_auth_code("code_x", code, ("kid_abc", "alice", "admin"))
+
+    assert await provider.load_authorization_code(_make_client("intruder"), "code_x") is None
+    assert await provider.load_authorization_code(_make_client("claude-app"), "code_unknown") is None
+    assert await provider.load_authorization_code(_make_client("claude-app"), "code_x") is not None
+
+
+async def test_token_store_drops_expired_and_unreadable_auth_codes(tmp_path):
+    store = TokenStore(str(tmp_path / "tokens.json"))
+    code = AuthorizationCode(
+        code="c1", scopes=["editor"], expires_at=time.time() - 1, client_id="x",
+        code_challenge="c", redirect_uri=AnyUrl(_REDIRECT_URI), redirect_uri_provided_explicitly=True,
+    )
+    await store.save_auth_code("expired", code, ("k", "u", "admin"))
+    await store.save_auth_code("broken", code.model_copy(update={"expires_at": time.time() + 60}), ("k", "u", "admin"))
+    from mcp_server.oauth_provider import _token_key
+
+    store._auth_codes[_token_key("broken")]["scopes"] = "not-a-list"
+
+    assert store.get_auth_code("expired") is None
+    assert store.get_auth_code("broken") is None
+    assert store._auth_codes == {}
+
+
+async def test_token_store_ignores_an_unreadable_client_entry(tmp_path):
+    store = TokenStore(str(tmp_path / "tokens.json"))
+    store._clients["junk"] = {"redirect_uris": "not-a-list"}
+
+    assert store.get_client("junk") is None
+
+
+async def test_consent_post_expired_nonce_returns_400(tmp_path):
+    provider = _make_provider(tmp_path)
+
+    r = await _post_consent(provider, {"nonce": "gone", "api_key": "kid.secret"})
+
+    assert r.status_code == 400
+    assert r.headers["cache-control"] == "no-store"
+
+
+async def test_consent_post_without_key_asks_again(provider_with_pending):
+    provider, nonce = provider_with_pending
+
+    r = await _post_consent(provider, {"nonce": nonce, "api_key": "   "})
+
+    assert r.status_code == 303
+    assert "error=missing_key" in r.headers["location"]
+    assert nonce in provider._pending
+
+
+async def test_consent_post_rate_limited_never_checks_the_key(provider_with_pending):
+    provider, nonce = provider_with_pending
+    verify = AsyncMock()
+
+    with patch("mcp_server.oauth_provider.is_rate_limited", return_value=True), patch(
+        "mcp_server.oauth_provider.verify_api_key", verify
+    ):
+        r = await _post_consent(provider, {"nonce": nonce, "api_key": "kid.guess"})
+
+    assert r.status_code == 303
+    assert "error=rate_limited" in r.headers["location"]
+    verify.assert_not_called()
+    assert nonce in provider._pending
+
+
+async def test_consent_post_backend_down_does_not_count_as_a_failure(provider_with_pending):
+    from mcp_server.auth import BackendAuthUnavailable
+
+    provider, nonce = provider_with_pending
+    with patch(
+        "mcp_server.oauth_provider.verify_api_key", AsyncMock(side_effect=BackendAuthUnavailable())
+    ), patch("mcp_server.oauth_provider.record_auth_failure") as record:
+        r = await _post_consent(provider, {"nonce": nonce, "api_key": "kid.secret"})
+
+    assert r.status_code == 303
+    assert "error=backend_unavailable" in r.headers["location"]
+    record.assert_not_called()
+    assert nonce in provider._pending
+
+
+async def test_consent_post_reader_without_redirect_uri_gets_403_page(tmp_path):
+    from mcp_server.oauth_provider import _PendingAuth
+
+    provider = _make_provider(tmp_path)
+    params = _make_params()
+    params.redirect_uri = None
+    provider._pending["n"] = _PendingAuth(client=_make_client(), params=params, expires_at=time.time() + 300)
+
+    with patch(
+        "mcp_server.oauth_provider.verify_api_key", AsyncMock(return_value=("kid_r", "rita", "reader"))
+    ):
+        r = await _post_consent(provider, {"nonce": "n", "api_key": "kid_r.secret"})
+
+    assert r.status_code == 403
+    assert "Reader accounts" in r.text
+    assert "n" not in provider._pending
+
+
+@pytest.mark.parametrize(
+    "error, shown",
+    [("rate_limited", "Too many failed attempts"), ("<script>", "An error occurred")],
+)
+async def test_consent_get_shows_known_errors_and_escapes_unknown_ones(provider_with_pending, error, shown):
+    provider, nonce = provider_with_pending
+
+    async with httpx.AsyncClient(
+        transport=httpx.ASGITransport(app=_consent_app(provider)), base_url="http://test"
+    ) as http:
+        r = await http.get("/authorize/consent", params={"nonce": nonce, "error": error})
+
+    assert shown in r.text
+    assert "<script>" not in r.text
+
+
+async def test_root_protected_resource_metadata_alias_names_the_mcp_endpoint(tmp_path):
+    from starlette.applications import Starlette
+
+    provider = _make_provider(tmp_path)
+    provider.set_mcp_path("/mcp")
+    app = Starlette(routes=provider.get_routes("/mcp"))  # as FastMCP mounts it
+
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url=_BASE_URL) as http:
+        r = await http.get("/.well-known/oauth-protected-resource")
+
+    assert r.status_code == 200
+    assert r.json()["resource"] == f"{_BASE_URL}/mcp"
+
+
+# ---------------------------------------------------------------------------
+# ScopeHintMiddleware — scope="…" on every 401/403 WWW-Authenticate
+# ---------------------------------------------------------------------------
+
+
+def _responding(status: int, headers: list[tuple[bytes, bytes]]):
+    async def app(scope, receive, send):
+        await send({"type": "http.response.start", "status": status, "headers": headers})
+        await send({"type": "http.response.body", "body": b""})
+
+    return app
+
+
+async def _www_authenticate(status: int, headers: list[tuple[bytes, bytes]]) -> list[str]:
+    from mcp_server.oauth_provider import ScopeHintMiddleware
+
+    app = ScopeHintMiddleware(_responding(status, headers), ["admin", "editor"])
+    async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as http:
+        r = await http.get("/mcp")
+    return r.headers.get_list("www-authenticate")
+
+
+@pytest.mark.parametrize(
+    "status, headers, expected",
+    [
+        (401, [], ['Bearer scope="admin editor"']),
+        (403, [(b"WWW-Authenticate", b'Bearer error="insufficient_scope"')],
+         ['Bearer error="insufficient_scope", scope="admin editor"']),
+        (401, [(b"www-authenticate", b'Bearer scope="editor"')], ['Bearer scope="editor"']),
+        (200, [], []),
+    ],
+    ids=["added", "appended", "kept", "success-untouched"],
+)
+async def test_scope_hint_middleware(status, headers, expected):
+    assert await _www_authenticate(status, headers) == expected
+
+
+async def test_scope_hint_middleware_passes_non_http_through():
+    from mcp_server.oauth_provider import ScopeHintMiddleware
+
+    seen = []
+
+    async def inner(scope, receive, send):
+        seen.append(scope["type"])
+
+    await ScopeHintMiddleware(inner, ["editor"])({"type": "lifespan"}, AsyncMock(), AsyncMock())
+    assert seen == ["lifespan"]
