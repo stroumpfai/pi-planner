@@ -38,6 +38,7 @@ filterwarnings = ["error"]
 addopts = "--cov=mcp_server --cov-fail-under=80 --cov-report=term-missing"
 
 [tool.coverage.run]
+branch = true
 source = ["mcp_server"]
 
 [tool.coverage.report]

@@ -33,7 +33,7 @@ note_failure() { FAILED=1; }
 echo "==> backend (pytest)"
 BACKEND_PY="$ROOT/backend/venv/bin/python"
 if [[ -x "$BACKEND_PY" ]]; then
-  (cd "$ROOT/backend" && "$BACKEND_PY" -m pytest tests/ -q --cov=app --cov-report=term) \
+  (cd "$ROOT/backend" && "$BACKEND_PY" -m pytest tests/ -q --cov=app --cov-config=coverage-branch.ini --cov-report=term) \
     >"$TMP/backend.txt" 2>&1 || note_failure
 else
   echo "backend venv missing at $BACKEND_PY" >"$TMP/backend.txt"; note_failure
@@ -124,6 +124,10 @@ cat > "$OUT" <<REPORT
 | MCP server (pytest) | $MCP_PASSED | $MCP_COV | \`cd mcp_server && pytest tests/\` |
 | Frontend unit (Vitest) | $VITEST_PASSED | $VITEST_COV | \`npm run test\` |
 | End-to-end (Cypress) | $E2E_PASSED across $E2E_SPECS specs | n/a — journey coverage | \`npm run e2e\` |
+
+Backend and MCP figures are lines + branches; the frontend figure is statements
+(its branch figure is in the Vitest output). The backend's daily gate in
+\`check.sh\` measures lines only, for speed — see \`backend/coverage-branch.ini\`.
 
 Coverage gates are enforced by the runners themselves: 75% for the backend
 (\`backend/pyproject.toml\`), 80% for the MCP server, and 70% statements / 65%
