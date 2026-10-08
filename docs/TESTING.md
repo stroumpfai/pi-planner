@@ -115,6 +115,17 @@ edit-lock enforcement, CSV import, snapshots and diffing, PI export and reports,
 and `test_migrations.py`, which walks the Alembic chain so a bad migration fails
 here rather than on deploy.
 
+⚠️ **The daily backend figure is lines only.** `check.sh` measures with
+`core = "sysmon"`, which is fast but cannot see branches on Python 3.12.
+`test-report.sh` measures lines + branches through `backend/coverage-branch.ini`
+(the C tracer with `concurrency = greenlet` — without the greenlet setting it
+misses everything SQLAlchemy runs async and under-reports by ~25 points). For a
+list of untested branches:
+
+```bash
+cd backend && venv/bin/pytest tests/ -q --cov-config=coverage-branch.ini --cov-report=term-missing:skip-covered
+```
+
 ### MCP server
 Auth (API key and the service JWT it exchanges for), the lock helper, and every
 read, write and workflow tool. `test_contract.py` is the important one: it holds
@@ -165,7 +176,7 @@ seeds `testuser` and `testuser2`, runs the suite and tears it all down.
 | `backlog` | Feature and PBI/bug create, edit, delete; persistence across reload; Clear backlog vs everything |
 | `feature-split` | Split PBIs into another PI, continuation lineage, cancel continuation |
 | `backlog-search` | Filter by ID and title, clear, drag while filtered |
-| `csv-import` | Preview, validation errors, confirmed import, empty file |
+| `csv-import` | Preview, validation errors, confirmed import, empty file; completion dates from a real export, and the date-format question |
 | `csv-refresh` | Re-import into a project that already has data, including the dry-run review and its rollback: rename and new story, reconcile keep vs remove, removing a feature planned on a board, a rename reaching a split feature's later PI, a partial file's Parent, a changed Parent, a changed work item type |
 | `edit-lock` | Acquire, release, heartbeat, lock held by another user |
 | `swimlanes` | Swimlane CRUD, collapse/expand all, focus mode |
@@ -174,6 +185,14 @@ seeds `testuser` and `testuser2`, runs the suite and tears it all down.
 | `snapshot-diff` | The server-rendered diff page in a browser, and its auto-refresh |
 | `admin-users` | User management, password policy, reader and editor RBAC |
 | `api-keys` | Issue, reveal, cycle and revoke an API key |
+| `teams` | Team CRUD from the home page, empty state, duplicate name, a project and a team of the same name |
+| `team-members` | Add a member with a working pattern or for absences only, contract changes from a date, reorder, delete warning, duplicate name |
+| `team-capacity` | Assign and unassign a project, member scope (ADR 0009), shares (ADR 0010), remaining capacity (ADR 0012), the cell breakdown, over-allocation warning, the minimap |
+| `team-push` | Pushing team capacity to a project's board: only on an explicit push, absences lowering it, derived Available read-only, hand-typed projects left alone |
+| `absences` | Whole-team day off, series delete, a fortnightly pattern with preview, `.ics` import and re-import, narrowing a team file, reader view |
+| `meetings` | Meetings as columns, schedule in words, whole-team attendance, per-sprint totals, hours capped at a member's day, reorder, series delete |
+| `holidays` | Enabling a calendar for a team, "works this holiday", chips on the board; managing calendars and entries on the Calendars page |
+| `achievement` | Stories counted in the sprint they were completed in, pre-calendar work in the footer, measured velocity suggestion |
 | `export-png` / `export-report` | Modal options mapped to export query params |
 | `sse-updates` | A second session's writes arriving over the event stream, including a CSV import and who ran it |
 | `theme` | Light/dark/system switching, repaint and persistence |
@@ -208,11 +227,29 @@ loads in a browser under session-cookie auth and that its auto-refresh script �
 inert unless actually served over http — really re-fetches and swaps content. If
 a diff UI is ever added to the app, that is when the spec grows a real journey.
 
-### 2. Thin spots, none of them load-bearing
-`useSwimlinesAndGroups` sits near 76%, and `services/states.ts` has most of its
-functions covered only through the hooks that call them. Both are small, stable
-and exercised end-to-end; neither is worth a spec of its own until it starts
-changing.
+### 2. Holidays end to end
+Every layer below the browser now covers holiday calendars fully (October 2026:
+the three holiday dialogs had no spec, the MCP holiday tools were at 74%), but
+`holidays.cy.ts` is two tests against `meetings.cy.ts`'s thirteen. The `.ics`
+import, copy-a-year and duplicate-absence cleanup dialogs are wired only in unit
+specs, with the network mocked.
+
+### 3. Thin spots, none of them load-bearing
+- **Untested branches**, now that the release report counts them: the most
+  partial branches sit in `services/csv_import.py`, `services/pi_report.py`,
+  `services/absence_ics.py` and `routes/features.py` — use the command under
+  [Backend](#backend) to list them.
+- **Frontend functions** sit at 83% against 97% of statements: mostly inline
+  handlers no spec fires.
+- `useSwimlinesAndGroups` sits near 76%, `services/states.ts` has most of its
+  functions covered only through the hooks that call them, and
+  `continuation.py`'s cycle guard in the split lineage has no test. All small,
+  stable and exercised end to end.
+- **act() warnings are back**: `npm run test 2>&1 | grep -c 'not wrapped in act'`
+  prints 4 — `App.test.tsx` and `PIBoardPage.drag.test.tsx`. Nothing fails, which
+  is the problem; see [Frontend unit](#frontend-unit).
+- **Test files are not linted.** `check.sh` runs `ruff check backend/app` only;
+  `ruff check backend/tests` reports 15 errors.
 
 ## Adding coverage well
 

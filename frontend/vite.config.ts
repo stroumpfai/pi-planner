@@ -30,6 +30,10 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
+      // The app, not its build config; main.tsx only mounts <App /> and is
+      // what the E2E suite's smoke spec is for.
+      include: ['src/**'],
+      exclude: ['src/main.tsx', 'src/**/__tests__/**', 'src/test-setup.ts', 'src/**/*.d.ts'],
       // Floors a few points under today's figures — raise them as coverage
       // rises. The globs hold the code every request passes through (the api
       // interceptor, auth state, the edit lock, the password policy) to its own
