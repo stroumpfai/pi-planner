@@ -11,12 +11,15 @@ import httpx
 import pytest
 
 from mcp_server.tools.holidays import (
+    create_holiday_calendar,
     create_holiday_entry,
     delete_holiday_entry,
+    disable_team_calendar,
     enable_team_calendar,
     import_holiday_ics,
     replace_holiday_entries,
     set_holiday_exception,
+    update_holiday_calendar,
     update_holiday_entry,
 )
 from mcp_server.tools.read import get_holiday_calendar, list_team_holidays
@@ -162,3 +165,145 @@ async def test_read_tools_resolve_names_and_pass_windows(mock_backend, mock_ctx,
     await list_team_holidays(team_id=TEAM_ID, date_from="2026-04-01", date_to="2026-04-30", ctx=mock_ctx)
     params = mock_backend.calls[-1].request.url.params
     assert (params["from"], params["to"]) == ("2026-04-01", "2026-04-30")
+
+
+def _writes(mock_backend):
+    return [c for c in mock_backend.calls if c.request.method != "GET"]
+
+
+async def test_with_no_calendars_at_all_the_refusal_says_none_yet_and_how_to_create_one(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    mock_backend.get(CALENDARS_URL).mock(return_value=httpx.Response(200, json=[]))
+    with pytest.raises(ValueError) as excinfo:
+        await create_holiday_entry(calendar="Germany", label="X", start_date="2026-01-01", ctx=mock_ctx)
+    message = str(excinfo.value)
+    assert "No holiday calendar named 'Germany'" in message
+    assert "Calendars: none yet." in message
+    assert "Create one with create_holiday_calendar" in message
+    assert _writes(mock_backend) == []
+
+
+async def test_create_calendar_posts_name_and_description(mock_backend, mock_ctx, patch_get_http_request):
+    post = mock_backend.post(CALENDARS_URL).mock(return_value=httpx.Response(201, json=CALENDAR))
+    result = await create_holiday_calendar(name="Switzerland", description="Federal", ctx=mock_ctx)
+    assert result["system_id"] == CAL_ID
+    assert json.loads(post.calls[0].request.content) == {"name": "Switzerland", "description": "Federal"}
+    _no_lock(mock_backend)
+
+
+async def test_update_calendar_renames_and_quotes_the_calendar_etag(mock_backend, mock_ctx, patch_get_http_request):
+    _calendars(mock_backend)
+    patch = mock_backend.patch(f"{CALENDARS_URL}/{CAL_ID}").mock(
+        return_value=httpx.Response(200, json={**CALENDAR, "name": "Schweiz"})
+    )
+    result = await update_holiday_calendar(
+        calendar="Switzerland", new_name="Schweiz", description="Bundesfeiertage", ctx=mock_ctx
+    )
+    assert result["name"] == "Schweiz"
+    request = patch.calls[0].request
+    assert json.loads(request.content) == {"name": "Schweiz", "description": "Bundesfeiertage"}
+    assert request.headers["If-Match"] == CALENDAR["etag"]
+    _no_lock(mock_backend)
+
+
+async def test_update_calendar_sends_only_the_field_given(mock_backend, mock_ctx, patch_get_http_request):
+    _calendars(mock_backend)
+    patch = mock_backend.patch(f"{CALENDARS_URL}/{CAL_ID}").mock(return_value=httpx.Response(200, json=CALENDAR))
+    await update_holiday_calendar(calendar="Switzerland", description="Federal only", ctx=mock_ctx)
+    assert json.loads(patch.calls[0].request.content) == {"description": "Federal only"}
+
+
+async def test_update_calendar_with_nothing_to_change_is_refused_without_a_write(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    _calendars(mock_backend)
+    with pytest.raises(ValueError, match="Nothing to change: pass new_name and/or description"):
+        await update_holiday_calendar(calendar="Switzerland", ctx=mock_ctx)
+    assert _writes(mock_backend) == []
+
+
+async def test_create_entry_sends_every_optional_field_given(mock_backend, mock_ctx, patch_get_http_request):
+    _calendars(mock_backend)
+    post = mock_backend.post(f"{CALENDARS_URL}/{CAL_ID}/entries").mock(
+        return_value=httpx.Response(201, json=ENTRY)
+    )
+    await create_holiday_entry(
+        calendar="Switzerland", label="Christmas", start_date="2026-12-24", end_date="2026-12-26",
+        start_half="pm", end_half="am", ctx=mock_ctx,
+    )
+    assert json.loads(post.calls[0].request.content) == {
+        "label": "Christmas", "start_date": "2026-12-24", "end_date": "2026-12-26",
+        "start_half": "pm", "end_half": "am",
+    }
+
+
+async def test_update_entry_sends_only_the_fields_given(mock_backend, mock_ctx, patch_get_http_request):
+    _calendars(mock_backend)
+    _detail(mock_backend)
+    patch = mock_backend.patch(f"{CALENDARS_URL}/{CAL_ID}/entries/{ENTRY_ID}").mock(
+        return_value=httpx.Response(200, json=ENTRY)
+    )
+    await update_holiday_entry(
+        calendar="Switzerland", entry_id=ENTRY_ID, end_date="2026-04-07", end_half="am", ctx=mock_ctx
+    )
+    assert json.loads(patch.calls[0].request.content) == {"end_date": "2026-04-07", "end_half": "am"}
+
+
+async def test_update_entry_with_nothing_to_change_is_refused_without_a_write(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    _calendars(mock_backend)
+    _detail(mock_backend)
+    with pytest.raises(ValueError, match="^Nothing to change\\.$"):
+        await update_holiday_entry(calendar="Switzerland", entry_id=ENTRY_ID, ctx=mock_ctx)
+    assert _writes(mock_backend) == []
+
+
+async def test_an_entry_not_in_the_calendar_is_refused_before_any_write(
+    mock_backend, mock_ctx, patch_get_http_request
+):
+    other = "99998888-7777-4666-8555-444433332222"
+    _calendars(mock_backend)
+    _detail(mock_backend)
+    with pytest.raises(ValueError, match=f"No entry {other} in this calendar.*get_holiday_calendar"):
+        await update_holiday_entry(calendar="Switzerland", entry_id=other, label="X", ctx=mock_ctx)
+    with pytest.raises(ValueError, match=f"No entry {other} in this calendar"):
+        await delete_holiday_entry(calendar="Switzerland", entry_id=other, ctx=mock_ctx)
+    assert _writes(mock_backend) == []
+
+
+async def test_ics_import_passes_the_year_window_and_a_real_run(mock_backend, mock_ctx, patch_get_http_request):
+    _calendars(mock_backend)
+    post = mock_backend.post(f"{CALENDARS_URL}/{CAL_ID}/import/ics").mock(
+        return_value=httpx.Response(200, json={"dry_run": False, "created": 2, "duplicates": 0,
+                                               "skipped": [], "truncated_labels": 0, "entries": []})
+    )
+    await import_holiday_ics(
+        calendar="Switzerland", ics_content="BEGIN:VCALENDAR\nEND:VCALENDAR",
+        from_year=2027, to_year=2029, dry_run=False, ctx=mock_ctx,
+    )
+    params = post.calls[0].request.url.params
+    assert dict(params) == {"dry_run": "false", "from_year": "2027", "to_year": "2029"}
+
+
+async def test_ics_import_sends_only_the_year_bound_given(mock_backend, mock_ctx, patch_get_http_request):
+    _calendars(mock_backend)
+    post = mock_backend.post(f"{CALENDARS_URL}/{CAL_ID}/import/ics").mock(
+        return_value=httpx.Response(200, json={"dry_run": True, "created": 0, "duplicates": 0,
+                                               "skipped": [], "truncated_labels": 0, "entries": []})
+    )
+    await import_holiday_ics(calendar="Switzerland", ics_content="BEGIN:VCALENDAR", to_year=2030, ctx=mock_ctx)
+    assert dict(post.calls[0].request.url.params) == {"dry_run": "true", "to_year": "2030"}
+
+
+async def test_disable_calendar_deletes_the_switch_without_a_lock(mock_backend, mock_ctx, patch_get_http_request):
+    _calendars(mock_backend)
+    delete = mock_backend.delete(f"/api/v1/teams/{TEAM_ID}/holiday-calendars/{CAL_ID}").mock(
+        return_value=httpx.Response(204)
+    )
+    result = await disable_team_calendar(team_id=TEAM_ID, calendar="switzerland", ctx=mock_ctx)
+    assert delete.call_count == 1
+    assert [c.request.method for c in _writes(mock_backend)] == ["DELETE"]
+    assert result == {"team_id": TEAM_ID, "calendar": "Switzerland", "enabled": False}
+    _no_lock(mock_backend)

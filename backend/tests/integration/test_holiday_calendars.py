@@ -542,3 +542,195 @@ async def test_a_1_0_file_imports_with_no_calendars(client):
     assert resp.status_code == 201, resp.text
     holidays = (await client.get(f"{_TEAMS}/{resp.json()['system_id']}/holidays")).json()
     assert holidays["enabled_calendar_ids"] == []
+
+
+# ── Route edges: unknown ids, idempotence, limits, RBAC ───────────────────────
+
+_NO_SUCH_ID = "00000000-0000-0000-0000-000000000000"
+
+
+async def test_an_unknown_team_has_no_holidays(client):
+    for resp in (
+        await client.get(f"{_TEAMS}/{_NO_SUCH_ID}/holidays"),
+        await client.get(f"{_TEAMS}/{_NO_SUCH_ID}/holiday-cleanup"),
+        await client.put(f"{_TEAMS}/{_NO_SUCH_ID}/holiday-calendars/{_NO_SUCH_ID}"),
+    ):
+        assert resp.status_code == 404
+        assert resp.json()["detail"] == "Team not found"
+
+
+async def test_enabling_an_unknown_calendar_is_404(client):
+    team = (await client.post(_TEAMS, json={"name": "Solo"})).json()
+    resp = await client.put(f"{_TEAMS}/{team['system_id']}/holiday-calendars/{_NO_SUCH_ID}")
+    assert resp.status_code == 404
+    assert resp.json()["detail"] == "Holiday calendar not found"
+
+
+async def test_enabling_an_enabled_calendar_changes_nothing(client, db):
+    from sqlalchemy import func, select
+
+    from app.models.holiday import TeamHolidayCalendar
+
+    team = (await client.post(_TEAMS, json={"name": "Solo"})).json()
+    calendar = await _calendar(client)
+    await _enable(client, team["system_id"], calendar["system_id"])
+    await _enable(client, team["system_id"], calendar["system_id"])
+    assert await db.scalar(select(func.count()).select_from(TeamHolidayCalendar)) == 1
+
+
+async def test_a_team_enables_at_most_twenty_calendars(client):
+    from app.schemas.holiday import MAX_CALENDARS_PER_TEAM
+
+    team = (await client.post(_TEAMS, json={"name": "Solo"})).json()
+    for i in range(MAX_CALENDARS_PER_TEAM):
+        await _enable(client, team["system_id"], (await _calendar(client, f"C{i}"))["system_id"])
+    extra = await _calendar(client, "One too many")
+    resp = await client.put(f"{_TEAMS}/{team['system_id']}/holiday-calendars/{extra['system_id']}")
+    assert resp.status_code == 409
+    assert resp.json()["detail"]["error"] == "TEAM_CALENDAR_LIMIT_REACHED"
+    holidays = (await client.get(f"{_TEAMS}/{team['system_id']}/holidays")).json()
+    assert len(holidays["enabled_calendar_ids"]) == MAX_CALENDARS_PER_TEAM
+
+
+async def test_an_editor_flips_the_switch_and_a_reader_cannot(client, editor_client, reader_client):
+    team = (await client.post(_TEAMS, json={"name": "Solo"})).json()
+    calendar = await _calendar(client)
+    switch = f"{_TEAMS}/{team['system_id']}/holiday-calendars/{calendar['system_id']}"
+    assert (await reader_client.put(switch)).status_code == 403
+    assert (await reader_client.delete(switch)).status_code == 403
+    assert (await editor_client.put(switch)).status_code == 204
+    assert (await reader_client.get(f"{_TEAMS}/{team['system_id']}/holidays")).status_code == 200
+
+
+async def test_an_exception_needs_a_member_of_this_team_and_a_real_entry(client):
+    team = (await client.post(_TEAMS, json={"name": "Platform"})).json()
+    other = (await client.post(_TEAMS, json={"name": "Other"})).json()
+    alice = await _member(client, team["system_id"], "Alice")
+    stranger = await _member(client, other["system_id"], "Stranger")
+    calendar = await _calendar(client)
+    entry = await _entry(client, calendar["system_id"], "Easter Monday", EASTER_MONDAY)
+    await _enable(client, team["system_id"], calendar["system_id"])
+    tid = team["system_id"]
+
+    for works in (True, False):
+        foreign = await _exception(client, tid, stranger["system_id"], entry["system_id"], EASTER_MONDAY, works=works)
+        assert (foreign.status_code, foreign.json()["detail"]) == (404, "Member not found")
+        ghost = await _exception(client, tid, _NO_SUCH_ID, entry["system_id"], EASTER_MONDAY, works=works)
+        assert (ghost.status_code, ghost.json()["detail"]) == (404, "Member not found")
+        no_entry = await _exception(client, tid, alice["system_id"], _NO_SUCH_ID, EASTER_MONDAY, works=works)
+        assert (no_entry.status_code, no_entry.json()["detail"]) == (404, "Holiday entry not found")
+
+
+async def test_clearing_an_exception_gives_the_holiday_back(client, team):
+    alice = await _member(client, team["system_id"], "Alice")
+    calendar = await _calendar(client)
+    entry = await _entry(client, calendar["system_id"], "Easter Monday", EASTER_MONDAY)
+    await _enable(client, team["system_id"], calendar["system_id"])
+    args = (client, team["system_id"], alice["system_id"], entry["system_id"], EASTER_MONDAY)
+
+    assert (await _exception(*args)).status_code == 204
+    assert (await _exception(*args)).status_code == 204          # marking twice is a no-op
+    assert (await _capacity_cell(client, team["system_id"]))["person_days"] == pytest.approx(10.0)
+
+    assert (await _exception(*args, works=False)).status_code == 204
+    assert (await _capacity_cell(client, team["system_id"]))["person_days"] == pytest.approx(9.0)
+    holidays = (await client.get(f"{_TEAMS}/{team['system_id']}/holidays",
+                                 params={"from": "2026-04-01", "to": "2026-04-30"})).json()
+    assert holidays["entries"][0]["exceptions"] == []
+    assert (await _exception(*args, works=False)).status_code == 204  # clearing twice too
+
+
+async def test_clearing_an_exception_checks_the_day_and_the_role(client, team, reader_client):
+    alice = await _member(client, team["system_id"], "Alice")
+    calendar = await _calendar(client)
+    entry = await _entry(client, calendar["system_id"], "Easter Monday", EASTER_MONDAY)
+    await _enable(client, team["system_id"], calendar["system_id"])
+    url = f"{_TEAMS}/{team['system_id']}/members/{alice['system_id']}/holiday-exceptions/{entry['system_id']}"
+
+    wrong_day = await client.delete(f"{url}/2026-04-07")
+    assert wrong_day.status_code == 422
+    assert wrong_day.json()["detail"]["error"] == "DAY_NOT_IN_HOLIDAY"
+    assert (await reader_client.put(f"{url}/{EASTER_MONDAY}")).status_code == 403
+    assert (await reader_client.delete(f"{url}/{EASTER_MONDAY}")).status_code == 403
+
+
+async def test_cleanup_of_a_team_without_absences_offers_nothing(client):
+    team = (await client.post(_TEAMS, json={"name": "Solo"})).json()
+    calendar = await _calendar(client)
+    await _entry(client, calendar["system_id"], "Easter Monday", EASTER_MONDAY)
+    await _enable(client, team["system_id"], calendar["system_id"])
+    assert (await client.get(f"{_TEAMS}/{team['system_id']}/holiday-cleanup")).json() == {"groups": []}
+
+
+async def test_cleanup_skips_a_shared_absence_a_holiday_only_partly_covers(client, team):
+    alice = await _member(client, team["system_id"], "Alice")
+    bob = await _member(client, team["system_id"], "Bob")
+    resp = await client.post(f"{_TEAMS}/{team['system_id']}/absences", json={
+        "member_ids": [alice["system_id"], bob["system_id"]], "kind": "range",
+        "label": "Easter break", "start_date": EASTER_MONDAY, "end_date": "2026-04-07",
+    })
+    assert resp.status_code == 201, resp.text
+    calendar = await _calendar(client)
+    await _entry(client, calendar["system_id"], "Easter Monday", EASTER_MONDAY)
+    await _enable(client, team["system_id"], calendar["system_id"])
+
+    url = f"{_TEAMS}/{team['system_id']}/holiday-cleanup"
+    assert (await client.get(url)).json() == {"groups": []}
+    refused = await client.post(url, json={"absence_ids": [a["system_id"] for a in resp.json()]})
+    assert refused.status_code == 409
+    assert refused.json()["detail"]["error"] == "NOT_A_DUPLICATE"
+
+
+async def test_cleanup_skips_a_member_who_works_the_holiday(client, team):
+    alice = await _member(client, team["system_id"], "Alice")
+    bob = await _member(client, team["system_id"], "Bob")
+    await client.post(f"{_TEAMS}/{team['system_id']}/absences", json={
+        "member_ids": [alice["system_id"], bob["system_id"]], "kind": "range",
+        "label": "Easter Monday", "start_date": EASTER_MONDAY,
+    })
+    calendar = await _calendar(client)
+    entry = await _entry(client, calendar["system_id"], "Easter Monday", EASTER_MONDAY)
+    await _enable(client, team["system_id"], calendar["system_id"])
+    await _exception(client, team["system_id"], bob["system_id"], entry["system_id"], EASTER_MONDAY)
+
+    groups = (await client.get(f"{_TEAMS}/{team['system_id']}/holiday-cleanup")).json()["groups"]
+    assert [m["name"] for m in groups[0]["members"]] == ["Alice"]
+
+
+async def test_an_unknown_pi_has_no_holidays(client):
+    resp = await client.get(f"/api/v1/pis/{_NO_SUCH_ID}/holidays")
+    assert (resp.status_code, resp.json()["detail"]) == (404, "PI not found")
+
+
+async def test_a_holiday_nobody_counted_is_off_for_gets_no_chip(client, team, pi):
+    """Not news to the sprint: a leaver's holiday, or one everyone works anyway."""
+    resp = await client.post(f"{_TEAMS}/{team['system_id']}/members", json={
+        "name": "Leaver", "active_to": "2026-04-03", "pattern": {"effective_from": "2026-01-01"},
+    })
+    assert resp.status_code == 201, resp.text
+    alice = await _member(client, team["system_id"], "Alice")
+    calendar = await _calendar(client)
+    entry = await _entry(client, calendar["system_id"], "Easter Monday", EASTER_MONDAY)
+    await _enable(client, team["system_id"], calendar["system_id"])
+    url = f"/api/v1/pis/{pi['system_id']}/holidays"
+    assert [h["label"] for h in (await client.get(url)).json()["sprints"][0]["holidays"]] == ["Easter Monday"]
+
+    await _exception(client, team["system_id"], alice["system_id"], entry["system_id"], EASTER_MONDAY)
+    assert (await client.get(url)).json()["sprints"][0]["holidays"] == []
+
+
+async def test_each_dated_sprint_lists_only_its_own_holidays(client, team, pi):
+    await _member(client, team["system_id"], "Alice")
+    sprints = (await client.get(f"/api/v1/pis/{pi['system_id']}/sprints")).json()
+    second = next(s for s in sprints if s["sprint_index"] == 1)
+    resp = await client.patch(
+        f"/api/v1/sprints/{second['system_id']}", json={"start_date": "2026-04-20", "end_date": "2026-05-01"},
+    )
+    assert resp.status_code == 200, resp.text
+    calendar = await _calendar(client)
+    await _entry(client, calendar["system_id"], "Easter Monday", EASTER_MONDAY)
+    await _entry(client, calendar["system_id"], "May Day", "2026-05-01")
+    await _enable(client, team["system_id"], calendar["system_id"])
+
+    data = (await client.get(f"/api/v1/pis/{pi['system_id']}/holidays")).json()
+    assert [[h["label"] for h in s["holidays"]] for s in data["sprints"][:2]] == [["Easter Monday"], ["May Day"]]

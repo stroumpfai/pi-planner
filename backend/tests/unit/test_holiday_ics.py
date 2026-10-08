@@ -114,3 +114,125 @@ def test_export_round_trips_whole_and_half_days_exactly():
         ("Christmas Eve", date(2026, 12, 24), "pm", date(2026, 12, 24), "pm"),
         ("Morning", date(2026, 12, 31), "am", date(2026, 12, 31), "am"),
     ]
+
+
+# ── Edges: what a file can get wrong, and what it can mean ────────────────────
+
+def test_a_year_window_that_runs_backwards_is_refused():
+    with pytest.raises(ValueError, match="to_year cannot fall before from_year"):
+        parse_ics(_ics(_event("New Year", "DTSTART;VALUE=DATE:20260101")), from_year=2027, to_year=2026)
+
+
+def test_tasks_and_journal_entries_are_skipped_as_not_events():
+    parsed = parse_ics(_ics(
+        "BEGIN:VTODO\r\nUID:t@test\r\nSUMMARY:File taxes\r\nEND:VTODO",
+        "BEGIN:VJOURNAL\r\nUID:j@test\r\nEND:VJOURNAL",
+    ))
+    assert parsed.entries == []
+    assert [(s.summary, s.reason) for s in parsed.skipped] == [
+        ("File taxes", "a VTODO is not an event"),
+        ("VJOURNAL", "a VJOURNAL is not an event"),
+    ]
+
+
+def test_an_event_without_a_start_is_skipped():
+    parsed = parse_ics(_ics(_event("Floating", "DTEND;VALUE=DATE:20260102")))
+    assert parsed.entries == []
+    assert [(s.summary, s.reason) for s in parsed.skipped] == [("Floating", "the event has no start date")]
+
+
+def test_a_yearly_rule_with_extra_dates_is_skipped_not_half_read():
+    parsed = parse_ics(_ics(_event(
+        "Moving feast", "DTSTART;VALUE=DATE:20260101", "RRULE:FREQ=YEARLY", "RDATE;VALUE=DATE:20260615",
+    )), from_year=2026, to_year=2026)
+    assert parsed.entries == []
+    assert [(s.summary, s.reason) for s in parsed.skipped] == [
+        ("Moving feast", "extra dates (RDATE) are not supported"),
+    ]
+
+
+def test_a_yearly_rule_every_other_year_is_skipped():
+    parsed = parse_ics(_ics(_event(
+        "Biennial", "DTSTART;VALUE=DATE:20260101", "RRULE:FREQ=YEARLY;INTERVAL=2",
+    )), from_year=2026, to_year=2027)
+    assert parsed.entries == []
+    assert parsed.skipped[0].reason == "recurring rule repeats every few years, which is not supported"
+
+
+def test_a_yearly_rule_on_several_days_is_skipped():
+    parsed = parse_ics(_ics(_event(
+        "Twice a year", "DTSTART;VALUE=DATE:20260101", "RRULE:FREQ=YEARLY;BYMONTH=1,7",
+    )), from_year=2026, to_year=2027)
+    assert parsed.entries == []
+    assert parsed.skipped[0].reason == "recurring rule names several days a year, which is not supported"
+
+
+def test_a_yearly_rule_on_29_february_occurs_only_in_leap_years():
+    parsed = parse_ics(_ics(_event(
+        "Leap day", "DTSTART;VALUE=DATE:20240229", "RRULE:FREQ=YEARLY",
+    )), from_year=2026, to_year=2028)
+    assert [e.start_date for e in parsed.entries] == [date(2028, 2, 29)]
+
+
+def test_a_one_day_event_ending_in_the_morning_after_an_afternoon_start_is_skipped():
+    """Exported halves are trusted, but an impossible pair still can't become an entry."""
+    parsed = parse_ics(_ics(_event(
+        "Inside out", "DTSTART;VALUE=DATE:20260410",
+        "X-PIPLANNER-START-HALF:pm", "X-PIPLANNER-END-HALF:am",
+    )))
+    assert parsed.entries == []
+    assert parsed.skipped[0].summary == "Inside out"
+    assert "cannot end in the morning" in parsed.skipped[0].reason
+
+
+def test_an_all_day_duration_stands_in_for_dtend():
+    parsed = parse_ics(_ics(_event("Easter", "DTSTART;VALUE=DATE:20260403", "DURATION:P4D")))
+    assert _fields(parsed.entries[0]) == ("Easter", date(2026, 4, 3), "am", date(2026, 4, 6), "pm")
+
+
+@pytest.mark.parametrize(("start", "halves"), [
+    ("DTSTART:20260410T090000", ("am", "am")),
+    ("DTSTART:20260410T140000", ("pm", "pm")),
+])
+def test_a_timed_event_without_an_end_is_the_half_it_starts_in(start, halves):
+    parsed = parse_ics(_ics(_event("Point in time", start)))
+    entry = parsed.entries[0]
+    assert (entry.start_date, entry.start_half, entry.last_day, entry.end_half) == (
+        date(2026, 4, 10), halves[0], date(2026, 4, 10), halves[1],
+    )
+
+
+def test_a_timed_event_ending_on_an_all_day_date_is_the_half_it_starts_in():
+    parsed = parse_ics(_ics(_event("Mixed", "DTSTART:20260410T090000", "DTEND;VALUE=DATE:20260412")))
+    assert _fields(parsed.entries[0])[1:] == (date(2026, 4, 10), "am", date(2026, 4, 10), "am")
+
+
+def test_a_timed_event_ending_before_it_starts_is_clamped_to_its_first_day():
+    parsed = parse_ics(_ics(_event("Backwards", "DTSTART:20260410T090000", "DTEND:20260408T170000")))
+    assert _fields(parsed.entries[0])[1:] == (date(2026, 4, 10), "am", date(2026, 4, 10), "pm")
+
+
+def test_a_timed_event_over_several_days_keeps_both_halves():
+    parsed = parse_ics(_ics(_event("Shutdown", "DTSTART:20261223T130000", "DTEND:20261227T110000")))
+    assert _fields(parsed.entries[0])[1:] == (date(2026, 12, 23), "pm", date(2026, 12, 27), "am")
+
+
+def test_a_utc_time_is_taken_as_written_not_moved_to_another_day():
+    parsed = parse_ics(_ics(_event("Late", "DTSTART:20261224T230000Z")))
+    assert _fields(parsed.entries[0])[1:] == (date(2026, 12, 24), "pm", date(2026, 12, 24), "pm")
+
+
+def test_non_ascii_and_escaped_summaries_survive_as_labels():
+    parsed = parse_ics(_ics(
+        _event("Fête nationale", "DTSTART;VALUE=DATE:20260801"),
+        _event("St Stephen\\, Boxing Day", "DTSTART;VALUE=DATE:20261226"),
+        "BEGIN:VEVENT\r\nUID:blank@test\r\nDTSTART;VALUE=DATE:20261231\r\nEND:VEVENT",
+    ))
+    assert [e.label for e in parsed.entries] == ["Fête nationale", "St Stephen, Boxing Day", "Public holiday"]
+
+
+def test_export_carries_the_calendar_description():
+    calendar = HolidayCalendar(system_id="c", name="Switzerland", description="Federal holidays")
+    content = export_ics(calendar, [])
+    assert b"X-WR-CALDESC:Federal holidays" in content
+    assert b"BEGIN:VEVENT" not in content
