@@ -1,0 +1,4 @@
+State,ID,Work Item Type,Title 1,Title 2,Effort,Parent,Changed Date
+"Active","101","Feature","Authentication",,,,"14.09.2026 08:12"
+"Done","201","Product Backlog Item",,"Login form","3","101","22.09.2026 17:09"
+"Done","204","Product Backlog Item",,"Dashboard tiles","0,5","102","01.09.2026 13:20"

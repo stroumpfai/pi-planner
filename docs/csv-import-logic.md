@@ -465,3 +465,8 @@ several of them are built to be applied *after* `01-basic.csv`.
 | `11-dates-ambiguous.csv` | Every day is 12 or lower, so the import asks for the date format. |
 | `12-iterations.csv` | Iteration Path placement: a feature into PI 08, stories into its sprints, one unmapped PI reported. |
 | `13-epics.csv` | The export with Epic rows: three title columns, Epic, Area Path, Committed, State Change Date. |
+| `14-dates-day-first.csv` | A day-first export: `14.09.2026 08:12` dates and an Effort of `0,5`. |
+| `15-dates-conflicting.csv` | Two dates no single format reads — the file is refused. |
+| `16-story-bug-switch.csv` | Story ↔ bug in a file with no `State` column: States cleared. |
+| `17-blank-ids.csv` | Blank IDs always create; State matching ignores case and spacing. |
+| `18-iterations-refresh.csv` | A second Iteration Path import: out of a sprint, between sprints, a feature placed from a sprint path, path matching that ignores case and separators. |
