@@ -27,6 +27,10 @@ doc explains the implementation; it does not replace the spec.
   "Anna, 2 days a week". Days are a fraction of that member's contract (2 days
   is 40% of a full-timer, 50% of a 4-day contract), so absences reduce them in
   proportion ([ADR 0010](adr/0010-shares-in-days-are-a-proportion-of-the-contract.md)).
+- One project per team can take the **remaining capacity**: from every member,
+  whatever the team's other projects leave. It is worked out live from those
+  shares, never stored as a number
+  ([ADR 0012](adr/0012-one-project-can-take-the-remaining-capacity.md)).
 - This is a **different feature** from the amber/red bar on the PI board
   (`CapacityBar`), which compares story points *used* against a sprint's Available
   *budget*. The two connect only through the push: team capacity computes
@@ -95,9 +99,9 @@ flowchart LR
    both read in the same unit.
 
 Implementation: [`backend/app/services/team_capacity.py`](../backend/app/services/team_capacity.py)
-(`compute_member_capacity`, lines 237–285) — a pure function with no DB access,
-so the arithmetic is unit-tested against hand-computed fixtures independently of
-the ORM. `compute_team_capacity` (lines 288–315) runs it per member and sums.
+(`compute_member_capacity`) — a pure function with no DB access, so the
+arithmetic is unit-tested against hand-computed fixtures independently of the
+ORM. `compute_team_capacity` runs it per member and sums.
 
 ### Worked example
 
@@ -221,6 +225,91 @@ flowchart LR
 Worked from the example above: 70% share, 1.5 pts/PD →
 `13.15 × 0.70 = 9.205 PD`, `9.205 × 1.5 = 13.808` → rounds to **14 pts pushed**.
 
+## Resource allocation: whose capacity a project gets
+
+The diagram above is the simple case: the whole team at one percentage. An
+assignment's **Resource allocation** has three modes (`spec/teams.md` §6.3), and
+all three reduce to one question per member and half-day: *what fraction of this
+member does the project get?* That fraction is a **weight against the member's
+contract, taken per pattern version**, so absences reduce every share in
+proportion and a contract change mid-sprint is exact.
+
+| Mode | Stored as | Weight of member `m` |
+|---|---|---|
+| **Whole team** | `all_members = 1`, `share_pct` or `share_days`, optional per-member overrides | the member's override, else the assignment's share |
+| **Specific members** | `all_members = 0` + `team_project_members` rows | as above for the ticked members; 0 for everyone else ([ADR 0009](adr/0009-an-assignment-can-count-only-some-members.md)) |
+| **Remaining capacity** | `share_remaining = 1`, `all_members = 1`, no member rows; `share_pct`/`share_days` ignored | `max(0, 1 − Σ weight of m's shares in the team's other projects)` |
+
+A share in **days a week** is a fraction of that member's contract: 2 days is 40%
+of a full-timer and 50% of a 4-day contract
+([ADR 0010](adr/0010-shares-in-days-are-a-proportion-of-the-contract.md)).
+
+The code lives in
+[`assignment_scope.py`](../backend/app/services/assignment_scope.py):
+`load_scopes` reads a team's assignments once, `share_for(assignment, scope,
+member)` answers the question above, and the Capacity view, push preview, push
+and staleness check all go through it.
+
+- **The uniform fast path.** When every counted member gives the same percentage
+  (`is_uniform_pct`), project PD is computed as before per-member shares
+  existed: counted members' PD × share. The Specific members dialog normalises to
+  this on submit — if every ticked member has the same percentage it sends that
+  as `share_pct` with no overrides — so existing numbers stay identical down to
+  the last digit of the float.
+- **How the remainder is worked out.** The scope of the remaining project carries
+  `remaining_from`, the team's other assignments with their scopes, and
+  `share_for` builds `Share(remaining_of=…)` from them. Remainders sit there and
+  never in `overrides`, so they don't leak into the API's `member_shares`. A
+  remainder never depends on another remainder (one per team), so there are no
+  cycles and order doesn't matter. `load_scope` for a single remaining assignment
+  (push, staleness) has to load its sibling assignments for the same reason.
+- **One per team**, enforced by a partial unique index on
+  `team_projects(team_id) WHERE share_remaining = 1`; the route checks first so a
+  second one gets a readable `409 REMAINING_TAKEN` naming the holder. Sending a
+  share or members with `remaining: true` is a plain 422 from the schema. Giving
+  the remaining project a share or a scope later turns `remaining` off.
+
+### Worked example
+
+Portal has Anna and Bruno to itself (Specific members, 100%); Billing books Carla
+for 2 days a week and Dario at 50%; Search takes the remaining capacity. Everyone
+is full-time (5 days).
+
+| Member | Portal | Billing | Search (remaining) | Load |
+|---|---|---|---|---|
+| Anna | 100% | — | 0 | 100% |
+| Bruno | 100% | — | 0 | 100% |
+| Carla | — | 2 d | 3 d | 100% |
+| Dario | — | 50% | 50% | 100% |
+
+Now raise Dario's Billing share to 70%: Search's Dario drops to 30% at once, with no
+edit to Search. That is the point of a live remainder — a figure filled in once
+would drift and leave slack nobody sees.
+
+### Load and over-allocation
+
+`member_loads` gives each counting, still-active member's load across every
+project that counts them, converted to days against the contract in force
+**today** — it describes the week being planned now:
+
+- `days_per_week` and `share_pct` — the total booked, all projects included;
+- `remaining_days` — `max(0, contracted − days booked by the non-remaining
+  projects)`. It is always reported, even when no project takes the remainder,
+  so the dialog can say who is fully booked without another request.
+
+A remaining project brings a load up to exactly 100% and never past it. A member
+whose fixed shares already exceed their contract gets nothing from the remainder
+and stays flagged over 100% by name — the remainder neither causes nor hides that.
+
+### Staleness
+
+Changing project Y's share moves the numbers of the team's remaining project X
+too. Push status is worked out on demand, so X reads stale at its next check, as
+long as the client asks again: every assignment write invalidates
+`teamCapacityStatus` and `teamCapacityPreview` for **all** projects of the team,
+not only the one edited (`useTeamProjects.ts`). As with every share, nothing is
+written to `sprint.available` until someone pushes.
+
 ## API
 
 `GET /api/v1/teams/{team_id}/capacity` returns `TeamCapacityResponse`
@@ -297,13 +386,51 @@ This is the feature described in `spec/specification.md` §11 (Design System);
 it has no relationship to `counts_towards_capacity` or to the per-member engine
 beyond the fact that a push can populate the number this bar measures against.
 
+## Planned, not built: a PI Team report
+
+A fourth report type, **Team**, in the PI board's Reports modal (Markdown and
+PDF, and `export_pi_report(report_type="team")` over MCP), was designed in
+September 2026 and not built. `REPORT_TYPES` in `pi_report.py` still holds three
+types. Decisions taken, so they don't have to be made again:
+
+- **Scope.** The team serving the PI's project (at most one), over the PI's own
+  sprints labelled `{PI}.{n}` — not the anchor project's calendar. Three
+  sections: roster, working days, absences. No PD section and no meetings.
+- **Privacy.** Leave shows only as **"Absent"**; an absence's `label` is never
+  read by the report. A public holiday shows as "Public holiday: {label}" from
+  the team's enabled calendars. An integration test should plant a distinctive
+  label and assert it never appears in the Markdown or the PDF bytes.
+- **Everyone is listed** — members not counted towards capacity sit below the
+  total row, marked; members inactive for the whole PI read "not active", never
+  zeros.
+- **Per-sprint absences** as `absent / working` days, both taken from
+  `compute_member_capacity` with no meeting lookup (`absent_half_days / 2`,
+  `contracted_half_days / 2`), so the report matches the Capacity view by
+  construction. A test should check them against `GET /teams/{id}/capacity`.
+- **Working days** from the pattern in effect on the PI's first day (`✓`, `am`,
+  `pm`, `–`; weekend columns only if someone works a weekend half), plus a table
+  of pattern versions starting inside the PI.
+- **Degrade, don't fail** (all HTTP 200): no team → one line saying so; no
+  members → "No members"; undated PI or sprint → roster still shown, "—" in the
+  sprint columns.
+- **Structure.** A `team_report.py` service taking `(team, columns, window)`,
+  not a PI, so a later `GET /teams/{id}/report` can reuse it. Pure helpers for
+  pattern cells, absence spans (ranges clipped and merged; recurring rules shown
+  as their `describe()` sentence, not expanded) and the per-sprint cells.
+
 ## See also
 
 - [`spec/teams.md`](../spec/teams.md) §3 (members, pattern versions), §5
   (capacity computation, the authoritative formula), §6 (projects, shares,
-  Available), §7.6 (Capacity view UI spec)
+  Available; §6.3.4 remaining capacity), §7.6 (Capacity view UI spec)
 - [ADR 0005](adr/0005-capacity-membership-is-a-flag-not-a-contract-term.md) —
   why `counts_towards_capacity` is undated
+- [ADR 0009](adr/0009-an-assignment-can-count-only-some-members.md),
+  [ADR 0010](adr/0010-shares-in-days-are-a-proportion-of-the-contract.md),
+  [ADR 0012](adr/0012-one-project-can-take-the-remaining-capacity.md) — specific
+  members, shares in days, the remaining capacity
+- [`backend/app/services/assignment_scope.py`](../backend/app/services/assignment_scope.py) —
+  who a project counts, each member's share, loads
 - [`backend/app/services/team_capacity.py`](../backend/app/services/team_capacity.py) —
   the pure arithmetic
 - [`backend/app/services/team_capacity_report.py`](../backend/app/services/team_capacity_report.py) —
