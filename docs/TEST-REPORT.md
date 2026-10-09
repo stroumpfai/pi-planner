@@ -5,23 +5,29 @@
 | | |
 |---|---|
 | **Status** | ✅ all green |
-| **Generated** | 2026-09-06 16:15 UTC |
-| **Commit** | `a5577fe` on `main` |
-| **Total tests** | **2510** |
+| **Generated** | 2026-10-09 07:37 UTC |
+| **Commit** | `5def7c8` on `main` |
+| **Total tests** | **3509** |
 
 ## Suites
 
 | Suite | Tests | Coverage | Runner |
 |---|---|---|---|
-| Backend (pytest) | 956 | 96.34% | `cd backend && pytest tests/` |
-| MCP server (pytest) | 313 | 95.50% | `cd mcp_server && pytest tests/` |
-| Frontend unit (Vitest) | 1102 | 94.23% | `npm run test` |
-| End-to-end (Cypress) | 139 across 25 specs | n/a — journey coverage | `npm run e2e` |
+| Backend (pytest) | 1442 | 95.44% | `cd backend && pytest tests/` |
+| MCP server (pytest) | 449 | 97.14% | `cd mcp_server && pytest tests/` |
+| Frontend unit (Vitest) | 1462 | 96.95% | `npm run test` |
+| End-to-end (Cypress) | 156 across 27 specs | n/a — journey coverage | `npm run e2e` |
 
-Coverage gates are enforced by the runners themselves: 75% for the backend
-(`backend/pyproject.toml`), 80% for the MCP server, and 70% statements / 65%
-branches for the frontend (`frontend/vite.config.ts`). A suite fails if it drops
-below its gate.
+Backend and MCP figures are lines + branches; the frontend figure is statements
+(its branch figure is in the Vitest output). The backend's daily gate in
+`check.sh` measures lines only, for speed — see `backend/coverage-branch.ini`.
+
+Coverage gates are enforced by the runners themselves: 93% for the backend
+(`backend/pyproject.toml`), 95% for the MCP server, and 94% statements / 85%
+branches / 80% functions for the frontend (`frontend/vite.config.ts`). The
+access-guarding files also have their own per-file floors
+(`scripts/coverage-floors.py`, and the globs in `vite.config.ts`). A suite fails
+if it drops below its gate.
 
 ## What each layer covers
 
