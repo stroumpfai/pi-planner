@@ -1,8 +1,7 @@
-<!-- since: 3e4552f — scripts/release-notes.sh appends new commits here;
+<!-- since: 54f4636 — scripts/release-notes.sh appends new commits here;
      condense/edit in place, then commit. -->
 
 ## Unreleased
-
 
 # Version 1.14
 
@@ -15,9 +14,10 @@
   - Let one project take the team's remaining capacity, and give each allocation one share field
   - Import absences from an .ics calendar file, and update them on re-import
   - Make a long .ics file workable in the absence import
-  - Let a share be days a week, on the assignment or for one member
+  - Let a share be days/week, on the team assignment or for one member
   - Let a project assignment count only some of the team's members
   - Add shared holiday calendars that teams enable, counted in capacity
+  - Let meetings follow the sprint calendar, and give way to the sprint change
 
 - Documentation
   - Add docs/capacity.md explaining the team capacity computation. Check source code repo.
@@ -30,6 +30,8 @@
   - Test the OAuth provider's rejection paths
   - Test the MCP activity log and its guard against forged entries
   - Fix two failing E2E specs: stale PBI modal and team-row selector
+  - Fix the CI failures: mypy shadowing and four flaky Cypress specs
+  - Fix and extend the CSV samples, add ICS samples, and pin both with tests
 
 - Security improvements
   - Refuse weak signing secrets, and end OAuth grants with the API key behind them
