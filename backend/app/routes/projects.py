@@ -152,7 +152,7 @@ async def delete_project(
     await db.delete(project)
     await db.commit()
     await broadcaster.broadcast(project_id, "project:deleted", {"system_id": project_id})
-    for _, team_id in assignments:
+    for _assignment_id, team_id in assignments:
         await broadcaster.broadcast(
             team_channel(team_id), "team:project:unassigned", {"project_id": project_id}
         )

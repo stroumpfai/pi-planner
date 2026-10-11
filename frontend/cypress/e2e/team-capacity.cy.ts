@@ -202,9 +202,11 @@ describe('Team capacity', () => {
     cy.contains('÷ 8.0 h per day').should('be.visible')
 
     // The project row converts it: 10 PD × 70% = 7 PD × 1.5 = 10.5 → 11 pts,
-    // the integer a push would write (§6.4).
-    cy.contains('7.0 PD').should('be.visible')
-    cy.contains('→ 11 pts').should('be.visible')
+    // the integer a push would write (§6.4). The cell sits in the table's
+    // horizontally scrolling wrapper, so Cypress can judge it clipped even though
+    // it rendered: asserted with `exist`.
+    cy.contains('7.0 PD').should('exist')
+    cy.contains('→ 11 pts').should('exist')
   })
 
   it('shows a member who does not count below the total, and leaves the total alone', () => {

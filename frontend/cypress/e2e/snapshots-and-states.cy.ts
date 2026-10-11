@@ -25,7 +25,7 @@ describe('Project snapshots', () => {
 
   it('restores a snapshot and the project returns to its captured contents', () => {
     cy.then(() => {
-      cy.request('POST', `/api/v1/projects/${projectId}/snapshots`, { name: 'Baseline' })
+      cy.request('POST', `/api/v1/projects/${projectId}/snapshots/`, { name: 'Baseline' })
       // Diverge from the snapshot: add a feature that the restore must remove.
       cy.request('POST', `/api/v1/projects/${projectId}/features`, { title: 'Feature After' })
     })

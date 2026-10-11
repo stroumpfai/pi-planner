@@ -20,7 +20,7 @@ describe('Snapshot diff page', () => {
     cy.request('POST', '/api/v1/projects/', { name: 'Diff Test' }).then((res) => {
       projectId = res.body.system_id
       addFeature('Feature Before')
-      cy.request('POST', `/api/v1/projects/${projectId}/snapshots`, { name: 'Baseline' })
+      cy.request('POST', `/api/v1/projects/${projectId}/snapshots/`, { name: 'Baseline' })
     })
   })
 
