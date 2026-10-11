@@ -1,40 +1,41 @@
 #!/usr/bin/env bash
 #
-# Gate pushes of `main` on the full check suite.
+# Gate pushes of `main` on a passing check run.
 #
 # Feature-branch pushes are not gated — work in progress is allowed to be broken.
 # `main` is what reaches GitHub and what CI builds, so that is where the line is.
+#
+# The hook does not run the checks itself: git opens the connection to GitHub
+# before calling pre-push, and GitHub drops it if the hook sits on it for the
+# several minutes the suite takes. Instead `scripts/check.sh --with-e2e` stamps
+# the tree it tested, and this hook only checks the pushed commit has that tree:
+#
+#   scripts/check.sh --with-e2e && git push
 #
 # Installed via:  git config core.hooksPath scripts/hooks
 # Bypass once:    git push --no-verify
 #
 set -uo pipefail
 
-ROOT="$(git rev-parse --show-toplevel)"
+STAMP="$(git rev-parse --git-path check-passed)"
+stamped="$(head -n1 "$STAMP" 2>/dev/null || true)"
 
 # git feeds one line per ref on stdin:
 #   <local ref> <local oid> <remote ref> <remote oid>
 # An all-zero *local* oid means the remote ref is being deleted — nothing to test.
-gate=0
 while read -r _local_ref local_oid remote_ref _remote_oid; do
   [[ "$remote_ref" == "refs/heads/main" ]] || continue
   [[ "$local_oid" =~ ^0+$ ]] && continue
-  gate=1
-done
 
-if [[ $gate -eq 0 ]]; then
-  echo "pre-push: not pushing main — skipping checks"
-  exit 0
-fi
+  if [[ -n "$stamped" && "$(git rev-parse "$local_oid^{tree}")" == "$stamped" ]]; then
+    echo "pre-push: main $(git rev-parse --short "$local_oid") passed scripts/check.sh --with-e2e"
+    continue
+  fi
 
-echo "pre-push: pushing main — running full checks (~3 min; --no-verify to skip)"
-echo ""
-
-if ! "$ROOT/scripts/check.sh" --with-e2e; then
-  echo ""
-  echo "pre-push: checks failed — push aborted."
-  echo "          Fix the failure, or 'git push --no-verify' if you know what you're doing."
+  echo "pre-push: main $(git rev-parse --short "$local_oid") has no passing check run — push aborted."
+  echo "          Run:  scripts/check.sh --with-e2e && git push"
+  echo "          (or 'git push --no-verify' if you know what you're doing)"
   exit 1
-fi
+done
 
 exit 0

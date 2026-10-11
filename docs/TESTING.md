@@ -5,8 +5,8 @@ For the current pass/fail and coverage numbers see **[TEST-REPORT.md](TEST-REPOR
 which is generated — never edit it by hand.
 
 ```bash
-scripts/check.sh                  # is this clean? — everything but the browser suite (~95s)
-scripts/check.sh --with-e2e       # add Cypress (~3 min)
+scripts/check.sh                  # is this clean? — everything but the browser suite (~70s)
+scripts/check.sh --with-e2e       # add Cypress (~6.5 min); stamps main as pushable
 scripts/check.sh --quick          # static checks only, no test suites (~10s)
 ```
 
@@ -14,8 +14,8 @@ scripts/check.sh --quick          # static checks only, no test suites (~10s)
 contract check, ESLint, `tsc` over `src` *and* every spec, then the three test
 suites with their coverage gates. It stops at the first failure and runs
 cheapest-first, so a stale import costs you a second rather than a full test run.
-The pre-push hook and CI both call it, so there is one place to change what
-"clean" means — see [Gates](#gates) below.
+CI calls it and the pre-push hook trusts only its stamp, so there is one place to
+change what "clean" means — see [Gates](#gates) below.
 
 For a release, `test-report.sh` runs the same suites but *records* the result:
 
@@ -36,9 +36,25 @@ Nothing here is advisory — three things enforce it.
 
 **The coverage floors**, enforced by each runner itself (see the table below).
 
-**The `pre-push` hook** (`scripts/hooks/pre-push`), which runs `check.sh --with-e2e`
-when — and only when — you push `main`. Feature-branch pushes are not gated; work
-in progress is allowed to be broken. Install it once per clone:
+**The `pre-push` hook** (`scripts/hooks/pre-push`), which refuses a push of `main`
+unless `check.sh --with-e2e` has passed on exactly that tree. Feature-branch pushes
+are not gated; work in progress is allowed to be broken. Push `main` with:
+
+```bash
+scripts/check.sh --with-e2e && git push
+```
+
+The hook does not run the suite itself. Git opens the connection to GitHub *before*
+calling `pre-push`, and GitHub drops a connection the hook leaves idle for the
+several minutes the suite takes. So the push dies after the checks pass. Instead, a passing `--with-e2e`
+run writes the tree hash it tested to `.git/check-passed`, and the hook only
+compares the pushed commit's tree with it. No stamp is written if the run started
+or ended with uncommitted tracked changes, or with untracked files under `backend/`,
+`frontend/`, `mcp_server/` or `scripts/`: a file you forgot to `git add` would pass
+locally and break `main`. Rewording a commit keeps its tree, so the stamp still holds.
+Any content change needs a new run.
+
+Install the hook once per clone:
 
 ```bash
 git config core.hooksPath scripts/hooks
@@ -114,6 +130,11 @@ SQLite database: every route, the RBAC guard on each endpoint, dual-ID uniquenes
 edit-lock enforcement, CSV import, snapshots and diffing, PI export and reports,
 and `test_migrations.py`, which walks the Alembic chain so a bad migration fails
 here rather than on deploy.
+
+`check.sh` runs this suite in parallel (`pytest -n auto`, pytest-xdist), which cuts
+it from about 3 min to about 30s. Each test builds its own in-memory SQLite engine,
+so tests share no state across workers; keep it that way. Plain `pytest tests/`
+still runs serially, which is cheaper for a single file.
 
 ⚠️ **The daily backend figure is lines only.** `check.sh` measures with
 `core = "sysmon"`, which is fast but cannot see branches on Python 3.12.

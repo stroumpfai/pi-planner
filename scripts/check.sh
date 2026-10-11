@@ -2,14 +2,17 @@
 #
 # The single definition of "clean" for this repo.
 #
-#   scripts/check.sh            # everything except the browser suite (~95s)
-#   scripts/check.sh --with-e2e # add Cypress (~3 min total)
+#   scripts/check.sh            # everything except the browser suite (~70s)
+#   scripts/check.sh --with-e2e # add Cypress (~6.5 min total)
 #   scripts/check.sh --quick    # static checks only, no test suites (~20s)
 #
 # Checks run cheapest-first and the script stops at the first failure, so a
 # formatting slip costs you a second rather than a full test run. CI
-# (.github/workflows/ci.yml) and the pre-push hook (scripts/hooks/pre-push)
-# both call this file, so there is one place to change what "clean" means.
+# (.github/workflows/ci.yml) calls this file, so there is one place to change
+# what "clean" means.
+#
+# A clean --with-e2e run on a clean checkout stamps HEAD's tree into
+# .git/check-passed; the pre-push hook only compares against that stamp.
 #
 set -uo pipefail
 
@@ -22,7 +25,7 @@ for arg in "$@"; do
   case "$arg" in
     --with-e2e) WITH_E2E=1 ;;
     --quick)    QUICK=1 ;;
-    -h|--help)  sed -n '2,12p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    -h|--help)  sed -n '2,15p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
   esac
 done
@@ -33,6 +36,20 @@ MCP_PY="$ROOT/mcp_server/.venv/bin/python"
 # CI installs into the ambient environment rather than the local venvs.
 [[ -x "$BACKEND_PY" ]] || BACKEND_PY="$(command -v python3 || true)"
 [[ -x "$MCP_PY" ]]     || MCP_PY="$(command -v python3 || true)"
+
+# The stamp vouches for a commit, so it is only written when the commit is
+# exactly what was tested: no tracked edits anywhere, and no untracked files
+# where code lives (a forgotten `git add` would pass here and break on main).
+# Taken now and re-checked at the end, so an edit made mid-run voids it.
+STAMP="$(git rev-parse --git-path check-passed)"
+tree_state() {
+  git rev-parse 'HEAD^{tree}'
+  git status --porcelain --untracked-files=no
+  git status --porcelain -- backend frontend mcp_server scripts
+}
+START_STATE="$(tree_state)"
+STAMPABLE=0
+[[ "$(printf '%s\n' "$START_STATE" | wc -l)" -eq 1 ]] && STAMPABLE=1
 
 GREEN=$'\033[32m'; RED=$'\033[31m'; DIM=$'\033[2m'; OFF=$'\033[0m'
 [[ -t 1 ]] || { GREEN=""; RED=""; DIM=""; OFF=""; }
@@ -68,8 +85,11 @@ if [[ $QUICK -eq 1 ]]; then
   exit 0
 fi
 
+# A stale stamp must not survive an e2e run that went on to fail.
+[[ $WITH_E2E -eq 1 ]] && rm -f "$STAMP"
+
 # ── test suites ──────────────────────────────────────────────────────────────
-step "pytest backend    " bash -c 'cd backend && "$0" -m pytest tests/ -q' "$BACKEND_PY"
+step "pytest backend    " bash -c 'cd backend && "$0" -m pytest tests/ -q -n auto' "$BACKEND_PY"
 step "  per-file floors " bash -c 'cd backend && "$0" ../scripts/coverage-floors.py backend' "$BACKEND_PY"
 step "pytest mcp_server " bash -c 'cd mcp_server && "$0" -m pytest tests/ -q' "$MCP_PY"
 step "  per-file floors " bash -c 'cd mcp_server && "$0" ../scripts/coverage-floors.py mcp_server' "$MCP_PY"
@@ -83,3 +103,12 @@ fi
 
 echo ""
 echo "${GREEN}all checks clean${OFF}"
+
+if [[ $WITH_E2E -eq 1 ]]; then
+  if [[ $STAMPABLE -eq 1 && "$(tree_state)" == "$START_STATE" ]]; then
+    printf '%s\n' "$START_STATE" > "$STAMP"
+    echo "${DIM}stamped $(git rev-parse --short HEAD) as pushable${OFF}"
+  else
+    echo "${DIM}not stamped: uncommitted changes, or untracked files under backend/ frontend/ mcp_server/ scripts/${OFF}"
+  fi
+fi
