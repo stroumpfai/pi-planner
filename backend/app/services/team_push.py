@@ -49,7 +49,7 @@ from app.services.assignment_scope import (
 )
 from app.services.holidays import holiday_lookup
 from app.services.meetings import build_lookup as build_meeting_lookup
-from app.services.meetings import load_meetings
+from app.services.meetings import load_meetings, load_sprint_calendar
 from app.services.team_capacity import (
     AbsenceLookup,
     MeetingLookup,
@@ -182,8 +182,13 @@ async def compute_rows(
         span_start = min(s.start_date for s in dated if s.start_date is not None)
         span_end = max(s.end_date for s in dated if s.end_date is not None)
         absent = build_lookup(await load_absences(db, context.team.system_id), span_start, span_end)
+        # The team's calendar, not this span's columns: a sprint meeting or a
+        # skipped sprint change is placed by the anchor's sprints (ADR 0013).
         booked = build_meeting_lookup(
-            await load_meetings(db, context.team.system_id), span_start, span_end
+            await load_meetings(db, context.team.system_id),
+            await load_sprint_calendar(db, context.team.system_id),
+            span_start,
+            span_end,
         )
         on_holiday = await holiday_lookup(db, context.team.system_id, span_start, span_end)
 

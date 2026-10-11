@@ -281,6 +281,16 @@ class Meeting(Base):
     end_date: Mapped[date | None] = mapped_column(Date)
     weekday: Mapped[int | None] = mapped_column(Integer)
     interval_weeks: Mapped[int | None] = mapped_column(Integer)
+    # `kind = "sprint"` only: which edge of every sprint, and how many working
+    # days in from it (ADR 0013). Null for the other kinds.
+    sprint_day: Mapped[str | None] = mapped_column(Text)
+    sprint_offset: Mapped[int | None] = mapped_column(Integer)
+    # `weekly` / `interval` only: skip occurrences on a sprint's first day, last
+    # day, or both — "refinement every Thursday, except at the sprint change".
+    # Derived from the anchor calendar on every read, never stored per date.
+    skip_sprint_days: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("'none'"), default="none"
+    )
 
     half: Mapped[str] = mapped_column(Text, nullable=False)
     # Minutes, not hours: a five-minute stand-up is 5, and no float count of hours

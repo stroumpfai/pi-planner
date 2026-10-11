@@ -11745,7 +11745,8 @@
             "enum": [
               "range",
               "weekly",
-              "interval"
+              "interval",
+              "sprint"
             ],
             "title": "Kind"
           },
@@ -11791,6 +11792,45 @@
               }
             ],
             "title": "Interval Weeks"
+          },
+          "sprint_day": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "first",
+                  "last"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sprint Day"
+          },
+          "sprint_offset": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sprint Offset"
+          },
+          "skip_sprint_days": {
+            "type": "string",
+            "enum": [
+              "none",
+              "first",
+              "last",
+              "both"
+            ],
+            "title": "Skip Sprint Days",
+            "default": "none"
           },
           "half": {
             "type": "string",
@@ -13967,7 +14007,8 @@
             "enum": [
               "range",
               "weekly",
-              "interval"
+              "interval",
+              "sprint"
             ],
             "title": "Kind"
           },
@@ -14013,6 +14054,45 @@
               }
             ],
             "title": "Interval Weeks"
+          },
+          "sprint_day": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "first",
+                  "last"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sprint Day"
+          },
+          "sprint_offset": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sprint Offset"
+          },
+          "skip_sprint_days": {
+            "type": "string",
+            "enum": [
+              "none",
+              "first",
+              "last",
+              "both"
+            ],
+            "title": "Skip Sprint Days",
+            "default": "none"
           },
           "half": {
             "type": "string",
@@ -14124,6 +14204,33 @@
             ],
             "title": "Interval Weeks"
           },
+          "sprint_day": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sprint Day"
+          },
+          "sprint_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sprint Offset"
+          },
+          "skip_sprint_days": {
+            "type": "string",
+            "title": "Skip Sprint Days",
+            "default": "none"
+          },
           "half": {
             "type": "string",
             "title": "Half"
@@ -14156,6 +14263,15 @@
             },
             "type": "array",
             "title": "Occurrences",
+            "default": []
+          },
+          "skipped": {
+            "items": {
+              "type": "string",
+              "format": "date"
+            },
+            "type": "array",
+            "title": "Skipped",
             "default": []
           },
           "created_at": {
@@ -14214,7 +14330,8 @@
                 "enum": [
                   "range",
                   "weekly",
-                  "interval"
+                  "interval",
+                  "sprint"
                 ]
               },
               {
@@ -14272,6 +14389,51 @@
               }
             ],
             "title": "Interval Weeks"
+          },
+          "sprint_day": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "first",
+                  "last"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sprint Day"
+          },
+          "sprint_offset": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 9.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sprint Offset"
+          },
+          "skip_sprint_days": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "none",
+                  "first",
+                  "last",
+                  "both"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skip Sprint Days"
           },
           "half": {
             "anyOf": [

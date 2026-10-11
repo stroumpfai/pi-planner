@@ -447,7 +447,9 @@ async def list_meetings(
     windowed, so a meeting outside the window still appears with an empty
     `occurrences` list.
 
-    Each meeting carries its schedule rule (kind, dates, weekday, interval_weeks),
+    Each meeting carries its schedule rule (kind, dates, weekday, interval_weeks,
+    and for sprint-relative rules sprint_day / sprint_offset / skip_sprint_days),
+    with `skipped` listing the occurrences a sprint-change skip dropped,
     a plain-language `summary`, the `half` an occurrence starts in,
     `duration_minutes`, `member_ids` for the attendees, `order_index` (the team's
     own column order in the Meetings view), and the `etag` a write must quote.

@@ -11,7 +11,7 @@ import {
 import { useCreateMeeting, useUpdateMeeting } from '@/hooks/useMeetings'
 import { errorDetail } from '@/services/api'
 import { attendeesOf, meetingErrorCode, staleMeeting } from '@/services/meetings'
-import type { Meeting, MeetingCreate, ScheduleKind, TeamMember } from '@/types'
+import type { Meeting, MeetingCreate, MeetingKind, SkipSprintDays, SprintEdge, TeamMember } from '@/types'
 import { previewOccurrences, weekdayIndex } from '@/utils/absenceGrid'
 import { WEEKDAY_LABELS, WEEKDAYS, type Half } from '@/utils/workingDays'
 
@@ -34,10 +34,24 @@ interface Props {
   readonly onStale?: (mine: Meeting, theirs: Meeting) => void
 }
 
-const KIND_HINTS: Readonly<Record<ScheduleKind, string>> = {
+const KIND_HINTS: Readonly<Record<MeetingKind, string>> = {
   range: 'A one-off, or a block of days — each day costs the full duration',
   weekly: 'The same slot every week — a stand-up',
-  interval: 'The same slot every N weeks — a fortnightly retro',
+  interval: 'The same slot every N weeks',
+  sprint: 'A day of every sprint — planning on the first, review and retro on the last',
+}
+
+/** The shared three, then `sprint`: the one kind that reads the sprint calendar. */
+const MEETING_KINDS: readonly MeetingKind[] = ['range', 'weekly', 'interval', 'sprint']
+
+/** How far in from either edge the picker offers; MCP can reach the tenth day. */
+const PICKER_OFFSETS = 5
+
+const SKIP_LABELS: Readonly<Record<SkipSprintDays, string>> = {
+  none: 'never — every occurrence counts',
+  first: "a sprint's first day",
+  last: "a sprint's last day",
+  both: 'the sprint change — first and last day',
 }
 
 /** §9: 5–480 minutes in steps of 5. The shortcuts are what people actually book. */
@@ -75,11 +89,14 @@ export function MeetingDialog({ open, teamId, members, window, editing, onClose,
 
   const [memberIds, setMemberIds] = useState<string[]>([])
   const [title, setTitle] = useState('')
-  const [kind, setKind] = useState<ScheduleKind>('range')
+  const [kind, setKind] = useState<MeetingKind>('range')
   const [startDate, setStartDate] = useState('')
   const [endDate, setEndDate] = useState('')
   const [weekday, setWeekday] = useState(0)
   const [intervalWeeks, setIntervalWeeks] = useState(2)
+  const [sprintDay, setSprintDay] = useState<SprintEdge>('first')
+  const [sprintOffset, setSprintOffset] = useState(0)
+  const [skip, setSkip] = useState<SkipSprintDays>('none')
   const [half, setHalf] = useState<Half>('am')
   // Held as text, not as a number. `Number(e.target.value)` on an empty field is
   // 0, and feeding that back as the input's value fights whoever is mid-edit:
@@ -98,11 +115,14 @@ export function MeetingDialog({ open, teamId, members, window, editing, onClose,
     if (editing) {
       setMemberIds([...attendeesOf(editing)])
       setTitle(editing.title)
-      setKind(editing.kind as ScheduleKind)
+      setKind(editing.kind as MeetingKind)
       setStartDate(editing.start_date)
       setEndDate(editing.end_date ?? '')
       setWeekday(editing.weekday ?? weekdayIndex(editing.start_date))
       setIntervalWeeks(editing.interval_weeks ?? 2)
+      setSprintDay((editing.sprint_day as SprintEdge | null) ?? 'first')
+      setSprintOffset(editing.sprint_offset ?? 0)
+      setSkip((editing.skip_sprint_days as SkipSprintDays | undefined) ?? 'none')
       setHalf((editing.half as Half) ?? 'am')
       setDuration(String(editing.duration_minutes))
       return
@@ -114,6 +134,9 @@ export function MeetingDialog({ open, teamId, members, window, editing, onClose,
     setEndDate('')
     setWeekday(0)
     setIntervalWeeks(2)
+    setSprintDay('first')
+    setSprintOffset(0)
+    setSkip('none')
     setHalf('am')
     setDuration('60')
   }, [open, editing])
@@ -140,6 +163,9 @@ export function MeetingDialog({ open, teamId, members, window, editing, onClose,
     endDate,
     weekday,
     intervalWeeks,
+    sprintDay,
+    sprintOffset,
+    skip,
     half,
     duration: minutes,
     attendeeCount: memberIds.length,
@@ -152,13 +178,18 @@ export function MeetingDialog({ open, teamId, members, window, editing, onClose,
 
   const allSelected = members.length > 0 && memberIds.length === members.length
 
+  const recurring = kind === 'weekly' || kind === 'interval'
+
   const body = (): MeetingCreate => ({
     title: title.trim(),
     kind,
     start_date: startDate,
     end_date: endDate || null,
-    weekday: kind === 'range' ? null : weekday,
+    weekday: recurring ? weekday : null,
     interval_weeks: kind === 'interval' ? intervalWeeks : null,
+    sprint_day: kind === 'sprint' ? sprintDay : null,
+    sprint_offset: kind === 'sprint' ? sprintOffset : null,
+    skip_sprint_days: recurring ? skip : 'none',
     half,
     duration_minutes: minutes,
     member_ids: memberIds,
@@ -294,9 +325,50 @@ export function MeetingDialog({ open, teamId, members, window, editing, onClose,
                 />
               </div>
 
-              <KindTabs label="Meeting kind" value={kind} onChange={setKind} hints={KIND_HINTS} />
+              <KindTabs
+                label="Meeting kind"
+                kinds={MEETING_KINDS}
+                value={kind}
+                onChange={setKind}
+                hints={KIND_HINTS}
+              />
 
-              {kind === 'range' ? (
+              {kind === 'sprint' && (
+                <div className="space-y-3">
+                  <Field label="Day of sprint" htmlFor="meeting-sprint-day" hint="working days, Mon–Fri">
+                    <select
+                      id="meeting-sprint-day"
+                      value={`${sprintDay}:${sprintOffset}`}
+                      onChange={(e) => {
+                        const [edge, offset] = e.target.value.split(':')
+                        setSprintDay(edge as SprintEdge)
+                        setSprintOffset(Number(offset))
+                      }}
+                      className={inputClass}
+                    >
+                      {sprintDayChoices(sprintDay, sprintOffset).map(([edge, offset]) => (
+                        <option key={`${edge}:${offset}`} value={`${edge}:${offset}`}>
+                          {sprintDayLabel(edge, offset)}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Runs from" htmlFor="meeting-anchor">
+                      <DateInput id="meeting-anchor" value={startDate} onChange={setStartDate} className={inputClass} />
+                    </Field>
+                    <Field label="Until" htmlFor="meeting-until" hint="empty = open-ended">
+                      <DateInput id="meeting-until" value={endDate} onChange={setEndDate} className={inputClass} />
+                    </Field>
+                  </div>
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                    Placed by the sprint dates of the team&apos;s first project, so it follows
+                    sprints of any length.
+                  </p>
+                </div>
+              )}
+
+              {kind === 'range' && (
                 <div className="grid grid-cols-2 gap-3">
                   <Field label="On" htmlFor="meeting-from">
                     <DateInput id="meeting-from" value={startDate} onChange={setStartDate} className={inputClass} />
@@ -305,7 +377,9 @@ export function MeetingDialog({ open, teamId, members, window, editing, onClose,
                     <DateInput id="meeting-to" value={endDate} onChange={setEndDate} className={inputClass} />
                   </Field>
                 </div>
-              ) : (
+              )}
+
+              {recurring && (
                 <div className="space-y-3">
                   <div className="grid grid-cols-2 gap-3">
                     {kind === 'interval' && (
@@ -346,6 +420,21 @@ export function MeetingDialog({ open, teamId, members, window, editing, onClose,
                       <DateInput id="meeting-until" value={endDate} onChange={setEndDate} className={inputClass} />
                     </Field>
                   </div>
+                  {/* "Refinement every Thursday, except at the sprint change": the
+                      skipped days cost nothing, so a day shared with the sprint
+                      ceremonies is charged once, not twice (ADR 0013). */}
+                  <Field label="Except on" htmlFor="meeting-skip" hint="sprint days it gives way to">
+                    <select
+                      id="meeting-skip"
+                      value={skip}
+                      onChange={(e) => setSkip(e.target.value as SkipSprintDays)}
+                      className={inputClass}
+                    >
+                      {(Object.keys(SKIP_LABELS) as SkipSprintDays[]).map((value) => (
+                        <option key={value} value={value}>{SKIP_LABELS[value]}</option>
+                      ))}
+                    </select>
+                  </Field>
                   {kind === 'interval' && chips.length > 0 && (
                     <div>
                       <span className="text-xs text-gray-500 dark:text-gray-400">Occurrences</span>
@@ -450,12 +539,47 @@ export function formatDuration(minutes: number): string {
   return rest === 0 ? `${hours} h` : `${Math.floor(hours)} h ${rest} min`
 }
 
+/**
+ * "Last day", "2nd day", "2nd-last day" — the same words the server's summary
+ * uses, so the dialog and the column head never describe one rule two ways.
+ */
+export function sprintDayLabel(edge: SprintEdge, offset: number): string {
+  if (offset === 0) return edge === 'first' ? 'First day' : 'Last day'
+  const n = offset + 1
+  const nth = n === 2 ? '2nd' : n === 3 ? '3rd' : `${n}th`
+  return edge === 'first' ? `${nth} day` : `${nth}-last day`
+}
+
+/**
+ * The picker's choices: the first few days in from each edge, plus the stored
+ * one when an agent set it further in than the picker reaches — an edit must
+ * never silently move a meeting to a day nobody chose.
+ */
+function sprintDayChoices(edge: SprintEdge, offset: number): readonly (readonly [SprintEdge, number])[] {
+  const choices: (readonly [SprintEdge, number])[] = []
+  for (const side of ['first', 'last'] as const) {
+    for (let n = 0; n < PICKER_OFFSETS; n++) choices.push([side, n])
+    if (side === edge && offset >= PICKER_OFFSETS) choices.push([side, offset])
+  }
+  return choices
+}
+
+const SKIP_PHRASES: Readonly<Record<SkipSprintDays, string>> = {
+  none: '',
+  first: ", except a sprint's first day",
+  last: ", except a sprint's last day",
+  both: ', except at the sprint change',
+}
+
 interface MeetingDraftSummary {
-  readonly kind: ScheduleKind
+  readonly kind: MeetingKind
   readonly startDate: string
   readonly endDate: string
   readonly weekday: number
   readonly intervalWeeks: number
+  readonly sprintDay?: SprintEdge
+  readonly sprintOffset?: number
+  readonly skip?: SkipSprintDays
   readonly half: Half
   readonly duration: number
   readonly attendeeCount: number
@@ -485,11 +609,17 @@ export function describeMeetingDraft(draft: MeetingDraftSummary): string {
     return `${span}, ${length}, ${who}`
   }
 
+  const until = draft.endDate ? `until ${draft.endDate}` : 'ongoing'
+  if (draft.kind === 'sprint') {
+    const day = sprintDayLabel(draft.sprintDay ?? 'first', draft.sprintOffset ?? 0).toLowerCase()
+    return `${day} of every sprint, ${length}, from ${draft.startDate} ${until}, ${who}`
+  }
+
   const dayLabel = WEEKDAY_LABELS[WEEKDAYS[draft.weekday]]
   const every =
     draft.kind === 'interval'
       ? `every ${draft.intervalWeeks} weeks on ${dayLabel}`
       : `every ${dayLabel}`
-  const until = draft.endDate ? `until ${draft.endDate}` : 'ongoing'
-  return `${every}, ${length}, from ${draft.startDate} ${until}, ${who}`
+  const skip = SKIP_PHRASES[draft.skip ?? 'none']
+  return `${every}${skip}, ${length}, from ${draft.startDate} ${until}, ${who}`
 }

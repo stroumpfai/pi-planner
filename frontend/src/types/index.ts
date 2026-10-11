@@ -70,6 +70,13 @@ export type ScheduleKind = NonNullable<AbsenceCreate['kind']>
 export type Meeting = components['schemas']['MeetingResponse']
 export type MeetingCreate = components['schemas']['MeetingCreate']
 export type MeetingUpdate = components['schemas']['MeetingUpdate']
+/** The shared shapes plus `sprint` — a named working day of every sprint, which
+ *  only a meeting has a use for (ADR 0013). */
+export type MeetingKind = NonNullable<MeetingCreate['kind']>
+/** Which edge of a sprint a `sprint` meeting sits on. */
+export type SprintEdge = NonNullable<MeetingCreate['sprint_day']>
+/** The sprint days a weekly or interval meeting gives way to. */
+export type SkipSprintDays = NonNullable<MeetingCreate['skip_sprint_days']>
 
 /** A shared holiday calendar: app-wide, enabled per team (public-holidays.md §3). */
 export type HolidayCalendarSummary = components['schemas']['HolidayCalendarSummary']

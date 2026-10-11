@@ -265,6 +265,12 @@ with two adequate answers already in the model:
 If per-occurrence exceptions turn out to be genuinely needed, they are a deliberate later
 addition (§13) — not something to slip in through a modal's confirm dialog.
 
+**One rule-level skip exists, for meetings only: `skip_sprint_days`** (§3.5, ADR 0013). A
+weekly or interval meeting can give way to a sprint's first day, last day, or both —
+"refinement every Thursday, except at the sprint change". This is not an exception list:
+nothing is stored per date, the skipped days are derived from the anchor calendar on every
+read, and they move when the sprint dates do.
+
 Creating an absence for **multiple or all members creates one record per member**, each
 independently editable and deletable afterwards. The multi-select is an input convenience,
 not a shared object — otherwise editing "everyone's Christmas" for one person who is
@@ -292,6 +298,8 @@ Rules:
 | *schedule rule* | `kind` + its fields — **the same three kinds as §3.4**, created through the same modal |
 | `half` | The half-day an occurrence **starts** in (`am` / `pm`) |
 | `duration_minutes` | Integer **5–480**, in steps of 5 |
+| `sprint_day`, `sprint_offset` | `kind = sprint` only: `first` / `last`, and **0–9 working days** in from that edge |
+| `skip_sprint_days` | `weekly` / `interval` only: `none` (default), `first`, `last` or `both` |
 | attendees | One, several or all members — one row per attendee |
 | `modified_at` | Timestamp — the concurrency token (§4.2) |
 
@@ -322,6 +330,27 @@ UI can offer a normal duration picker.
 because it is what lets a meeting be cancelled against an absence — a 2 h meeting on a morning
 the member is away costs nothing, and without placement it would wrongly consume their
 afternoon.
+
+#### Meetings that follow the sprint calendar (ADR 0013)
+
+Sprint ceremonies are tied to sprints, not to weeks, and an `interval` rule only matches them
+while every sprint has the same length. Two additions read the **team's sprint calendar** —
+the anchor project's dated sprints (§7.0.1) — instead:
+
+- **`kind = sprint`** — a meeting on a named day of every sprint: `sprint_day = first` for
+  planning, `last` for review and retro, with `sprint_offset` counting working days inward
+  (`last` + 1 is the day before the last day). `start_date` and `end_date` bound it, as for a
+  recurrence; there is no weekday. A sprint too short to have the offset day gets no
+  occurrence.
+- **`skip_sprint_days`** on `weekly` / `interval` — the occurrences that land on a sprint's
+  first day, last day, or either are **not held**, cost nothing, and come back in the
+  response's `skipped` list. This is what keeps a day shared with the sprint ceremonies from
+  being charged for both. Overlapping meetings that *are* held still sum (§5.4).
+
+**Sprint days are working days, Monday to Friday.** A sprint stored as ending on a Sunday
+ends, for a meeting, on the Friday. A team with no project, or with no dated sprint, has no
+sprint days: a `sprint` meeting does not occur and nothing is skipped. On a `range` or
+`sprint` meeting the skip is not stored, and on the other kinds the sprint fields are not.
 
 **A meeting's length is independent of the attendee's working day.** An 8 h workshop is
 enterable for a member contracted 6 h/day; it consumes their whole day and no more (§5.4).
@@ -1437,6 +1466,9 @@ REST.
 | Recurring rule with no `end_date` | Open-ended; occurrences generated only inside the computed window (§3.4) |
 | Meeting spanning several days | `kind = range`; each day in the range costs `duration_minutes` |
 | Meeting with no attendees | Allowed — a column with an empty matrix costs nothing |
+| Refinement on a sprint-change day | `skip_sprint_days`; the day costs nothing and is listed in `skipped` (§3.5) |
+| Sprint ceremony with sprints of different lengths | `kind = sprint`, placed by the anchor calendar (§3.5) |
+| Sprint meeting on a team with no project | Allowed; no occurrences until a project with dated sprints is assigned |
 | Delete one occurrence of a recurring entry | Not possible; end the rule and start a new one, or add a one-day `range` (§3.4) |
 | Meeting totals with no sprint selected | Column reads `—`; a team with no anchor project shows why (§7.5) |
 | Undated sprint in any team view | Every figure reads `—`, never `0` (§7.0.1) |
@@ -1484,6 +1516,7 @@ No open questions remain. The ones that shaped this document, and how they were 
 | Booking someone "2 days a week" | A share can be **days a week**, on the assignment or per member; a proportion of the member's own contract, weighed per pattern version (ADR 0010) | §6.3.2 |
 | Some members working on one project only | An assignment **counts the whole team or only listed members**; the share applies to them; over-allocation is per member (ADR 0009) | §6.3 |
 | Meetings vs. focus double-counting | Meetings subtract **before** focus | §5.4 |
+| Meetings tied to sprints, and a meeting giving way to them | `kind = sprint` on a named working day of every sprint; `skip_sprint_days` on recurrences, derived from the anchor calendar — not an exception list (ADR 0013) | §3.5 |
 | Absences from Outlook / Google | **`.ics` import**, for one member or a team file matched by name; re-import upserts on the event UID and never touches hand-entered rows (ADR 0011) | §7.4.1 |
 | Edit-lock scope for cross-project teams | No lock change — team routes fall outside it by construction; one explicit push meets the existing lock | §4.1 |
 | Team-data concurrency | **`If-Match` from the start**, `412` on mismatch — not last-write-wins, not a team lock | §4.2 |

@@ -265,3 +265,104 @@ describe('Meetings', () => {
     cy.contains('a meeting is a column here').should('be.visible')
   })
 })
+
+/**
+ * Meetings placed by the sprint calendar (ADR 0013).
+ *
+ * The seeded sprint runs Monday 6 – Friday 17 April, so a Monday refinement
+ * collides with sprint planning on the 6th. That is the request this covers:
+ * refinement gives way on the sprint change, and the day is charged once — for
+ * planning — rather than for both.
+ */
+describe('Meetings that follow the sprint calendar', () => {
+  beforeEach(() => {
+    cy.resetDb()
+    cy.login()
+    seedMeetingTeam()
+    cy.openTeam('Platform')
+    meetingsTab('Meetings').click()
+  })
+
+  it('adds a weekly meeting that gives way to the sprint change, and says which day it skipped', () => {
+    cy.contains('button', /^\+ Add meeting$/).click()
+
+    meetingDialog().find('input[name="title"]').type('Refinement')
+    meetingDialog().contains('button', /^Weekly$/).click()
+    meetingDialog().find('#meeting-weekday').select('Mon')
+    meetingDialog().find('#meeting-anchor').type('01.04.2026')
+    meetingDialog().find('#meeting-skip').select('first')
+    meetingDialog().find('#meeting-duration').clear().type('60')
+    meetingDialog()
+      .find('[data-testid="meeting-summary"]')
+      .should('contain', "except a sprint's first day")
+    meetingDialog().contains('button', /^Save$/).click()
+
+    cy.contains('th', 'Refinement').should('contain', "except a sprint's first day")
+    cy.contains('th', 'Refinement').should('contain', 'skipped 2026-04-06')
+
+    // Two Mondays in the sprint, one skipped: 1 h each, not 2.
+    cy.get('input[aria-label="Everyone attends Refinement"]').click()
+    cy.contains('td', '1.0 h').should('be.visible')
+  })
+
+  it('adds a meeting on the last day of every sprint, with no weekday to pick', () => {
+    cy.contains('button', /^\+ Add meeting$/).click()
+
+    meetingDialog().find('input[name="title"]').type('Review')
+    meetingDialog().contains('button', /^Sprint$/).click()
+    meetingDialog().find('#meeting-weekday').should('not.exist')
+    meetingDialog().find('#meeting-sprint-day').select('Last day')
+    meetingDialog().find('#meeting-anchor').type('01.04.2026')
+    meetingDialog().find('#meeting-half').select('afternoon')
+    meetingDialog().find('#meeting-duration').clear().type('90')
+    meetingDialog().contains('button', /^Save$/).click()
+
+    cy.contains('th', 'Review').should('contain', 'last day of every sprint pm')
+    cy.contains('th', 'Review').find('span').contains(/^Sprint$/).should('be.visible')
+
+    // Friday 17 April is the sprint's last day: one occurrence of 1.5 h.
+    cy.get('input[aria-label="Marta Lindqvist attends Review"]').click()
+    cy.contains('td', '1.5 h').should('be.visible')
+  })
+
+  it('charges the sprint-change day once — for planning, not planning plus refinement', () => {
+    seedMeeting({
+      title: 'Planning',
+      kind: 'sprint',
+      sprint_day: 'first',
+      start_date: '2026-04-01',
+      duration_minutes: 120,
+    })
+    seedMeeting({
+      title: 'Refinement',
+      kind: 'weekly',
+      weekday: 0,
+      skip_sprint_days: 'first',
+      start_date: '2026-04-01',
+      duration_minutes: 60,
+    })
+    cy.reload()
+    cy.openTeam('Platform')
+    meetingsTab('Meetings').click()
+
+    cy.get('input[aria-label="Everyone attends Planning"]').click()
+    cy.contains('td', '2 of 2').should('be.visible')
+    cy.get('input[aria-label="Everyone attends Refinement"]').click()
+
+    // Planning on the 6th (2 h) and refinement on the 13th only (1 h).
+    cy.contains('td', '3.0 h').should('be.visible')
+    meetingsTab('Capacity').click()
+    // 80 h per member, less 3 h of meetings.
+    cy.contains('77.0 h').should('be.visible')
+
+    // Take the skip away and the 6th is charged for both: the hour comes back off.
+    meetingsTab('Meetings').click()
+    cy.get('button[aria-label="Actions for Refinement"]').click()
+    cy.contains('[role="menuitem"]', /^Edit$/).click()
+    meetingDialog().find('#meeting-skip').select('none')
+    meetingDialog().contains('button', /^Save$/).click()
+    cy.contains('td', '4.0 h').should('be.visible')
+    meetingsTab('Capacity').click()
+    cy.contains('76.0 h').should('be.visible')
+  })
+})

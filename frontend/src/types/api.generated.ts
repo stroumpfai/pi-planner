@@ -1419,7 +1419,7 @@ export interface components {
        * Kind
        * @enum {string}
        */
-      kind: "range" | "weekly" | "interval";
+      kind: "range" | "weekly" | "interval" | "sprint";
       /**
        * Start Date
        * Format: date
@@ -1431,6 +1431,16 @@ export interface components {
       weekday?: number | null;
       /** Interval Weeks */
       interval_weeks?: number | null;
+      /** Sprint Day */
+      sprint_day?: ("first" | "last") | null;
+      /** Sprint Offset */
+      sprint_offset?: number | null;
+      /**
+       * Skip Sprint Days
+       * @default none
+       * @enum {string}
+       */
+      skip_sprint_days?: "none" | "first" | "last" | "both";
       /**
        * Half
        * @default am
@@ -2374,7 +2384,7 @@ export interface components {
        * Kind
        * @enum {string}
        */
-      kind: "range" | "weekly" | "interval";
+      kind: "range" | "weekly" | "interval" | "sprint";
       /**
        * Start Date
        * Format: date
@@ -2386,6 +2396,16 @@ export interface components {
       weekday?: number | null;
       /** Interval Weeks */
       interval_weeks?: number | null;
+      /** Sprint Day */
+      sprint_day?: ("first" | "last") | null;
+      /** Sprint Offset */
+      sprint_offset?: number | null;
+      /**
+       * Skip Sprint Days
+       * @default none
+       * @enum {string}
+       */
+      skip_sprint_days?: "none" | "first" | "last" | "both";
       /**
        * Half
        * @default am
@@ -2426,6 +2446,15 @@ export interface components {
       weekday: number | null;
       /** Interval Weeks */
       interval_weeks: number | null;
+      /** Sprint Day */
+      sprint_day?: string | null;
+      /** Sprint Offset */
+      sprint_offset?: number | null;
+      /**
+       * Skip Sprint Days
+       * @default none
+       */
+      skip_sprint_days?: string;
       /** Half */
       half: string;
       /** Duration Minutes */
@@ -2447,6 +2476,11 @@ export interface components {
        * @default []
        */
       occurrences?: string[];
+      /**
+       * Skipped
+       * @default []
+       */
+      skipped?: string[];
       /**
        * Created At
        * Format: date-time
@@ -2475,7 +2509,7 @@ export interface components {
       /** Title */
       title?: string | null;
       /** Kind */
-      kind?: ("range" | "weekly" | "interval") | null;
+      kind?: ("range" | "weekly" | "interval" | "sprint") | null;
       /** Start Date */
       start_date?: string | null;
       /** End Date */
@@ -2484,6 +2518,12 @@ export interface components {
       weekday?: number | null;
       /** Interval Weeks */
       interval_weeks?: number | null;
+      /** Sprint Day */
+      sprint_day?: ("first" | "last") | null;
+      /** Sprint Offset */
+      sprint_offset?: number | null;
+      /** Skip Sprint Days */
+      skip_sprint_days?: ("none" | "first" | "last" | "both") | null;
       /** Half */
       half?: ("am" | "pm") | null;
       /** Duration Minutes */

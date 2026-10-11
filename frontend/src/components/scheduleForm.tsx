@@ -1,4 +1,4 @@
-import type { ScheduleKind } from '@/types'
+import type { MeetingKind, ScheduleKind } from '@/types'
 
 /**
  * The parts an absence form and a meeting form genuinely share (teams.md §3.4).
@@ -48,20 +48,25 @@ export function Field({ label, htmlFor, hint, children }: FieldProps) {
   )
 }
 
-export const KIND_LABELS: Readonly<Record<ScheduleKind, string>> = {
+/** Labels for every kind either form offers; `sprint` is the meeting form's alone. */
+export const KIND_LABELS: Readonly<Record<MeetingKind, string>> = {
   range: 'Range',
   weekly: 'Weekly',
   interval: 'Interval',
+  sprint: 'Sprint',
 }
 
-const ORDER: readonly ScheduleKind[] = ['range', 'weekly', 'interval']
+/** The three shapes absences and meetings share (§3.4). */
+export const SCHEDULE_KINDS: readonly ScheduleKind[] = ['range', 'weekly', 'interval']
 
-interface KindTabsProps {
+interface KindTabsProps<K extends MeetingKind> {
   readonly label: string
-  readonly value: ScheduleKind
-  readonly onChange: (kind: ScheduleKind) => void
+  /** The kinds offered, in tab order — meetings add `sprint` to the shared three. */
+  readonly kinds: readonly K[]
+  readonly value: K
+  readonly onChange: (kind: K) => void
   /** What each kind is for, in this form's vocabulary — they differ by entry. */
-  readonly hints: Readonly<Record<ScheduleKind, string>>
+  readonly hints: Readonly<Record<K, string>>
 }
 
 /**
@@ -71,7 +76,7 @@ interface KindTabsProps {
  * common case has nothing to fill in: three named choices ask a question people
  * can answer, one choice plus a parameter asks them to encode an answer (§3.4).
  */
-export function KindTabs({ label, value, onChange, hints }: KindTabsProps) {
+export function KindTabs<K extends MeetingKind>({ label, kinds, value, onChange, hints }: KindTabsProps<K>) {
   return (
     <div>
       <span className="block text-sm font-medium text-gray-700 dark:text-gray-300">Kind</span>
@@ -80,7 +85,7 @@ export function KindTabs({ label, value, onChange, hints }: KindTabsProps) {
         aria-label={label}
         className="mt-1 flex gap-1 p-1 rounded-lg bg-band shadow-soft-inset"
       >
-        {ORDER.map((kind) => (
+        {kinds.map((kind) => (
           <button
             key={kind}
             type="button"

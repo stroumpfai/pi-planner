@@ -3,7 +3,7 @@ import { useSortable } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { formatDuration } from '@/components/MeetingDialog'
 import { KIND_LABELS } from '@/components/scheduleForm'
-import type { Meeting, ScheduleKind } from '@/types'
+import type { Meeting, MeetingKind } from '@/types'
 
 interface Props {
   readonly meeting: Meeting
@@ -124,8 +124,15 @@ export function MeetingColumnHead({
       <span className="block text-[11px] font-normal text-gray-400 dark:text-gray-500 break-words">
         {meeting.summary}
       </span>
+      {/* The skip made visible: inside the selected sprint, the days this meeting
+          gave way to the sprint change and so did not cost (ADR 0013). */}
+      {(meeting.skipped ?? []).length > 0 && (
+        <span className="block text-[11px] font-normal text-gray-400 dark:text-gray-500 break-words">
+          skipped {(meeting.skipped ?? []).join(', ')}
+        </span>
+      )}
       <span className="mt-1 inline-block px-2 py-0.5 rounded-full bg-band shadow-soft-inset text-[10px] font-normal text-gray-500 dark:text-gray-400">
-        {KIND_LABELS[meeting.kind as ScheduleKind] ?? meeting.kind}
+        {KIND_LABELS[meeting.kind as MeetingKind] ?? meeting.kind}
       </span>
     </th>
   )

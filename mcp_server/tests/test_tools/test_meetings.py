@@ -364,3 +364,36 @@ async def test_a_dry_run_writes_nothing_and_says_so(mock_backend, mock_ctx, patc
     )
     assert _body(mock_backend, "POST")["dry_run"] is True
     assert result["meetings"] == []
+
+
+async def test_create_meeting_passes_the_sprint_rules_through(mock_backend, mock_ctx, patch_get_http_request):
+    """A ceremony on the sprint calendar, and a recurrence that gives way to it (ADR 0013)."""
+    mock_backend.post(MEETINGS_URL).mock(return_value=httpx.Response(201, json=MEETING))
+
+    await create_meeting(
+        team_id=TEAM_ID,
+        title="Review",
+        kind="sprint",
+        start_date="2026-09-01",
+        duration_minutes=60,
+        sprint_day="last",
+        sprint_offset=0,
+        ctx=mock_ctx,
+    )
+    body = _body(mock_backend, "POST")
+    assert body["kind"] == "sprint"
+    assert body["sprint_day"] == "last"
+    assert body["sprint_offset"] == 0
+    assert "skip_sprint_days" not in body
+
+
+async def test_update_meeting_can_set_a_sprint_change_skip(mock_backend, mock_ctx, patch_get_http_request):
+    _list_mock(mock_backend)
+    mock_backend.patch(f"{MEETINGS_URL}/{MEETING_ID}").mock(
+        return_value=httpx.Response(200, json=MEETING)
+    )
+
+    await update_meeting(
+        team_id=TEAM_ID, meeting_id=MEETING_ID, skip_sprint_days="first", ctx=mock_ctx
+    )
+    assert _body(mock_backend, "PATCH") == {"skip_sprint_days": "first"}
