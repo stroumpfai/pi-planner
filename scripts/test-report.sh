@@ -5,6 +5,8 @@
 #   scripts/test-report.sh              # run everything, rewrite the report
 #   scripts/test-report.sh --no-e2e     # skip Cypress (much faster)
 #   scripts/test-report.sh --check      # fail if any suite fails; leaves the report
+#   scripts/test-report.sh --reuse-e2e  # quote the e2e result of the check.sh --with-e2e
+#                                       # run that stamped this exact tree, don't re-run it
 #
 # The report records what was run, how many tests passed, and the coverage each
 # suite reached, against a specific commit — so a release can point at it.
@@ -17,11 +19,13 @@ TMP="$(mktemp -d -t pi-planner-report-XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
 
 RUN_E2E=1
+REUSE_E2E=0
 CHECK_ONLY=0
 for arg in "$@"; do
   case "$arg" in
     --no-e2e) RUN_E2E=0 ;;
     --check)  CHECK_ONLY=1 ;;
+    --reuse-e2e) REUSE_E2E=1 ;;
     *) echo "unknown option: $arg" >&2; exit 2 ;;
   esac
 done
@@ -57,10 +61,34 @@ echo "==> frontend (vitest)"
 grep -E "Tests |All files" "$TMP/vitest.txt" | head -2
 
 # ── e2e ──────────────────────────────────────────────────────────────────────
+# The browser suite is reduced to one merged JSON (scripts/e2e-summary.py), whether
+# it ran as one stack, four local stacks or four CI shards. --reuse-e2e quotes the
+# summary check.sh --with-e2e left beside its stamp, but only if that stamp vouches
+# for exactly this tree: a clean checkout whose tree hash it matches.
+E2E_JSON="$TMP/e2e.json"
 if [[ $RUN_E2E -eq 1 ]]; then
-  echo "==> e2e (cypress)"
-  "$ROOT/scripts/e2e.sh" >"$TMP/e2e.txt" 2>&1 || note_failure
-  grep -E "All specs passed|failed \(" "$TMP/e2e.txt" | tail -1
+  REUSED=0
+  if [[ $REUSE_E2E -eq 1 ]]; then
+    STAMP="$(git -C "$ROOT" rev-parse --git-path check-passed)"
+    SAVED="$(git -C "$ROOT" rev-parse --git-path e2e-summary.json)"
+    if [[ -f "$STAMP" && -f "$SAVED" \
+          && "$(head -1 "$STAMP")" == "$(git -C "$ROOT" rev-parse 'HEAD^{tree}')" \
+          && -z "$(git -C "$ROOT" status --porcelain --untracked-files=no)" ]]; then
+      echo "==> e2e (reusing the run that stamped this tree)"
+      cp "$SAVED" "$E2E_JSON"; REUSED=1
+    else
+      echo "==> no check.sh --with-e2e stamp for this tree; running e2e"
+    fi
+  fi
+  if [[ $REUSED -eq 0 ]]; then
+    echo "==> e2e (cypress, ${E2E_SHARDS:-4} parallel stacks)"
+    "$ROOT/scripts/e2e.sh" --parallel "${E2E_SHARDS:-4}" --summary "$E2E_JSON" >"$TMP/e2e.txt" 2>&1 || note_failure
+  fi
+  if [[ -s "$E2E_JSON" ]]; then
+    python3 "$ROOT/scripts/e2e-summary.py" show "$E2E_JSON" | tail -1
+  else
+    note_failure
+  fi
 else
   echo "==> e2e skipped (--no-e2e)"
 fi
@@ -81,13 +109,24 @@ MCP="$(read_pytest "$TMP/mcp.txt")"
 VITEST_PASSED="$(grep -oE 'Tests +[0-9]+ passed' "$TMP/vitest.txt" | tail -1 | grep -oE '[0-9]+' || echo '?')"
 VITEST_COV="$(grep -E '^All files' "$TMP/vitest.txt" | head -1 | awk -F'|' '{gsub(/ /,"",$2); print $2"%"}' || echo '?')"
 
-if [[ $RUN_E2E -eq 1 ]]; then
-  E2E_PASSED="$(grep -oE '✔ +All specs passed! +[0-9:]+ +[0-9]+ +[0-9]+' "$TMP/e2e.txt" | tail -1 | awk '{print $NF}')"
-  [[ -z "${E2E_PASSED:-}" ]] && E2E_PASSED="$(grep -oE '[0-9]+ +[0-9]+ +[0-9]+ +- +-' "$TMP/e2e.txt" | tail -1 | awk '{print $2}')"
-  E2E_SPECS="$(ls "$ROOT/frontend/cypress/e2e"/*.cy.ts | wc -l | tr -d ' ')"
-  E2E_STATUS="$(grep -qE 'All specs passed' "$TMP/e2e.txt" && echo 'pass' || echo 'FAIL')"
+E2E_SPECS="$(ls "$ROOT/frontend/cypress/e2e"/*.cy.ts | wc -l | tr -d ' ')"
+E2E_DETAIL=""
+if [[ $RUN_E2E -eq 1 && -s "$E2E_JSON" ]]; then
+  eval "$(python3 - "$E2E_JSON" <<'PYEOF'
+import json, sys
+d = json.load(open(sys.argv[1]))
+clock = lambda s: f"{int(s)//60}:{int(s)%60:02d}"
+slow = ", ".join(f"{x['spec'].removesuffix('.cy.ts')} {clock(x['seconds'])}"
+                 for x in sorted(d["specs"], key=lambda x: -x["seconds"])[:3])
+print(f"E2E_PASSED={d['passing']}")
+print(f"E2E_STATUS={'pass' if d['status'] == 'pass' else 'FAIL'}")
+print(f"E2E_DETAIL='{clock(d['duration_s'])} wall-clock over {d.get('shards', 1)} stack(s), {clock(d['cpu_s'])} total spec time; slowest: {slow}'")
+PYEOF
+)"
+elif [[ $RUN_E2E -eq 1 ]]; then
+  E2E_PASSED="?"; E2E_STATUS="FAIL"
 else
-  E2E_PASSED="not run"; E2E_SPECS="$(ls "$ROOT/frontend/cypress/e2e"/*.cy.ts | wc -l | tr -d ' ')"; E2E_STATUS="skipped"
+  E2E_PASSED="not run"; E2E_STATUS="skipped"
 fi
 
 BACKEND_PASSED="${BACKEND%%|*}"; BACKEND_COV="${BACKEND##*|}"
@@ -125,6 +164,8 @@ cat > "$OUT" <<REPORT
 | Frontend unit (Vitest) | $VITEST_PASSED | $VITEST_COV | \`npm run test\` |
 | End-to-end (Cypress) | $E2E_PASSED across $E2E_SPECS specs | n/a — journey coverage | \`npm run e2e\` |
 
+End-to-end run: $E2E_STATUS${E2E_DETAIL:+ — $E2E_DETAIL}.
+
 Backend and MCP figures are lines + branches; the frontend figure is statements
 (its branch figure is in the Vitest output). The backend's daily gate in
 \`check.sh\` measures lines only, for speed — see \`backend/coverage-branch.ini\`.
@@ -154,10 +195,11 @@ if it drops below its gate.
 \`\`\`bash
 scripts/test-report.sh            # everything, rewrites this file
 scripts/test-report.sh --no-e2e   # skip the browser suite
+scripts/test-report.sh --reuse-e2e  # quote the check.sh --with-e2e run for this tree
 \`\`\`
 
-E2E runs against an isolated backend on :8901 with its own SQLite file; it never
-touches a developer database. See \`scripts/e2e.sh\`.
+E2E runs as parallel stacks, each with its own backend and SQLite file on its own
+ports (:8901 upward); it never touches a developer database. See \`scripts/e2e.sh\`.
 REPORT
 
 if [[ $FAILED -ne 0 ]]; then

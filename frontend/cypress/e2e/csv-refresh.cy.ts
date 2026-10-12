@@ -6,6 +6,14 @@
 // review lived at that crossing: a 500 deleting a planned feature, continuations
 // drifting from the source, partial files orphaning, silent parent changes, a
 // retyped row aborting the file.
+//
+// What is deliberately not here: scenarios whose outcome is a backend rule with the
+// UI merely relaying it — a rename reaching a split feature's later PI, a changed
+// parent left alone by default, a retyped row not aborting the file. Those run in
+// backend/tests/integration/test_csv_import.py (test_reimport_updates_every_member_of_a_split_feature,
+// test_a_moved_parent_is_reported_but_not_applied_by_default,
+// test_a_declined_type_change_does_not_block_the_rest_of_the_file). What stays here
+// needs the review panel: ticks, reconcile rows, the plan, backing out.
 describe('CSV refresh of a project that already has data', () => {
   let projectId: string
 
@@ -154,43 +162,6 @@ describe('CSV refresh of a project that already has data', () => {
     cy.contains('Auth').should('not.exist')
   })
 
-  // Only the lineage root carries the ID, so nothing in the file names the
-  // continuation — it has to be reached by walking the lineage.
-  it('carries a rename into the later PI of a split feature', () => {
-    seedFeature('Auth', 101).then((f) => {
-      const featureId = f.body.system_id
-      seedStory('Stays here', 201, featureId)
-      seedStory('Carried over', 202, featureId).then((carried) => {
-        cy.request('POST', `/api/v1/projects/${projectId}/pis`, { name: 'PI-One' }).then((pi1) => {
-          cy.request('POST', `/api/v1/pis/${pi1.body.system_id}/swimlines`, { name: 'Team A' }).then((sl1) => {
-            cy.request('PATCH', `/api/v1/features/${featureId}`, {
-              location: 'pi', pi_id: pi1.body.system_id, swimlane_id: sl1.body.system_id,
-            })
-            cy.request('POST', `/api/v1/projects/${projectId}/pis`, { name: 'PI-Two' }).then((pi2) => {
-              cy.request('POST', `/api/v1/pis/${pi2.body.system_id}/swimlines`, { name: 'Team A' }).then((sl2) => {
-                cy.request('POST', `/api/v1/features/${featureId}/split`, {
-                  target_pi_id: pi2.body.system_id,
-                  target_swimline_id: sl2.body.system_id,
-                  pbi_ids: [carried.body.system_id],
-                })
-              })
-            })
-          })
-        })
-      })
-    })
-    openBacklogAsEditor()
-
-    upload('Feature,Auth & SSO,101,,,')
-    confirmImport()
-
-    cy.openPI('PI-One')
-    cy.contains('Auth & SSO').should('be.visible')
-    cy.openPI('PI-Two')
-    cy.contains('Auth & SSO').should('be.visible')
-    cy.contains('Auth').should('not.contain.text', 'Auth,')
-  })
-
   // The review runs the import for real and rolls it back. If the rollback ever
   // stopped working, backing out of the review would leave the change behind.
   it('backing out of the review leaves the project untouched', () => {
@@ -276,19 +247,6 @@ describe('CSV refresh of a project that already has data', () => {
 
   // ── C2: a Parent that has changed ──────────────────────────────────────────
 
-  it('leaves a changed parent alone unless the move is ticked', () => {
-    seedFeature('Auth', 101).then((f) => seedStory('Login form', 201, f.body.system_id))
-    seedFeature('Payments', 102)
-    openBacklogAsEditor()
-
-    upload('Product Backlog Item,Login form,201,3,102,')
-    cy.contains(/1 story has moved to a different feature/i).should('be.visible')
-    confirmImport()
-
-    expandFeature('Auth')
-    cy.contains('Login form').should('exist')
-  })
-
   it('moves a story to the feature the file names once the move is ticked', () => {
     seedFeature('Auth', 101).then((f) => seedStory('Login form', 201, f.body.system_id))
     seedFeature('Payments', 102)
@@ -334,21 +292,4 @@ describe('CSV refresh of a project that already has data', () => {
     cy.contains('Auth is now a story').should('not.exist')
   })
 
-  // The finding this replaced: one retyped row used to abort the whole file.
-  it('imports the rest of the file around a type change it will not apply', () => {
-    seedFeature('Auth', 101)
-    openBacklogAsEditor()
-
-    upload([
-      'Product Backlog Item,Auth is now a story,101,3,,',
-      'Feature,Payments,102,,,',
-      'Product Backlog Item,Checkout,301,5,102,',
-    ].join('\n'))
-    confirmImport()
-
-    cy.contains('Payments').should('be.visible')
-    cy.contains('Auth').should('be.visible')
-    expandFeature('Payments')
-    cy.contains('Checkout').should('exist')
-  })
 })

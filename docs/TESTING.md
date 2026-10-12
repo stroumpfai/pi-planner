@@ -6,7 +6,7 @@ which is generated — never edit it by hand.
 
 ```bash
 scripts/check.sh                  # is this clean? — everything but the browser suite (~70s)
-scripts/check.sh --with-e2e       # add Cypress (~6.5 min); stamps main as pushable
+scripts/check.sh --with-e2e       # add Cypress (~2.5 min: 4 parallel stacks, run alongside the unit suites); stamps main as pushable
 scripts/check.sh --quick          # static checks only, no test suites (~10s)
 ```
 
@@ -21,7 +21,8 @@ For a release, `test-report.sh` runs the same suites but *records* the result:
 
 ```bash
 scripts/test-report.sh            # run everything, rewrite TEST-REPORT.md
-scripts/test-report.sh --no-e2e   # skip the browser suite (~90s faster)
+scripts/test-report.sh --no-e2e   # skip the browser suite (~80s faster)
+scripts/test-report.sh --reuse-e2e  # quote the check.sh --with-e2e run that stamped this tree
 scripts/test-report.sh --check    # same, but exit non-zero if anything failed
 ```
 
@@ -67,7 +68,7 @@ is wired up with `core.hooksPath` instead. Bypass a single push with
 **CI** (`.github/workflows/ci.yml`), on every push to `main`, every PR, and on
 demand via *Run workflow*. It builds the same `backend/venv`, `mcp_server/.venv`
 and `frontend/node_modules` layout a developer has and then runs the very same
-`check.sh` and `e2e.sh` — there is no CI-only variant that can drift from what you
+`check.sh` and `e2e.sh` (the latter as four matrix slices, `--shard N/4`, followed by a job that merges their summaries) — there is no CI-only variant that can drift from what you
 run locally. It is a genuine backstop rather than a duplicate of the hook: it runs
 on a clean checkout, so it catches the missing migration or the uncommitted file
 that a local venv papers over, and it still fires when someone uses `--no-verify`.
@@ -187,6 +188,29 @@ traps and the `cy.openProject` / `cy.openPI` / `cy.enterEditMode` helpers.
 `POST /api/v1/test/reset`, which deletes every project, feature, PBI and PI.
 `scripts/e2e.sh` stands up a throwaway backend on :8901 with its own SQLite file,
 seeds `testuser` and `testuser2`, runs the suite and tears it all down.
+
+**Speed: the suite is cut into slices, each on its own stack.** The 159 tests run
+about 1.9 s each and nothing in them is a fixed sleep, so a single stack needs ~5 min
+and the only real lever is running slices at once. Because every stack has its own
+ports, SQLite file and vite cache, the global `test/reset` in one cannot touch another.
+
+```bash
+scripts/e2e.sh --parallel 4          # four stacks (ports 8901–8904 / 5901–5904), ~1.5 min
+scripts/e2e.sh --shard 2/4           # one slice — what each CI matrix job runs
+scripts/e2e.sh --summary out.json    # also write counts and per-spec times as JSON
+```
+
+Slices come from `scripts/e2e-shard.py`, which deals specs out longest-first using
+`scripts/e2e-timings.json`. A new spec weighs the average until you refresh that file
+(`scripts/e2e-summary.py --update-timings <summary.json>`), which is worth doing when
+a spec changes size noticeably; stale weights only cost balance, never correctness.
+Every run reduces to one summary JSON (`scripts/e2e-summary.py`); CI merges the four
+shards' summaries into the job summary and `test-report.sh` reads the same file, which
+is how the report gets its wall-clock and slowest specs.
+
+When a scenario's outcome is a backend rule that the UI merely relays, test it in
+pytest and keep the Cypress spec for what only a browser can show (ticks, layout,
+drag, the review panel). `csv-refresh.cy.ts` lists the three it handed down.
 
 #### Journeys covered
 

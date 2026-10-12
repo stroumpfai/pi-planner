@@ -419,7 +419,7 @@ sentences. When bumping the `APP_VERSION` ARG in `Dockerfile` and
 **Before you call a change done, run `scripts/check.sh`** (~70s). It is the single
 definition of "clean" — ruff, mypy `--strict`, the OpenAPI contract check, ESLint,
 `tsc` over `src` and every spec, then all three test suites. Add `--with-e2e` for
-Cypress (~6.5 min), or `--quick` for the static checks alone. CI calls this same
+Cypress (~2.5 min, in 4 parallel isolated stacks overlapped with the unit suites), or `--quick` for the static checks alone. CI calls this same
 script, so if it passes locally it passes there.
 
 Push `main` with `scripts/check.sh --with-e2e && git push`. A clean `--with-e2e` run
@@ -495,7 +495,8 @@ Specs select by accessible name, role and label — the app has almost no
 added so E2E can tell the backlog column apart from the board).
 
 ```bash
-npm run e2e                                      # whole suite, headless
+npm run e2e                                      # whole suite, headless, one stack (~5 min)
+scripts/e2e.sh --parallel 4                      # four isolated stacks (~1.5 min)
 npm run e2e:open                                 # interactive runner
 npm run e2e -- --spec cypress/e2e/backlog.cy.ts  # one spec
 ```

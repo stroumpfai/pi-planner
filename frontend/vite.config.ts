@@ -9,6 +9,9 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  // Parallel E2E shards each run their own dev server; sharing one dep cache would
+  // let them race on the first optimise (see scripts/e2e.sh --parallel).
+  cacheDir: process.env.VITE_CACHE_DIR || undefined,
   build: {
     chunkSizeWarningLimit: 1400,
   },

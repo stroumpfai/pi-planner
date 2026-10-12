@@ -10,6 +10,13 @@
 #   scripts/e2e.sh                       # headless, whole suite
 #   scripts/e2e.sh --spec .../auth.cy.ts # headless, one spec
 #   scripts/e2e.sh --open                # interactive Cypress runner
+#   scripts/e2e.sh --parallel 4          # four isolated stacks, specs split by cost
+#   scripts/e2e.sh --shard 2/4           # just the 2nd of 4 slices (what a CI job runs)
+#   scripts/e2e.sh --summary out.json    # also write a machine-readable result
+#
+# Every stack is fully isolated (own ports, own SQLite file, own vite cache), which
+# is what makes sharding safe despite the suite's global POST /test/reset. Slices
+# come from scripts/e2e-shard.py, weighted by scripts/e2e-timings.json.
 #
 set -euo pipefail
 
@@ -19,7 +26,54 @@ FRONTEND_PORT="${E2E_FRONTEND_PORT:-5901}"
 WORKDIR="$(mktemp -d -t pi-planner-e2e-XXXXXX)"
 
 MODE="run"
-if [[ "${1:-}" == "--open" ]]; then MODE="open"; shift; fi
+SHARD=""
+PARALLEL=""
+SUMMARY=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --open)     MODE="open"; shift ;;
+    --shard)    SHARD="$2"; shift 2 ;;
+    --parallel) PARALLEL="$2"; shift 2 ;;
+    --summary)  SUMMARY="$(realpath -m "$2")"; shift 2 ;;
+    *) break ;;
+  esac
+done
+
+# ── --parallel N: N independent copies of this script, one slice each ────────────
+if [[ -n "$PARALLEL" ]]; then
+  [[ "$PARALLEL" =~ ^[1-9][0-9]*$ ]] || { echo "error: --parallel wants a number" >&2; exit 2; }
+  LOGDIR="$(mktemp -d -t pi-planner-e2e-par-XXXXXX)"
+  pids=()
+  trap 'kill "${pids[@]}" 2>/dev/null || true; rm -rf "$LOGDIR"' EXIT INT TERM
+  for k in $(seq 1 "$PARALLEL"); do
+    E2E_BACKEND_PORT=$((BACKEND_PORT + k - 1)) E2E_FRONTEND_PORT=$((FRONTEND_PORT + k - 1)) \
+      "$ROOT/scripts/e2e.sh" --shard "$k/$PARALLEL" --summary "$LOGDIR/shard-$k.json" "$@" \
+      >"$LOGDIR/shard-$k.log" 2>&1 &
+    pids+=($!)
+  done
+  echo "==> $PARALLEL shards running in parallel"
+  rc=0
+  for k in $(seq 1 "$PARALLEL"); do
+    if wait "${pids[$((k - 1))]}"; then
+      echo "    shard $k/$PARALLEL ok"
+    else
+      echo "    shard $k/$PARALLEL FAILED"; rc=1
+      sed -n '/==> running cypress/,$p' "$LOGDIR/shard-$k.log" | tail -80
+    fi
+  done
+  files=("$LOGDIR"/shard-*.json)
+  if [[ -e "${files[0]}" ]]; then
+    python3 "$ROOT/scripts/e2e-summary.py" merge "${files[@]}" >"$LOGDIR/merged.json"
+    python3 "$ROOT/scripts/e2e-summary.py" show "$LOGDIR/merged.json"
+    [[ -n "$SUMMARY" ]] && cp "$LOGDIR/merged.json" "$SUMMARY"
+  fi
+  exit $rc
+fi
+
+if [[ -n "$SHARD" ]]; then
+  SPECS="$(python3 "$ROOT/scripts/e2e-shard.py" "$SHARD")" || exit 2
+  set -- --spec "$SPECS" "$@"
+fi
 
 # Both servers spawn children (uvicorn reloader, npx -> node), so killing the shell
 # job is not enough. These two ports belong to this script, so clear them by port.
@@ -100,6 +154,7 @@ echo "==> starting backend on :$BACKEND_PORT"
 echo "==> starting frontend on :$FRONTEND_PORT"
 (cd "$ROOT/frontend" && VITE_PORT="$FRONTEND_PORT" \
   VITE_API_TARGET="http://localhost:$BACKEND_PORT" \
+  VITE_CACHE_DIR="$WORKDIR/vite-cache" \
   exec npx vite >"$WORKDIR/vite.log" 2>&1) &
 
 echo "==> waiting for both servers"
@@ -119,6 +174,17 @@ fi
 # fails with a misleading "bad option: --no-sandbox".
 cd "$ROOT/frontend"
 echo "==> running cypress ($MODE)"
-env -u ELECTRON_RUN_AS_NODE \
-  CYPRESS_baseUrl="http://localhost:$FRONTEND_PORT" \
-  npx cypress "$MODE" "$@"
+if [[ "$MODE" == "open" ]]; then
+  env -u ELECTRON_RUN_AS_NODE CYPRESS_baseUrl="http://localhost:$FRONTEND_PORT" \
+    npx cypress open "$@"
+  exit $?
+fi
+
+# tee keeps the log for --summary; pipefail makes the pipeline carry cypress's status.
+rc=0
+env -u ELECTRON_RUN_AS_NODE CYPRESS_baseUrl="http://localhost:$FRONTEND_PORT" \
+  npx cypress run "$@" 2>&1 | tee "$WORKDIR/cypress.log" || rc=1
+if [[ -n "$SUMMARY" ]]; then
+  python3 "$ROOT/scripts/e2e-summary.py" parse "$WORKDIR/cypress.log" >"$SUMMARY" || true
+fi
+exit $rc

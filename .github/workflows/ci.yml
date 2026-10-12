@@ -6,6 +6,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# A newer push to the same branch/PR makes the older run's result moot.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 # Both jobs build the same local layout a developer has — backend/venv,
 # mcp_server/.venv, frontend/node_modules — so they run the very same
 # scripts/check.sh and scripts/e2e.sh, with no CI-only variant to drift.
@@ -51,9 +56,16 @@ jobs:
       - name: Run checks
         run: scripts/check.sh
 
+  # The suite is cut into four slices of about equal cost (scripts/e2e-shard.py,
+  # weighted by scripts/e2e-timings.json). Each slice gets a whole isolated stack,
+  # so the global POST /test/reset in one cannot touch another.
   e2e:
-    name: End-to-end (Cypress)
+    name: End-to-end (Cypress ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
 
@@ -91,15 +103,53 @@ jobs:
 
       # Starts its own backend on :8901 with a throwaway SQLite file and a vite
       # dev server on :5901. Never touches a real database — see scripts/e2e.sh.
-      - name: Run E2E suite
-        run: scripts/e2e.sh
+      - name: Run E2E slice
+        run: scripts/e2e.sh --shard ${{ matrix.shard }}/4 --summary e2e-summary-${{ matrix.shard }}.json
+
+      - name: Upload slice summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-summary-${{ matrix.shard }}
+          path: e2e-summary-${{ matrix.shard }}.json
+          if-no-files-found: ignore
 
       - name: Upload failure artifacts
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: cypress-artifacts
+          name: cypress-artifacts-${{ matrix.shard }}
           path: |
             frontend/cypress/screenshots
             frontend/cypress/videos
+          if-no-files-found: ignore
+
+  # One line for the whole browser suite: merged counts and the slowest specs, so
+  # nobody has to open four jobs to read the result.
+  e2e-report:
+    name: End-to-end summary
+    needs: e2e
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: e2e-summary-*
+          path: summaries
+          merge-multiple: true
+
+      - name: Merge slice summaries
+        run: |
+          shopt -s nullglob
+          files=(summaries/e2e-summary-*.json)
+          if [[ ${#files[@]} -eq 0 ]]; then echo "no slice produced a summary" >> "$GITHUB_STEP_SUMMARY"; exit 0; fi
+          python3 scripts/e2e-summary.py merge "${files[@]}" > e2e-summary.json
+          { echo '### Cypress E2E'; echo '```'; python3 scripts/e2e-summary.py show e2e-summary.json; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: e2e-summary
+          path: e2e-summary.json
           if-no-files-found: ignore
