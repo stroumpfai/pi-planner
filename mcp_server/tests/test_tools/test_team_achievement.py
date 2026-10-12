@@ -4,6 +4,7 @@ from datetime import date
 
 import httpx
 import pytest
+from fastmcp.exceptions import ValidationError as FastMCPValidationError
 from pydantic import ValidationError
 
 from mcp_server.tools.read import get_team_achievement, read_mcp
@@ -76,7 +77,8 @@ async def test_get_team_achievement_rejects_a_malformed_team_id(
     mock_backend, mock_ctx, patch_get_http_request
 ):
     # Through the MCP layer, where agents call it: the schema refuses the id
-    # before anything reaches the backend.
-    with pytest.raises(ValidationError, match="team_id"):
+    # before anything reaches the backend. fastmcp 3.4 wraps the pydantic error in
+    # its own ValidationError; older 3.x lets pydantic's through. Either refuses.
+    with pytest.raises((ValidationError, FastMCPValidationError), match="team_id"):
         await read_mcp.call_tool("get_team_achievement", {"team_id": "../projects"})
     assert not mock_backend.calls

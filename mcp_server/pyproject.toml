@@ -11,7 +11,10 @@ name = "pi-planner-mcp"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    "fastmcp>=3.4.2",
+    # fastmcp 4 changes OAuth token client_ids and tool-argument validation errors
+    # (3 tests fail). Stay on 3.x until the move to 4 is done deliberately; without
+    # the cap every fresh install, CI and the Docker image alike, resolves to 4.
+    "fastmcp>=3.4.2,<4",
     "httpx>=0.28.1",
     "pyjwt>=2.13.0",
     "argon2-cffi>=25.1.0",
