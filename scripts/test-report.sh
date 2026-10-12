@@ -37,7 +37,7 @@ note_failure() { FAILED=1; }
 echo "==> backend (pytest)"
 BACKEND_PY="$ROOT/backend/venv/bin/python"
 if [[ -x "$BACKEND_PY" ]]; then
-  (cd "$ROOT/backend" && "$BACKEND_PY" -m pytest tests/ -q --cov=app --cov-config=coverage-branch.ini --cov-report=term) \
+  (cd "$ROOT/backend" && "$BACKEND_PY" -m pytest tests/ -q -n auto --cov=app --cov-config=coverage-branch.ini --cov-report=term) \
     >"$TMP/backend.txt" 2>&1 || note_failure
 else
   echo "backend venv missing at $BACKEND_PY" >"$TMP/backend.txt"; note_failure
