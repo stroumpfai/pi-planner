@@ -419,7 +419,7 @@ sentences. When bumping the `APP_VERSION` ARG in `Dockerfile` and
 **Before you call a change done, run `scripts/check.sh`** (~70s). It is the single
 definition of "clean" — ruff, mypy `--strict`, the OpenAPI contract check, ESLint,
 `tsc` over `src` and every spec, then all three test suites. Add `--with-e2e` for
-Cypress (~2.5 min, in 4 parallel isolated stacks overlapped with the unit suites), or `--quick` for the static checks alone. CI calls this same
+Cypress (~3 min, in 4 parallel isolated stacks), or `--quick` for the static checks alone. CI calls this same
 script, so if it passes locally it passes there.
 
 Push `main` with `scripts/check.sh --with-e2e && git push`. A clean `--with-e2e` run

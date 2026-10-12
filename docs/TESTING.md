@@ -6,7 +6,7 @@ which is generated — never edit it by hand.
 
 ```bash
 scripts/check.sh                  # is this clean? — everything but the browser suite (~70s)
-scripts/check.sh --with-e2e       # add Cypress (~2.5 min: 4 parallel stacks, run alongside the unit suites); stamps main as pushable
+scripts/check.sh --with-e2e       # add Cypress (~3 min: 4 parallel stacks); stamps main as pushable
 scripts/check.sh --quick          # static checks only, no test suites (~10s)
 ```
 

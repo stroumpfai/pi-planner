@@ -43,6 +43,7 @@ done
 if [[ -n "$PARALLEL" ]]; then
   [[ "$PARALLEL" =~ ^[1-9][0-9]*$ ]] || { echo "error: --parallel wants a number" >&2; exit 2; }
   LOGDIR="$(mktemp -d -t pi-planner-e2e-par-XXXXXX)"
+  KEEPDIR="${TMPDIR:-/tmp}/pi-planner-e2e-failed"
   pids=()
   trap 'kill "${pids[@]}" 2>/dev/null || true; rm -rf "$LOGDIR"' EXIT INT TERM
   for k in $(seq 1 "$PARALLEL"); do
@@ -58,7 +59,12 @@ if [[ -n "$PARALLEL" ]]; then
       echo "    shard $k/$PARALLEL ok"
     else
       echo "    shard $k/$PARALLEL FAILED"; rc=1
-      sed -n '/==> running cypress/,$p' "$LOGDIR/shard-$k.log" | tail -80
+      # Keep the whole log (LOGDIR is removed on exit) and show each failure's
+      # message, which a tail of the log would cut off.
+      mkdir -p "$KEEPDIR"; cp "$LOGDIR/shard-$k.log" "$KEEPDIR/shard-$k.log"
+      sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' "$LOGDIR/shard-$k.log" \
+        | awk '/^ +[0-9]+ failing/{p=1} /^ +\(Results\)/{p=0} p' | head -60
+      echo "    full log: $KEEPDIR/shard-$k.log"
     fi
   done
   files=("$LOGDIR"/shard-*.json)
