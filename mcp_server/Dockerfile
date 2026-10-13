@@ -14,6 +14,10 @@ RUN pip install --no-cache-dir .
 
 ENV PYTHONUNBUFFERED=1
 
+# Unprivileged user; /data (OAuth token store) is a bind mount shared with the app
+RUN useradd --system --uid 10001 --no-create-home app
+USER 10001
+
 EXPOSE 8080
 
 CMD ["python", "-m", "mcp_server.server"]

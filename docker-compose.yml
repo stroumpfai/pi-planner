@@ -1,6 +1,8 @@
 services:
   app:
     build: .
+    # Run as this host uid:gid so the ./data bind mount is writable (set APP_UID/APP_GID in .env)
+    user: "${APP_UID:-10001}:${APP_GID:-10001}"
     env_file: .env
     ports:
       - "8000:8000"
@@ -16,6 +18,7 @@ services:
 
   mcp-server:
     build: ./mcp_server
+    user: "${APP_UID:-10001}:${APP_GID:-10001}"
     env_file: ./mcp_server/.env
     ports:
       - "8010:8010"

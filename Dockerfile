@@ -44,8 +44,10 @@ COPY docs/RELEASE-NOTES.md ./docs/RELEASE-NOTES.md
 # Copy built frontend into the location expected by main.py
 COPY --from=frontend /build/dist/ ./static/
 
-# Persistent data volume for the SQLite database
+# Run as an unprivileged user; /data must be writable by it
+RUN useradd --system --uid 10001 --no-create-home app && mkdir -p /data && chown app /data
 VOLUME /data
+USER 10001
 
 # Runtime configuration — override these when running the container.
 # SECRET_KEY has no default on purpose: the app refuses to start without one.

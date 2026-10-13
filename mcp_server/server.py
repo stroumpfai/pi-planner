@@ -102,7 +102,6 @@ async def health_check(ctx: Context) -> str:
     Check MCP server and backend health.
 
     Returns overall status: healthy | degraded | unhealthy.
-    Forwards component-level health from the backend (database, disk).
     Call this before running compound workflows to verify connectivity.
     """
     client = get_client()
@@ -127,7 +126,6 @@ async def health_check(ctx: Context) -> str:
             "status": overall,
             "mcp": "healthy",
             "backend": backend_status,
-            "components": backend_data.get("components", {}),
         }
     )
 

@@ -6,13 +6,12 @@ import os
 # so the level always takes effect.
 logging.basicConfig(level=os.environ.get("LOG_LEVEL", "WARNING").upper(), force=True)
 
-import time
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Annotated, Any
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
@@ -85,10 +84,34 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 app = FastAPI(
     title="PI Planning API",
     version="0.1.0",
-    docs_url="/docs",
-    redoc_url="/redoc",
+    # The interactive docs list every route to anyone, so they are a debug aid only.
+    docs_url="/docs" if settings.debug else None,
+    redoc_url="/redoc" if settings.debug else None,
+    openapi_url="/openapi.json" if settings.debug else None,
     lifespan=lifespan,
 )
+
+_DOCS_PATHS = ("/docs", "/redoc", "/openapi.json")
+
+
+@app.middleware("http")
+async def security_headers(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+    response = await call_next(request)
+    response.headers.setdefault("X-Content-Type-Options", "nosniff")
+    response.headers.setdefault("X-Frame-Options", "DENY")
+    response.headers.setdefault("Referrer-Policy", "same-origin")
+    # Swagger/ReDoc (DEBUG only) load scripts from a CDN, so they get no CSP.
+    if not request.url.path.startswith(_DOCS_PATHS):
+        # 'unsafe-inline' styles: Tailwind/dnd-kit set style attributes at runtime.
+        response.headers.setdefault(
+            "Content-Security-Policy",
+            "default-src 'self'; img-src 'self' data: blob:; style-src 'self' 'unsafe-inline'; "
+            "object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
+        )
+    if request.url.scheme == "https" or request.headers.get("x-forwarded-proto") == "https":
+        response.headers.setdefault("Strict-Transport-Security", "max-age=31536000")
+    return response
+
 
 app.add_middleware(MCPActivityMiddleware)
 
@@ -137,35 +160,17 @@ if settings.allow_test_reset:
 
 @app.get("/health")
 async def health(db: Annotated[AsyncSession, Depends(get_session)]) -> dict[str, Any]:
-    components: dict[str, Any] = {}
     overall = "healthy"
 
     # Database check. The endpoint is unauthenticated, so log exception details
     # server-side only — never echo them to the caller.
     try:
-        start = time.monotonic()
         await db.execute(text("SELECT 1"))
-        ms = int((time.monotonic() - start) * 1000)
-        components["database"] = {"status": "healthy", "response_ms": ms}
     except Exception:
         logger.exception("health check: database unavailable")
-        components["database"] = {"status": "unhealthy"}
         overall = "unhealthy"
 
-    # Disk check
-    try:
-        import shutil
-        usage = shutil.disk_usage("/")
-        free_gb = round(usage.free / 1e9, 1)
-        disk_status = "healthy" if free_gb > 1.0 else "degraded"
-        components["disk"] = {"status": disk_status, "free_gb": free_gb}
-        if disk_status == "degraded" and overall == "healthy":
-            overall = "degraded"
-    except Exception:
-        logger.exception("health check: disk usage unavailable")
-        components["disk"] = {"status": "unknown"}
-
-    return {"status": overall, "components": components}
+    return {"status": overall}
 
 
 # Serve React SPA in production (when the frontend build exists)
