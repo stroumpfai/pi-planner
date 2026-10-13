@@ -16,7 +16,7 @@ dependencies = [
     # the cap every fresh install, CI and the Docker image alike, resolves to 4.
     "fastmcp>=3.4.2,<4",
     "httpx>=0.28.1",
-    "pyjwt>=2.13.0",
+    "pyjwt>=2.15.0",
     "argon2-cffi>=25.1.0",
     "pydantic-settings>=2.14.2",
     "pydantic>=2.13.4",
@@ -29,6 +29,7 @@ dev = [
     "pytest-cov>=7.1.0",
     "respx>=0.23.1",
     "anyio[trio]",
+    "pip-audit>=2.9",
 ]
 
 [tool.pytest.ini_options]

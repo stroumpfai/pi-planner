@@ -78,6 +78,11 @@ step "mypy (strict)     " bash -c 'cd backend && "$0" -m mypy app' "$BACKEND_PY"
 step "openapi contract  " scripts/openapi.sh --check
 step "eslint            " bash -c 'cd frontend && npm run --silent lint'
 step "tsc (src + specs) " bash -c 'cd frontend && npm run --silent typecheck'
+# Dependency advisories (needs network). A new advisory can fail an untouched tree;
+# that is the point: bump the floor in pyproject.toml / package-lock.json.
+step "pip-audit backend " env PIPAPI_PYTHON_LOCATION="$BACKEND_PY" "$BACKEND_PY" -m pip_audit --skip-editable --progress-spinner off
+step "pip-audit mcp     " env PIPAPI_PYTHON_LOCATION="$MCP_PY" "$MCP_PY" -m pip_audit --skip-editable --progress-spinner off
+step "npm audit (prod)  " bash -c 'cd frontend && npm audit --omit=dev'
 
 if [[ $QUICK -eq 1 ]]; then
   echo ""

@@ -27,9 +27,9 @@ RUN pip install --no-cache-dir \
     "python-multipart>=0.0.32" \
     "argon2-cffi>=25.1.0" \
     "itsdangerous>=2.2.0" \
-    "pyjwt>=2.13.0" \
+    "pyjwt>=2.15.0" \
     "python-dotenv>=1.2.2" \
-    "pillow>=11.0" \
+    "pillow>=12.3.0" \
     "reportlab>=4.2" \
     "icalendar>=6.0"
 
