@@ -10288,7 +10288,7 @@
           "release-notes"
         ],
         "summary": "Get Release Notes",
-        "description": "docs/RELEASE-NOTES.md, parsed into sections. Empty when the file is missing.",
+        "description": "docs/RELEASE-NOTES.md, parsed into shipped versions. Empty when the file is missing.",
         "operationId": "get_release_notes_api_v1_release_notes_get",
         "parameters": [
           {
@@ -17438,22 +17438,72 @@
             ],
             "title": "Date"
           },
-          "notes": {
+          "groups": {
             "items": {
-              "type": "string"
+              "$ref": "#/components/schemas/ReleaseNoteGroup"
             },
             "type": "array",
-            "title": "Notes"
+            "title": "Groups"
           }
         },
         "type": "object",
         "required": [
           "version",
           "date",
-          "notes"
+          "groups"
         ],
         "title": "ReleaseNoteEntry",
-        "description": "One '## ' section of docs/RELEASE-NOTES.md: a version or 'Unreleased'."
+        "description": "One '# ' section of docs/RELEASE-NOTES.md: a shipped version, or 'Unreleased'."
+      },
+      "ReleaseNoteGroup": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ReleaseNoteItem"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "items"
+        ],
+        "title": "ReleaseNoteGroup",
+        "description": "The bullets under one '### ' subheading. `title` is None for bullets before any."
+      },
+      "ReleaseNoteItem": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "children": {
+            "items": {
+              "$ref": "#/components/schemas/ReleaseNoteItem"
+            },
+            "type": "array",
+            "title": "Children"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text"
+        ],
+        "title": "ReleaseNoteItem",
+        "description": "One bullet; indented bullets beneath it are its children, to any depth."
       },
       "ReleaseNotesResponse": {
         "properties": {

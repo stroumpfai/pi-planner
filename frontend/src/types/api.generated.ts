@@ -834,7 +834,7 @@ export interface paths {
   "/api/v1/release-notes": {
     /**
      * Get Release Notes
-     * @description docs/RELEASE-NOTES.md, parsed into sections. Empty when the file is missing.
+     * @description docs/RELEASE-NOTES.md, parsed into shipped versions. Empty when the file is missing.
      */
     get: operations["get_release_notes_api_v1_release_notes_get"];
   };
@@ -3570,15 +3570,35 @@ export interface components {
     };
     /**
      * ReleaseNoteEntry
-     * @description One '## ' section of docs/RELEASE-NOTES.md: a version or 'Unreleased'.
+     * @description One '# ' section of docs/RELEASE-NOTES.md: a shipped version, or 'Unreleased'.
      */
     ReleaseNoteEntry: {
       /** Version */
       version: string;
       /** Date */
       date: string | null;
-      /** Notes */
-      notes: string[];
+      /** Groups */
+      groups: components["schemas"]["ReleaseNoteGroup"][];
+    };
+    /**
+     * ReleaseNoteGroup
+     * @description The bullets under one '### ' subheading. `title` is None for bullets before any.
+     */
+    ReleaseNoteGroup: {
+      /** Title */
+      title: string | null;
+      /** Items */
+      items: components["schemas"]["ReleaseNoteItem"][];
+    };
+    /**
+     * ReleaseNoteItem
+     * @description One bullet; indented bullets beneath it are its children, to any depth.
+     */
+    ReleaseNoteItem: {
+      /** Text */
+      text: string;
+      /** Children */
+      children?: components["schemas"]["ReleaseNoteItem"][];
     };
     /** ReleaseNotesResponse */
     ReleaseNotesResponse: {
@@ -8703,7 +8723,7 @@ export interface operations {
   };
   /**
    * Get Release Notes
-   * @description docs/RELEASE-NOTES.md, parsed into sections. Empty when the file is missing.
+   * @description docs/RELEASE-NOTES.md, parsed into shipped versions. Empty when the file is missing.
    */
   get_release_notes_api_v1_release_notes_get: {
     parameters: {

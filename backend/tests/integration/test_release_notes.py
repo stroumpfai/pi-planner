@@ -8,9 +8,16 @@ from app.main import app
 
 _URL = "/api/v1/release-notes"
 
-_FIXTURE = """## Unreleased
+_FIXTURE = """# Unreleased
+
+- Not shipped yet
+
+# 1.14.0 — 2026-10-11
+
+### Teams
 
 - Teams can now be exported to and imported from JSON
+  - Including absences
 """
 
 
@@ -26,9 +33,19 @@ async def test_reader_can_read(reader_client: AsyncClient, tmp_path, monkeypatch
     entries = resp.json()["entries"]
     assert entries == [
         {
-            "version": "Unreleased",
-            "date": None,
-            "notes": ["Teams can now be exported to and imported from JSON"],
+            "version": "1.14.0",
+            "date": "2026-10-11",
+            "groups": [
+                {
+                    "title": "Teams",
+                    "items": [
+                        {
+                            "text": "Teams can now be exported to and imported from JSON",
+                            "children": [{"text": "Including absences", "children": []}],
+                        }
+                    ],
+                }
+            ],
         }
     ]
 

@@ -408,13 +408,17 @@ commit in [`docs/TEST-REPORT.md`](docs/TEST-REPORT.md), rewritten by
 `scripts/test-report.sh` (run it before cutting a release).
 
 Cutting a release also means updating [`docs/RELEASE-NOTES.md`](docs/RELEASE-NOTES.md),
-shown in the app's Release Notes modal. Run `scripts/release-notes.sh` — it appends
-the raw commit subjects since the last run straight into the `## Unreleased` section
-(and advances the file's marker), then edit that section in place: condense related
-commits into one bullet, drop internal-only ones, reword into short user-facing
-sentences. When bumping the `APP_VERSION` ARG in `Dockerfile` and
-`mcp_server/Dockerfile`, also rename that `## Unreleased` heading to
-`## X.Y.Z — <date>` by hand and commit both together.
+shown in the app's Release Notes modal. The file's format is stated in its header
+comment: `# Unreleased` and `# X.Y.Z — YYYY-MM-DD` are the only level-1 headings,
+`### Group` subheadings and nested `- ` bullets go inside, and `Unreleased` is never
+shown in the app. Run `scripts/release-notes.sh` — it appends the raw commit subjects
+since the last run under `### Commits to triage` in `# Unreleased` (and advances the
+file's marker), then edit that section in place: condense related commits into
+bullets filed under `### Group` headings, drop internal-only ones, reword into short
+user-facing sentences, and delete the `### Commits to triage` heading. When bumping
+the `APP_VERSION` ARG in `Dockerfile` and `mcp_server/Dockerfile`, also rename
+`# Unreleased` to `# X.Y.Z — <date>` by hand, add a new empty `# Unreleased` above
+it, and commit all together.
 
 **Before you call a change done, run `scripts/check.sh`** (~70s). It is the single
 definition of "clean" — ruff, mypy `--strict`, the OpenAPI contract check, ESLint,

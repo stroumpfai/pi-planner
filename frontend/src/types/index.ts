@@ -45,8 +45,10 @@ export type ProjectVelocity = components['schemas']['ProjectVelocityResponse']
 /** What a push into one project would write, per sprint (§6.7). */
 export type PushPreview = components['schemas']['PushPreview']
 
-/** One "## " section of docs/RELEASE-NOTES.md: a version, or "Unreleased". */
+/** One shipped "# " version of docs/RELEASE-NOTES.md, its "###" groups and nested bullets. */
 export type ReleaseNoteEntry = components['schemas']['ReleaseNoteEntry']
+export type ReleaseNoteGroup = components['schemas']['ReleaseNoteGroup']
+export type ReleaseNoteItem = components['schemas']['ReleaseNoteItem']
 export type ReleaseNotes = components['schemas']['ReleaseNotesResponse']
 /** One line of the review table: current · proposed · Δ · the PD behind it. */
 export type PushSprintRow = components['schemas']['PushSprintRow']

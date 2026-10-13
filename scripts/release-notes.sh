@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 #
-# Append new commits to docs/RELEASE-NOTES.md's "## Unreleased" section.
+# Append new commits to docs/RELEASE-NOTES.md's "# Unreleased" section.
 #
 # Between two version bumps there are usually dozens of commits, most of them
 # internal (refactors, tests, docs, chores) — telling those apart from
 # user-facing changes needs a human (or an LLM) reading intent, not a pattern
 # match on commit subjects. So this script only ever adds raw material; it
-# never removes or rewrites a line. The workflow is:
+# never removes or rewrites a line. New commits land under a
+# "### Commits to triage" subheading inside "# Unreleased" (created if absent,
+# appended to if present). The workflow is:
 #
 #   scripts/release-notes.sh   # appends commits since the tracked marker
 #   ...edit docs/RELEASE-NOTES.md directly: condense, merge, drop internal-only
-#      bullets, reword into short user-facing sentences...
+#      bullets, reword into short user-facing sentences, file them under
+#      "### Group" subheadings, and delete the "### Commits to triage" heading...
 #   ...commit docs/RELEASE-NOTES.md...
 #
 # The file tracks its own progress with a marker comment near the top:
@@ -47,10 +50,15 @@ esac
 if [[ ! -f "$FILE" ]]; then
   mkdir -p "$(dirname "$FILE")"
   cat > "$FILE" <<EOF
-<!-- since: $DEFAULT_MARKER — scripts/release-notes.sh appends new commits
-     here; condense/edit in place, then commit. -->
+<!-- since: $DEFAULT_MARKER — scripts/release-notes.sh moves this marker.
+     Format (read by backend/app/services/release_notes.py):
+     - "# Unreleased" and "# X.Y.Z — YYYY-MM-DD" are the only level-1 headings.
+     - "### Group" subheadings and "- " bullets (nested by 2-space indent) go inside.
+     - The script appends raw commits under "### Commits to triage" in Unreleased.
+       Condense them into groups, then delete that subheading.
+     - To release: rename "# Unreleased" to "# X.Y.Z — date" and open a new one. -->
 
-## Unreleased
+# Unreleased
 
 EOF
 fi
@@ -73,40 +81,53 @@ fi
 head_sha="$(cd "$ROOT" && git rev-parse --short HEAD)"
 tmp_out="$(mktemp)"
 
-# Renaming "## Unreleased" to the version is how a release is cut, so the run
+# Renaming "# Unreleased" to the version is how a release is cut, so the run
 # after a bump finds no such section. Open a fresh one above the newest release
 # rather than appending nowhere — which used to advance the marker anyway and
 # silently drop every commit in between.
+#
+# Only a level-1 heading closes the section: "###" groups live inside it.
 awk -v newbullets="$commits_file" '
-  BEGIN { in_unreleased = 0; injected = 0; seen_unreleased = 0 }
-  function inject() {
+  BEGIN { mode = 0; nb = 0 }   # 0 before Unreleased, 1 inside it, 2 after it
+  function inject(   line) {
     while ((getline line < newbullets) > 0) print line
-    print ""
-    injected = 1
   }
-  /^## Unreleased[ \t]*$/ { print; in_unreleased = 1; seen_unreleased = 1; next }
-  # Any heading closes the section, whatever its level.
-  /^#+[ \t]/ && in_unreleased && !injected {
+  function fresh() {
+    print "# Unreleased"; print ""
+    print "### Commits to triage"; print ""
     inject()
-    in_unreleased = 0
-    print
-    next
-  }
-  /^#+[ \t]/ && !seen_unreleased && !injected {
-    print "## Unreleased"
     print ""
-    inject()
-    seen_unreleased = 1
-    print
-    next
   }
+  function emit_section(   i, tri, end) {
+    tri = 0
+    for (i = 1; i <= nb; i++) if (buf[i] ~ /^#+[ \t]+Commits to triage[ \t]*$/) { tri = i; break }
+    if (tri) {
+      # Append at the end of the existing triage block, before the next heading.
+      end = nb + 1
+      for (i = tri + 1; i <= nb; i++) if (buf[i] ~ /^#+[ \t]/) { end = i; break }
+      while (end - 1 > tri && buf[end - 1] ~ /^[ \t]*$/) end--
+      for (i = 1; i < end; i++) print buf[i]
+      inject()
+      for (i = end; i <= nb; i++) print buf[i]
+    } else {
+      end = nb
+      while (end > 0 && buf[end] ~ /^[ \t]*$/) end--
+      if (end == 0) print ""
+      for (i = 1; i <= end; i++) print buf[i]
+      if (end > 0) print ""
+      print "### Commits to triage"; print ""
+      inject()
+      print ""
+    }
+  }
+  mode == 1 && /^#[ \t]/ { emit_section(); mode = 2; print; next }
+  mode == 1 { buf[++nb] = $0; next }
+  mode == 0 && /^# Unreleased[ \t]*$/ { print; mode = 1; next }
+  mode == 0 && /^#[ \t]/ { fresh(); mode = 2; print; next }
   { print }
   END {
-    if (!injected) {
-      if (!seen_unreleased) { print ""; print "## Unreleased"; print "" }
-      while ((getline line < newbullets) > 0) print line
-      injected = 1
-    }
+    if (mode == 1) emit_section()
+    else if (mode == 0) { print ""; fresh() }
   }
 ' "$FILE" | sed "s/<!-- since: [0-9a-f]\{7,40\}/<!-- since: $head_sha/" > "$tmp_out"
 
@@ -124,5 +145,5 @@ fi
 
 mv "$tmp_out" "$FILE"
 
-echo "==> appended $n commit(s) to docs/RELEASE-NOTES.md's Unreleased section ($marker -> $head_sha)"
+echo "==> appended $n commit(s) to docs/RELEASE-NOTES.md's Unreleased > Commits to triage ($marker -> $head_sha)"
 echo "    edit the file directly to condense before committing"
